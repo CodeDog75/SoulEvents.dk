@@ -12,10 +12,16 @@
   Wind,
 } from "lucide-react";
 import Link from "next/link";
+import { sendContactMessageAction } from "@/app/contact/actions";
 import { BrandLogo } from "@/components/brand-logo";
 import { HomeEventSearchForm } from "@/components/events/home-event-search-form";
-import { sendContactMessageAction } from "@/app/contact/actions";
+import { PublicEventList } from "@/components/events/public-event-list";
 import { SiteFooterLogin } from "@/components/site-footer-login";
+import { env } from "@/lib/env";
+import { getAreaOption } from "@/lib/regions/areas";
+import { createClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
 
 const categories = [
   { name: "Yoga", icon: SunMedium, href: "/events?category_label=Yoga" },
@@ -30,7 +36,16 @@ const categories = [
 ];
 
 type HomeProps = {
-  searchParams?: Promise<{ contact?: string }>;
+  searchParams?: Promise<{
+    contact?: string;
+    q?: string;
+    area?: string;
+    category_label?: string;
+    date?: string;
+    distance?: string;
+    latitude?: string;
+    longitude?: string;
+  }>;
 };
 
 const featuredEvents = [
@@ -60,9 +75,185 @@ const featuredEvents = [
   },
 ];
 
+function startOfToday() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function endOfToday() {
+  const date = startOfToday();
+  date.setDate(date.getDate() + 1);
+  return date;
+}
+
+function endOfWeek() {
+  const date = startOfToday();
+  date.setDate(date.getDate() + 7);
+  return date;
+}
+
+function endOfMonth() {
+  const date = startOfToday();
+  date.setMonth(date.getMonth() + 1);
+  return date;
+}
+
+function parseCoordinate(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function distanceInKm(from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }) {
+  const earthRadiusKm = 6371;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const latitudeDistance = toRadians(to.latitude - from.latitude);
+  const longitudeDistance = toRadians(to.longitude - from.longitude);
+  const fromLatitude = toRadians(from.latitude);
+  const toLatitude = toRadians(to.latitude);
+
+  const a =
+    Math.sin(latitudeDistance / 2) * Math.sin(latitudeDistance / 2) +
+    Math.cos(fromLatitude) * Math.cos(toLatitude) * Math.sin(longitudeDistance / 2) * Math.sin(longitudeDistance / 2);
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+async function getSearchEvents(selected: {
+  q: string;
+  area: string;
+  categoryLabel: string;
+  date: string;
+  distance: string;
+  latitude: string;
+  longitude: string;
+}) {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const { data: regions } = await supabase.from("regions").select("id, name, slug").order("sort_order");
+
+  let query = supabase
+    .from("events")
+    .select(
+      `
+      id,
+      title,
+      short_description,
+      starts_at,
+      latitude,
+      longitude,
+      city,
+      price_cents,
+      capacity,
+      facilitator_profiles!inner(
+        status,
+        company_name,
+        profiles(full_name)
+      ),
+      regions(name),
+      event_categories(categories(id, name, color_hex))
+    `,
+    )
+    .eq("status", "active")
+    .eq("facilitator_profiles.status", "approved")
+    .gte("starts_at", startOfToday().toISOString())
+    .order("starts_at", { ascending: true });
+
+  if (selected.q) {
+    query = query.or(`title.ilike.%${selected.q}%,short_description.ilike.%${selected.q}%`);
+  }
+
+  const selectedArea = getAreaOption(selected.area);
+  if (selectedArea && regions) {
+    const areaRegionIds = regions.filter((region) => selectedArea.slugs.includes(region.slug)).map((region) => region.id);
+
+    if (areaRegionIds.length > 0) {
+      query = query.in("region_id", areaRegionIds);
+    }
+  }
+
+  if (selected.date === "today") {
+    query = query.lt("starts_at", endOfToday().toISOString());
+  } else if (selected.date === "week") {
+    query = query.lt("starts_at", endOfWeek().toISOString());
+  } else if (selected.date === "month") {
+    query = query.lt("starts_at", endOfMonth().toISOString());
+  }
+
+  const { data: events } = await query;
+  const categoryFilteredEvents =
+    selected.categoryLabel && events
+      ? events.filter((event: { event_categories?: Array<{ categories?: { name?: string } | Array<{ name?: string }> | null }> }) =>
+          event.event_categories?.some((row) => {
+            const category = Array.isArray(row.categories) ? row.categories[0] : row.categories;
+            return category?.name === selected.categoryLabel;
+          }),
+        )
+      : events ?? [];
+
+  const userLatitude = parseCoordinate(selected.latitude);
+  const userLongitude = parseCoordinate(selected.longitude);
+  const selectedDistance = Number(selected.distance);
+  const userLocation =
+    userLatitude !== null && userLongitude !== null ? { latitude: userLatitude, longitude: userLongitude } : null;
+
+  return userLocation && [25, 50, 100].includes(selectedDistance)
+    ? categoryFilteredEvents.filter((event) => {
+        if (typeof event.latitude !== "number" || typeof event.longitude !== "number") {
+          return false;
+        }
+
+        return (
+          distanceInKm(userLocation, {
+            latitude: event.latitude,
+            longitude: event.longitude,
+          }) <= selectedDistance
+        );
+      })
+    : categoryFilteredEvents;
+}
+
 export default async function Home({ searchParams }: HomeProps) {
   const params = searchParams ? await searchParams : {};
   const contactStatus = params.contact ?? "";
+  const selected = {
+    q: params.q?.trim() ?? "",
+    area: params.area ?? "",
+    categoryLabel: params.category_label === "Alle kategorier" ? "" : params.category_label ?? "",
+    date: params.date ?? "",
+    distance: params.distance ?? "",
+    latitude: params.latitude ?? "",
+    longitude: params.longitude ?? "",
+  };
+  const hasSearch = Boolean(
+    selected.q ||
+      selected.area ||
+      selected.categoryLabel ||
+      selected.date ||
+      selected.distance ||
+      selected.latitude ||
+      selected.longitude,
+  );
+  const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
+  const alternativeEvents =
+    hasSearch && searchEvents.length === 0
+      ? await getSearchEvents({
+          ...selected,
+          q: "",
+          area: "",
+          categoryLabel: "",
+          distance: "",
+          latitude: "",
+          longitude: "",
+        })
+      : [];
 
   return (
     <main className="min-h-screen bg-cream text-ink">
@@ -122,7 +313,7 @@ export default async function Home({ searchParams }: HomeProps) {
               healing samlet ét trygt sted.
             </p>
           </div>
-          <HomeEventSearchForm categories={categories.map(({ name }) => ({ name }))} />
+          <HomeEventSearchForm categories={categories.map(({ name }) => ({ name }))} selected={selected} />
         </div>
       </section>
 
@@ -160,46 +351,70 @@ export default async function Home({ searchParams }: HomeProps) {
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-rose">Udvalgte events</p>
-              <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Ro, nærvær og fællesskab</h2>
+              <p className="text-sm font-semibold uppercase tracking-wide text-rose">
+                {hasSearch ? "Søgeresultater" : "Udvalgte events"}
+              </p>
+              <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">
+                {hasSearch ? "Events der matcher din søgning" : "Ro, nærvær og fællesskab"}
+              </h2>
             </div>
             <Link
               className="inline-flex h-12 items-center justify-center rounded-button bg-olive px-6 text-sm font-semibold text-white transition hover:bg-sage-500"
               href="/events"
             >
-              Find Events
+              Se alle events
             </Link>
           </div>
 
-          <div className="mt-10 grid gap-8 lg:grid-cols-3">
-            {featuredEvents.map((event) => (
-              <article
-                className="overflow-hidden rounded-card bg-cream shadow-soft transition hover:-translate-y-1 hover:shadow-lift"
-                key={event.title}
-              >
-                <div className="aspect-video bg-sage-50 p-8">
-                  <div className="flex h-full items-center justify-center rounded-card bg-white/70">
-                    <Sparkles className="size-10 text-rose" aria-hidden="true" />
-                  </div>
+          <div className="mt-10">
+            {hasSearch ? (
+              searchEvents.length > 0 ? (
+                <PublicEventList events={searchEvents as never} />
+              ) : (
+                <div className="grid gap-8">
+                  <section className="rounded-card bg-cream p-8 text-center shadow-soft">
+                    <CalendarDays className="mx-auto size-8 text-sage-700" aria-hidden="true" />
+                    <h3 className="mt-4 text-3xl font-medium text-olive">Der er ikke et event efter det søgte</h3>
+                    <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-ink/64">
+                      Vi fandt ikke et præcist match. Her er alternativer, der ligger tæt på i andre områder eller
+                      andre kategorier.
+                    </p>
+                  </section>
+                  {alternativeEvents.length > 0 && <PublicEventList events={alternativeEvents as never} />}
                 </div>
-                <div className="p-6">
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-rose">
-                    <span>{event.category}</span>
-                    <span className="text-ink/30">/</span>
-                    <span>{event.location}</span>
-                  </div>
-                  <h3 className="mt-3 text-3xl font-medium leading-8 text-olive">{event.title}</h3>
-                  <p className="mt-2 text-sm font-semibold text-sage-700">{event.facilitator}</p>
-                  <div className="mt-6 flex items-center justify-between gap-3 text-sm">
-                    <span className="flex items-center gap-2 text-ink/70">
-                      <CalendarDays className="size-4 text-rose" aria-hidden="true" />
-                      {event.date}
-                    </span>
-                    <span className="rounded-full bg-white px-3 py-1.5 font-semibold text-olive">{event.price}</span>
-                  </div>
-                </div>
-              </article>
-            ))}
+              )
+            ) : (
+              <div className="grid gap-8 lg:grid-cols-3">
+                {featuredEvents.map((event) => (
+                  <article
+                    className="overflow-hidden rounded-card bg-cream shadow-soft transition hover:-translate-y-1 hover:shadow-lift"
+                    key={event.title}
+                  >
+                    <div className="aspect-video bg-sage-50 p-8">
+                      <div className="flex h-full items-center justify-center rounded-card bg-white/70">
+                        <Sparkles className="size-10 text-rose" aria-hidden="true" />
+                      </div>
+                    </div>
+                    <div className="p-6">
+                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-rose">
+                        <span>{event.category}</span>
+                        <span className="text-ink/30">/</span>
+                        <span>{event.location}</span>
+                      </div>
+                      <h3 className="mt-3 text-3xl font-medium leading-8 text-olive">{event.title}</h3>
+                      <p className="mt-2 text-sm font-semibold text-sage-700">{event.facilitator}</p>
+                      <div className="mt-6 flex items-center justify-between gap-3 text-sm">
+                        <span className="flex items-center gap-2 text-ink/70">
+                          <CalendarDays className="size-4 text-rose" aria-hidden="true" />
+                          {event.date}
+                        </span>
+                        <span className="rounded-full bg-white px-3 py-1.5 font-semibold text-olive">{event.price}</span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -229,6 +444,7 @@ export default async function Home({ searchParams }: HomeProps) {
           </article>
         ))}
       </section>
+
       <section className="bg-white py-[120px]" id="contact">
         <div className="mx-auto grid max-w-[1200px] gap-10 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div>
@@ -322,14 +538,4 @@ export default async function Home({ searchParams }: HomeProps) {
     </main>
   );
 }
-
-
-
-
-
-
-
-
-
-
 

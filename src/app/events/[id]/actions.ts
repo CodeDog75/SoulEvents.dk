@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendBookingNotification } from "@/lib/email/booking-notification";
+import { sendParticipantBookingReceipt } from "@/lib/email/participant-booking-receipt";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 function bookingRedirect(eventId: string, message: string): never {
-  redirect(`/events/${eventId}?message=${encodeURIComponent(message)}`);
+  redirect("/events/" + eventId + "?message=" + encodeURIComponent(message) + "#booking-response");
 }
 
 function getSeats(formData: FormData) {
@@ -20,6 +22,30 @@ function wordCount(value: string) {
   return value.split(/\s+/).filter(Boolean).length;
 }
 
+function validEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function validOptionalPhone(value: string | null) {
+  if (!value) return true;
+  return value.replace(/\D/g, "").length === 8;
+}
+
+const eventSelect = [
+  "id,",
+  "title,",
+  "starts_at,",
+  "price_cents,",
+  "capacity,",
+  "facilitator_id,",
+  "facilitator_profiles!inner(",
+  "status,",
+  "company_name,",
+  "profiles(full_name, email)",
+  "),",
+  "event_categories(categories(name))",
+].join("\n");
+
 export async function createBookingAction(formData: FormData) {
   const eventId = getString(formData, "event_id");
   const participantName = getString(formData, "participant_name");
@@ -27,13 +53,26 @@ export async function createBookingAction(formData: FormData) {
   const participantPhone = getOptionalString(formData, "participant_phone");
   const seats = getSeats(formData);
   const message = getOptionalString(formData, "message");
+  const acceptedGuidelines = getOptionalString(formData, "accepted_guidelines");
 
   if (!eventId) {
     redirect("/events");
   }
 
-  if (!participantName || !participantEmail) {
-    bookingRedirect(eventId, "Navn og e-mail er påkrævet.");
+  if (!participantName) {
+    bookingRedirect(eventId, "Navn er påkrævet.");
+  }
+
+  if (!participantEmail) {
+    bookingRedirect(eventId, "E-mail er påkrævet.");
+  }
+
+  if (!validEmail(participantEmail)) {
+    bookingRedirect(eventId, "Indtast en gyldig e-mailadresse.");
+  }
+
+  if (!validOptionalPhone(participantPhone)) {
+    bookingRedirect(eventId, "Indtast et gyldigt telefonnummer eller lad feltet være tomt.");
   }
 
   if (seats <= 0) {
@@ -44,25 +83,14 @@ export async function createBookingAction(formData: FormData) {
     bookingRedirect(eventId, "Beskeden må højst være 200 ord.");
   }
 
+  if (acceptedGuidelines !== "yes") {
+    bookingRedirect(eventId, "Du skal acceptere SoulEvents.dk\u2019s retningslinjer før tilmelding.");
+  }
+
   const supabase = await createClient();
   const { data: event } = await supabase
     .from("events")
-    .select(
-      `
-      id,
-      title,
-      starts_at,
-      price_cents,
-      capacity,
-      facilitator_id,
-      facilitator_profiles!inner(
-        status,
-        company_name,
-        profiles(full_name, email)
-      ),
-      event_categories(categories(name))
-    `,
-    )
+    .select(eventSelect)
     .eq("id", eventId)
     .eq("status", "active")
     .eq("facilitator_profiles.status", "approved")
@@ -72,11 +100,15 @@ export async function createBookingAction(formData: FormData) {
     bookingRedirect(eventId, "Eventet kunne ikke findes eller er ikke aktivt.");
   }
 
-  const { data: capacity } = await supabase.from("event_capacity_view").select("available_seats").eq("event_id", eventId).single();
+  const { data: capacity } = await supabase
+    .from("event_capacity_view")
+    .select("available_seats")
+    .eq("event_id", eventId)
+    .single();
   const availableSeats = capacity?.available_seats ?? event.capacity;
 
   if (seats > availableSeats) {
-    bookingRedirect(eventId, `Der er kun ${availableSeats} ledige pladser.`);
+    bookingRedirect(eventId, "Der er kun " + availableSeats + " ledige pladser.");
   }
 
   const facilitatorProfile = Array.isArray(event.facilitator_profiles)
@@ -91,8 +123,9 @@ export async function createBookingAction(formData: FormData) {
     : primaryCategoryRow?.categories;
 
   const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Facilitator";
+  const adminSupabase = createAdminClient();
 
-  const { data: booking, error } = await supabase
+  const { data: booking, error } = await adminSupabase
     .from("bookings")
     .insert({
       event_id: event.id,
@@ -114,7 +147,10 @@ export async function createBookingAction(formData: FormData) {
     .single();
 
   if (error || !booking) {
-    bookingRedirect(eventId, "Tilmeldingen kunne ikke gemmes. Prøv igen.");
+    bookingRedirect(
+      eventId,
+      error?.message ? "Tilmeldingen kunne ikke gemmes: " + error.message : "Tilmeldingen kunne ikke gemmes. Prøv igen.",
+    );
   }
 
   await sendBookingNotification({
@@ -133,6 +169,22 @@ export async function createBookingAction(formData: FormData) {
     commissionCents: booking.commission_cents,
   });
 
-  revalidatePath(`/events/${eventId}`);
-  bookingRedirect(eventId, "Tak. Din tilmelding er registreret, og facilitator har fået besked.");
+  await sendParticipantBookingReceipt({
+    bookingId: booking.id,
+    eventId: event.id,
+    eventTitle: event.title,
+    eventStartsAt: event.starts_at,
+    facilitatorName,
+    participantName,
+    participantEmail,
+    seats,
+  });
+
+  revalidatePath("/events/" + eventId);
+  redirect(
+    "/events/" +
+      eventId +
+      "?booking=sent&message=" +
+      encodeURIComponent("Tak. Din tilmelding er registreret. Du modtager en mailkvittering, og facilitatoren har fået besked.") + "#booking-response",
+  );
 }

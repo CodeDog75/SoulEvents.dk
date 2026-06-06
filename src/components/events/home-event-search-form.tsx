@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { LocateFixed, MapPinned, Search } from "lucide-react";
 import type { FormEvent } from "react";
@@ -6,9 +6,16 @@ import { useRef, useState } from "react";
 import { areaOptions } from "@/lib/regions/areas";
 
 type HomeEventSearchFormProps = {
-  categories: Array<{
-    name: string;
-  }>;
+  categories: Array<{ name: string }>;
+  selected: {
+    q: string;
+    area: string;
+    categoryLabel: string;
+    date: string;
+    distance: string;
+    latitude: string;
+    longitude: string;
+  };
 };
 
 const distanceOptions = [
@@ -17,15 +24,45 @@ const distanceOptions = [
   { label: "Indenfor 100 km", value: "100" },
 ];
 
-export function HomeEventSearchForm({ categories }: HomeEventSearchFormProps) {
+function modeButtonClass(isActive: boolean) {
+  return [
+    "flex h-12 items-center justify-center gap-2 rounded-[14px] px-3 text-sm transition",
+    isActive ? "bg-white text-olive shadow-soft" : "text-ink/64 hover:text-olive",
+  ].join(" ");
+}
+
+export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFormProps) {
   const formRef = useRef<HTMLFormElement | null>(null);
-  const [locationMode, setLocationMode] = useState<"area" | "nearby">("area");
+  const [locationMode, setLocationMode] = useState<"area" | "nearby">(selected.distance ? "nearby" : "area");
   const [locationMessage, setLocationMessage] = useState("");
 
+  function goToResults(form: HTMLFormElement) {
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+
+    for (const key of ["q", "area", "category_label", "date", "distance", "latitude", "longitude"]) {
+      const value = formData.get(key);
+
+      if (typeof value === "string" && value.trim() && value !== "Alle kategorier") {
+        params.set(key, value.trim());
+      }
+    }
+
+    const query = params.toString();
+    window.location.assign(query ? `/?${query}#events` : "/#events");
+  }
+
   function submitWithLocation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
     const form = formRef.current;
 
-    if (!form || locationMode !== "nearby") {
+    if (!form) {
+      return;
+    }
+
+    if (locationMode !== "nearby") {
+      goToResults(form);
       return;
     }
 
@@ -33,10 +70,9 @@ export function HomeEventSearchForm({ categories }: HomeEventSearchFormProps) {
     const longitude = (form.elements.namedItem("longitude") as HTMLInputElement | null)?.value;
 
     if (latitude && longitude) {
+      goToResults(form);
       return;
     }
-
-    event.preventDefault();
 
     if (!navigator.geolocation) {
       setLocationMessage("Din browser understøtter ikke placering.");
@@ -54,7 +90,7 @@ export function HomeEventSearchForm({ categories }: HomeEventSearchFormProps) {
           longitudeInput.value = String(position.coords.longitude);
         }
 
-        form.requestSubmit();
+        goToResults(form);
       },
       () => {
         setLocationMessage("Placering kunne ikke hentes. Tillad placering i browseren og prøv igen.");
@@ -65,19 +101,20 @@ export function HomeEventSearchForm({ categories }: HomeEventSearchFormProps) {
 
   return (
     <form
-      action="/events"
+      action="/#events"
       aria-label="Søg events"
       className="grid gap-4 rounded-card bg-white p-4 shadow-soft lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto] lg:items-end"
       onSubmit={submitWithLocation}
       ref={formRef}
     >
-      <input name="latitude" type="hidden" />
-      <input name="longitude" type="hidden" />
+      <input name="latitude" type="hidden" defaultValue={selected.latitude} />
+      <input name="longitude" type="hidden" defaultValue={selected.longitude} />
 
       <label className="grid gap-2 text-sm font-semibold text-olive">
         Søgeord
         <input
           className="h-14 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-rose"
+          defaultValue={selected.q}
           name="q"
           placeholder="Yoga, retreat, healing..."
           type="search"
@@ -87,23 +124,11 @@ export function HomeEventSearchForm({ categories }: HomeEventSearchFormProps) {
       <div className="grid gap-2 text-sm font-semibold text-olive">
         Lokation
         <div className="grid grid-cols-2 rounded-input border border-olive/15 bg-cream p-1">
-          <button
-            className={`flex h-12 items-center justify-center gap-2 rounded-[14px] px-3 text-sm transition ${
-              locationMode === "area" ? "bg-white text-olive shadow-soft" : "text-ink/64 hover:text-olive"
-            }`}
-            onClick={() => setLocationMode("area")}
-            type="button"
-          >
+          <button className={modeButtonClass(locationMode === "area")} onClick={() => setLocationMode("area")} type="button">
             <MapPinned className="size-4" aria-hidden="true" />
             Område
           </button>
-          <button
-            className={`flex h-12 items-center justify-center gap-2 rounded-[14px] px-3 text-sm transition ${
-              locationMode === "nearby" ? "bg-white text-olive shadow-soft" : "text-ink/64 hover:text-olive"
-            }`}
-            onClick={() => setLocationMode("nearby")}
-            type="button"
-          >
+          <button className={modeButtonClass(locationMode === "nearby")} onClick={() => setLocationMode("nearby")} type="button">
             <LocateFixed className="size-4" aria-hidden="true" />
             Min placering
           </button>
@@ -115,6 +140,7 @@ export function HomeEventSearchForm({ categories }: HomeEventSearchFormProps) {
           Lokation efter område
           <select
             className="h-14 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
+            defaultValue={selected.area}
             name="area"
           >
             <option value="">Hele Danmark</option>
@@ -130,6 +156,7 @@ export function HomeEventSearchForm({ categories }: HomeEventSearchFormProps) {
           Lokation efter min placering
           <select
             className="h-14 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
+            defaultValue={selected.distance}
             name="distance"
           >
             {distanceOptions.map((option) => (
@@ -145,11 +172,14 @@ export function HomeEventSearchForm({ categories }: HomeEventSearchFormProps) {
         Kategori
         <select
           className="h-14 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
+          defaultValue={selected.categoryLabel}
           name="category_label"
         >
-          <option>Alle kategorier</option>
+          <option value="">Alle kategorier</option>
           {categories.map((category) => (
-            <option key={category.name}>{category.name}</option>
+            <option key={category.name} value={category.name}>
+              {category.name}
+            </option>
           ))}
         </select>
       </label>
@@ -158,6 +188,7 @@ export function HomeEventSearchForm({ categories }: HomeEventSearchFormProps) {
         Periode
         <select
           className="h-14 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
+          defaultValue={selected.date}
           name="date"
         >
           <option value="">Alle kommende</option>
@@ -179,8 +210,3 @@ export function HomeEventSearchForm({ categories }: HomeEventSearchFormProps) {
     </form>
   );
 }
-
-
-
-
-

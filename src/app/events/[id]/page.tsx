@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, CircleUserRound, Mail, MapPinned, Phone, Ticket } from "lucide-react";
+import { ArrowLeft, CalendarDays, CircleUserRound, ExternalLink, Mail, MapPinned, Phone, Ticket } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
 import { BookingForm } from "@/components/events/detail/booking-form";
@@ -12,9 +12,7 @@ type EventDetailPageProps = {
   params: Promise<{
     id: string;
   }>;
-  searchParams: Promise<{
-    message?: string;
-  }>;
+  searchParams: Promise<{ booking?: string; message?: string }>;
 };
 
 function formatPrice(priceCents: number) {
@@ -22,11 +20,36 @@ function formatPrice(priceCents: number) {
     return "Gratis";
   }
 
-  return `${new Intl.NumberFormat("da-DK").format(priceCents / 100)} kr.`;
+  return new Intl.NumberFormat("da-DK").format(priceCents / 100) + " kr.";
+}
+
+function formatEventDuration(startsAt: string, endsAt: string | null) {
+  if (!endsAt) return null;
+
+  const start = new Date(startsAt).getTime();
+  const end = new Date(endsAt).getTime();
+  const durationMs = end - start;
+
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return null;
+
+  const hours = durationMs / (1000 * 60 * 60);
+
+  if (hours < 24) {
+    const roundedHours = Math.round(hours * 10) / 10;
+    return new Intl.NumberFormat("da-DK").format(roundedHours) + " timer";
+  }
+
+  const days = Math.ceil(hours / 24);
+  return days === 1 ? "1 dag" : days + " dage";
+}
+
+function ensureUrl(url: string) {
+  return /^https?:\/\//i.test(url) ? url : "https://" + url;
 }
 
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
-  const [{ id }, { message }] = await Promise.all([params, searchParams]);
+  const [{ id }, { booking, message }] = await Promise.all([params, searchParams]);
+  const messageVariant = booking === "sent" ? "success" : "notice";
   const supabase = await createClient();
 
   const { data: event } = await supabase
@@ -54,6 +77,9 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         company_name,
         profile_image_path,
         short_description,
+        website_url,
+        facebook_url,
+        instagram_url,
         profiles(full_name)
       ),
       regions(name),
@@ -90,6 +116,12 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const facilitatorImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
+  const eventDuration = formatEventDuration(event.starts_at, event.ends_at);
+  const facilitatorLinks = [
+    facilitatorProfile?.website_url ? { label: "Hjemmeside", href: ensureUrl(facilitatorProfile.website_url) } : null,
+    facilitatorProfile?.facebook_url ? { label: "Facebook", href: ensureUrl(facilitatorProfile.facebook_url) } : null,
+    facilitatorProfile?.instagram_url ? { label: "Instagram", href: ensureUrl(facilitatorProfile.instagram_url) } : null,
+  ].filter((link): link is { label: string; href: string } => Boolean(link));
 
   return (
     <main className="min-h-screen bg-cream">
@@ -114,8 +146,6 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
 
       <section className="mx-auto grid max-w-[1400px] gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1fr_400px]">
         <div className="grid gap-6">
-          <AuthMessage message={message} />
-
           <section className="overflow-hidden rounded-card bg-white shadow-soft">
             <div className="aspect-[16/7] bg-sage-50 p-10">
               <div className="flex h-full items-center justify-center rounded-card bg-cream/80">
@@ -178,6 +208,22 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                 <p className="mt-2 text-sm leading-6 text-ink/66">
                   {facilitatorProfile?.short_description || "Facilitatorens profiltekst kommer snart."}
                 </p>
+                {facilitatorLinks.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {facilitatorLinks.map((link) => (
+                      <a
+                        className="inline-flex h-9 items-center gap-2 rounded-md border border-sage-700/20 bg-white px-3 text-sm font-semibold text-sage-700 transition hover:border-sage-700 hover:bg-sage-50"
+                        href={link.href}
+                        key={link.label}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        <ExternalLink className="size-4" aria-hidden="true" />
+                        {link.label}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -187,13 +233,27 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           <section className="rounded-card bg-white p-6 shadow-soft">
             <h2 className="text-4xl font-medium text-olive">Praktisk</h2>
             <div className="mt-4 grid gap-3 text-sm text-ink/72">
-              <div className="flex gap-2">
-                <CalendarDays className="mt-0.5 size-4 text-terracotta" aria-hidden="true" />
-                <span>
-                  {new Intl.DateTimeFormat("da-DK", { dateStyle: "full", timeStyle: "short" }).format(
-                    new Date(event.starts_at),
-                  )}
-                </span>
+              <div className="rounded-md border border-sage-700/15 bg-sage-50/70 p-4">
+                <div className="flex gap-3">
+                  <CalendarDays className="mt-1 size-5 text-sage-700" aria-hidden="true" />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-sage-700">Start</p>
+                    <p className="mt-1 text-lg font-semibold leading-snug text-midnight">
+                      {new Intl.DateTimeFormat("da-DK", { dateStyle: "full", timeStyle: "short" }).format(
+                        new Date(event.starts_at),
+                      )}
+                    </p>
+                    {event.ends_at && (
+                      <p className="mt-2 text-sm text-ink/70">
+                        Slutter:{" "}
+                        {new Intl.DateTimeFormat("da-DK", { dateStyle: "full", timeStyle: "short" }).format(
+                          new Date(event.ends_at),
+                        )}
+                      </p>
+                    )}
+                    {eventDuration && <p className="mt-1 text-sm font-semibold text-sage-700">Varighed: {eventDuration}</p>}
+                  </div>
+                </div>
               </div>
               <div className="flex gap-2">
                 <MapPinned className="mt-0.5 size-4 text-sage-700" aria-hidden="true" />
@@ -221,7 +281,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             </div>
           </section>
 
-          <BookingForm availableSeats={availableSeats} eventId={event.id} />
+          <BookingForm availableSeats={availableSeats} eventId={event.id} message={message} messageVariant={messageVariant} />
         </aside>
       </section>
     </main>
