@@ -42,9 +42,9 @@ const dateOptions = [
 
 const distanceOptions = [
   { label: "Hele Danmark", value: "" },
-  { label: "Inden for 25 km", value: "25" },
-  { label: "Inden for 50 km", value: "50" },
-  { label: "Inden for 100 km", value: "100" },
+  { label: "Indenfor 25 km", value: "25" },
+  { label: "Indenfor 50 km", value: "50" },
+  { label: "Indenfor 100 km", value: "100" },
 ];
 
 export function EventFilterForm({ categories, selected }: EventFilterFormProps) {
@@ -105,7 +105,7 @@ export function EventFilterForm({ categories, selected }: EventFilterFormProps) 
         </div>
         <div>
           <h2 className="text-3xl font-medium text-olive">Find begivenheder</h2>
-          <p className="text-sm text-ink/64">Filtrer efter område, afstand, kategori, pris og dato.</p>
+          <p className="text-sm text-ink/64">Filtrer efter område, afstand, kategori, pris og periode.</p>
         </div>
       </div>
 
@@ -122,7 +122,7 @@ export function EventFilterForm({ categories, selected }: EventFilterFormProps) 
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">
-          Vælg område
+          Lokation efter område
           <select
             className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base outline-none transition focus:border-rose"
             defaultValue={selected.area}
@@ -138,7 +138,7 @@ export function EventFilterForm({ categories, selected }: EventFilterFormProps) 
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">
-          Nær mig 📍
+          Lokation efter min placering
           <select
             className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base outline-none transition focus:border-rose"
             defaultValue={selected.distance}
@@ -184,7 +184,7 @@ export function EventFilterForm({ categories, selected }: EventFilterFormProps) 
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">
-          Dato
+          Periode
           <select
             className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base outline-none transition focus:border-rose"
             defaultValue={selected.date}
@@ -212,3 +212,10 @@ export function EventFilterForm({ categories, selected }: EventFilterFormProps) 
     </form>
   );
 }
+
+
+
+
+
+
+

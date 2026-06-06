@@ -45,7 +45,7 @@ function buildHtml(input: ParticipantBookingResponseInput) {
             <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px;">${escapeHtml(input.eventTitle)}</td>
           </tr>
           <tr>
-            <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px; font-weight: 700;">Dato</td>
+            <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px; font-weight: 700;">Periode</td>
             <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px;">${escapeHtml(formatDate(input.eventStartsAt))}</td>
           </tr>
           <tr>

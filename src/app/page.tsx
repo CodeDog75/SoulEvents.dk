@@ -1,10 +1,9 @@
-import {
+﻿import {
   CalendarDays,
   Heart,
   MapPinned,
   Moon,
   Music2,
-  Search,
   ShieldCheck,
   Sparkles,
   SunMedium,
@@ -14,8 +13,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
+import { HomeEventSearchForm } from "@/components/events/home-event-search-form";
+import { sendContactMessageAction } from "@/app/contact/actions";
 import { SiteFooterLogin } from "@/components/site-footer-login";
-import { areaOptions } from "@/lib/regions/areas";
 
 const categories = [
   { name: "Yoga", icon: SunMedium, href: "/events?category_label=Yoga" },
@@ -28,6 +28,10 @@ const categories = [
   { name: "Breathwork", icon: Wind, href: "/events?category_label=Breathwork" },
   { name: "Kirtan", icon: Music2, href: "/events?category_label=Kirtan" },
 ];
+
+type HomeProps = {
+  searchParams?: Promise<{ contact?: string }>;
+};
 
 const featuredEvents = [
   {
@@ -56,7 +60,10 @@ const featuredEvents = [
   },
 ];
 
-export default function Home() {
+export default async function Home({ searchParams }: HomeProps) {
+  const params = searchParams ? await searchParams : {};
+  const contactStatus = params.contact ?? "";
+
   return (
     <main className="min-h-screen bg-cream text-ink">
       <section className="relative min-h-[780px] overflow-hidden bg-cream">
@@ -115,67 +122,7 @@ export default function Home() {
               healing samlet ét trygt sted.
             </p>
           </div>
-
-          <form
-            action="/events"
-            aria-label="Søg events"
-            className="grid gap-4 rounded-card bg-white p-4 shadow-soft lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto] lg:items-end"
-          >
-            <label className="grid gap-2 text-sm font-semibold text-olive">
-              Søgeord
-              <input
-                className="h-14 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-rose"
-                name="q"
-                placeholder="Yoga, retreat, healing..."
-                type="search"
-              />
-            </label>
-            <label className="grid gap-2 text-sm font-semibold text-olive">
-              Vælg område
-              <select
-                className="h-14 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
-                name="area"
-              >
-                <option value="">Hele Danmark</option>
-                {areaOptions.map((area) => (
-                  <option key={area.value} value={area.value}>
-                    {area.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-2 text-sm font-semibold text-olive">
-              Kategori
-              <select
-                className="h-14 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
-                name="category_label"
-              >
-                <option>Alle kategorier</option>
-                {categories.map((category) => (
-                  <option key={category.name}>{category.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-2 text-sm font-semibold text-olive">
-              Dato
-              <select
-                className="h-14 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
-                name="date"
-              >
-                <option value="">Alle kommende</option>
-                <option value="today">I dag</option>
-                <option value="week">Denne uge</option>
-                <option value="month">Denne måned</option>
-              </select>
-            </label>
-            <button
-              className="inline-flex h-14 items-center justify-center gap-2 rounded-button bg-rose px-7 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
-              type="submit"
-            >
-              <Search className="size-4" aria-hidden="true" />
-              Søg events
-            </button>
-          </form>
+          <HomeEventSearchForm categories={categories.map(({ name }) => ({ name }))} />
         </div>
       </section>
 
@@ -282,10 +229,89 @@ export default function Home() {
           </article>
         ))}
       </section>
+      <section className="bg-white py-[120px]" id="contact">
+        <div className="mx-auto grid max-w-[1200px] gap-10 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-rose">Kontakt</p>
+            <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Skriv til SoulEvents.dk</h2>
+            <p className="mt-4 max-w-xl text-base leading-7 text-ink/70">
+              Har du spørgsmål, ideer eller brug for hjælp, kan du sende en besked direkte til os.
+            </p>
+          </div>
 
-      <div className="fixed inset-x-4 bottom-4 z-40 md:hidden">
+          <form action={sendContactMessageAction} className="grid gap-4 rounded-card bg-cream p-6 shadow-soft">
+            {contactStatus === "sent" && (
+              <p className="rounded-input bg-white px-4 py-3 text-sm font-semibold text-olive">
+                Tak for din besked, vi kommer retur hurtigst muligt.
+              </p>
+            )}
+            {contactStatus === "error" && (
+              <p className="rounded-input bg-white px-4 py-3 text-sm font-semibold text-terracotta">
+                Udfyld navn, e-mail og besked. Beskeden må højst være 500 tegn.
+              </p>
+            )}
+            {contactStatus === "email-missing" && (
+              <p className="rounded-input bg-white px-4 py-3 text-sm font-semibold text-terracotta">
+                Mailafsendelse mangler opsætning. Tilføj RESEND_API_KEY og RESEND_FROM_EMAIL i .env.local.
+              </p>
+            )}
+
+            <label className="grid gap-2 text-sm font-semibold text-olive">
+              Navn
+              <input
+                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
+                maxLength={120}
+                name="name"
+                required
+                type="text"
+              />
+            </label>
+
+            <label className="grid gap-2 text-sm font-semibold text-olive">
+              E-mail
+              <input
+                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
+                maxLength={160}
+                name="email"
+                required
+                type="email"
+              />
+            </label>
+
+            <label className="grid gap-2 text-sm font-semibold text-olive">
+              Telefon
+              <input
+                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
+                maxLength={40}
+                name="phone"
+                type="tel"
+              />
+            </label>
+
+            <label className="grid gap-2 text-sm font-semibold text-olive">
+              Besked
+              <textarea
+                className="min-h-40 rounded-input border border-olive/15 bg-white px-4 py-3 text-base font-normal outline-none transition focus:border-rose"
+                maxLength={500}
+                name="message"
+                required
+              />
+              <span className="text-xs font-medium text-ink/60">Maks 500 tegn.</span>
+            </label>
+
+            <button
+              className="inline-flex h-12 items-center justify-center rounded-button bg-rose px-6 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+              type="submit"
+            >
+              Afsend
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <div className="mx-auto max-w-[1200px] px-5 pb-8 sm:px-8 md:hidden">
         <Link
-          className="flex h-14 items-center justify-center rounded-button bg-rose text-sm font-semibold text-white shadow-lift"
+          className="flex h-14 items-center justify-center rounded-button bg-rose text-sm font-semibold text-white shadow-soft"
           href="/events"
         >
           Find Events
@@ -296,3 +322,14 @@ export default function Home() {
     </main>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
