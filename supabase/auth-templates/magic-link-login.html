@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Log ind på SoulEvents</title>
+  </head>
+  <body style="margin:0;background:#FAF7F2;color:#4B5645;font-family:Montserrat,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FAF7F2;padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;background:#FFFFFF;border-radius:24px;box-shadow:0 10px 30px rgba(0,0,0,0.08);overflow:hidden;">
+            <tr>
+              <td align="center" style="padding:34px 28px 10px;">
+                <img src="{{ .SiteURL }}/brand/soulevents-logo.png" alt="SoulEvents.dk" width="96" height="96" style="display:block;border:0;border-radius:50%;" />
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:10px 32px 34px;">
+                <h1 style="margin:0;color:#4B5645;font-family:Georgia,'Times New Roman',serif;font-size:34px;line-height:1.15;font-weight:600;text-align:center;">Dit login-link er klar</h1>
+                <p style="margin:22px 0 0;font-size:16px;line-height:1.7;color:#4B5645;">Klik på knappen herunder for at logge ind på SoulEvents.</p>
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px auto 0;">
+                  <tr>
+                    <td align="center" bgcolor="#4B5645" style="border-radius:16px;">
+                      <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 24px;color:#FFFFFF;text-decoration:none;font-weight:700;font-size:15px;border-radius:16px;">Log ind på SoulEvents</a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:28px 0 0;font-size:14px;line-height:1.7;color:#6F756B;">Hvis knappen ikke virker, kan du kopiere linket nedenfor og indsætte det i din browser.</p>
+                <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:#6F756B;word-break:break-all;">{{ .ConfirmationURL }}</p>
+                <p style="margin:28px 0 0;font-size:14px;line-height:1.7;color:#6F756B;">Hvis du ikke har anmodet om dette login-link, kan du se bort fra denne e-mail.</p>
+                <p style="margin:24px 0 0;font-size:15px;line-height:1.6;color:#4B5645;font-weight:700;">SoulEvents.dk<br /><span style="font-weight:400;color:#6F756B;">Events for krop, sind og sjæl</span></p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -1,0 +1,127 @@
+erDiagram
+  AUTH_USERS ||--|| PROFILES : "auth user"
+  PROFILES ||--o| FACILITATOR_PROFILES : "has"
+  REGIONS ||--o{ FACILITATOR_PROFILES : "home region"
+  REGIONS ||--o{ EVENTS : "event region"
+
+  FACILITATOR_PROFILES ||--o{ FACILITATOR_IMAGES : "gallery"
+  FACILITATOR_PROFILES ||--o{ EVENTS : "creates"
+  FACILITATOR_PROFILES ||--o{ FACILITATOR_CATEGORIES : "selects"
+  CATEGORIES ||--o{ FACILITATOR_CATEGORIES : "selected by"
+
+  EVENTS ||--o{ EVENT_IMAGES : "gallery"
+  EVENTS ||--o{ EVENT_CATEGORIES : "categorized as"
+  CATEGORIES ||--o{ EVENT_CATEGORIES : "categorizes"
+
+  FACILITATOR_PROFILES ||--o{ BOOKINGS : "receives"
+  EVENTS ||--o{ BOOKINGS : "has registrations"
+
+  NEWSLETTER_SUBSCRIBERS ||--o{ NEWSLETTER_SUBSCRIBER_REGIONS : "interested in"
+  REGIONS ||--o{ NEWSLETTER_SUBSCRIBER_REGIONS : "newsletter region"
+  NEWSLETTER_SUBSCRIBERS ||--o{ NEWSLETTER_SUBSCRIBER_CATEGORIES : "interested in"
+  CATEGORIES ||--o{ NEWSLETTER_SUBSCRIBER_CATEGORIES : "newsletter category"
+
+  BOOKINGS ||--o{ EMAIL_LOGS : "triggers"
+  EVENTS ||--o{ EMAIL_LOGS : "related emails"
+
+  FACILITATOR_PROFILES ||--o{ MONTHLY_REPORTS : "reported for"
+  FACILITATOR_PROFILES ||--o{ INVOICE_DRAFTS : "invoiced"
+  MONTHLY_REPORTS ||--o| INVOICE_DRAFTS : "basis"
+  INVOICE_DRAFTS ||--o{ INVOICE_DRAFT_LINES : "contains"
+  BOOKINGS ||--o{ INVOICE_DRAFT_LINES : "billed line"
+
+  AUTH_USERS {
+    uuid id PK
+  }
+
+  PROFILES {
+    uuid id PK
+    app_role role
+    text full_name
+    text email
+    text phone
+  }
+
+  FACILITATOR_PROFILES {
+    uuid id PK
+    uuid profile_id FK
+    facilitator_status status
+    text company_name
+    text profile_image_path
+    text short_description
+    text long_description
+    uuid region_id FK
+    numeric latitude
+    numeric longitude
+  }
+
+  REGIONS {
+    uuid id PK
+    text name
+    text slug
+    int sort_order
+  }
+
+  CATEGORIES {
+    uuid id PK
+    text name
+    text slug
+    text color_hex
+    text icon_name
+    boolean is_active
+  }
+
+  EVENTS {
+    uuid id PK
+    uuid facilitator_id FK
+    event_status status
+    text title
+    text slug
+    timestamptz starts_at
+    timestamptz ends_at
+    uuid region_id FK
+    numeric latitude
+    numeric longitude
+    int price_cents
+    int capacity
+  }
+
+  BOOKINGS {
+    uuid id PK
+    uuid event_id FK
+    uuid facilitator_id FK
+    booking_status status
+    text participant_name
+    text participant_email
+    int seats
+    int booking_value_cents
+    int commission_cents
+  }
+
+  NEWSLETTER_SUBSCRIBERS {
+    uuid id PK
+    text email
+    text full_name
+    text status
+  }
+
+  MONTHLY_REPORTS {
+    uuid id PK
+    uuid facilitator_id FK
+    date period_start
+    date period_end
+    int total_bookings
+    int total_seats
+    int booking_value_cents
+    int commission_cents
+  }
+
+  INVOICE_DRAFTS {
+    uuid id PK
+    uuid facilitator_id FK
+    uuid monthly_report_id FK
+    invoice_status status
+    date period_start
+    date period_end
+    int total_commission_cents
+  }

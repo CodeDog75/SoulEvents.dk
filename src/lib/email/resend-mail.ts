@@ -1,0 +1,128 @@
+import { createAdminClient } from "@/lib/supabase/admin";
+import { env } from "@/lib/env";
+import { createResendClient } from "@/lib/resend";
+
+type SendLoggedEmailInput = {
+  type: string;
+  to: string | null;
+  replyTo?: string | null;
+  subject: string;
+  html: string;
+  text: string;
+  bookingId?: string | null;
+  eventId?: string | null;
+};
+
+export function formatMoney(cents: number) {
+  return `${new Intl.NumberFormat("da-DK").format(cents / 100)} kr.`;
+}
+
+export function formatDate(value: string) {
+  return new Intl.DateTimeFormat("da-DK", {
+    dateStyle: "full",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+export function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+async function logEmail(input: {
+  type: string;
+  bookingId?: string | null;
+  eventId?: string | null;
+  recipientEmail: string;
+  subject: string;
+  status: "queued" | "sent" | "failed";
+  resendMessageId?: string | null;
+  errorMessage?: string | null;
+  sentAt?: string | null;
+}) {
+  if (!env.supabaseServiceRoleKey) {
+    return;
+  }
+
+  const admin = createAdminClient();
+  await admin.from("email_logs").insert({
+    type: input.type,
+    recipient_email: input.recipientEmail,
+    subject: input.subject,
+    status: input.status,
+    resend_message_id: input.resendMessageId ?? null,
+    booking_id: input.bookingId ?? null,
+    event_id: input.eventId ?? null,
+    error_message: input.errorMessage ?? null,
+    sent_at: input.sentAt ?? null,
+  });
+}
+
+export async function sendLoggedEmail(input: SendLoggedEmailInput) {
+  if (!input.to) {
+    return;
+  }
+
+  if (!env.resendApiKey || !env.resendFromEmail) {
+    await logEmail({
+      type: input.type,
+      bookingId: input.bookingId,
+      eventId: input.eventId,
+      recipientEmail: input.to,
+      subject: input.subject,
+      status: "failed",
+      errorMessage: "Resend miljøvariabler mangler.",
+    });
+    return;
+  }
+
+  try {
+    const resend = createResendClient();
+    const result = await resend.emails.send({
+      from: env.resendFromEmail,
+      to: input.to,
+      replyTo: input.replyTo || undefined,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+    });
+
+    if (result.error) {
+      await logEmail({
+        type: input.type,
+        bookingId: input.bookingId,
+        eventId: input.eventId,
+        recipientEmail: input.to,
+        subject: input.subject,
+        status: "failed",
+        errorMessage: result.error.message,
+      });
+      return;
+    }
+
+    await logEmail({
+      type: input.type,
+      bookingId: input.bookingId,
+      eventId: input.eventId,
+      recipientEmail: input.to,
+      subject: input.subject,
+      status: "sent",
+      resendMessageId: result.data?.id ?? null,
+      sentAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    await logEmail({
+      type: input.type,
+      bookingId: input.bookingId,
+      eventId: input.eventId,
+      recipientEmail: input.to,
+      subject: input.subject,
+      status: "failed",
+      errorMessage: error instanceof Error ? error.message : "Ukendt mailfejl.",
+    });
+  }
+}
