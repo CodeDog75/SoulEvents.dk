@@ -202,7 +202,7 @@ export function EventMap({ events, mapboxToken }: EventMapProps) {
         <p className="mt-1 text-sm text-ink/64">Markører er farvekodet efter eventets første kategori.</p>
         {mapError && <p className="mt-2 text-sm font-semibold text-terracotta">{mapError}</p>}
       </div>
-      <div className="h-[620px] w-full" ref={containerRef} />
+      <div className="h-[72vh] min-h-[520px] w-full" ref={containerRef} />
     </section>
   );
 }

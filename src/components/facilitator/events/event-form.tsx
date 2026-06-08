@@ -275,7 +275,7 @@ export function EventForm({ regions, categories, facilitator }: EventFormProps) 
       <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
         <h2 className="text-lg font-semibold text-midnight">Kategorier og ekstra billeder</h2>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {categories.map((category) => (
+          {[...categories].sort((a, b) => a.name.localeCompare(b.name, "da-DK")).map((category) => (
             <label
               className="flex items-center gap-3 rounded-md border border-midnight/10 p-3 text-sm font-medium text-ink/75"
               key={category.id}

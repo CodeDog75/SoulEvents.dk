@@ -204,18 +204,23 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
 
   const filteredEvents =
     userLocation && [25, 50, 100].includes(selectedDistance)
-      ? categoryFilteredEvents.filter((event) => {
-          if (typeof event.latitude !== "number" || typeof event.longitude !== "number") {
-            return false;
-          }
+      ? categoryFilteredEvents
+          .map((event) => {
+            if (typeof event.latitude !== "number" || typeof event.longitude !== "number") {
+              return { event, distance: Number.POSITIVE_INFINITY };
+            }
 
-          return (
-            distanceInKm(userLocation, {
-              latitude: event.latitude,
-              longitude: event.longitude,
-            }) <= selectedDistance
-          );
-        })
+            return {
+              event,
+              distance: distanceInKm(userLocation, {
+                latitude: event.latitude,
+                longitude: event.longitude,
+              }),
+            };
+          })
+          .filter(({ distance }) => distance <= selectedDistance)
+          .sort((a, b) => a.distance - b.distance)
+          .map(({ event }) => event)
       : categoryFilteredEvents;
 
   const mapEvents = filteredEvents.map((event) => {

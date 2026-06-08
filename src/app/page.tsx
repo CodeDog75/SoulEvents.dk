@@ -1,5 +1,6 @@
 ﻿import {
   CalendarDays,
+  Flame,
   Heart,
   MapPinned,
   Moon,
@@ -8,6 +9,7 @@
   Sparkles,
   SunMedium,
   Trees,
+  UsersRound,
   Waves,
   Wind,
 } from "lucide-react";
@@ -24,15 +26,18 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 const categories = [
-  { name: "Yoga", icon: SunMedium, href: "/events?category_label=Yoga" },
-  { name: "Meditation", icon: Moon, href: "/events?category_label=Meditation" },
-  { name: "Lydbad", icon: Waves, href: "/events?category_label=Lydbad" },
-  { name: "Saunagus", icon: Sparkles, href: "/events?category_label=Saunagus" },
-  { name: "Retreat", icon: Trees, href: "/events?category_label=Retreat" },
-  { name: "Healing", icon: Heart, href: "/events?category_label=Healing" },
-  { name: "Ceremoni", icon: ShieldCheck, href: "/events?category_label=Ceremoni" },
-  { name: "Breathwork", icon: Wind, href: "/events?category_label=Breathwork" },
-  { name: "Kirtan", icon: Music2, href: "/events?category_label=Kirtan" },
+  { name: "Breathwork", value: "Breathwork", icon: Wind, href: "/?category_label=Breathwork#events" },
+  { name: "Ceremonier", value: "Ceremoni", icon: ShieldCheck, href: "/?category_label=Ceremoni#events" },
+  { name: "Cirkler & Fællesskaber", value: "Cirkler & Fællesskaber", icon: UsersRound, href: "/?category_label=Cirkler%20%26%20F%C3%A6llesskaber#events" },
+  { name: "Ecstatic Dance", value: "Ecstatic Dance", icon: Flame, href: "/?category_label=Ecstatic%20Dance#events" },
+  { name: "Healing", value: "Healing", icon: Heart, href: "/?category_label=Healing#events" },
+  { name: "Kirtan & Musik", value: "Kirtan", icon: Music2, href: "/?category_label=Kirtan#events" },
+  { name: "Lydbad", value: "Lydbad", icon: Waves, href: "/?category_label=Lydbad#events" },
+  { name: "Meditation", value: "Meditation", icon: Moon, href: "/?category_label=Meditation#events" },
+  { name: "Retreats", value: "Retreat", icon: Trees, href: "/?category_label=Retreat#events" },
+  { name: "Saunagus", value: "Saunagus", icon: Sparkles, href: "/?category_label=Saunagus#events" },
+  { name: "Tantra", value: "Tantra", icon: Heart, href: "/?category_label=Tantra#events" },
+  { name: "Yoga", value: "Yoga", icon: SunMedium, href: "/?category_label=Yoga#events" },
 ];
 
 type HomeProps = {
@@ -93,10 +98,107 @@ function endOfWeek() {
   return date;
 }
 
+function endOfWeekend() {
+  const date = startOfToday();
+  const day = date.getDay();
+  const daysUntilMonday = day === 0 ? 1 : 8 - day;
+  date.setDate(date.getDate() + daysUntilMonday);
+  return date;
+}
+
+function startOfNextWeek() {
+  const date = startOfToday();
+  const day = date.getDay();
+  const daysUntilMonday = day === 0 ? 1 : 8 - day;
+  date.setDate(date.getDate() + daysUntilMonday);
+  return date;
+}
+
+function endOfNextWeek() {
+  const date = startOfNextWeek();
+  date.setDate(date.getDate() + 7);
+  return date;
+}
+
 function endOfMonth() {
   const date = startOfToday();
   date.setMonth(date.getMonth() + 1);
   return date;
+}
+
+function removeSearchParam(params: Record<string, string>, key: string) {
+  const next = new URLSearchParams();
+
+  for (const [paramKey, value] of Object.entries(params)) {
+    if (paramKey !== key && value) {
+      next.set(paramKey, value);
+    }
+  }
+
+  const query = next.toString();
+  return query ? "/?" + query + "#events" : "/#events";
+}
+
+function normalizeText(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function categoryMatches(
+  event: { event_categories?: Array<{ categories?: { name?: string } | Array<{ name?: string }> | null }> },
+  categoryLabel: string,
+) {
+  if (!categoryLabel) {
+    return true;
+  }
+
+  return Boolean(
+    event.event_categories?.some((row) => {
+      const category = Array.isArray(row.categories) ? row.categories[0] : row.categories;
+      return normalizeText(category?.name) === normalizeText(categoryLabel);
+    }),
+  );
+}
+
+function textMatches(
+  event: {
+    title?: string;
+    short_description?: string | null;
+    city?: string | null;
+    regions?: { name?: string } | Array<{ name?: string }> | null;
+    facilitator_profiles?:
+      | { company_name?: string | null; profiles?: { full_name?: string | null } | Array<{ full_name?: string | null }> | null }
+      | Array<{ company_name?: string | null; profiles?: { full_name?: string | null } | Array<{ full_name?: string | null }> | null }>
+      | null;
+    event_categories?: Array<{ categories?: { name?: string } | Array<{ name?: string }> | null }>;
+  },
+  query: string,
+) {
+  if (!query) {
+    return true;
+  }
+
+  const facilitator = Array.isArray(event.facilitator_profiles) ? event.facilitator_profiles[0] : event.facilitator_profiles;
+  const facilitatorUser = Array.isArray(facilitator?.profiles) ? facilitator?.profiles[0] : facilitator?.profiles;
+  const region = Array.isArray(event.regions) ? event.regions[0] : event.regions;
+  const categoryNames =
+    event.event_categories
+      ?.map((row) => (Array.isArray(row.categories) ? row.categories[0] : row.categories)?.name)
+      .filter(Boolean)
+      .join(" ") ?? "";
+
+  return [
+    event.title,
+    event.short_description,
+    event.city,
+    region?.name,
+    facilitator?.company_name,
+    facilitatorUser?.full_name,
+    categoryNames,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(query.toLowerCase());
 }
 
 function parseCoordinate(value: string) {
@@ -166,10 +268,6 @@ async function getSearchEvents(selected: {
     .gte("starts_at", startOfToday().toISOString())
     .order("starts_at", { ascending: true });
 
-  if (selected.q) {
-    query = query.or(`title.ilike.%${selected.q}%,short_description.ilike.%${selected.q}%`);
-  }
-
   const selectedArea = getAreaOption(selected.area);
   if (selectedArea && regions) {
     const areaRegionIds = regions.filter((region) => selectedArea.slugs.includes(region.slug)).map((region) => region.id);
@@ -181,22 +279,23 @@ async function getSearchEvents(selected: {
 
   if (selected.date === "today") {
     query = query.lt("starts_at", endOfToday().toISOString());
+  } else if (selected.date === "weekend") {
+    query = query.lt("starts_at", endOfWeekend().toISOString());
+  } else if (selected.date === "next_week") {
+    query = query.gte("starts_at", startOfNextWeek().toISOString()).lt("starts_at", endOfNextWeek().toISOString());
   } else if (selected.date === "week") {
     query = query.lt("starts_at", endOfWeek().toISOString());
   } else if (selected.date === "month") {
     query = query.lt("starts_at", endOfMonth().toISOString());
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(selected.date)) {
+    const start = new Date(selected.date);
+    const end = new Date(selected.date);
+    end.setDate(end.getDate() + 1);
+    query = query.gte("starts_at", start.toISOString()).lt("starts_at", end.toISOString());
   }
 
   const { data: events } = await query;
-  const categoryFilteredEvents =
-    selected.categoryLabel && events
-      ? events.filter((event: { event_categories?: Array<{ categories?: { name?: string } | Array<{ name?: string }> | null }> }) =>
-          event.event_categories?.some((row) => {
-            const category = Array.isArray(row.categories) ? row.categories[0] : row.categories;
-            return category?.name === selected.categoryLabel;
-          }),
-        )
-      : events ?? [];
+  const categoryFilteredEvents = (events ?? []).filter((event) => textMatches(event, selected.q) && categoryMatches(event, selected.categoryLabel));
 
   const userLatitude = parseCoordinate(selected.latitude);
   const userLongitude = parseCoordinate(selected.longitude);
@@ -205,18 +304,23 @@ async function getSearchEvents(selected: {
     userLatitude !== null && userLongitude !== null ? { latitude: userLatitude, longitude: userLongitude } : null;
 
   return userLocation && [25, 50, 100].includes(selectedDistance)
-    ? categoryFilteredEvents.filter((event) => {
-        if (typeof event.latitude !== "number" || typeof event.longitude !== "number") {
-          return false;
-        }
+    ? categoryFilteredEvents
+        .map((event) => {
+          if (typeof event.latitude !== "number" || typeof event.longitude !== "number") {
+            return { event, distance: Number.POSITIVE_INFINITY };
+          }
 
-        return (
-          distanceInKm(userLocation, {
-            latitude: event.latitude,
-            longitude: event.longitude,
-          }) <= selectedDistance
-        );
-      })
+          return {
+            event,
+            distance: distanceInKm(userLocation, {
+              latitude: event.latitude,
+              longitude: event.longitude,
+            }),
+          };
+        })
+        .filter(({ distance }) => distance <= selectedDistance)
+        .sort((a, b) => a.distance - b.distance)
+        .map(({ event }) => event)
     : categoryFilteredEvents;
 }
 
@@ -241,25 +345,43 @@ export default async function Home({ searchParams }: HomeProps) {
       selected.latitude ||
       selected.longitude,
   );
+  const upcomingEvents = await getSearchEvents({
+    ...selected,
+    q: "",
+    area: "",
+    categoryLabel: "",
+    date: "",
+    distance: "",
+    latitude: "",
+    longitude: "",
+  });
   const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
-  const alternativeEvents =
-    hasSearch && searchEvents.length === 0
-      ? await getSearchEvents({
-          ...selected,
-          q: "",
-          area: "",
-          categoryLabel: "",
-          distance: "",
-          latitude: "",
-          longitude: "",
-        })
-      : [];
+  const activeFilterParams = {
+    q: selected.q,
+    area: selected.area,
+    category_label: selected.categoryLabel,
+    distance: selected.distance,
+    latitude: selected.latitude,
+    longitude: selected.longitude,
+  };
+  const activeFilters = [
+    selected.categoryLabel
+      ? { key: "category_label", label: selected.categoryLabel, href: removeSearchParam(activeFilterParams, "category_label") }
+      : null,
+    selected.area
+      ? { key: "area", label: getAreaOption(selected.area)?.label ?? selected.area, href: removeSearchParam(activeFilterParams, "area") }
+      : null,
+    selected.q ? { key: "q", label: "Søgning: " + selected.q, href: removeSearchParam(activeFilterParams, "q") } : null,
+    selected.latitude && selected.longitude
+      ? { key: "nearby", label: "I nærheden", href: removeSearchParam(removeSearchParam(removeSearchParam(activeFilterParams, "latitude"), "longitude"), "distance") }
+      : null,
+  ].filter((filter): filter is { key: string; label: string; href: string } => Boolean(filter));
 
   return (
     <main className="min-h-screen bg-cream text-ink">
-      <section className="relative min-h-[780px] overflow-hidden bg-cream">
+      <section className="relative overflow-hidden bg-cream pb-10 sm:min-h-[780px] sm:pb-0">
         <div
-          className="absolute inset-0 bg-[url('/brand/soulevents-logo.png')] bg-[length:680px_680px] bg-center bg-no-repeat opacity-20"
+          className="absolute inset-0 bg-[url('/brand/soulevents-logo.png')] bg-[length:360px_360px] sm:bg-[length:680px_680px] bg-center bg-no-repeat opacity-20"
           aria-hidden="true"
         />
         <div className="absolute inset-0 bg-white/45" aria-hidden="true" />
@@ -267,7 +389,7 @@ export default async function Home({ searchParams }: HomeProps) {
         <header className="relative z-10">
           <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-5 sm:px-8">
             <Link aria-label="SoulEvents.dk forside" href="/">
-              <BrandLogo className="h-24 w-24" priority />
+              <BrandLogo className="h-20 w-20 sm:h-24 sm:w-24" priority />
             </Link>
 
             <nav className="hidden items-center gap-7 text-sm font-semibold text-olive md:flex">
@@ -299,51 +421,20 @@ export default async function Home({ searchParams }: HomeProps) {
           </div>
         </header>
 
-        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-10 px-5 pb-16 pt-14 sm:px-8 lg:pt-24">
+        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-6 px-4 pb-10 pt-6 sm:gap-10 sm:px-8 sm:pb-16 sm:pt-14 lg:pt-24">
           <div className="max-w-4xl">
             <p className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-olive shadow-soft">
               <Sparkles className="size-4 text-rose" aria-hidden="true" />
               Danmarks samlingssted for spirituelle events
             </p>
-            <h1 className="mt-8 max-w-4xl text-6xl font-semibold leading-[0.95] text-olive sm:text-7xl lg:text-8xl">
-              Find spirituelle events nær dig
+            <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-tight text-olive sm:mt-8 sm:text-7xl sm:leading-[0.95] lg:text-8xl">
+Find oplevelser tæt på dig
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-ink/76 sm:text-xl">
-              Oplev events for krop, sind og sjæl. Yoga, meditation, lydbade, saunagus, retreats, ceremonier og
-              healing samlet ét trygt sted.
+            <p className="mt-4 max-w-2xl text-base leading-7 text-ink/76 sm:mt-6 sm:text-xl sm:leading-8">
+Gå på opdagelse i spirituelle events, facilitatorer og oplevelser i hele Danmark. Start tæt på dig, eller vælg et område og mærk efter hvad der kalder.
             </p>
           </div>
-          <HomeEventSearchForm categories={categories.map(({ name }) => ({ name }))} selected={selected} />
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-[1200px] px-5 py-[120px] sm:px-8" id="categories">
-        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-rose">Kategorier</p>
-            <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Find det, der kalder på dig</h2>
-          </div>
-          <Link className="text-sm font-semibold text-olive transition hover:text-rose" href="/events">
-            Se alle events
-          </Link>
-        </div>
-
-        <div className="mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {categories.map((category) => (
-            <Link
-              className="group rounded-card bg-white p-7 shadow-soft transition hover:-translate-y-1 hover:shadow-lift"
-              href={category.href}
-              key={category.name}
-            >
-              <div className="grid size-14 place-items-center rounded-2xl bg-sage-50 text-olive transition group-hover:bg-rose group-hover:text-white">
-                <category.icon className="size-6" aria-hidden="true" />
-              </div>
-              <h3 className="mt-8 text-3xl font-medium text-olive">{category.name}</h3>
-              <p className="mt-3 text-sm leading-6 text-ink/68">
-                Udforsk kommende {category.name.toLowerCase()} events og facilitatorer i Danmark.
-              </p>
-            </Link>
-          ))}
+          <HomeEventSearchForm categories={categories.map(({ name, value }) => ({ name, value }))} selected={selected} />
         </div>
       </section>
 
@@ -352,10 +443,10 @@ export default async function Home({ searchParams }: HomeProps) {
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-rose">
-                {hasSearch ? "Søgeresultater" : "Udvalgte events"}
+                {hasSearch ? "Søgeresultater" : "Kommende events"}
               </p>
               <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">
-                {hasSearch ? "Events der matcher din søgning" : "Ro, nærvær og fællesskab"}
+                {hasSearch ? "Events der matcher din søgning" : "Førstkommende oplevelser"}
               </h2>
             </div>
             <Link
@@ -366,6 +457,21 @@ export default async function Home({ searchParams }: HomeProps) {
             </Link>
           </div>
 
+          {activeFilters.length > 0 && (
+            <div className="mt-8 flex flex-wrap gap-2">
+              {activeFilters.map((filter) => (
+                <Link
+                  className="inline-flex items-center gap-2 rounded-full border border-sage-700/20 bg-sage-50 px-3 py-2 text-sm font-semibold text-olive transition hover:border-sage-700"
+                  href={filter.href}
+                  key={filter.key}
+                >
+                  {filter.label}
+                  <span aria-hidden="true">×</span>
+                </Link>
+              ))}
+            </div>
+          )}
+
           <div className="mt-10">
             {hasSearch ? (
               searchEvents.length > 0 ? (
@@ -374,15 +480,15 @@ export default async function Home({ searchParams }: HomeProps) {
                 <div className="grid gap-8">
                   <section className="rounded-card bg-cream p-8 text-center shadow-soft">
                     <CalendarDays className="mx-auto size-8 text-sage-700" aria-hidden="true" />
-                    <h3 className="mt-4 text-3xl font-medium text-olive">Der er ikke et event efter det søgte</h3>
+                    <h3 className="mt-4 text-3xl font-medium text-olive">Der blev ikke fundet events, der matcher dine filtre.</h3>
                     <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-ink/64">
-                      Vi fandt ikke et præcist match. Her er alternativer, der ligger tæt på i andre områder eller
-                      andre kategorier.
+                      Prøv en anden kategori eller et andet område.
                     </p>
                   </section>
-                  {alternativeEvents.length > 0 && <PublicEventList events={alternativeEvents as never} />}
                 </div>
               )
+            ) : upcomingEvents.length > 0 ? (
+              <PublicEventList events={upcomingEvents.slice(0, 6) as never} />
             ) : (
               <div className="grid gap-8 lg:grid-cols-3">
                 {featuredEvents.map((event) => (

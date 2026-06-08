@@ -507,7 +507,7 @@ export function ProfileForm({
           </h2>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {categories.map((category) => (
+          {[...categories].sort((a, b) => a.name.localeCompare(b.name, "da-DK")).map((category) => (
             <label
               className="flex items-center gap-3 rounded-md border border-midnight/10 p-3 text-sm font-medium text-ink/75"
               key={category.id}
