@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, CircleUserRound, ExternalLink, Mail, MapPinned
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
 import { BookingForm } from "@/components/events/detail/booking-form";
+import { ShareEventButton } from "@/components/events/detail/share-event-button";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -280,6 +281,13 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               )}
             </div>
           </section>
+
+          <ShareEventButton
+            eventId={event.id}
+            eventTitle={event.title}
+            facilitatorName={facilitatorName}
+            startsAt={event.starts_at}
+          />
 
           <BookingForm availableSeats={availableSeats} eventId={event.id} message={message} messageVariant={messageVariant} />
         </aside>

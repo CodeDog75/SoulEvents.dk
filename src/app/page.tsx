@@ -1,4 +1,4 @@
-﻿import {
+import {
   CalendarDays,
   Flame,
   Heart,
@@ -17,7 +17,9 @@ import Link from "next/link";
 import { sendContactMessageAction } from "@/app/contact/actions";
 import { BrandLogo } from "@/components/brand-logo";
 import { HomeEventSearchForm } from "@/components/events/home-event-search-form";
+import { EventMap } from "@/components/events/event-map";
 import { PublicEventList } from "@/components/events/public-event-list";
+import { PublicFacilitatorCarousel } from "@/components/facilitator/public-facilitator-carousel";
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import { env } from "@/lib/env";
 import { getAreaOption } from "@/lib/regions/areas";
@@ -50,6 +52,7 @@ type HomeProps = {
     distance?: string;
     latitude?: string;
     longitude?: string;
+    facilitator_q?: string;
   }>;
 };
 
@@ -165,10 +168,6 @@ function textMatches(
     short_description?: string | null;
     city?: string | null;
     regions?: { name?: string } | Array<{ name?: string }> | null;
-    facilitator_profiles?:
-      | { company_name?: string | null; profiles?: { full_name?: string | null } | Array<{ full_name?: string | null }> | null }
-      | Array<{ company_name?: string | null; profiles?: { full_name?: string | null } | Array<{ full_name?: string | null }> | null }>
-      | null;
     event_categories?: Array<{ categories?: { name?: string } | Array<{ name?: string }> | null }>;
   },
   query: string,
@@ -177,8 +176,6 @@ function textMatches(
     return true;
   }
 
-  const facilitator = Array.isArray(event.facilitator_profiles) ? event.facilitator_profiles[0] : event.facilitator_profiles;
-  const facilitatorUser = Array.isArray(facilitator?.profiles) ? facilitator?.profiles[0] : facilitator?.profiles;
   const region = Array.isArray(event.regions) ? event.regions[0] : event.regions;
   const categoryNames =
     event.event_categories
@@ -186,15 +183,7 @@ function textMatches(
       .filter(Boolean)
       .join(" ") ?? "";
 
-  return [
-    event.title,
-    event.short_description,
-    event.city,
-    region?.name,
-    facilitator?.company_name,
-    facilitatorUser?.full_name,
-    categoryNames,
-  ]
+  return [event.title, event.short_description, event.city, region?.name, categoryNames]
     .filter(Boolean)
     .join(" ")
     .toLowerCase()
@@ -244,24 +233,7 @@ async function getSearchEvents(selected: {
   let query = supabase
     .from("events")
     .select(
-      `
-      id,
-      title,
-      short_description,
-      starts_at,
-      latitude,
-      longitude,
-      city,
-      price_cents,
-      capacity,
-      facilitator_profiles!inner(
-        status,
-        company_name,
-        profiles(full_name)
-      ),
-      regions(name),
-      event_categories(categories(id, name, color_hex))
-    `,
+      "id, title, short_description, starts_at, latitude, longitude, city, price_cents, capacity, facilitator_profiles!inner(status, company_name, profiles(full_name)), regions(name), event_categories(categories(id, name, color_hex))",
     )
     .eq("status", "active")
     .eq("facilitator_profiles.status", "approved")
@@ -324,9 +296,50 @@ async function getSearchEvents(selected: {
     : categoryFilteredEvents;
 }
 
+async function getHomeFacilitators(queryText: string) {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const { data: facilitators } = await supabase
+    .from("facilitator_profiles")
+    .select("id, company_name, profile_image_path, short_description, city, profiles(full_name), facilitator_categories(categories(name, color_hex))")
+    .eq("status", "approved");
+
+  const term = normalizeText(queryText);
+  const filtered = (facilitators ?? []).filter((facilitator: any) => {
+    const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
+    const name = facilitator.company_name || profile?.full_name || "";
+    return !term || normalizeText(name).includes(term);
+  });
+
+  const mapped = filtered.map((facilitator: any) => {
+    const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
+    const categories =
+      facilitator.facilitator_categories
+        ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
+        .filter(Boolean) ?? [];
+
+    return {
+      id: facilitator.id,
+      name: facilitator.company_name || profile?.full_name || "Facilitator",
+      imageUrl: facilitator.profile_image_path
+        ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
+        : null,
+      tagline: facilitator.short_description || "",
+      city: facilitator.city,
+      categories,
+    };
+  });
+
+  return mapped.sort(() => Math.random() - 0.5).slice(0, queryText ? 24 : 12);
+}
+
 export default async function Home({ searchParams }: HomeProps) {
   const params = searchParams ? await searchParams : {};
   const contactStatus = params.contact ?? "";
+  const facilitatorQuery = params.facilitator_q?.trim() ?? "";
   const selected = {
     q: params.q?.trim() ?? "",
     area: params.area ?? "",
@@ -356,6 +369,32 @@ export default async function Home({ searchParams }: HomeProps) {
     longitude: "",
   });
   const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
+  const visibleEvents = hasSearch ? searchEvents : upcomingEvents.slice(0, 24);
+  const facilitatorCards = await getHomeFacilitators(facilitatorQuery);
+  const mapEvents = visibleEvents.map((event) => {
+    const facilitatorProfile = Array.isArray(event.facilitator_profiles)
+      ? event.facilitator_profiles[0]
+      : event.facilitator_profiles;
+    const facilitatorUser = Array.isArray(facilitatorProfile?.profiles)
+      ? facilitatorProfile?.profiles[0]
+      : facilitatorProfile?.profiles;
+    const firstCategoryRow = event.event_categories?.[0];
+    const firstCategory = Array.isArray(firstCategoryRow?.categories)
+      ? firstCategoryRow?.categories[0]
+      : firstCategoryRow?.categories;
+
+    return {
+      id: event.id,
+      title: event.title,
+      startsAt: event.starts_at,
+      priceCents: event.price_cents,
+      latitude: event.latitude,
+      longitude: event.longitude,
+      facilitatorName: facilitatorProfile?.company_name || facilitatorUser?.full_name || "Facilitator",
+      categoryName: firstCategory?.name ?? null,
+      categoryColor: firstCategory?.color_hex ?? null,
+    };
+  });
   const activeFilterParams = {
     q: selected.q,
     area: selected.area,
@@ -373,7 +412,7 @@ export default async function Home({ searchParams }: HomeProps) {
       : null,
     selected.q ? { key: "q", label: "Søgning: " + selected.q, href: removeSearchParam(activeFilterParams, "q") } : null,
     selected.latitude && selected.longitude
-      ? { key: "nearby", label: "I nærheden", href: removeSearchParam(removeSearchParam(removeSearchParam(activeFilterParams, "latitude"), "longitude"), "distance") }
+      ? { key: "nearby", label: "I nærheden", href: "/#events" }
       : null,
   ].filter((filter): filter is { key: string; label: string; href: string } => Boolean(filter));
 
@@ -393,12 +432,12 @@ export default async function Home({ searchParams }: HomeProps) {
             </Link>
 
             <nav className="hidden items-center gap-7 text-sm font-semibold text-olive md:flex">
-              <Link className="transition hover:text-rose" href="/events">
+              <a className="transition hover:text-rose" href="#events">
                 Events
-              </Link>
-              <Link className="transition hover:text-rose" href="/events#map">
+              </a>
+              <a className="transition hover:text-rose" href="#map">
                 Kort
-              </Link>
+              </a>
               <a className="transition hover:text-rose" href="#facilitators">
                 Facilitatorer
               </a>
@@ -411,12 +450,6 @@ export default async function Home({ searchParams }: HomeProps) {
               <Link className="transition hover:text-rose" href="/auth/login">
                 Login
               </Link>
-              <Link
-                className="rounded-button bg-rose px-5 py-3 text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
-                href="/events"
-              >
-                Find Events
-              </Link>
             </nav>
           </div>
         </header>
@@ -428,10 +461,10 @@ export default async function Home({ searchParams }: HomeProps) {
               Danmarks samlingssted for spirituelle events
             </p>
             <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-tight text-olive sm:mt-8 sm:text-7xl sm:leading-[0.95] lg:text-8xl">
-Find oplevelser tæt på dig
+              Find oplevelser tæt på dig
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-ink/76 sm:mt-6 sm:text-xl sm:leading-8">
-Gå på opdagelse i spirituelle events, facilitatorer og oplevelser i hele Danmark. Start tæt på dig, eller vælg et område og mærk efter hvad der kalder.
+              Gå på opdagelse i spirituelle events og oplevelser i hele Danmark. Start tæt på dig, eller vælg et område og mærk efter hvad der kalder.
             </p>
           </div>
           <HomeEventSearchForm categories={categories.map(({ name, value }) => ({ name, value }))} selected={selected} />
@@ -449,12 +482,12 @@ Gå på opdagelse i spirituelle events, facilitatorer og oplevelser i hele Danma
                 {hasSearch ? "Events der matcher din søgning" : "Førstkommende oplevelser"}
               </h2>
             </div>
-            <Link
+            <a
               className="inline-flex h-12 items-center justify-center rounded-button bg-olive px-6 text-sm font-semibold text-white transition hover:bg-sage-500"
-              href="/events"
+              href="#map"
             >
-              Se alle events
-            </Link>
+              Se kortet
+            </a>
           </div>
 
           {activeFilters.length > 0 && (
@@ -472,7 +505,9 @@ Gå på opdagelse i spirituelle events, facilitatorer og oplevelser i hele Danma
             </div>
           )}
 
-          <div className="mt-10">
+          <div className="mt-10 grid gap-8">
+            <EventMap events={mapEvents} mapboxToken={env.mapboxToken} />
+
             {hasSearch ? (
               searchEvents.length > 0 ? (
                 <PublicEventList events={searchEvents as never} />
@@ -525,31 +560,7 @@ Gå på opdagelse i spirituelle events, facilitatorer og oplevelser i hele Danma
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-[1200px] gap-8 px-5 py-[120px] sm:px-8 md:grid-cols-3" id="facilitators">
-        {[
-          {
-            icon: ShieldCheck,
-            title: "Godkendte facilitatorer",
-            text: "Profiler gennemgås, så brugere møder et trygt og autentisk univers.",
-          },
-          {
-            icon: MapPinned,
-            title: "Events nær dig",
-            text: "Søg på område, adresse og kategori, og find oplevelser i hele Danmark.",
-          },
-          {
-            icon: Heart,
-            title: "Bygget til nærvær",
-            text: "Tilmelding, kontakt og eventflow er enkelt for både besøgende og facilitatorer.",
-          },
-        ].map((item) => (
-          <article className="rounded-card bg-white p-8 shadow-soft" key={item.title}>
-            <item.icon className="size-7 text-rose" aria-hidden="true" />
-            <h2 className="mt-6 text-3xl font-medium text-olive">{item.title}</h2>
-            <p className="mt-3 text-sm leading-7 text-ink/68">{item.text}</p>
-          </article>
-        ))}
-      </section>
+      <PublicFacilitatorCarousel facilitators={facilitatorCards} query={facilitatorQuery} />
 
       <section className="bg-white py-[120px]" id="contact">
         <div className="mx-auto grid max-w-[1200px] gap-10 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
@@ -631,17 +642,7 @@ Gå på opdagelse i spirituelle events, facilitatorer og oplevelser i hele Danma
         </div>
       </section>
 
-      <div className="mx-auto max-w-[1200px] px-5 pb-8 sm:px-8 md:hidden">
-        <Link
-          className="flex h-14 items-center justify-center rounded-button bg-rose text-sm font-semibold text-white shadow-soft"
-          href="/events"
-        >
-          Find Events
-        </Link>
-      </div>
-
       <SiteFooterLogin />
     </main>
   );
 }
-

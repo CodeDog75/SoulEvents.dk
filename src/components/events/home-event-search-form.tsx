@@ -20,12 +20,12 @@ type HomeEventSearchFormProps = {
 
 const popularCategoryNames = ["Yoga", "Lydbad", "Saunagus", "Healing", "Breathwork", "Ceremonier"];
 const categoryStyles: Record<string, { emoji: string; className: string }> = {
-  Yoga: { emoji: "\ud83e\uddd8", className: "bg-sage-50 text-olive border-sage-700/15" },
-  Lydbad: { emoji: "\ud83d\udd14", className: "bg-cream text-olive border-olive/15" },
-  Saunagus: { emoji: "\ud83d\udd25", className: "bg-rose/10 text-olive border-rose/20" },
-  Healing: { emoji: "\u2728", className: "bg-white text-olive border-sage-700/15" },
-  Breathwork: { emoji: "\ud83c\udf2c\ufe0f", className: "bg-sage-50/70 text-olive border-sage-700/15" },
-  Ceremonier: { emoji: "\ud83c\udf15", className: "bg-cream text-olive border-olive/15" },
+  Yoga: { emoji: "🧘", className: "bg-sage-50 text-olive border-sage-700/15" },
+  Lydbad: { emoji: "🔔", className: "bg-cream text-olive border-olive/15" },
+  Saunagus: { emoji: "🔥", className: "bg-rose/10 text-olive border-rose/20" },
+  Healing: { emoji: "✨", className: "bg-white text-olive border-sage-700/15" },
+  Breathwork: { emoji: "🌬️", className: "bg-sage-50/70 text-olive border-sage-700/15" },
+  Ceremonier: { emoji: "🌕", className: "bg-cream text-olive border-olive/15" },
 };
 
 const priorityAreas = ["sjaelland-og-oerne", "fyn", "sonderjylland", "midtjylland", "nordjylland"];
@@ -163,7 +163,7 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
             <LocateFixed className="size-4 shrink-0" aria-hidden="true" />
             Find events i nærheden
           </button>
-          {locationMessage && <p className="mt-2 text-sm font-semibold text-olive">{locationMessage}</p>}
+          {locationMessage && <p className="mt-4 text-sm font-semibold text-olive">{locationMessage}</p>}
         </div>
 
         <div className="mt-3 grid gap-2 sm:mt-4 sm:grid-cols-[1fr_auto] sm:items-end">
@@ -212,7 +212,7 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {visibleCategories.map((category) => {
-            const emoji = categoryStyles[category.name]?.emoji ?? "\u2728";
+            const emoji = categoryStyles[category.name]?.emoji ?? "✨";
 
             return (
               <button
@@ -239,7 +239,7 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
             className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-rose"
             defaultValue={selected.q}
             name="q"
-            placeholder="Søg efter events, facilitatorer eller steder..."
+            placeholder="Søg efter events, kategorier eller steder..."
             type="search"
           />
         </label>
