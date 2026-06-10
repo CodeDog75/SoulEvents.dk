@@ -131,6 +131,42 @@ function endOfMonth() {
   return date;
 }
 
+function getEventFacilitatorId(event: { facilitator_profiles?: { id?: string } | Array<{ id?: string }> | null }) {
+  const facilitator = Array.isArray(event.facilitator_profiles)
+    ? event.facilitator_profiles[0]
+    : event.facilitator_profiles;
+
+  return facilitator?.id ?? "";
+}
+
+function selectFairHomepageEvents<T extends { id: string; starts_at: string; facilitator_profiles?: { id?: string } | Array<{ id?: string }> | null }>(
+  events: T[],
+  limit = 6,
+) {
+  const byFacilitator = new Map<string, T[]>();
+
+  for (const event of uniqueEventsById(events)) {
+    const facilitatorId = getEventFacilitatorId(event) || event.id;
+    const list = byFacilitator.get(facilitatorId) ?? [];
+    list.push(event);
+    byFacilitator.set(facilitatorId, list);
+  }
+
+  const selected = Array.from(byFacilitator.values()).map((facilitatorEvents) =>
+    facilitatorEvents.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())[0],
+  );
+
+  return selected
+    .map((event) => ({
+      event,
+      time: new Date(event.starts_at).getTime(),
+      variation: Math.random() * 0.15,
+    }))
+    .sort((a, b) => a.time - b.time || a.variation - b.variation)
+    .slice(0, limit)
+    .map(({ event }) => event);
+}
+
 function removeSearchParam(params: Record<string, string>, key: string) {
   const next = new URLSearchParams();
 
@@ -294,7 +330,7 @@ async function getSearchEvents(selected: {
   let query = supabase
     .from("events")
     .select(
-      "id, title, short_description, starts_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(status, company_name, profiles(full_name)), regions(name), event_categories(categories(id, name, color_hex))",
+      "id, title, short_description, starts_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, company_name, profiles(full_name)), regions(name), event_categories(categories(id, name, color_hex))",
     )
     .eq("status", "active")
     .eq("facilitator_profiles.status", "approved")
@@ -510,7 +546,7 @@ export default async function Home({ searchParams }: HomeProps) {
   const params = searchParams ? await searchParams : {};
   const contactStatus = params.contact ?? "";
   const homeTiles = await getHomeTiles();
-  const facilitatorQuery = params.facilitator_q?.trim() ?? "";
+  const facilitatorQuery = (params.facilitator_q ?? params.q ?? "").trim();
   const selected = {
     q: params.q?.trim() ?? "",
     area: params.area ?? "",
@@ -543,7 +579,9 @@ export default async function Home({ searchParams }: HomeProps) {
     format: "",
   });
   const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
+  const fairUpcomingEvents = selectFairHomepageEvents(upcomingEvents, 6);
   const visibleEvents = uniqueEventsById(hasSearch ? searchEvents : upcomingEvents.slice(0, 24));
+  const listEvents = hasSearch ? searchEvents : fairUpcomingEvents;
   const facilitatorCards = await getHomeFacilitators(facilitatorQuery);
   const [featuredFacilitators, newFacilitators, homeThemes] = await Promise.all([
     getFeaturedHomeFacilitators(),
@@ -657,7 +695,7 @@ export default async function Home({ searchParams }: HomeProps) {
           </div>
         </header>
 
-        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-6 px-4 pb-10 pt-6 sm:gap-10 sm:px-8 sm:pb-16 sm:pt-14 lg:pt-24">
+        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-6 px-4 pb-12 pt-6 sm:gap-10 sm:px-8 sm:pb-20 sm:pt-14 lg:pt-20">
           <div className="max-w-4xl">
             <p className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-olive shadow-soft">
               <Sparkles className="size-4 text-rose" aria-hidden="true" />
@@ -674,10 +712,10 @@ export default async function Home({ searchParams }: HomeProps) {
         </div>
       </section>
 
-      <section className="bg-white py-[120px]" id="events">
+      <section className="bg-white py-20 sm:py-24" id="events">
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
 {activeFilters.length > 0 && (
-            <div className="mt-8 flex flex-wrap gap-2">
+            <div className="mt-6 flex flex-wrap gap-2">
               {activeFilters.map((filter) => (
                 <Link
                   className="inline-flex items-center gap-2 rounded-full border border-sage-700/20 bg-sage-50 px-3 py-2 text-sm font-semibold text-olive transition hover:border-sage-700"
@@ -691,7 +729,7 @@ export default async function Home({ searchParams }: HomeProps) {
             </div>
           )}
 
-          <div className="mt-10 grid gap-8">
+          <div className="mt-8 grid gap-7">
             {nearbyRadiusOptions.length > 0 && (
               <section className="rounded-card border border-sage-700/15 bg-sage-50 p-5 shadow-soft">
                 <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Events nær dig</p>
@@ -723,6 +761,16 @@ export default async function Home({ searchParams }: HomeProps) {
               <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">
                 {hasSearch ? "Events der matcher din søgning" : "Førstkommende oplevelser"}
               </h2>
+              {!hasSearch && (
+                <details className="mt-4 max-w-3xl rounded-card bg-sage-50 px-4 py-3 text-sm leading-6 text-ink/70">
+                  <summary className="cursor-pointer font-semibold text-olive">Hvordan udvælges oplevelserne?</summary>
+                  <p className="mt-2">
+                    For at give plads til både nye og etablerede facilitatorer viser SoulEvents en varieret
+                    sammensætning af kommende oplevelser. Derfor vises maksimalt ét event pr. facilitator ad gangen i
+                    denne sektion.
+                  </p>
+                </details>
+              )}
             </div>
 
 
@@ -737,11 +785,31 @@ export default async function Home({ searchParams }: HomeProps) {
                     <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-ink/64">
                       Prøv en anden kategori eller et andet område.
                     </p>
+                    {selected.q && facilitatorCards.length > 0 && (
+                      <div className="mx-auto mt-6 max-w-2xl rounded-card bg-white p-5 text-left shadow-soft">
+                        <p className="text-sm font-semibold uppercase tracking-wide text-rose">Facilitator fundet</p>
+                        <h4 className="mt-2 text-2xl font-medium text-olive">
+                          Måske leder du efter en facilitator?
+                        </h4>
+                        <div className="mt-4 grid gap-3">
+                          {facilitatorCards.slice(0, 3).map((facilitator) => (
+                            <Link
+                              className="flex items-center justify-between gap-3 rounded-md border border-olive/10 bg-sage-50 px-4 py-3 text-sm font-semibold text-olive transition hover:border-sage-700"
+                              href={"/facilitators/" + facilitator.id}
+                              key={facilitator.id}
+                            >
+                              <span>{facilitator.name}</span>
+                              <span className="text-xs text-ink/55">Se profil</span>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </section>
                 </div>
               )
-            ) : upcomingEvents.length > 0 ? (
-              <PublicEventList events={upcomingEvents.slice(0, 6) as never} />
+            ) : listEvents.length > 0 ? (
+              <PublicEventList events={listEvents as never} />
             ) : (
               <div className="grid gap-8 lg:grid-cols-3">
                 {featuredEvents.map((event) => (
@@ -786,7 +854,7 @@ export default async function Home({ searchParams }: HomeProps) {
         themes={homeThemes}
       />
 
-      <section className="bg-white py-[120px]" id="contact">
+      <section className="bg-white py-20 sm:py-24" id="contact">
         <div className="mx-auto grid max-w-[1200px] gap-10 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-rose">Kontakt</p>

@@ -157,6 +157,55 @@ export async function resendConfirmationAction(formData: FormData) {
   authRedirect("/auth/login", "Ny bekræftelsesmail er sendt. Tjek indbakken og spam/reklame.");
 }
 
+export async function requestPasswordResetAction(formData: FormData) {
+  const email = getString(formData, "email").toLowerCase();
+
+  if (!email) {
+    authRedirect("/auth/forgot-password", "Skriv din e-mailadresse.");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: (env.appUrl || "http://localhost:3001") + "/auth/callback?next=/auth/update-password",
+  });
+
+  if (error) {
+    authRedirect("/auth/forgot-password", "Link til nulstilling kunne ikke sendes: " + error.message);
+  }
+
+  authRedirect(
+    "/auth/forgot-password",
+    "Hvis e-mailen findes i systemet, har vi sendt et link til nulstilling af adgangskoden. Tjek også spam/reklame.",
+  );
+}
+
+export async function updatePasswordAction(formData: FormData) {
+  const password = getString(formData, "password");
+  const confirmPassword = getString(formData, "confirm_password");
+
+  if (!password || !confirmPassword) {
+    authRedirect("/auth/update-password", "Udfyld begge adgangskodefelter.");
+  }
+
+  if (password.length < 8) {
+    authRedirect("/auth/update-password", "Adgangskoden skal være mindst 8 tegn.");
+  }
+
+  if (password !== confirmPassword) {
+    authRedirect("/auth/update-password", "Adgangskoderne er ikke ens.");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    authRedirect("/auth/update-password", "Adgangskoden kunne ikke opdateres: " + error.message);
+  }
+
+  revalidatePath("/", "layout");
+  authRedirect("/auth/login", "Adgangskoden er opdateret. Du kan logge ind nu.");
+}
+
 export async function signUpFacilitatorAction(formData: FormData) {
   const fullName = getString(formData, "full_name");
   const email = getString(formData, "email").toLowerCase();

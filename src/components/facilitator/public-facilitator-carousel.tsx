@@ -17,7 +17,7 @@ type PublicFacilitatorCarouselProps = {
 
 export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilitatorCarouselProps) {
   return (
-    <section className="bg-cream py-[100px]" id="facilitators">
+    <section className="bg-cream py-20 sm:py-24" id="facilitators">
       <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
         <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
           <div>
@@ -28,13 +28,14 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
             </p>
           </div>
 
-          <form action="/facilitators" className="grid gap-3 rounded-card bg-white p-4 shadow-soft sm:grid-cols-[1fr_auto] sm:items-end">
+          <form action="/#facilitators" className="grid gap-3 rounded-card bg-white p-4 shadow-soft sm:grid-cols-[1fr_auto] sm:items-end">
+            <input name="scroll_to" type="hidden" value="facilitators" />
             <label className="grid gap-2 text-sm font-semibold text-olive">
               Søg efter facilitator
               <input
                 className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-rose"
                 defaultValue={query}
-                name="q"
+                name="facilitator_q"
                 placeholder="Søg efter facilitatornavn..."
                 type="search"
               />
@@ -56,7 +57,7 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
         )}
 
         {facilitators.length > 0 ? (
-          <div className="mt-8 flex snap-x gap-4 overflow-x-auto pb-4">
+          <div className="mt-6 flex snap-x gap-4 overflow-x-auto pb-4">
             {facilitators.map((facilitator) => (
               <Link
                 className="group min-w-[250px] max-w-[250px] snap-start overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[300px] sm:max-w-[300px]"

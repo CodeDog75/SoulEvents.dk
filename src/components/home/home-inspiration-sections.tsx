@@ -70,8 +70,8 @@ export function HomeInspirationSections({
   }
 
   return (
-    <section className="bg-white py-[100px]" id="inspiration">
-      <div className="mx-auto grid max-w-[1200px] gap-14 px-5 sm:px-8">
+    <section className="bg-white py-20 sm:py-24" id="inspiration">
+      <div className="mx-auto grid max-w-[1200px] gap-12 px-5 sm:px-8">
         {hasThemes && (
           <div>
             <div className="max-w-3xl">
@@ -116,7 +116,7 @@ export function HomeInspirationSections({
                 Facilitatorer, som SoulEvents fremhæver for deres nærvær, faglighed og aktuelle tilbud.
               </p>
             </div>
-            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {featuredFacilitators.map((facilitator) => (
                 <FacilitatorCard facilitator={facilitator} key={facilitator.id} />
               ))}
@@ -133,7 +133,7 @@ export function HomeInspirationSections({
                 Senest godkendte aktive facilitatorer på platformen.
               </p>
             </div>
-            <div className="mt-8 flex snap-x gap-4 overflow-x-auto pb-4">
+            <div className="mt-6 flex snap-x gap-4 overflow-x-auto pb-4">
               {newFacilitators.map((facilitator) => (
                 <div className="min-w-[250px] max-w-[250px] snap-start sm:min-w-[300px] sm:max-w-[300px]" key={facilitator.id}>
                   <FacilitatorCard facilitator={facilitator} />

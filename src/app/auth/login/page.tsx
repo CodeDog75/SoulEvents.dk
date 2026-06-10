@@ -65,7 +65,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             />
           </label>
 
-          <button
+                    <div className="flex justify-end">
+            <Link className="text-sm font-semibold text-sage-700 hover:text-terracotta" href="/auth/forgot-password">
+              Glemt adgangskode?
+            </Link>
+          </div>
+
+<button
             className="mt-2 h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700"
             type="submit"
           >
@@ -81,19 +87,19 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </p>
 
         <form action={resendConfirmationAction} className="mt-6 rounded-card bg-sage-50 p-4">
-          <p className="text-sm font-semibold text-olive">Har du ikke fået bekræftet e-mailen?</p>
+          <p className="text-sm font-semibold text-olive">Mangler du bekræftelsesmailen?</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
             <input
               className="h-11 rounded-input border border-olive/15 px-3 text-base outline-none transition focus:border-rose"
               name="email"
-              placeholder="munch4300+leif@gmail.com"
+              placeholder="din@email.dk"
               type="email"
             />
             <button
               className="h-11 rounded-button bg-olive px-4 text-sm font-semibold text-white transition hover:bg-sage-500"
               type="submit"
             >
-              Send igen
+              Send bekræftelsesmail igen
             </button>
           </div>
         </form>
