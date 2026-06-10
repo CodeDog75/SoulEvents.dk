@@ -18,6 +18,8 @@ type CategoryFormProps = {
 };
 
 export function CategoryForm({ category, title }: CategoryFormProps) {
+  const color = category?.color_hex ?? "#87A878";
+
   return (
     <form action={upsertCategoryAction} className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
       <input name="id" type="hidden" value={category?.id ?? ""} />
@@ -56,13 +58,31 @@ export function CategoryForm({ category, title }: CategoryFormProps) {
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">
-          Farve
-          <input
-            className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
-            defaultValue={category?.color_hex ?? "#87A878"}
-            name="color_hex"
-            pattern="^#[0-9A-Fa-f]{6}$"
-          />
+          Tag-farve
+          <div className="grid grid-cols-[56px_1fr] gap-2">
+            <input
+              aria-label="Vælg tag-farve"
+              className="h-11 w-14 rounded-md border border-midnight/15 bg-white p-1"
+              defaultValue={color}
+              name="color_hex"
+              type="color"
+            />
+            <input
+              className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+              defaultValue={color}
+              name="color_hex_text"
+              pattern="^#[0-9A-Fa-f]{6}$"
+              placeholder="#87A878"
+            />
+          </div>
+          <span className="text-xs text-ink/55">Farven bruges på kategori-tags på eventkort, kort-popup og eventside.</span>
+        </label>
+
+        <label className="grid gap-2 text-sm font-medium text-ink/72">
+          Preview
+          <span className="inline-flex h-11 w-fit items-center rounded-full px-4 text-sm font-semibold text-white" style={{ backgroundColor: color }}>
+            {category?.name || "Kategori-tag"}
+          </span>
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">

@@ -30,7 +30,7 @@ export function TaxonomyLists({ categories, regions }: TaxonomyListsProps) {
       <section className="overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
         <div className="border-b border-midnight/10 px-5 py-4">
           <h2 className="text-lg font-semibold text-midnight">Kategorier</h2>
-          <p className="mt-1 text-sm text-ink/64">Bruges til facilitatorprofiler, events og kortmarkører.</p>
+          <p className="mt-1 text-sm text-ink/64">Bruges til facilitatorprofiler, events, kategori-tags og kortmarkører.</p>
         </div>
 
         <div className="divide-y divide-midnight/10">
@@ -39,12 +39,16 @@ export function TaxonomyLists({ categories, regions }: TaxonomyListsProps) {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span
-                    className="inline-block size-4 rounded-sm border border-midnight/10"
+                    className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white"
                     style={{ backgroundColor: category.color_hex }}
-                  />
-                  <h3 className="font-semibold text-midnight">{category.name}</h3>
+                  >
+                    {category.name}
+                  </span>
                   <span className="rounded-md bg-sage-50 px-2 py-1 text-xs font-semibold text-sage-700">
                     {category.slug}
+                  </span>
+                  <span className="rounded-md bg-midnight/5 px-2 py-1 text-xs font-semibold text-midnight">
+                    {category.color_hex}
                   </span>
                   {!category.is_active && (
                     <span className="rounded-md bg-midnight/10 px-2 py-1 text-xs font-semibold text-midnight">

@@ -8,7 +8,7 @@ import { createSlug } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 
 function taxonomyRedirect(message: string): never {
-  redirect(`/admin/taxonomy?message=${encodeURIComponent(message)}`);
+  redirect(`/admin/category-architecture?message=${encodeURIComponent(message)}`);
 }
 
 function getSortOrder(formData: FormData) {

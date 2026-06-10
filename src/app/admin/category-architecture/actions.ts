@@ -82,8 +82,8 @@ export async function upsertTagAction(formData: FormData) {
 
 export async function deleteTaxonomyItemAction(formData: FormData) {
   await requireRole("admin");
-  const table = getString(formData, "table");
-  const id = getString(formData, "id");
+  const table = getString(formData, "table") || getString(formData, "delete_table");
+  const id = getString(formData, "id") || getString(formData, "delete_id");
 
   if (!["main_categories", "subcategories", "tags"].includes(table) || !id) {
     go("Ugyldig sletning.");

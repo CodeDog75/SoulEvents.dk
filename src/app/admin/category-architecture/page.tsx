@@ -6,6 +6,7 @@ import {
   upsertSubcategoryAction,
   upsertTagAction,
 } from "@/app/admin/category-architecture/actions";
+import { CategoryForm } from "@/components/admin/taxonomy/category-form";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -55,7 +56,14 @@ function BasicForm({
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.name ?? ""} name="name" placeholder="Navn" required />
         <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.slug ?? ""} name="slug" placeholder="slug dannes automatisk" />
-        {showColor && <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.color_hex ?? "#87A878"} name="color_hex" placeholder="#87A878" />}
+        {showColor && (
+          <div className="grid grid-cols-[52px_1fr] gap-2">
+            <input className="h-10 w-12 rounded-md border border-midnight/15 bg-white p-1" defaultValue={item?.color_hex ?? "#87A878"} name="color_hex" type="color" />
+            <span className="inline-flex h-10 items-center rounded-full px-3 text-sm font-semibold text-white" style={{ backgroundColor: item?.color_hex ?? "#87A878" }}>
+              {item?.name || "Preview"}
+            </span>
+          </div>
+        )}
         {showImage && <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.image_path ?? ""} name="image_path" placeholder="Billede-sti" />}
         <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.sort_order ?? 0} name="sort_order" type="number" />
       </div>
@@ -66,17 +74,18 @@ function BasicForm({
           Gem
         </button>
         {item?.id && (
-          <button
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-terracotta/30 px-3 text-sm font-semibold text-terracotta"
-            formAction={deleteTaxonomyItemAction}
-            name="id"
-            type="submit"
-            value={item.id}
-          >
-            <input name="table" type="hidden" value={table} />
-            <Trash2 className="size-4" aria-hidden="true" />
-            Slet
-          </button>
+          <>
+            <input name="delete_id" type="hidden" value={item.id} />
+            <input name="delete_table" type="hidden" value={table} />
+            <button
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-terracotta/30 px-3 text-sm font-semibold text-terracotta"
+              formAction={deleteTaxonomyItemAction}
+              type="submit"
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+              Slet
+            </button>
+          </>
         )}
       </div>
     </form>
@@ -118,10 +127,11 @@ function SubcategoryForm({ item, mainCategories }: { item?: BasicItem; mainCateg
 export default async function CategoryArchitecturePage({ searchParams }: PageProps) {
   const [{ message }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = await createClient();
-  const [{ data: mainCategories }, { data: subcategories }, { data: tags }] = await Promise.all([
+  const [{ data: mainCategories }, { data: subcategories }, { data: tags }, { data: eventCategories }] = await Promise.all([
     supabase.from("main_categories").select("*").order("sort_order"),
     supabase.from("subcategories").select("*").order("sort_order"),
     supabase.from("tags").select("*").order("sort_order"),
+    supabase.from("categories").select("*").order("sort_order"),
   ]);
 
   return (

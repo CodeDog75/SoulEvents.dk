@@ -170,12 +170,12 @@ export async function requestPasswordResetAction(formData: FormData) {
   });
 
   if (error) {
-    authRedirect("/auth/forgot-password", "Link til nulstilling kunne ikke sendes: " + error.message);
+    authRedirect("/auth/forgot-password", "Link til ny adgangskode kunne ikke sendes: " + error.message);
   }
 
   authRedirect(
     "/auth/forgot-password",
-    "Hvis e-mailen findes i systemet, har vi sendt et link til nulstilling af adgangskoden. Tjek også spam/reklame.",
+    "Hvis e-mailen findes i systemet, har vi sendt et link til ny adgangskode. Tjek også spam/reklame.",
   );
 }
 
