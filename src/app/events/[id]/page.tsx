@@ -16,6 +16,12 @@ type EventDetailPageProps = {
   searchParams: Promise<{ booking?: string; message?: string }>;
 };
 
+function formatEventFormat(format?: string | null) {
+  if (format === "online") return "💻 Online";
+  if (format === "hybrid") return "🔄 Hybrid";
+  return "📍 Fysisk";
+}
+
 function formatPrice(priceCents: number) {
   if (priceCents === 0) {
     return "Gratis";
@@ -67,6 +73,10 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       postal_code,
       city,
       price_cents,
+      event_format,
+      online_description,
+      online_url_or_note,
+      practical_information,
       capacity,
       contact_email,
       contact_phone,
@@ -118,6 +128,11 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
   const eventDuration = formatEventDuration(event.starts_at, event.ends_at);
+  const googleMapsUrl =
+    typeof event.latitude === "number" && typeof event.longitude === "number"
+      ? "https://www.google.com/maps/search/?api=1&query=" + event.latitude + "," + event.longitude
+      : null;
+
   const facilitatorLinks = [
     facilitatorProfile?.website_url ? { label: "Hjemmeside", href: ensureUrl(facilitatorProfile.website_url) } : null,
     facilitatorProfile?.facebook_url ? { label: "Facebook", href: ensureUrl(facilitatorProfile.facebook_url) } : null,
@@ -137,10 +152,10 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           </div>
           <Link
             className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
-            href="/events"
+            href="/"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
-            Events
+            Forsiden
           </Link>
         </div>
       </header>
@@ -205,7 +220,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                 </div>
               )}
               <div>
-                <p className="font-semibold text-sage-700">{facilitatorName}</p>
+                <Link className="font-semibold text-sage-700 transition hover:text-rose" href={"/facilitators/" + facilitatorProfile.id}>{facilitatorName}</Link>
                 <p className="mt-2 text-sm leading-6 text-ink/66">
                   {facilitatorProfile?.short_description || "Facilitatorens profiltekst kommer snart."}
                 </p>
@@ -234,6 +249,9 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           <section className="rounded-card bg-white p-6 shadow-soft">
             <h2 className="text-4xl font-medium text-olive">Praktisk</h2>
             <div className="mt-4 grid gap-3 text-sm text-ink/72">
+              <div className="inline-flex w-fit rounded-full border border-olive/10 bg-white px-2.5 py-1 text-xs font-medium text-ink/55">
+                {formatEventFormat(event.event_format)}
+              </div>
               <div className="rounded-md border border-sage-700/15 bg-sage-50/70 p-4">
                 <div className="flex gap-3">
                   <CalendarDays className="mt-1 size-5 text-sage-700" aria-hidden="true" />
@@ -267,6 +285,18 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                 <Ticket className="mt-0.5 size-4 text-midnight" aria-hidden="true" />
                 <span>{formatPrice(event.price_cents)}</span>
               </div>
+              {event.practical_information && (
+                <div className="rounded-md bg-sage-50 p-3">
+                  <p className="font-semibold text-olive">Praktisk information til deltagere</p>
+                  <p className="mt-1">{event.practical_information}</p>
+                </div>
+              )}
+              {(event.event_format === "online" || event.event_format === "hybrid") && (
+                <div className="rounded-md bg-sage-50 p-3">
+                  <p className="font-semibold text-olive">Online-info</p>
+                  <p className="mt-1">{event.online_description || event.online_url_or_note || "Link sendes efter tilmelding."}</p>
+                </div>
+              )}
               {event.contact_email && (
                 <div className="flex gap-2">
                   <Mail className="mt-0.5 size-4 text-midnight" aria-hidden="true" />

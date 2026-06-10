@@ -28,13 +28,13 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
             </p>
           </div>
 
-          <form action="/#facilitators" className="grid gap-3 rounded-card bg-white p-4 shadow-soft sm:grid-cols-[1fr_auto] sm:items-end">
+          <form action="/facilitators" className="grid gap-3 rounded-card bg-white p-4 shadow-soft sm:grid-cols-[1fr_auto] sm:items-end">
             <label className="grid gap-2 text-sm font-semibold text-olive">
               Søg efter facilitator
               <input
                 className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-rose"
                 defaultValue={query}
-                name="facilitator_q"
+                name="q"
                 placeholder="Søg efter facilitatornavn..."
                 type="search"
               />

@@ -14,9 +14,9 @@ type BookingFormProps = {
 };
 
 const inputClass =
-  "h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700";
+  "h-11 rounded-md border border-[#e5d4f7] bg-white px-3 text-base outline-none transition focus:border-[#b98be8] focus:ring-2 focus:ring-[#e5d4f7]";
 const textareaClass =
-  "min-h-28 rounded-md border border-midnight/15 px-3 py-3 text-base outline-none transition focus:border-sage-700";
+  "min-h-28 rounded-md border border-[#e5d4f7] bg-white px-3 py-3 text-base outline-none transition focus:border-[#b98be8] focus:ring-2 focus:ring-[#e5d4f7]";
 
 function cleanPhone(value: string) {
   return value.replace(/\D/g, "");
@@ -38,14 +38,14 @@ export function BookingForm({ eventId, availableSeats, message, messageVariant =
   const phoneValid = useMemo(() => !phone.trim() || cleanPhone(phone).length === 8, [phone]);
 
   return (
-    <form action={createBookingAction} className="rounded-md border border-midnight/10 bg-white p-6 shadow-soft">
+    <form action={createBookingAction} className="rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_18px_45px_rgba(90,59,122,0.16)]">
       <input name="event_id" type="hidden" value={eventId} />
-      <h2 className="text-2xl font-semibold text-midnight">Tilmeld dig</h2>
+      <h2 className="text-3xl font-semibold text-olive">Tilmeld dig</h2>
       <p className="mt-1 text-sm text-ink/65">
         {isSoldOut ? "Der er ikke flere ledige pladser." : availableSeats + " ledige pladser."}
       </p>
 
-      <div className="mt-4 rounded-md border border-sage-700/10 bg-sage-50/60 px-3 py-3 text-sm leading-6 text-ink/72">
+      <div className="mt-4 rounded-md border border-white/70 bg-white/70 px-3 py-3 text-sm leading-6 text-ink/72 shadow-soft">
         <p className="font-semibold text-midnight">{"\ud83d\udc9c Vigtigt f\u00f8r du tilmelder dig"}</p>
         <p className="mt-2">
           {"Din tilmelding sendes som en foresp\u00f8rgsel til facilitatoren. Din plads er f\u00f8rst reserveret, n\u00e5r du har modtaget en bekr\u00e6ftelse."}
@@ -136,7 +136,7 @@ export function BookingForm({ eventId, availableSeats, message, messageVariant =
           />
         </label>
 
-        <label className="flex items-start gap-3 rounded-md border border-midnight/10 bg-gray-50 p-4 text-sm leading-6 text-ink/72">
+        <label className="flex items-start gap-3 rounded-md border border-[#e5d4f7] bg-white/80 p-4 text-sm leading-6 text-ink/72">
           <input
             className="mt-1 size-4 accent-sage-700"
             checked={acceptedGuidelines}
@@ -154,7 +154,7 @@ export function BookingForm({ eventId, availableSeats, message, messageVariant =
       </div>
 
       <button
-        className="mt-6 h-11 w-full rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700 disabled:cursor-not-allowed disabled:bg-midnight/35"
+        className="mt-6 h-12 w-full rounded-button bg-rose px-4 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:bg-rose/40"
         disabled={isSoldOut}
         type="submit"
       >

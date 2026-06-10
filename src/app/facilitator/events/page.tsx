@@ -18,7 +18,14 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
   const [{ message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
   const supabase = await createClient();
 
-  const [{ data: facilitatorProfile }, { data: regions }, { data: categories }] = await Promise.all([
+  const [
+    { data: facilitatorProfile },
+    { data: regions },
+    { data: categories },
+    { data: mainCategories },
+    { data: subcategories },
+    { data: tags },
+  ] = await Promise.all([
     supabase
       .from("facilitator_profiles")
       .select(
@@ -107,6 +114,9 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
         {facilitatorProfile && profileReady && (
           <EventForm
             categories={categories ?? []}
+            mainCategories={mainCategories ?? []}
+            subcategories={subcategories ?? []}
+            tags={tags ?? []}
             facilitator={{
               contactEmail: contactProfile?.email ?? profile.email,
               contactPhone: contactProfile?.phone ?? profile.phone,

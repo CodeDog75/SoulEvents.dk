@@ -1,16 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Mail, MapPinned, Sparkles, UserRound } from "lucide-react";
+import { ArrowLeft, ExternalLink, Mail, MapPinned, Phone, Sparkles, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { PublicEventList } from "@/components/events/public-event-list";
+import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitator-button";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 type FacilitatorPageProps = {
-  params: Promise<{
-    id: string;
-  }>;
+  params: Promise<{ id: string }>;
 };
 
 function first<T>(value: T | T[] | null | undefined) {
@@ -27,6 +27,30 @@ function startOfToday() {
   return date;
 }
 
+function nameOf(facilitator: any) {
+  const profile = first(facilitator?.profiles);
+  return facilitator?.company_name || profile?.full_name || "Facilitator";
+}
+
+export async function generateMetadata({ params }: FacilitatorPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data: facilitator } = await supabase
+    .from("facilitator_profiles")
+    .select("company_name, short_description, profiles(full_name)")
+    .eq("id", id)
+    .eq("status", "approved")
+    .single();
+
+  if (!facilitator) return {};
+
+  const name = nameOf(facilitator);
+  return {
+    title: name + " | Facilitator på SoulEvents",
+    description: facilitator.short_description || "Find facilitatorprofil på SoulEvents.",
+  };
+}
+
 export default async function PublicFacilitatorPage({ params }: FacilitatorPageProps) {
   const { id } = await params;
   const supabase = await createClient();
@@ -34,7 +58,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
   const { data: facilitator } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, company_name, profile_image_path, short_description, long_description, website_url, facebook_url, instagram_url, address_line, postal_code, city, profiles(full_name), regions(name), facilitator_categories(categories(name, color_hex))",
+      "id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
     )
     .eq("id", id)
     .eq("status", "approved")
@@ -47,7 +71,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
   const { data: events } = await supabase
     .from("events")
     .select(
-      "id, title, short_description, starts_at, city, price_cents, capacity, facilitator_profiles!inner(status, company_name, profiles(full_name)), regions(name), event_categories(categories(name, color_hex))",
+      "id, title, short_description, starts_at, city, price_cents, capacity, event_format, facilitator_profiles!inner(status, company_name, profiles(full_name)), regions(name), event_categories(categories(name, color_hex))",
     )
     .eq("facilitator_id", id)
     .eq("status", "active")
@@ -57,18 +81,30 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
 
   const profile = first(facilitator.profiles);
   const region = first(facilitator.regions);
-  const name = facilitator.company_name || profile?.full_name || "Facilitator";
+  const name = nameOf(facilitator);
   const imageUrl = facilitator.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
     : null;
+  const gallery =
+    [...(facilitator.facilitator_images ?? [])]
+      .sort((a: any, b: any) => a.sort_order - b.sort_order)
+      .slice(0, 10)
+      .map((image: any) => ({
+        ...image,
+        url: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,
+      })) ?? [];
   const categories =
     facilitator.facilitator_categories
       ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
       .filter(Boolean) ?? [];
+  const publicEmail = facilitator.public_email || profile?.email || null;
+  const publicPhone = facilitator.public_phone || profile?.phone || null;
   const links = [
     facilitator.website_url ? { label: "Hjemmeside", href: ensureUrl(facilitator.website_url) } : null,
     facilitator.facebook_url ? { label: "Facebook", href: ensureUrl(facilitator.facebook_url) } : null,
     facilitator.instagram_url ? { label: "Instagram", href: ensureUrl(facilitator.instagram_url) } : null,
+    facilitator.youtube_url ? { label: "YouTube", href: ensureUrl(facilitator.youtube_url) } : null,
+    facilitator.tiktok_url ? { label: "TikTok", href: ensureUrl(facilitator.tiktok_url) } : null,
   ].filter((link): link is { label: string; href: string } => Boolean(link));
 
   return (
@@ -80,7 +116,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
           </Link>
           <Link
             className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
-            href="/#facilitators"
+            href="/facilitators"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
             Facilitatorer
@@ -91,7 +127,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
       <section className="mx-auto grid max-w-[1400px] gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1fr_380px]">
         <div className="grid gap-6">
           <section className="overflow-hidden rounded-card bg-white shadow-soft">
-            <div className="grid gap-8 p-8 sm:p-10 md:grid-cols-[240px_1fr] md:items-center">
+            <div className="grid gap-8 p-8 sm:p-10 md:grid-cols-[260px_1fr] md:items-center">
               <div className="aspect-square overflow-hidden rounded-card bg-sage-50">
                 {imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -104,24 +140,20 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
               </div>
 
               <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-rose">Facilitator</p>
-                <h1 className="mt-3 text-5xl font-medium leading-tight text-olive">{name}</h1>
+                <div className="flex flex-wrap gap-2">
+                  {facilitator.is_online_facilitator && (
+                    <span className="rounded-full border border-olive/10 bg-white px-2.5 py-1 text-xs font-medium text-ink/55">💻 Online facilitator</span>
+                  )}
+                  {categories.map((category: any) => (
+                    <span className="rounded-full px-3 py-1 text-xs font-semibold text-white" key={category.name} style={{ backgroundColor: category.color_hex }}>
+                      {category.name}
+                    </span>
+                  ))}
+                </div>
+                <h1 className="mt-4 text-5xl font-medium leading-tight text-olive">{name}</h1>
                 <p className="mt-4 max-w-3xl text-base leading-7 text-ink/72">
-                  {facilitator.short_description || "Facilitatorens korte beskrivelse kommer snart."}
+                  {facilitator.short_description || "Facilitatorens korte præsentation kommer snart."}
                 </p>
-                {categories.length > 0 && (
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {categories.map((category: { name: string; color_hex: string | null }) => (
-                      <span
-                        className="rounded-full px-3 py-1 text-xs font-semibold text-white"
-                        key={category.name}
-                        style={{ backgroundColor: category.color_hex ?? "#6f7f4f" }}
-                      >
-                        {category.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </section>
@@ -132,6 +164,20 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
               {facilitator.long_description || facilitator.short_description || "Der kommer mere information om facilitatoren snart."}
             </div>
           </section>
+
+          {gallery.length > 0 && (
+            <section className="rounded-card bg-white p-8 shadow-soft">
+              <h2 className="text-4xl font-medium text-olive">Galleri</h2>
+              <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
+                {gallery.map((image: any) => (
+                  <div className="aspect-square overflow-hidden rounded-card bg-sage-50" key={image.image_path}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img alt={image.alt_text || name} className="h-full w-full object-cover" src={image.url} />
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="rounded-card bg-white p-8 shadow-soft">
             <h2 className="text-4xl font-medium text-olive">Kommende events</h2>
@@ -150,23 +196,30 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
 
         <aside className="grid content-start gap-5 lg:sticky lg:top-6">
           <section className="rounded-card bg-white p-6 shadow-soft">
-            <h2 className="text-3xl font-medium text-olive">Praktisk</h2>
+            <h2 className="text-3xl font-medium text-olive">Kontakt og lokation</h2>
             <div className="mt-4 grid gap-3 text-sm text-ink/72">
               <div className="flex gap-2">
                 <MapPinned className="mt-0.5 size-4 text-sage-700" aria-hidden="true" />
                 <span>
-                  {[facilitator.address_line, facilitator.postal_code, facilitator.city, region?.name].filter(Boolean).join(", ") ||
-                    "Lokation kommer snart"}
+                  {facilitator.is_online_facilitator
+                    ? "Online facilitator"
+                    : [facilitator.city, region?.name, facilitator.country].filter(Boolean).join(", ") || "Lokation kommer snart"}
                 </span>
               </div>
+              {publicEmail && (
+                <a className="inline-flex items-center gap-2 font-semibold text-olive transition hover:text-rose" href={"mailto:" + publicEmail}>
+                  <Mail className="size-4" aria-hidden="true" />
+                  {publicEmail}
+                </a>
+              )}
+              {publicPhone && (
+                <a className="inline-flex items-center gap-2 font-semibold text-olive transition hover:text-rose" href={"tel:" + publicPhone}>
+                  <Phone className="size-4" aria-hidden="true" />
+                  {publicPhone}
+                </a>
+              )}
               {links.map((link) => (
-                <a
-                  className="inline-flex items-center gap-2 font-semibold text-olive transition hover:text-rose"
-                  href={link.href}
-                  key={link.label}
-                  rel="noreferrer"
-                  target="_blank"
-                >
+                <a className="inline-flex items-center gap-2 font-semibold text-olive transition hover:text-rose" href={link.href} key={link.label} rel="noreferrer" target="_blank">
                   <ExternalLink className="size-4" aria-hidden="true" />
                   {link.label}
                 </a>
@@ -174,26 +227,16 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
             </div>
           </section>
 
+          <ShareFacilitatorButton facilitatorId={facilitator.id} facilitatorName={name} />
+
           <section className="rounded-card bg-white p-6 shadow-soft">
             <h2 className="text-3xl font-medium text-olive">Tilmeld påmindelse</h2>
             <p className="mt-3 text-sm leading-6 text-ink/66">
               Få besked på e-mail, når denne facilitator opretter et nyt event.
             </p>
             <form className="mt-4 grid gap-3">
-              <label className="grid gap-2 text-sm font-semibold text-olive">
-                E-mail
-                <input
-                  className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
-                  name="email"
-                  placeholder="din@email.dk"
-                  type="email"
-                />
-              </label>
-              <button
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-button bg-rose px-6 text-sm font-semibold text-white shadow-soft"
-                type="button"
-              >
-                <Mail className="size-4" aria-hidden="true" />
+              <input className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base outline-none transition focus:border-rose" name="email" placeholder="din@email.dk" type="email" />
+              <button className="inline-flex h-12 items-center justify-center rounded-button bg-rose px-6 text-sm font-semibold text-white shadow-soft" type="button">
                 Tilmeld påmindelse
               </button>
             </form>

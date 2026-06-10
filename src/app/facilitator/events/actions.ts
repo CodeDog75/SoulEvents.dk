@@ -10,7 +10,8 @@ import { createSlug } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 import type { EventStatus } from "@/types/database";
 
-const allowedStatuses: EventStatus[] = ["draft", "active", "sold_out", "cancelled", "completed"];
+const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "rejected", "sold_out", "cancelled", "completed", "archived"];
+const allowedFormats = ["physical", "online", "hybrid"] as const;
 
 function eventsRedirect(message: string): never {
   redirect(`/facilitator/events?message=${encodeURIComponent(message)}`);
@@ -50,6 +51,23 @@ function normalizeImageRows(paths: string[], alts: string[]) {
     alt_text: alts[index] || null,
     sort_order: index + 1,
   }));
+}
+
+async function createUniqueEventSlug(supabase: any, baseSlug: string) {
+  const cleanBaseSlug = baseSlug || "event";
+  let candidate = cleanBaseSlug;
+
+  for (let suffix = 2; suffix < 100; suffix += 1) {
+    const { data: existingEvent } = await supabase.from("events").select("id").eq("slug", candidate).maybeSingle();
+
+    if (!existingEvent) {
+      return candidate;
+    }
+
+    candidate = cleanBaseSlug + "-" + suffix;
+  }
+
+  return cleanBaseSlug + "-" + crypto.randomUUID().slice(0, 8);
 }
 
 function isProfileReady(input: {
@@ -119,6 +137,9 @@ export async function createEventAction(formData: FormData) {
   const facebookUrl = getOptionalString(formData, "facebook_url");
   const instagramUrl = getOptionalString(formData, "instagram_url");
   const categoryIds = getAllStrings(formData, "category_ids");
+  const mainCategoryIds = getAllStrings(formData, "main_category_ids");
+  const subcategoryIds = getAllStrings(formData, "subcategory_ids");
+  const tagIds = getAllStrings(formData, "tag_ids");
   const imagePaths = getAllStrings(formData, "event_image_paths");
   const imageAlts = getAllStrings(formData, "event_alt_texts");
 
@@ -155,7 +176,8 @@ export async function createEventAction(formData: FormData) {
     }
   }
 
-  const coordinates = await geocodeDanishAddress({ addressLine, postalCode, city });
+  const coordinates =
+    eventFormat === "online" ? null : await geocodeDanishAddress({ addressLine, postalCode, city });
 
   const { data: event, error: eventError } = await supabase
     .from("events")
@@ -186,7 +208,34 @@ export async function createEventAction(formData: FormData) {
     .single();
 
   if (eventError || !event) {
-    eventsRedirect("Eventet kunne ikke oprettes. Tjek om slug allerede findes.");
+    eventsRedirect("Eventet kunne ikke oprettes. Prøv igen.");
+  }
+
+  if (mainCategoryIds.length > 0) {
+    await supabase.from("event_main_categories").insert(
+      mainCategoryIds.map((mainCategoryId) => ({
+        event_id: event.id,
+        main_category_id: mainCategoryId,
+      })),
+    );
+  }
+
+  if (subcategoryIds.length > 0) {
+    await supabase.from("event_subcategories").insert(
+      subcategoryIds.map((subcategoryId) => ({
+        event_id: event.id,
+        subcategory_id: subcategoryId,
+      })),
+    );
+  }
+
+  if (tagIds.length > 0) {
+    await supabase.from("event_tags").insert(
+      tagIds.map((tagId) => ({
+        event_id: event.id,
+        tag_id: tagId,
+      })),
+    );
   }
 
   if (categoryIds.length > 0) {

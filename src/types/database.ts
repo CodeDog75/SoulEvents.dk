@@ -2,7 +2,7 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export type AppRole = "admin" | "facilitator";
 export type FacilitatorStatus = "pending" | "approved" | "disabled";
-export type EventStatus = "draft" | "active" | "sold_out" | "cancelled" | "completed";
+export type EventStatus = "draft" | "pending_review" | "active" | "rejected" | "sold_out" | "cancelled" | "completed" | "archived";
 export type BookingStatus =
   | "pending"
   | "confirmed"
@@ -77,6 +77,11 @@ export type Database = {
           website_url: string | null;
           facebook_url: string | null;
           instagram_url: string | null;
+          practical_information: string | null;
+          event_format: string;
+          online_description: string | null;
+          online_url_or_note: string | null;
+          country: string;
           address_line: string | null;
           postal_code: string | null;
           city: string | null;
@@ -113,6 +118,7 @@ export type Database = {
           longitude: number | null;
           price_cents: number;
           capacity: number;
+          contact_name: string | null;
           contact_email: string | null;
           contact_phone: string | null;
           facebook_url: string | null;

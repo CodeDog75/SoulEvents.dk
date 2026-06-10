@@ -9,6 +9,8 @@ type PublicEvent = {
   city: string | null;
   price_cents: number;
   capacity: number;
+  event_format?: string | null;
+  distance_km?: number | null;
   facilitator_profiles:
     | {
         company_name: string | null;
@@ -60,12 +62,32 @@ type PublicEventListProps = {
   layout?: "grid" | "stack";
 };
 
-function formatPrice(priceCents: number) {
-  if (priceCents === 0) {
-    return "Gratis";
-  }
+function uniqueEventsById<T extends { id: string }>(events: T[]) {
+  const seen = new Set<string>();
+  return events.filter((event) => {
+    if (seen.has(event.id)) {
+      return false;
+    }
 
+    seen.add(event.id);
+    return true;
+  });
+}
+
+function formatEventFormat(format?: string | null) {
+  if (format === "online") return "💻 Online";
+  if (format === "hybrid") return "🔄 Hybrid";
+  return "📍 Fysisk";
+}
+
+function formatPrice(priceCents: number) {
+  if (priceCents === 0) return "Gratis";
   return new Intl.NumberFormat("da-DK").format(priceCents / 100) + " kr.";
+}
+
+function formatDistance(distanceKm?: number | null) {
+  if (typeof distanceKm !== "number" || !Number.isFinite(distanceKm)) return null;
+  return Math.max(1, Math.round(distanceKm)) + " km væk";
 }
 
 export function PublicEventList({ events, layout = "grid" }: PublicEventListProps) {
@@ -81,7 +103,7 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
 
   return (
     <section className={layout === "stack" ? "grid gap-4" : "grid gap-4 md:grid-cols-2 xl:grid-cols-3"}>
-      {events.map((event) => {
+      {uniqueEventsById(events).map((event) => {
         const facilitatorProfile = Array.isArray(event.facilitator_profiles)
           ? event.facilitator_profiles[0]
           : event.facilitator_profiles;
@@ -94,6 +116,10 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
           event.event_categories
             ?.map((row) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
             .filter((category): category is NonNullable<typeof category> => Boolean(category)) ?? [];
+        const distance = formatDistance(event.distance_km);
+        const locationText = event.event_format === "online"
+          ? "Online event"
+          : [event.city, region?.name].filter(Boolean).join(", ") || "Lokation kommer snart";
 
         return (
           <Link
@@ -111,6 +137,9 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
                   {category.name}
                 </span>
               ))}
+              <span className="rounded-full border border-olive/10 bg-white/70 px-2.5 py-1 text-[11px] font-medium text-ink/55">
+                {formatEventFormat(event.event_format)}
+              </span>
             </div>
 
             <h2 className="mt-3 text-2xl font-medium leading-7 text-olive">{event.title}</h2>
@@ -120,13 +149,11 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
             <div className="mt-4 grid gap-2 text-sm text-ink/70">
               <div className="flex items-center gap-2">
                 <CalendarDays className="size-4 text-rose" aria-hidden="true" />
-                {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(
-                  new Date(event.starts_at),
-                )}
+                {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.starts_at))}
               </div>
               <div className="flex items-center gap-2">
                 <MapPinned className="size-4 text-sage-700" aria-hidden="true" />
-                {[event.city, region?.name].filter(Boolean).join(", ") || "Lokation kommer snart"}
+                {distance ? distance + " · " + locationText : locationText}
               </div>
             </div>
 

@@ -16,9 +16,10 @@ import {
 import Link from "next/link";
 import { sendContactMessageAction } from "@/app/contact/actions";
 import { BrandLogo } from "@/components/brand-logo";
-import { HomeEventSearchForm } from "@/components/events/home-event-search-form";
 import { EventMap } from "@/components/events/event-map";
 import { PublicEventList } from "@/components/events/public-event-list";
+import { HomeDiscoveryTiles } from "@/components/home/home-discovery-tiles";
+import { HomeInspirationSections } from "@/components/home/home-inspiration-sections";
 import { PublicFacilitatorCarousel } from "@/components/facilitator/public-facilitator-carousel";
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import { env } from "@/lib/env";
@@ -52,6 +53,7 @@ type HomeProps = {
     distance?: string;
     latitude?: string;
     longitude?: string;
+    format?: string;
     facilitator_q?: string;
   }>;
 };
@@ -142,6 +144,18 @@ function removeSearchParam(params: Record<string, string>, key: string) {
   return query ? "/?" + query + "#events" : "/#events";
 }
 
+function uniqueEventsById<T extends { id: string }>(events: T[]) {
+  const seen = new Set<string>();
+  return events.filter((event) => {
+    if (seen.has(event.id)) {
+      return false;
+    }
+
+    seen.add(event.id);
+    return true;
+  });
+}
+
 function normalizeText(value: string | null | undefined) {
   return (value ?? "").trim().toLowerCase();
 }
@@ -199,6 +213,14 @@ function parseCoordinate(value: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function publicMediaUrl(imagePath?: string | null) {
+  if (!env.supabaseUrl || !imagePath) {
+    return null;
+  }
+
+  return env.supabaseUrl.replace(/\/$/, "") + "/storage/v1/object/public/media/" + imagePath.split("/").map(encodeURIComponent).join("/");
+}
+
 function distanceInKm(from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }) {
   const earthRadiusKm = 6371;
   const toRadians = (value: number) => (value * Math.PI) / 180;
@@ -214,6 +236,44 @@ function distanceInKm(from: { latitude: number; longitude: number }, to: { latit
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+
+const fallbackHomeTiles = [
+  { id: "nearby", title: "Events nær dig", description: "Find oplevelser tæt på din aktuelle placering.", href: "/#events", imageUrl: null, tileType: "nearby" as const },
+  { id: "map", title: "Alle events på kort", description: "Udforsk events visuelt på kortet.", href: "/#map", imageUrl: null, tileType: "navigation" as const },
+  { id: "online", title: "Online events", description: "Find events du kan deltage i hjemmefra.", href: "/?q=online#events", imageUrl: null, tileType: "navigation" as const },
+  { id: "facilitators", title: "Facilitatorer", description: "Gå på opdagelse blandt SoulEvents facilitatorer.", href: "/facilitators", imageUrl: null, tileType: "navigation" as const },
+  { id: "all-events", title: "Alle events", description: "Se kommende events i kronologisk rækkefølge.", href: "/#events", imageUrl: null, tileType: "navigation" as const },
+  { id: "meditation", title: "Meditation & Nærvær", description: "Rolige events med meditation og fordybelse.", href: "/?category_label=Meditation#events", imageUrl: null, tileType: "category" as const },
+  { id: "sound", title: "Lyd & Musik", description: "Lydbade, kirtan og musikalske oplevelser.", href: "/?category_label=Lydbad#events", imageUrl: null, tileType: "category" as const },
+  { id: "body", title: "Bevægelse & Krop", description: "Yoga, breathwork, dans og kropslige praksisser.", href: "/?category_label=Yoga#events", imageUrl: null, tileType: "category" as const },
+];
+
+async function getHomeTiles() {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    return fallbackHomeTiles;
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("homepage_tiles")
+    .select("id, title, description, image_path, href, tile_type")
+    .eq("is_active", true)
+    .order("sort_order");
+
+  if (error || !data || data.length === 0) {
+    return fallbackHomeTiles;
+  }
+
+  return data.map((tile) => ({
+    id: tile.id,
+    title: tile.title,
+    description: tile.description,
+    href: tile.href,
+    imageUrl: tile.image_path ? supabase.storage.from("media").getPublicUrl(tile.image_path).data.publicUrl : null,
+    tileType: tile.tile_type,
+  }));
+}
+
 async function getSearchEvents(selected: {
   q: string;
   area: string;
@@ -222,6 +282,7 @@ async function getSearchEvents(selected: {
   distance: string;
   latitude: string;
   longitude: string;
+  format?: string;
 }) {
   if (!env.supabaseUrl || !env.supabaseAnonKey) {
     return [];
@@ -233,7 +294,7 @@ async function getSearchEvents(selected: {
   let query = supabase
     .from("events")
     .select(
-      "id, title, short_description, starts_at, latitude, longitude, city, price_cents, capacity, facilitator_profiles!inner(status, company_name, profiles(full_name)), regions(name), event_categories(categories(id, name, color_hex))",
+      "id, title, short_description, starts_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(status, company_name, profiles(full_name)), regions(name), event_categories(categories(id, name, color_hex))",
     )
     .eq("status", "active")
     .eq("facilitator_profiles.status", "approved")
@@ -266,34 +327,143 @@ async function getSearchEvents(selected: {
     query = query.gte("starts_at", start.toISOString()).lt("starts_at", end.toISOString());
   }
 
+  if (selected.format === "online") {
+    query = query.in("event_format", ["online", "hybrid"]);
+  } else if (selected.format === "physical") {
+    query = query.eq("event_format", "physical");
+  } else if (selected.format === "hybrid") {
+    query = query.eq("event_format", "hybrid");
+  }
+
   const { data: events } = await query;
-  const categoryFilteredEvents = (events ?? []).filter((event) => textMatches(event, selected.q) && categoryMatches(event, selected.categoryLabel));
+  const matchedEvents = uniqueEventsById(events ?? []).filter(
+    (event) => textMatches(event, selected.q) && categoryMatches(event, selected.categoryLabel),
+  );
 
   const userLatitude = parseCoordinate(selected.latitude);
   const userLongitude = parseCoordinate(selected.longitude);
-  const selectedDistance = Number(selected.distance);
+  const selectedDistance = selected.distance === "all" ? "all" : Number(selected.distance);
   const userLocation =
     userLatitude !== null && userLongitude !== null ? { latitude: userLatitude, longitude: userLongitude } : null;
 
-  return userLocation && [25, 50, 100].includes(selectedDistance)
-    ? categoryFilteredEvents
-        .map((event) => {
-          if (typeof event.latitude !== "number" || typeof event.longitude !== "number") {
-            return { event, distance: Number.POSITIVE_INFINITY };
-          }
+  const eventsWithDistance = matchedEvents.map((event) => {
+    const hasCoordinates = typeof event.latitude === "number" && typeof event.longitude === "number";
+    const distanceKm =
+      userLocation && hasCoordinates
+        ? distanceInKm(userLocation, {
+            latitude: event.latitude,
+            longitude: event.longitude,
+          })
+        : null;
 
-          return {
-            event,
-            distance: distanceInKm(userLocation, {
-              latitude: event.latitude,
-              longitude: event.longitude,
-            }),
-          };
-        })
-        .filter(({ distance }) => distance <= selectedDistance)
-        .sort((a, b) => a.distance - b.distance)
-        .map(({ event }) => event)
-    : categoryFilteredEvents;
+    return { ...event, distance_km: distanceKm };
+  });
+
+  if (!userLocation) {
+    return eventsWithDistance.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+  }
+
+  const nearbyEvents = eventsWithDistance.filter(
+    (event) => event.event_format !== "online" && typeof event.distance_km === "number",
+  );
+
+  const radiusFilteredEvents =
+    typeof selectedDistance === "number" && [10, 25, 50, 100].includes(selectedDistance)
+      ? nearbyEvents.filter((event) => (event.distance_km ?? Number.POSITIVE_INFINITY) <= selectedDistance)
+      : nearbyEvents;
+
+  return radiusFilteredEvents.sort((a, b) => (a.distance_km ?? 0) - (b.distance_km ?? 0));
+}
+
+
+
+async function getHomeThemes() {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("homepage_tiles")
+    .select("id, title, description, image_path, href")
+    .eq("is_active", true)
+    .eq("tile_type", "campaign")
+    .order("sort_order")
+    .limit(8);
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((theme) => ({
+    id: theme.id,
+    title: theme.title,
+    description: theme.description,
+    href: theme.href,
+    imageUrl: theme.image_path ? supabase.storage.from("media").getPublicUrl(theme.image_path).data.publicUrl : null,
+  }));
+}
+
+function mapFacilitatorCard(facilitator: any, supabase: Awaited<ReturnType<typeof createClient>>) {
+  const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
+  const categories =
+    facilitator.facilitator_categories
+      ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
+      .filter(Boolean) ?? [];
+
+  return {
+    id: facilitator.id,
+    name: facilitator.company_name || profile?.full_name || "Facilitator",
+    imageUrl: facilitator.profile_image_path
+      ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
+      : null,
+    city: facilitator.city,
+    tagline: facilitator.short_description || "",
+    primaryCategory: categories[0]?.name ?? null,
+    isOnline: Boolean(facilitator.is_online),
+  };
+}
+
+async function getFeaturedHomeFacilitators() {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("facilitator_profiles")
+    .select("id, company_name, profile_image_path, short_description, city, is_online, profiles(full_name), facilitator_categories(categories(name, color_hex))")
+    .eq("status", "approved")
+    .eq("is_featured", true)
+    .order("featured_sort_order", { ascending: true })
+    .order("created_at", { ascending: false })
+    .limit(6);
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((facilitator) => mapFacilitatorCard(facilitator, supabase));
+}
+
+async function getNewHomeFacilitators() {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("facilitator_profiles")
+    .select("id, company_name, profile_image_path, short_description, city, is_online, profiles(full_name), facilitator_categories(categories(name, color_hex))")
+    .eq("status", "approved")
+    .order("created_at", { ascending: false })
+    .limit(8);
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((facilitator) => mapFacilitatorCard(facilitator, supabase));
 }
 
 async function getHomeFacilitators(queryText: string) {
@@ -339,6 +509,7 @@ async function getHomeFacilitators(queryText: string) {
 export default async function Home({ searchParams }: HomeProps) {
   const params = searchParams ? await searchParams : {};
   const contactStatus = params.contact ?? "";
+  const homeTiles = await getHomeTiles();
   const facilitatorQuery = params.facilitator_q?.trim() ?? "";
   const selected = {
     q: params.q?.trim() ?? "",
@@ -348,6 +519,7 @@ export default async function Home({ searchParams }: HomeProps) {
     distance: params.distance ?? "",
     latitude: params.latitude ?? "",
     longitude: params.longitude ?? "",
+    format: params.format ?? "",
   };
   const hasSearch = Boolean(
     selected.q ||
@@ -356,7 +528,8 @@ export default async function Home({ searchParams }: HomeProps) {
       selected.date ||
       selected.distance ||
       selected.latitude ||
-      selected.longitude,
+      selected.longitude ||
+      selected.format,
   );
   const upcomingEvents = await getSearchEvents({
     ...selected,
@@ -367,10 +540,16 @@ export default async function Home({ searchParams }: HomeProps) {
     distance: "",
     latitude: "",
     longitude: "",
+    format: "",
   });
   const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
-  const visibleEvents = hasSearch ? searchEvents : upcomingEvents.slice(0, 24);
+  const visibleEvents = uniqueEventsById(hasSearch ? searchEvents : upcomingEvents.slice(0, 24));
   const facilitatorCards = await getHomeFacilitators(facilitatorQuery);
+  const [featuredFacilitators, newFacilitators, homeThemes] = await Promise.all([
+    getFeaturedHomeFacilitators(),
+    getNewHomeFacilitators(),
+    getHomeThemes(),
+  ]);
   const mapEvents = visibleEvents.map((event) => {
     const facilitatorProfile = Array.isArray(event.facilitator_profiles)
       ? event.facilitator_profiles[0]
@@ -393,6 +572,9 @@ export default async function Home({ searchParams }: HomeProps) {
       facilitatorName: facilitatorProfile?.company_name || facilitatorUser?.full_name || "Facilitator",
       categoryName: firstCategory?.name ?? null,
       categoryColor: firstCategory?.color_hex ?? null,
+      imageUrl: publicMediaUrl(event.cover_image_path),
+      eventFormat: event.event_format,
+      distanceKm: event.distance_km ?? null,
     };
   });
   const activeFilterParams = {
@@ -402,7 +584,28 @@ export default async function Home({ searchParams }: HomeProps) {
     distance: selected.distance,
     latitude: selected.latitude,
     longitude: selected.longitude,
+    format: selected.format,
   };
+  const nearbyRadiusOptions =
+    selected.latitude && selected.longitude
+      ? [
+          { label: "10 km", value: "10" },
+          { label: "25 km", value: "25" },
+          { label: "50 km", value: "50" },
+          { label: "100 km", value: "100" },
+          { label: "Hele Danmark", value: "all" },
+        ].map((option) => {
+          const params = new URLSearchParams();
+          params.set("latitude", selected.latitude);
+          params.set("longitude", selected.longitude);
+          params.set("distance", option.value);
+          if (selected.categoryLabel) params.set("category_label", selected.categoryLabel);
+          if (selected.q) params.set("q", selected.q);
+          if (selected.format) params.set("format", selected.format);
+          return { ...option, href: "/?" + params.toString() + "#events" };
+        })
+      : [];
+
   const activeFilters = [
     selected.categoryLabel
       ? { key: "category_label", label: selected.categoryLabel, href: removeSearchParam(activeFilterParams, "category_label") }
@@ -438,7 +641,7 @@ export default async function Home({ searchParams }: HomeProps) {
               <a className="transition hover:text-rose" href="#map">
                 Kort
               </a>
-              <a className="transition hover:text-rose" href="#facilitators">
+              <a className="transition hover:text-rose" href="/facilitators">
                 Facilitatorer
               </a>
               <a className="transition hover:text-rose" href="#categories">
@@ -467,30 +670,13 @@ export default async function Home({ searchParams }: HomeProps) {
               Gå på opdagelse i spirituelle events og oplevelser i hele Danmark. Start tæt på dig, eller vælg et område og mærk efter hvad der kalder.
             </p>
           </div>
-          <HomeEventSearchForm categories={categories.map(({ name, value }) => ({ name, value }))} selected={selected} />
+          <HomeDiscoveryTiles tiles={homeTiles} />
         </div>
       </section>
 
       <section className="bg-white py-[120px]" id="events">
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
-          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-rose">
-                {hasSearch ? "Søgeresultater" : "Kommende events"}
-              </p>
-              <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">
-                {hasSearch ? "Events der matcher din søgning" : "Førstkommende oplevelser"}
-              </h2>
-            </div>
-            <a
-              className="inline-flex h-12 items-center justify-center rounded-button bg-olive px-6 text-sm font-semibold text-white transition hover:bg-sage-500"
-              href="#map"
-            >
-              Se kortet
-            </a>
-          </div>
-
-          {activeFilters.length > 0 && (
+{activeFilters.length > 0 && (
             <div className="mt-8 flex flex-wrap gap-2">
               {activeFilters.map((filter) => (
                 <Link
@@ -506,7 +692,39 @@ export default async function Home({ searchParams }: HomeProps) {
           )}
 
           <div className="mt-10 grid gap-8">
+            {nearbyRadiusOptions.length > 0 && (
+              <section className="rounded-card border border-sage-700/15 bg-sage-50 p-5 shadow-soft">
+                <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Events nær dig</p>
+                <h2 className="mt-2 text-3xl font-medium text-olive">Vælg radius</h2>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {nearbyRadiusOptions.map((option) => (
+                    <Link
+                      className={
+                        selected.distance === option.value || (!selected.distance && option.value === "50")
+                          ? "rounded-full bg-olive px-4 py-2 text-sm font-semibold text-white"
+                          : "rounded-full bg-white px-4 py-2 text-sm font-semibold text-olive transition hover:bg-cream"
+                      }
+                      href={option.href}
+                      key={option.value}
+                    >
+                      {option.label}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
             <EventMap events={mapEvents} mapboxToken={env.mapboxToken} />
+
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-rose">
+                {hasSearch ? "Søgeresultater" : "Kommende events"}
+              </p>
+              <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">
+                {hasSearch ? "Events der matcher din søgning" : "Førstkommende oplevelser"}
+              </h2>
+            </div>
+
 
             {hasSearch ? (
               searchEvents.length > 0 ? (
@@ -561,6 +779,12 @@ export default async function Home({ searchParams }: HomeProps) {
       </section>
 
       <PublicFacilitatorCarousel facilitators={facilitatorCards} query={facilitatorQuery} />
+
+      <HomeInspirationSections
+        featuredFacilitators={featuredFacilitators}
+        newFacilitators={newFacilitators}
+        themes={homeThemes}
+      />
 
       <section className="bg-white py-[120px]" id="contact">
         <div className="mx-auto grid max-w-[1200px] gap-10 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
