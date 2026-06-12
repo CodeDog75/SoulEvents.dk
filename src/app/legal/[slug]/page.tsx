@@ -31,7 +31,7 @@ export default async function LegalDocumentPage({ params }: LegalDocumentPagePro
       <header className="border-b border-midnight/10 bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <Link className="flex items-center gap-3" href="/">
-            <BrandLogo className="h-16 w-16" priority />
+            <BrandLogo className="h-28 w-28" priority />
             <span className="text-sm font-semibold text-olive">SoulEvents.dk</span>
           </Link>
           <Link

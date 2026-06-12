@@ -7,7 +7,7 @@ export function SiteFooterLogin() {
     <footer className="border-t border-olive/10 bg-white">
       <div className="mx-auto grid max-w-[1200px] gap-8 px-5 py-12 sm:px-8 md:grid-cols-[1fr_auto] md:items-center">
         <div>
-          <BrandLogo className="h-20 w-20" />
+          <BrandLogo className="h-28 w-28" />
           <p className="mt-3 max-w-md text-sm leading-6 text-ink/62">
             SoulEvents.dk - Find spirituelle events nær dig.
           </p>

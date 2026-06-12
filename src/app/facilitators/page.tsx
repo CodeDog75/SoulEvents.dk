@@ -95,7 +95,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
       <header className="bg-white shadow-soft">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-5 sm:px-8">
           <Link aria-label="SoulEvents.dk forside" href="/">
-            <BrandLogo className="h-20 w-20" priority />
+            <BrandLogo className="h-28 w-28" priority />
           </Link>
           <Link
             className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"

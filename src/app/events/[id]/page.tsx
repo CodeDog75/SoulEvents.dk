@@ -144,7 +144,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       <header className="bg-white shadow-soft">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-5 sm:px-8">
           <div className="flex items-center gap-4">
-            <BrandLogo className="h-20 w-20" priority />
+            <BrandLogo className="h-28 w-28" priority />
             <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Event</p>
             <h1 className="text-3xl font-medium text-olive">{event.title}</h1>
@@ -165,7 +165,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           <section className="overflow-hidden rounded-card bg-white shadow-soft">
             <div className="aspect-[16/7] bg-sage-50 p-10">
               <div className="flex h-full items-center justify-center rounded-card bg-cream/80">
-                <BrandLogo className="h-28 w-28 opacity-80" />
+                <BrandLogo className="h-40 w-40 opacity-80" />
               </div>
             </div>
             <div className="p-8 sm:p-10">

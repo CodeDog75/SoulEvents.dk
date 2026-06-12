@@ -20,23 +20,22 @@ type HomeEventSearchFormProps = {
 };
 
 const popularCategoryNames = ["Yoga", "Lydbad", "Saunagus", "Healing", "Breathwork", "Ceremonier"];
-const categoryStyles: Record<string, { emoji: string; className: string }> = {
-  Yoga: { emoji: "🧘", className: "bg-sage-50 text-[#2F2633] border-sage-700/15" },
-  Lydbad: { emoji: "🔔", className: "bg-cream text-[#2F2633] border-olive/15" },
-  Saunagus: { emoji: "🔥", className: "bg-[#7A4EAB]/10 text-[#2F2633] border-rose/20" },
-  Healing: { emoji: "✨", className: "bg-white text-[#2F2633] border-sage-700/15" },
-  Breathwork: { emoji: "🌬️", className: "bg-sage-50/70 text-[#2F2633] border-sage-700/15" },
-  Ceremonier: { emoji: "🌕", className: "bg-cream text-[#2F2633] border-olive/15" },
-};
-
 const priorityAreas = ["sjaelland-og-oerne", "fyn", "sonderjylland", "midtjylland", "nordjylland"];
 
-function categoryClass(active: boolean, categoryName: string) {
-  const style = categoryStyles[categoryName]?.className ?? "bg-white text-[#2F2633] border-olive/15";
+function categoryStyle(active: boolean) {
+  return {
+    background: active
+      ? "radial-gradient(circle at center, rgba(255,255,255,0.96) 0%, rgba(237,228,247,0.96) 50%, rgba(122,78,171,0.34) 100%)"
+      : "radial-gradient(circle at center, rgba(255,255,255,0.94) 0%, rgba(247,241,250,0.96) 46%, rgba(237,228,247,0.96) 100%)",
+    boxShadow: active ? "0 18px 45px rgba(122, 78, 171, 0.22)" : undefined,
+  };
+}
 
+function categoryClass(active: boolean) {
   return [
-    "group min-h-[92px] rounded-2xl border p-4 text-left shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift",
-    active ? "border-olive bg-[#7A4EAB] text-white" : style,
+    "group relative min-h-[108px] overflow-hidden rounded-[1.35rem] border p-4 text-center shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift",
+    "flex items-center justify-center",
+    active ? "border-[#7A4EAB]/45 ring-2 ring-[#7A4EAB]/25" : "border-[#7A4EAB]/15",
   ].join(" ");
 }
 
@@ -213,23 +212,34 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {visibleCategories.map((category) => {
-            const emoji = categoryStyles[category.name]?.emoji ?? "✨";
+            const active = selected.categoryLabel === category.value;
 
             return (
               <button
-                className={categoryClass(selected.categoryLabel === category.value, category.name)}
+                className={categoryClass(active)}
                 key={category.name}
                 name="category_label"
+                style={categoryStyle(active)}
                 type="submit"
                 value={category.value}
               >
-                <span className="block text-2xl" aria-hidden="true">
-                  {emoji}
+                <span className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(122,78,171,0.10),transparent_54%)]" aria-hidden="true" />
+                <span className="relative block max-w-[10rem] break-words font-serif text-[1.45rem] font-medium leading-tight text-[#2F1642] sm:text-[1.75rem]">
+                  {category.name}
                 </span>
-                <span className="mt-3 block break-words text-sm font-semibold leading-snug">{category.name}</span>
               </button>
             );
           })}
+        </div>
+
+        <div className="mt-5 flex justify-center">
+          <button
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#7A4EAB]/25 bg-white/85 px-5 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:-translate-y-0.5 hover:bg-[#EDE4F7]"
+            onClick={() => setShowAllCategories((current) => !current)}
+            type="button"
+          >
+            {showAllCategories ? "Vis færre kategorier" : "Se alle kategorier"}
+          </button>
         </div>
       </section>
 

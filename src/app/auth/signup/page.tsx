@@ -25,7 +25,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
       <section className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
         <aside className="rounded-[1.75rem] border border-[#EDE4F7] bg-white/80 p-6 shadow-soft sm:p-8">
           <Link className="mb-8 flex items-center gap-3" href="/">
-            <BrandLogo className="h-20 w-20 sm:h-24 sm:w-24" priority />
+            <BrandLogo className="h-28 w-28 sm:h-36 sm:w-36" priority />
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">SoulEvents.dk</p>
               <p className="mt-1 text-sm text-[#2F2633]/65">For værter og fællesskaber</p>

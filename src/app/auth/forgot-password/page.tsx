@@ -14,7 +14,7 @@ export default async function ForgotPasswordPage({ searchParams }: ForgotPasswor
     <main className="grid min-h-screen place-items-center bg-[#fbfaf7] px-4 py-10">
       <section className="w-full max-w-md rounded-md border border-midnight/10 bg-white p-6 shadow-soft">
         <Link className="mb-8 flex items-center gap-3" href="/">
-          <BrandLogo className="h-24 w-24" priority />
+          <BrandLogo className="h-32 w-32" priority />
           <div>
             <p className="text-sm text-ink/65">Nulstil adgangskode</p>
           </div>
