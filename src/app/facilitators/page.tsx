@@ -27,7 +27,7 @@ function normalize(value: string | null | undefined) {
 
 function getName(facilitator: any) {
   const profile = first(facilitator.profiles);
-  return facilitator.company_name || profile?.full_name || "Facilitator";
+  return facilitator.company_name || profile?.full_name || "Vært";
 }
 
 function startsWithLetter(name: string, letter: string) {
@@ -59,7 +59,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
   const [{ data: facilitators }, { data: categories }, { data: regions }, { data: events }] = await Promise.all([
     supabase
       .from("facilitator_profiles")
-      .select("id, company_name, profile_image_path, short_description, city, is_online_facilitator, profiles(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))")
+      .select("id, company_name, profile_image_path, short_description, city, is_online_vært, profiles(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))")
       .eq("status", "approved"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
     supabase.from("regions").select("slug, name").order("sort_order"),
@@ -108,10 +108,10 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
       </header>
 
       <section className="mx-auto max-w-[1200px] px-5 py-10 sm:px-8">
-        <p className="text-sm font-semibold uppercase tracking-wide text-rose">Facilitatorer</p>
-        <h1 className="mt-3 text-5xl font-medium leading-tight text-olive">Find facilitatorer på SoulEvents</h1>
+        <p className="text-sm font-semibold uppercase tracking-wide text-rose">Værter</p>
+        <h1 className="mt-3 text-5xl font-medium leading-tight text-olive">Find værter på SoulEvents</h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-ink/70">
-          Gå på opdagelse blandt dygtige facilitatorer inden for yoga, meditation, healing, ceremonier, saunagus og meget mere.
+          Gå på opdagelse blandt dygtige værter inden for yoga, meditation, healing, ceremonier, saunagus og meget mere.
         </p>
 
         <form className="mt-8 grid gap-3 rounded-card bg-white p-4 shadow-soft lg:grid-cols-[1.2fr_0.9fr_0.9fr_auto_auto] lg:items-end">
@@ -121,7 +121,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
               className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-rose"
               defaultValue={selected.q}
               name="q"
-              placeholder="Søg efter facilitatornavn..."
+              placeholder="Søg efter værtsnavn..."
               type="search"
             />
           </label>
@@ -214,7 +214,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
                   </div>
                   <h2 className="mt-3 text-2xl font-medium leading-7 text-olive">{name}</h2>
                   <p className="mt-1 text-sm text-ink/58">{[facilitator.city, region?.name].filter(Boolean).join(", ")}</p>
-                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-ink/66">{facilitator.short_description || "Facilitatorens profiltekst kommer snart."}</p>
+                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-ink/66">{facilitator.short_description || "Værtens profiltekst kommer snart."}</p>
                   <p className="mt-4 flex items-center gap-2 text-sm font-semibold text-olive">
                     <CalendarDays className="size-4" aria-hidden="true" />
                     {eventCounts.get(facilitator.id) ?? 0} kommende events

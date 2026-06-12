@@ -10,6 +10,10 @@ function go(message: string): never {
   redirect("/admin/homepage?message=" + encodeURIComponent(message));
 }
 
+function logoGo(message: string): never {
+  redirect("/admin/homepage?logo_message=" + encodeURIComponent(message) + "#logo");
+}
+
 function sortOrder(formData: FormData) {
   const value = Number(getString(formData, "sort_order"));
   return Number.isFinite(value) ? value : 0;
@@ -24,6 +28,42 @@ function extensionFromFile(file: File) {
   if (file.type === "image/png") return "png";
   if (file.type === "image/webp") return "webp";
   return "jpg";
+}
+
+async function uploadSiteLogo(formData: FormData, currentLogoPath: string | null) {
+  const removeLogo = formData.get("remove_logo") === "on";
+  if (removeLogo) {
+    return null;
+  }
+
+  const file = formData.get("logo_file");
+  if (!(file instanceof File) || file.size === 0) {
+    return currentLogoPath;
+  }
+
+  if (!file.type.startsWith("image/") && file.type !== "image/svg+xml") {
+    logoGo("Logoet skal være en billedfil.");
+  }
+
+  if (file.size > 4 * 1024 * 1024) {
+    logoGo("Logoet er for stort. Vælg en fil under 4 MB.");
+  }
+
+  const supabase = createAdminClient();
+  const extension = extensionFromFile(file);
+  const logoPath = "brand/" + Date.now() + "-logo." + extension;
+
+  const { error } = await supabase.storage.from("media").upload(logoPath, file, {
+    cacheControl: "31536000",
+    contentType: file.type || "image/png",
+    upsert: false,
+  });
+
+  if (error) {
+    logoGo("Logoet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
+  }
+
+  return logoPath;
 }
 
 async function uploadHomepageImage(formData: FormData, currentImagePath: string | null) {
@@ -128,4 +168,25 @@ export async function deleteHomepageTileAction(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/admin/homepage");
   go("Boksen er slettet.");
+}
+
+
+export async function updateSiteLogoAction(formData: FormData) {
+  await requireRole("admin");
+
+  const currentLogoPath = getOptionalString(formData, "current_logo_path");
+  const logoPath = await uploadSiteLogo(formData, currentLogoPath || null);
+  const supabase = createAdminClient();
+
+  const { error } = await supabase
+    .from("site_settings")
+    .upsert({ key: "brand_logo_path", value: logoPath }, { onConflict: "key" });
+
+  if (error) {
+    logoGo("Logoet kunne ikke gemmes. Kør database-migrationen til site_settings først.");
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin/homepage");
+  logoGo("Logoet er gemt.");
 }

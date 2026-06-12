@@ -70,8 +70,8 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
     return (
       <section className="rounded-md border border-midnight/10 bg-white p-8 text-center shadow-soft">
         <UserRoundCheck className="mx-auto size-8 text-sage-700" aria-hidden="true" />
-        <h2 className="mt-4 text-lg font-semibold text-midnight">Ingen facilitatorer matcher filteret</h2>
-        <p className="mt-2 text-sm text-ink/64">Når nye facilitatorer opretter sig, vises de her.</p>
+        <h2 className="mt-4 text-lg font-semibold text-midnight">Ingen værter matcher filteret</h2>
+        <p className="mt-2 text-sm text-ink/64">Når nye værter opretter sig, vises de her.</p>
       </section>
     );
   }
@@ -79,7 +79,7 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
   return (
     <section className="overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
       <div className="border-b border-midnight/10 px-5 py-4">
-        <h2 className="text-lg font-semibold text-midnight">Facilitator-godkendelse</h2>
+        <h2 className="text-lg font-semibold text-midnight">Vært-godkendelse</h2>
         <p className="mt-1 text-sm text-ink/64">Gennemgå profiler og styr offentlig synlighed.</p>
       </div>
 
@@ -113,7 +113,7 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
                 </p>
 
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/72">
-                  {facilitator.short_description || "Facilitatoren har endnu ikke skrevet en kort præsentation."}
+                  {facilitator.short_description || "Værten har endnu ikke skrevet en kort præsentation."}
                 </p>
 
                 <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-ink/68">

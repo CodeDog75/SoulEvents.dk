@@ -501,7 +501,7 @@ export function ProfileForm({
       <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
         <div className="flex items-center justify-between gap-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-midnight">
-            Facilitatorydelser
+            Værtydelser
             <FieldStatus complete={categoriesComplete} />
             <InfoHelp>Vælg mindst én kategori, så brugerne kan finde dig under de rigtige emner.</InfoHelp>
           </h2>
@@ -532,7 +532,7 @@ export function ProfileForm({
         </div>
 
         <div className="mt-5 flex justify-center sm:justify-end">
-          <SectionSaveButton section="categories">Gem facilitatorydelser</SectionSaveButton>
+          <SectionSaveButton section="categories">Gem værtydelser</SectionSaveButton>
         </div>
       </section>
 

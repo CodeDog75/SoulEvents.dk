@@ -15,27 +15,28 @@ type HomeEventSearchFormProps = {
     distance: string;
     latitude: string;
     longitude: string;
+    format?: string;
   };
 };
 
 const popularCategoryNames = ["Yoga", "Lydbad", "Saunagus", "Healing", "Breathwork", "Ceremonier"];
 const categoryStyles: Record<string, { emoji: string; className: string }> = {
-  Yoga: { emoji: "🧘", className: "bg-sage-50 text-olive border-sage-700/15" },
-  Lydbad: { emoji: "🔔", className: "bg-cream text-olive border-olive/15" },
-  Saunagus: { emoji: "🔥", className: "bg-rose/10 text-olive border-rose/20" },
-  Healing: { emoji: "✨", className: "bg-white text-olive border-sage-700/15" },
-  Breathwork: { emoji: "🌬️", className: "bg-sage-50/70 text-olive border-sage-700/15" },
-  Ceremonier: { emoji: "🌕", className: "bg-cream text-olive border-olive/15" },
+  Yoga: { emoji: "🧘", className: "bg-sage-50 text-[#2F2633] border-sage-700/15" },
+  Lydbad: { emoji: "🔔", className: "bg-cream text-[#2F2633] border-olive/15" },
+  Saunagus: { emoji: "🔥", className: "bg-[#7A4EAB]/10 text-[#2F2633] border-rose/20" },
+  Healing: { emoji: "✨", className: "bg-white text-[#2F2633] border-sage-700/15" },
+  Breathwork: { emoji: "🌬️", className: "bg-sage-50/70 text-[#2F2633] border-sage-700/15" },
+  Ceremonier: { emoji: "🌕", className: "bg-cream text-[#2F2633] border-olive/15" },
 };
 
 const priorityAreas = ["sjaelland-og-oerne", "fyn", "sonderjylland", "midtjylland", "nordjylland"];
 
 function categoryClass(active: boolean, categoryName: string) {
-  const style = categoryStyles[categoryName]?.className ?? "bg-white text-olive border-olive/15";
+  const style = categoryStyles[categoryName]?.className ?? "bg-white text-[#2F2633] border-olive/15";
 
   return [
     "group min-h-[92px] rounded-2xl border p-4 text-left shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift",
-    active ? "border-olive bg-olive text-white" : style,
+    active ? "border-olive bg-[#7A4EAB] text-white" : style,
   ].join(" ");
 }
 
@@ -55,7 +56,7 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
     const latitude = formData.get("latitude");
     const longitude = formData.get("longitude");
 
-    for (const key of ["q", "area", "category_label"]) {
+    for (const key of ["q", "area", "category_label", "date", "format"]) {
       const value = formData.get(key);
 
       if (typeof value === "string" && value.trim()) {
@@ -146,7 +147,7 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
     <form
       action="/#events"
       aria-label="Find events"
-      className="w-full max-w-full rounded-card bg-white p-4 shadow-soft sm:p-6"
+      className="w-full max-w-full rounded-card border border-[#EDE4F7] bg-white/88 p-4 shadow-soft sm:p-6"
       onSubmit={submitForm}
       ref={formRef}
     >
@@ -156,21 +157,21 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
       <section className="grid gap-3">
         <div>
           <button
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-button bg-rose px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
             onClick={findNearby}
             type="button"
           >
             <LocateFixed className="size-4 shrink-0" aria-hidden="true" />
-            Find events i nærheden
+            Find events nær dig
           </button>
-          {locationMessage && <p className="mt-4 text-sm font-semibold text-olive">{locationMessage}</p>}
+          {locationMessage && <p className="mt-4 text-sm font-semibold text-[#2F2633]">{locationMessage}</p>}
         </div>
 
         <div className="mt-3 grid gap-2 sm:mt-4 sm:grid-cols-[1fr_auto] sm:items-end">
-          <label className="grid gap-2 text-sm font-semibold text-olive">
+          <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
             Område
             <select
-              className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
+              className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
               defaultValue=""
               name="area"
               onChange={clearLocationWhenAreaIsSelected}
@@ -187,7 +188,7 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
           </label>
 
           <button
-            className="inline-flex min-h-12 items-center justify-center rounded-button bg-olive px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+            className="inline-flex min-h-12 items-center justify-center rounded-button bg-[#7A4EAB] px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
             type="submit"
           >
             Søg i valgt område
@@ -198,11 +199,11 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
       <section className="mt-6" id="categories">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-rose">Populære kategorier</p>
-            <h2 className="mt-1 text-2xl font-medium text-olive">Find det, der kalder</h2>
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Populære kategorier</p>
+            <h2 className="mt-1 text-2xl font-medium text-[#2F2633]">Find det, der kalder</h2>
           </div>
           <button
-            className="shrink-0 text-sm font-semibold text-olive transition hover:text-rose"
+            className="shrink-0 text-sm font-semibold text-[#2F2633] transition hover:text-[#7A4EAB]"
             onClick={() => setShowAllCategories((current) => !current)}
             type="button"
           >
@@ -232,11 +233,42 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
         </div>
       </section>
 
+      <section className="mt-6 grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
+          Hvornår?
+          <select
+            className="h-12 rounded-input border border-[#7A4EAB]/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
+            defaultValue={selected.date}
+            name="date"
+          >
+            <option value="">Alle kommende events</option>
+            <option value="today">I dag</option>
+            <option value="weekend">Denne weekend</option>
+            <option value="next_week">Næste uge</option>
+            <option value="month">Denne måned</option>
+          </select>
+        </label>
+
+        <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
+          Online eller fysisk?
+          <select
+            className="h-12 rounded-input border border-[#7A4EAB]/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
+            defaultValue={selected.format ?? ""}
+            name="format"
+          >
+            <option value="">Alle formater</option>
+            <option value="physical">Fysiske events</option>
+            <option value="online">Online events</option>
+            <option value="hybrid">Hybrid events</option>
+          </select>
+        </label>
+      </section>
+
       <section className="mt-7 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-        <label className="grid gap-2 text-sm font-semibold text-olive">
-          Søg mere specifikt
+        <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
+          Hvad søger du?
           <input
-            className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-rose"
+            className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
             defaultValue={selected.q}
             name="q"
             placeholder="Søg efter events, kategorier eller steder..."
@@ -244,7 +276,7 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
           />
         </label>
         <button
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-button bg-olive px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
           type="submit"
         >
           <Search className="size-4 shrink-0" aria-hidden="true" />

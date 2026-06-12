@@ -237,7 +237,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
 
   const uploadedProfileImage =
     section === "all" || section === "images"
-      ? await uploadImage(supabase, formData.get("profile_image_file") as File, `facilitators/${profile.id}/profile`)
+      ? await uploadImage(supabase, formData.get("profile_image_file") as File, `værts/${profile.id}/profile`)
       : null;
 
   if (uploadedProfileImage) {
@@ -282,7 +282,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     : await supabase.from("facilitator_profiles").select("id").eq("profile_id", profile.id).single();
 
   if (facilitatorError || !facilitatorProfile) {
-    profileRedirect("Facilitatorprofilen kunne ikke gemmes.");
+    profileRedirect("Værtsprofilen kunne ikke gemmes.");
   }
 
   const facilitatorId = facilitatorProfile.id as string;
@@ -311,7 +311,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       formData
         .getAll("gallery_image_files")
         .slice(0, 3)
-        .map((file, index) => uploadImage(supabase, file as File, `facilitators/${profile.id}/gallery/${index + 1}`)),
+        .map((file, index) => uploadImage(supabase, file as File, `værts/${profile.id}/gallery/${index + 1}`)),
     );
 
     const finalGalleryPaths = galleryPaths.map((imagePath, index) => galleryUploads[index] || imagePath).filter(Boolean);

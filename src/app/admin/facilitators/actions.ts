@@ -20,7 +20,7 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
   const status = getString(formData, "status") as FacilitatorStatus;
 
   if (!facilitatorId || !allowedStatuses.includes(status)) {
-    adminRedirect("Ugyldig facilitatorhandling.");
+    adminRedirect("Ugyldig værthandling.");
   }
 
   const supabase = createAdminClient();
@@ -30,7 +30,7 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
     .eq("id", facilitatorId);
 
   if (error) {
-    adminRedirect("Facilitatorstatus kunne ikke opdateres.");
+    adminRedirect("Værtstatus kunne ikke opdateres.");
   }
 
   revalidatePath("/admin");
@@ -43,5 +43,5 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
     disabled: "deaktiveret",
   };
 
-  adminRedirect(`Facilitator er ${labels[status]}.`);
+  adminRedirect(`Vært er ${labels[status]}.`);
 }

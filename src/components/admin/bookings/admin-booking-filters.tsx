@@ -32,7 +32,7 @@ const statusOptions = [
 
 function facilitatorName(facilitator: AdminBookingFiltersProps["facilitators"][number]) {
   const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
-  return facilitator.company_name || profile?.full_name || "Facilitator";
+  return facilitator.company_name || profile?.full_name || "Vært";
 }
 
 export function AdminBookingFilters({ selected, facilitators }: AdminBookingFiltersProps) {
@@ -42,13 +42,13 @@ export function AdminBookingFilters({ selected, facilitators }: AdminBookingFilt
 
       <div className="mt-5 grid gap-4 md:grid-cols-[1.2fr_1fr_1fr_1fr_auto]">
         <label className="grid gap-2 text-sm font-medium text-ink/72">
-          Facilitator
+          Vært
           <select
             className="h-11 rounded-md border border-midnight/15 bg-white px-3 text-base outline-none transition focus:border-sage-700"
             defaultValue={selected.facilitator}
             name="facilitator"
           >
-            <option value="">Alle facilitatorer</option>
+            <option value="">Alle værter</option>
             {facilitators.map((facilitator) => (
               <option key={facilitator.id} value={facilitator.id}>
                 {facilitatorName(facilitator)}

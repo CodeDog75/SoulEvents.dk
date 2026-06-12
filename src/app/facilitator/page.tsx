@@ -59,7 +59,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
       <header className="border-b border-midnight/10 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Facilitator</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Vært</p>
             <h1 className="text-xl font-semibold text-midnight">Velkommen, {profile.full_name}</h1>
           </div>
           <SignOutButton />
@@ -114,7 +114,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                   <p>En administrator skal godkende din profil, før den vises på SoulEvents.dk.</p>
                   <p>
                     Jo mere udfyldt din profil er, desto hurtigere kan vi behandle den. Det hjælper os med at
-                    skabe et trygt og inspirerende fællesskab af facilitatorer og events for krop, sind og sjæl.
+                    skabe et trygt og inspirerende fællesskab af værter og events for krop, sind og sjæl.
                   </p>
                   <div className="rounded-card bg-sage-50 p-4">
                     <h3 className="font-semibold text-midnight">🌿 Din profil er klar</h3>

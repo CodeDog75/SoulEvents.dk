@@ -16,7 +16,7 @@ export function SiteFooterLogin() {
               Om SoulEvents
             </Link>
             <Link className="transition hover:text-rose" href="/auth/signup">
-              For Facilitatorer
+              For Værter
             </Link>
             <Link className="transition hover:text-rose" href="/events">
               Kontakt

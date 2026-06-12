@@ -111,7 +111,7 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
           ? facilitatorProfile?.profiles[0]
           : facilitatorProfile?.profiles;
         const region = Array.isArray(event.regions) ? event.regions[0] : event.regions;
-        const facilitator = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Facilitator";
+        const facilitator = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Vært";
         const categories =
           event.event_categories
             ?.map((row) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))

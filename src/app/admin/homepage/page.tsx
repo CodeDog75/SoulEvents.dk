@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowLeft, LayoutGrid, Save, Trash2 } from "lucide-react";
-import { upsertHomepageTileAction, deleteHomepageTileAction } from "@/app/admin/homepage/actions";
+import { upsertHomepageTileAction, deleteHomepageTileAction, updateSiteLogoAction } from "@/app/admin/homepage/actions";
 import { HomepageImageUploadPreview } from "@/components/admin/homepage-image-upload-preview";
+import { BrandLogo } from "@/components/brand-logo";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -9,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 type AdminHomepagePageProps = {
-  searchParams: Promise<{ message?: string }>;
+  searchParams: Promise<{ message?: string; logo_message?: string }>;
 };
 
 type Tile = {
@@ -23,6 +24,55 @@ type Tile = {
   is_active: boolean;
   sort_order: number;
 };
+
+function LogoForm({ logoPath, logoUrl }: { logoPath: string | null; logoUrl: string | null }) {
+  return (
+    <form action={updateSiteLogoAction} className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft" id="logo">
+      <input name="current_logo_path" type="hidden" value={logoPath ?? ""} />
+
+      <div className="grid gap-5 lg:grid-cols-[220px_1fr] lg:items-start">
+        <div className="grid gap-3">
+          <div className="grid min-h-[180px] place-items-center rounded-md border border-midnight/10 bg-[#FAF6EF] p-6">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img alt="Nuværende logo" className="max-h-32 max-w-full object-contain" src={logoUrl} />
+            ) : (
+              <BrandLogo className="h-28 w-28" />
+            )}
+          </div>
+          <p className="text-xs leading-5 text-ink/55">
+            Anbefalet: transparent PNG eller SVG. Undgå hvid baggrund i selve filen.
+          </p>
+        </div>
+
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Logo</p>
+          <h2 className="mt-2 text-2xl font-semibold text-midnight">Upload logo</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/68">
+            Logoet bruges i toppen af siden og på forsiden. Upload gerne en transparent PNG eller SVG, så logoet passer på farvede baggrunde.
+          </p>
+
+          <label className="mt-5 grid gap-2 text-sm font-medium text-ink/72">
+            Vælg logo
+            <input accept="image/png,image/webp,image/jpeg,image/svg+xml" className="rounded-md border border-midnight/15 bg-white px-3 py-2 text-sm" name="logo_file" type="file" />
+          </label>
+
+          {logoPath && (
+            <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-ink/70">
+              <input className="size-4 accent-terracotta" name="remove_logo" type="checkbox" />
+              Fjern uploadet logo og brug standardlogo
+            </label>
+          )}
+
+          <button className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700" type="submit">
+            <Save className="size-4" aria-hidden="true" />
+            Gem logo
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+}
 
 function TileForm({ tile, title }: { tile?: Tile; title: string }) {
   return (
@@ -93,8 +143,11 @@ function TileForm({ tile, title }: { tile?: Tile; title: string }) {
 }
 
 export default async function AdminHomepagePage({ searchParams }: AdminHomepagePageProps) {
-  const [{ message }] = await Promise.all([searchParams, requireRole("admin")]);
+  const [{ message, logo_message: logoMessage }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = await createClient();
+  const { data: logoSetting } = await supabase.from("site_settings").select("value").eq("key", "brand_logo_path").maybeSingle();
+  const logoPath = logoSetting?.value ?? null;
+  const logoUrl = logoPath ? supabase.storage.from("media").getPublicUrl(logoPath).data.publicUrl : null;
   const { data: tiles } = await supabase.from("homepage_tiles").select("*").order("sort_order");
   const tilesWithImages =
     tiles?.map((tile) => ({
@@ -124,6 +177,8 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
         <AuthMessage message={message} />
+        <AuthMessage message={logoMessage} />
+        <LogoForm logoPath={logoPath} logoUrl={logoUrl} />
         <TileForm title="Opret ny boks" />
 
         <div className="grid gap-5">

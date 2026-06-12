@@ -122,7 +122,7 @@ export async function createBookingAction(formData: FormData) {
     ? primaryCategoryRow?.categories[0]
     : primaryCategoryRow?.categories;
 
-  const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Facilitator";
+  const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Vært";
   const adminSupabase = createAdminClient();
 
   const { data: booking, error } = await adminSupabase
@@ -185,6 +185,6 @@ export async function createBookingAction(formData: FormData) {
     "/events/" +
       eventId +
       "?booking=sent&message=" +
-      encodeURIComponent("Tak. Din tilmelding er registreret. Du modtager en mailkvittering, og facilitatoren har fået besked.") + "#booking-response",
+      encodeURIComponent("Tak. Din tilmelding er registreret. Du modtager en mailkvittering, og værten har fået besked.") + "#booking-response",
   );
 }

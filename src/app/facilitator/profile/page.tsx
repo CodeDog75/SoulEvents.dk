@@ -46,9 +46,9 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     return (
       <main className="min-h-screen bg-[#fbfaf7] px-4 py-10">
         <section className="mx-auto max-w-3xl rounded-md border border-midnight/10 bg-white p-6 shadow-soft">
-          <h1 className="text-xl font-semibold text-midnight">Facilitatorprofil mangler</h1>
+          <h1 className="text-xl font-semibold text-midnight">Værtsprofil mangler</h1>
           <p className="mt-2 text-sm leading-6 text-ink/65">
-            Der blev ikke fundet en facilitatorprofil til din konto. Prøv at oprette profilen igen.
+            Der blev ikke fundet en værtsprofil til din konto. Prøv at oprette profilen igen.
           </p>
         </section>
       </main>
@@ -64,7 +64,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
               <CircleUserRound className="size-5" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Facilitator</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Vært</p>
               <h1 className="text-xl font-semibold text-midnight">Rediger offentlig profil</h1>
             </div>
           </div>
@@ -92,7 +92,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
               af SoulEvents.
             </p>
             <p className="mt-2">
-              Vi gennemgår din profil hurtigst muligt og glæder os til at byde dig velkommen som facilitator.
+              Vi gennemgår din profil hurtigst muligt og glæder os til at byde dig velkommen som vært.
             </p>
             <p className="mt-2">
               Mens du venter, kan du med fordel oprette dit første event og gøre det klar til offentliggørelse.

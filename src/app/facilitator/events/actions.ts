@@ -99,7 +99,7 @@ export async function createEventAction(formData: FormData) {
     .single();
 
   if (!facilitatorProfile) {
-    eventsRedirect("Facilitatorprofilen mangler.");
+    eventsRedirect("Værtsprofilen mangler.");
   }
 
   const facilitatorCategoryIds =

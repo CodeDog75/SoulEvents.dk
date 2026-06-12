@@ -70,7 +70,7 @@ function facilitatorName(invoice: InvoiceDraft) {
     ? invoice.facilitator_profiles[0]
     : invoice.facilitator_profiles;
   const profile = Array.isArray(facilitator?.profiles) ? facilitator?.profiles[0] : facilitator?.profiles;
-  return facilitator?.company_name || profile?.full_name || "Facilitator";
+  return facilitator?.company_name || profile?.full_name || "Vært";
 }
 
 export function InvoiceDraftList({ invoices }: InvoiceDraftListProps) {

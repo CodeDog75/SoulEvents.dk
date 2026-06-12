@@ -25,9 +25,9 @@ const fallbackDocuments: LegalDocument[] = [
     title: "privatlivspolitik",
   },
   {
-    body: "SoulEvents retningslinjer er endnu ikke lagt ind.",
+    body: "SoulEvents.dk's retningslinjer er endnu ikke lagt ind.",
     slug: "platformens-retningslinjer",
-    title: "SoulEvents retningslinjer",
+    title: "SoulEvents.dk's retningslinjer",
   },
 ];
 

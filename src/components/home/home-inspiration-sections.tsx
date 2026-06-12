@@ -44,7 +44,7 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
         <h3 className="mt-3 text-2xl font-medium leading-7 text-olive">{facilitator.name}</h3>
         <p className="mt-1 text-sm font-semibold text-sage-700">{facilitator.isOnline ? "Online" : facilitator.city || "Danmark"}</p>
         <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink/66">
-          {facilitator.tagline || "Facilitator på SoulEvents"}
+          {facilitator.tagline || "Vært på SoulEvents"}
         </p>
         <span className="mt-4 inline-flex text-sm font-semibold text-rose">Se profil</span>
       </div>
@@ -97,9 +97,9 @@ export function HomeInspirationSections({
                     </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-ink/72 via-ink/20 to-transparent" />
-                  <div className="absolute inset-x-0 bottom-0 p-4 text-white">
-                    <h3 className="text-base font-semibold leading-tight sm:text-lg">{theme.title}</h3>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/82">{theme.description}</p>
+                  <div className="absolute inset-x-0 bottom-0 p-4 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)]">
+                    <h3 className="text-base font-bold leading-tight text-white sm:text-lg">{theme.title}</h3>
+                    <p className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-white/95">{theme.description}</p>
                   </div>
                 </Link>
               ))}
@@ -110,10 +110,10 @@ export function HomeInspirationSections({
         {hasFeatured && (
           <div>
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-wide text-rose">Fremhævede facilitatorer</p>
-              <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Mød udvalgte facilitatorer</h2>
+              <p className="text-sm font-semibold uppercase tracking-wide text-rose">Fremhævede værter</p>
+              <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Mød udvalgte værter</h2>
               <p className="mt-4 text-base leading-7 text-ink/70">
-                Facilitatorer, som SoulEvents fremhæver for deres nærvær, faglighed og aktuelle tilbud.
+                Værter, som SoulEvents fremhæver for deres nærvær, faglighed og aktuelle tilbud.
               </p>
             </div>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -127,10 +127,10 @@ export function HomeInspirationSections({
         {hasNew && (
           <div>
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-wide text-rose">Nye facilitatorer</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-rose">Nye værter</p>
               <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Nye stemmer på SoulEvents</h2>
               <p className="mt-4 text-base leading-7 text-ink/70">
-                Senest godkendte aktive facilitatorer på platformen.
+                Senest godkendte aktive værter på platformen.
               </p>
             </div>
             <div className="mt-6 flex snap-x gap-4 overflow-x-auto pb-4">

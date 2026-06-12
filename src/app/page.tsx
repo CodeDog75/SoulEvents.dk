@@ -17,6 +17,7 @@ import Link from "next/link";
 import { sendContactMessageAction } from "@/app/contact/actions";
 import { BrandLogo } from "@/components/brand-logo";
 import { EventMap } from "@/components/events/event-map";
+import { HomeEventSearchForm } from "@/components/events/home-event-search-form";
 import { PublicEventList } from "@/components/events/public-event-list";
 import { HomeDiscoveryTiles } from "@/components/home/home-discovery-tiles";
 import { HomeInspirationSections } from "@/components/home/home-inspiration-sections";
@@ -273,15 +274,48 @@ function distanceInKm(from: { latitude: number; longitude: number }, to: { latit
 }
 
 
+
+const homeTileFallbackImages = {
+  nearby: "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=900&q=80",
+  map: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80",
+  online: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80",
+  facilitators: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=900&q=80",
+  allEvents: "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=900&q=80",
+  meditation: "https://images.unsplash.com/photo-1545389336-cf090694435e?auto=format&fit=crop&w=900&q=80",
+  sound: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=900&q=80",
+  body: "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=900&q=80",
+  sauna: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=80",
+  ceremony: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=900&q=80",
+  fallback: "https://images.unsplash.com/photo-1490730141103-6cac27aaab94?auto=format&fit=crop&w=900&q=80",
+};
+
+function getHomeTileFallbackImage(tile: { id?: string | null; title?: string | null; tile_type?: string | null }) {
+  const id = (tile.id ?? "").toLowerCase();
+  const title = (tile.title ?? "").toLowerCase();
+
+  if (id.includes("nearby") || title.includes("nær")) return homeTileFallbackImages.nearby;
+  if (id.includes("map") || title.includes("kort")) return homeTileFallbackImages.map;
+  if (id.includes("online") || title.includes("online")) return homeTileFallbackImages.online;
+  if (id.includes("facilitator") || title.includes("vært")) return homeTileFallbackImages.facilitators;
+  if (id.includes("all-events") || title.includes("alle events")) return homeTileFallbackImages.allEvents;
+  if (id.includes("meditation") || title.includes("meditation") || title.includes("nærvær")) return homeTileFallbackImages.meditation;
+  if (id.includes("sound") || title.includes("lyd") || title.includes("musik") || title.includes("lydbad")) return homeTileFallbackImages.sound;
+  if (id.includes("body") || title.includes("bevægelse") || title.includes("yoga") || title.includes("krop")) return homeTileFallbackImages.body;
+  if (title.includes("sauna") || title.includes("velvære")) return homeTileFallbackImages.sauna;
+  if (title.includes("ceremoni") || title.includes("ritual")) return homeTileFallbackImages.ceremony;
+
+  return homeTileFallbackImages.fallback;
+}
+
 const fallbackHomeTiles = [
-  { id: "nearby", title: "Events nær dig", description: "Find oplevelser tæt på din aktuelle placering.", href: "/#events", imageUrl: null, tileType: "nearby" as const },
-  { id: "map", title: "Alle events på kort", description: "Udforsk events visuelt på kortet.", href: "/#map", imageUrl: null, tileType: "navigation" as const },
-  { id: "online", title: "Online events", description: "Find events du kan deltage i hjemmefra.", href: "/?q=online#events", imageUrl: null, tileType: "navigation" as const },
-  { id: "facilitators", title: "Facilitatorer", description: "Gå på opdagelse blandt SoulEvents facilitatorer.", href: "/facilitators", imageUrl: null, tileType: "navigation" as const },
-  { id: "all-events", title: "Alle events", description: "Se kommende events i kronologisk rækkefølge.", href: "/#events", imageUrl: null, tileType: "navigation" as const },
-  { id: "meditation", title: "Meditation & Nærvær", description: "Rolige events med meditation og fordybelse.", href: "/?category_label=Meditation#events", imageUrl: null, tileType: "category" as const },
-  { id: "sound", title: "Lyd & Musik", description: "Lydbade, kirtan og musikalske oplevelser.", href: "/?category_label=Lydbad#events", imageUrl: null, tileType: "category" as const },
-  { id: "body", title: "Bevægelse & Krop", description: "Yoga, breathwork, dans og kropslige praksisser.", href: "/?category_label=Yoga#events", imageUrl: null, tileType: "category" as const },
+  { id: "nearby", title: "Events nær dig", description: "Find oplevelser tæt på din aktuelle placering.", href: "/#events", imageUrl: homeTileFallbackImages.nearby, tileType: "nearby" as const },
+  { id: "map", title: "Alle events på kort", description: "Udforsk events visuelt på kortet.", href: "/#map", imageUrl: homeTileFallbackImages.map, tileType: "navigation" as const },
+  { id: "online", title: "Online events", description: "Find events du kan deltage i hjemmefra.", href: "/?format=online#events", imageUrl: homeTileFallbackImages.online, tileType: "navigation" as const },
+  { id: "facilitators", title: "Værter", description: "Gå på opdagelse blandt SoulEvents værter.", href: "/facilitators", imageUrl: homeTileFallbackImages.facilitators, tileType: "navigation" as const },
+  { id: "all-events", title: "Alle events", description: "Se kommende events i kronologisk rækkefølge.", href: "/#events", imageUrl: homeTileFallbackImages.allEvents, tileType: "navigation" as const },
+  { id: "meditation", title: "Meditation & Nærvær", description: "Rolige events med meditation og fordybelse.", href: "/?category_label=Meditation#events", imageUrl: homeTileFallbackImages.meditation, tileType: "category" as const },
+  { id: "sound", title: "Lyd & Musik", description: "Lydbade, kirtan og musikalske oplevelser.", href: "/?category_label=Lydbad#events", imageUrl: homeTileFallbackImages.sound, tileType: "category" as const },
+  { id: "body", title: "Bevægelse & Krop", description: "Yoga, breathwork, dans og kropslige praksisser.", href: "/?category_label=Yoga#events", imageUrl: homeTileFallbackImages.body, tileType: "category" as const },
 ];
 
 async function getHomeTiles() {
@@ -305,7 +339,7 @@ async function getHomeTiles() {
     title: tile.title,
     description: tile.description,
     href: tile.href,
-    imageUrl: tile.image_path ? supabase.storage.from("media").getPublicUrl(tile.image_path).data.publicUrl : null,
+    imageUrl: tile.image_path ? supabase.storage.from("media").getPublicUrl(tile.image_path).data.publicUrl : getHomeTileFallbackImage(tile),
     tileType: tile.tile_type,
   }));
 }
@@ -449,7 +483,7 @@ function mapFacilitatorCard(facilitator: any, supabase: Awaited<ReturnType<typeo
 
   return {
     id: facilitator.id,
-    name: facilitator.company_name || profile?.full_name || "Facilitator",
+    name: facilitator.company_name || profile?.full_name || "Vært",
     imageUrl: facilitator.profile_image_path
       ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
       : null,
@@ -529,7 +563,7 @@ async function getHomeFacilitators(queryText: string) {
 
     return {
       id: facilitator.id,
-      name: facilitator.company_name || profile?.full_name || "Facilitator",
+      name: facilitator.company_name || profile?.full_name || "Vært",
       imageUrl: facilitator.profile_image_path
         ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
         : null,
@@ -607,7 +641,7 @@ export default async function Home({ searchParams }: HomeProps) {
       priceCents: event.price_cents,
       latitude: event.latitude,
       longitude: event.longitude,
-      facilitatorName: facilitatorProfile?.company_name || facilitatorUser?.full_name || "Facilitator",
+      facilitatorName: facilitatorProfile?.company_name || facilitatorUser?.full_name || "Vært",
       categoryName: firstCategory?.name ?? null,
       categoryColor: firstCategory?.color_hex ?? null,
       imageUrl: publicMediaUrl(event.cover_image_path),
@@ -658,13 +692,13 @@ export default async function Home({ searchParams }: HomeProps) {
   ].filter((filter): filter is { key: string; label: string; href: string } => Boolean(filter));
 
   return (
-    <main className="min-h-screen bg-cream text-ink">
-      <section className="relative overflow-hidden bg-cream pb-10 sm:min-h-[780px] sm:pb-0">
+    <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
+      <section className="relative overflow-hidden bg-[#FAF6EF] pb-10 sm:min-h-[720px] sm:pb-0">
         <div
           className="absolute inset-0 bg-[url('/brand/soulevents-logo.png')] bg-[length:360px_360px] sm:bg-[length:680px_680px] bg-center bg-no-repeat opacity-20"
           aria-hidden="true"
         />
-        <div className="absolute inset-0 bg-white/45" aria-hidden="true" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#FAF6EF]/90 via-[#FAF6EF]/78 to-[#EDE4F7]/70" aria-hidden="true" />
 
         <header className="relative z-10">
           <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-5 sm:px-8">
@@ -672,23 +706,23 @@ export default async function Home({ searchParams }: HomeProps) {
               <BrandLogo className="h-20 w-20 sm:h-24 sm:w-24" priority />
             </Link>
 
-            <nav className="hidden items-center gap-7 text-sm font-semibold text-olive md:flex">
-              <a className="transition hover:text-rose" href="#events">
+            <nav className="hidden items-center gap-7 text-sm font-semibold text-[#2F2633] md:flex">
+              <a className="transition hover:text-[#7A4EAB]" href="#events">
                 Events
               </a>
-              <a className="transition hover:text-rose" href="#map">
+              <a className="transition hover:text-[#7A4EAB]" href="#map">
                 Kort
               </a>
-              <a className="transition hover:text-rose" href="/facilitators">
-                Facilitatorer
+              <a className="transition hover:text-[#7A4EAB]" href="/facilitators">
+                Værter
               </a>
-              <a className="transition hover:text-rose" href="#categories">
+              <a className="transition hover:text-[#7A4EAB]" href="#categories">
                 Kategorier
               </a>
-              <Link className="transition hover:text-rose" href="/facilitator/events">
+              <Link className="transition hover:text-[#7A4EAB]" href="/facilitator/events">
                 Opret Event
               </Link>
-              <Link className="transition hover:text-rose" href="/auth/login">
+              <Link className="transition hover:text-[#7A4EAB]" href="/auth/login">
                 Login
               </Link>
             </nav>
@@ -697,28 +731,51 @@ export default async function Home({ searchParams }: HomeProps) {
 
         <div className="relative z-10 mx-auto grid max-w-[1200px] gap-6 px-4 pb-12 pt-6 sm:gap-10 sm:px-8 sm:pb-20 sm:pt-14 lg:pt-20">
           <div className="max-w-4xl">
-            <p className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-olive shadow-soft">
-              <Sparkles className="size-4 text-rose" aria-hidden="true" />
-              Danmarks samlingssted for spirituelle events
+            <p className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#2F2633] shadow-soft">
+              <Sparkles className="size-4 text-[#7A4EAB]" aria-hidden="true" />
+              SoulEvents.dk
             </p>
-            <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-tight text-olive sm:mt-8 sm:text-7xl sm:leading-[0.95] lg:text-8xl">
-              Find oplevelser tæt på dig
+            <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-tight text-[#2F2633] sm:mt-8 sm:text-7xl sm:leading-[0.95] lg:text-8xl">
+              Find ro, balance og nærvær
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-ink/76 sm:mt-6 sm:text-xl sm:leading-8">
-              Gå på opdagelse i spirituelle events og oplevelser i hele Danmark. Start tæt på dig, eller vælg et område og mærk efter hvad der kalder.
+            <p className="mt-4 max-w-2xl text-base leading-7 text-[#2F2633]/76 sm:mt-6 sm:text-xl sm:leading-8">
+              SoulEvents samler mennesker, værter og fællesskaber fra hele Danmark. Her kan du opdage spirituelle aktiviteter og fællesskaber, der skaber ro, nærvær, personlig udvikling og meningsfulde møder med andre.
             </p>
           </div>
-          <HomeDiscoveryTiles tiles={homeTiles} />
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+              <a
+                className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#7A4EAB] px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6a4199] hover:shadow-lift"
+                href="#find-events"
+              >
+                Find events nær dig
+              </a>
+              <Link
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#7A4EAB]/30 bg-white/75 px-6 py-3 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:-translate-y-0.5 hover:bg-[#EDE4F7] hover:shadow-lift"
+                href="/auth/signup"
+              >
+                Bliv vært
+              </Link>
+            </div>
+</div>
+      </section>
+
+      <section className="bg-gradient-to-b from-[#EDE4F7]/70 to-white py-12 sm:py-16" id="find-events">
+        <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
+          <div className="mb-6 max-w-2xl">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Find din næste oplevelse</p>
+            <h2 className="mt-2 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Søg efter det, der passer til dig</h2>
+          </div>
+          <HomeEventSearchForm categories={categories.map(({ name, value }) => ({ name, value }))} selected={selected} />
         </div>
       </section>
 
-      <section className="bg-white py-20 sm:py-24" id="events">
+      <section className="bg-white py-16 sm:py-20" id="events">
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
 {activeFilters.length > 0 && (
             <div className="mt-6 flex flex-wrap gap-2">
               {activeFilters.map((filter) => (
                 <Link
-                  className="inline-flex items-center gap-2 rounded-full border border-sage-700/20 bg-sage-50 px-3 py-2 text-sm font-semibold text-olive transition hover:border-sage-700"
+                  className="inline-flex items-center gap-2 rounded-full border border-sage-700/20 bg-[#EDE4F7]/55 px-3 py-2 text-sm font-semibold text-[#2F2633] transition hover:border-sage-700"
                   href={filter.href}
                   key={filter.key}
                 >
@@ -731,16 +788,16 @@ export default async function Home({ searchParams }: HomeProps) {
 
           <div className="mt-8 grid gap-7">
             {nearbyRadiusOptions.length > 0 && (
-              <section className="rounded-card border border-sage-700/15 bg-sage-50 p-5 shadow-soft">
+              <section className="rounded-card border border-sage-700/15 bg-[#EDE4F7]/55 p-5 shadow-soft">
                 <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Events nær dig</p>
-                <h2 className="mt-2 text-3xl font-medium text-olive">Vælg radius</h2>
+                <h2 className="mt-2 text-3xl font-medium text-[#2F2633]">Vælg radius</h2>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {nearbyRadiusOptions.map((option) => (
                     <Link
                       className={
                         selected.distance === option.value || (!selected.distance && option.value === "50")
                           ? "rounded-full bg-olive px-4 py-2 text-sm font-semibold text-white"
-                          : "rounded-full bg-white px-4 py-2 text-sm font-semibold text-olive transition hover:bg-cream"
+                          : "rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#2F2633] transition hover:bg-[#FAF6EF]"
                       }
                       href={option.href}
                       key={option.value}
@@ -751,22 +808,19 @@ export default async function Home({ searchParams }: HomeProps) {
                 </div>
               </section>
             )}
-
-            <EventMap events={mapEvents} mapboxToken={env.mapboxToken} />
-
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-rose">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">
                 {hasSearch ? "Søgeresultater" : "Kommende events"}
               </p>
-              <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">
+              <h2 className="mt-3 text-5xl font-medium leading-tight text-[#2F2633]">
                 {hasSearch ? "Events der matcher din søgning" : "Førstkommende oplevelser"}
               </h2>
               {!hasSearch && (
-                <details className="mt-4 max-w-3xl rounded-card bg-sage-50 px-4 py-3 text-sm leading-6 text-ink/70">
-                  <summary className="cursor-pointer font-semibold text-olive">Hvordan udvælges oplevelserne?</summary>
+                <details className="mt-4 max-w-3xl rounded-card bg-[#EDE4F7]/55 px-4 py-3 text-sm leading-6 text-ink/70">
+                  <summary className="cursor-pointer font-semibold text-[#2F2633]">Hvordan udvælges oplevelserne?</summary>
                   <p className="mt-2">
-                    For at give plads til både nye og etablerede facilitatorer viser SoulEvents en varieret
-                    sammensætning af kommende oplevelser. Derfor vises maksimalt ét event pr. facilitator ad gangen i
+                    For at give plads til både nye og etablerede værter viser SoulEvents en varieret
+                    sammensætning af kommende oplevelser. Derfor vises maksimalt ét event pr. vært ad gangen i
                     denne sektion.
                   </p>
                 </details>
@@ -779,22 +833,22 @@ export default async function Home({ searchParams }: HomeProps) {
                 <PublicEventList events={searchEvents as never} />
               ) : (
                 <div className="grid gap-8">
-                  <section className="rounded-card bg-cream p-8 text-center shadow-soft">
+                  <section className="rounded-card bg-[#FAF6EF] p-8 text-center shadow-soft">
                     <CalendarDays className="mx-auto size-8 text-sage-700" aria-hidden="true" />
-                    <h3 className="mt-4 text-3xl font-medium text-olive">Der blev ikke fundet events, der matcher dine filtre.</h3>
+                    <h3 className="mt-4 text-3xl font-medium text-[#2F2633]">Der blev ikke fundet events, der matcher dine filtre.</h3>
                     <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-ink/64">
                       Prøv en anden kategori eller et andet område.
                     </p>
                     {selected.q && facilitatorCards.length > 0 && (
                       <div className="mx-auto mt-6 max-w-2xl rounded-card bg-white p-5 text-left shadow-soft">
-                        <p className="text-sm font-semibold uppercase tracking-wide text-rose">Facilitator fundet</p>
-                        <h4 className="mt-2 text-2xl font-medium text-olive">
-                          Måske leder du efter en facilitator?
+                        <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Vært fundet</p>
+                        <h4 className="mt-2 text-2xl font-medium text-[#2F2633]">
+                          Måske leder du efter en vært?
                         </h4>
                         <div className="mt-4 grid gap-3">
                           {facilitatorCards.slice(0, 3).map((facilitator) => (
                             <Link
-                              className="flex items-center justify-between gap-3 rounded-md border border-olive/10 bg-sage-50 px-4 py-3 text-sm font-semibold text-olive transition hover:border-sage-700"
+                              className="flex items-center justify-between gap-3 rounded-md border border-olive/10 bg-[#EDE4F7]/55 px-4 py-3 text-sm font-semibold text-[#2F2633] transition hover:border-sage-700"
                               href={"/facilitators/" + facilitator.id}
                               key={facilitator.id}
                             >
@@ -814,28 +868,28 @@ export default async function Home({ searchParams }: HomeProps) {
               <div className="grid gap-8 lg:grid-cols-3">
                 {featuredEvents.map((event) => (
                   <article
-                    className="overflow-hidden rounded-card bg-cream shadow-soft transition hover:-translate-y-1 hover:shadow-lift"
+                    className="overflow-hidden rounded-card bg-[#FAF6EF] shadow-soft transition hover:-translate-y-1 hover:shadow-lift"
                     key={event.title}
                   >
-                    <div className="aspect-video bg-sage-50 p-8">
+                    <div className="aspect-video bg-[#EDE4F7]/55 p-8">
                       <div className="flex h-full items-center justify-center rounded-card bg-white/70">
-                        <Sparkles className="size-10 text-rose" aria-hidden="true" />
+                        <Sparkles className="size-10 text-[#7A4EAB]" aria-hidden="true" />
                       </div>
                     </div>
                     <div className="p-6">
-                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-rose">
+                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">
                         <span>{event.category}</span>
                         <span className="text-ink/30">/</span>
                         <span>{event.location}</span>
                       </div>
-                      <h3 className="mt-3 text-3xl font-medium leading-8 text-olive">{event.title}</h3>
+                      <h3 className="mt-3 text-3xl font-medium leading-8 text-[#2F2633]">{event.title}</h3>
                       <p className="mt-2 text-sm font-semibold text-sage-700">{event.facilitator}</p>
                       <div className="mt-6 flex items-center justify-between gap-3 text-sm">
                         <span className="flex items-center gap-2 text-ink/70">
-                          <CalendarDays className="size-4 text-rose" aria-hidden="true" />
+                          <CalendarDays className="size-4 text-[#7A4EAB]" aria-hidden="true" />
                           {event.date}
                         </span>
-                        <span className="rounded-full bg-white px-3 py-1.5 font-semibold text-olive">{event.price}</span>
+                        <span className="rounded-full bg-white px-3 py-1.5 font-semibold text-[#2F2633]">{event.price}</span>
                       </div>
                     </div>
                   </article>
@@ -846,6 +900,33 @@ export default async function Home({ searchParams }: HomeProps) {
         </div>
       </section>
 
+      <section className="bg-[#FAF6EF] py-16 sm:py-20" id="map">
+        <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
+          <div className="mb-6 max-w-2xl">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Danmarkskort</p>
+            <h2 className="mt-2 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Udforsk events på kort</h2>
+            <p className="mt-3 text-base leading-7 text-[#2F2633]/70">
+              Brug kortet som et roligt overblik, når du vil se, hvor oplevelserne finder sted.
+            </p>
+          </div>
+          <EventMap events={mapEvents} mapboxToken={env.mapboxToken} />
+        </div>
+      </section>
+
+      <section className="bg-white py-16 sm:py-20" id="categories">
+        <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
+          <div className="mb-6 max-w-2xl">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Kategorier og inspiration</p>
+            <h2 className="mt-2 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Gå på opdagelse i SoulEvents</h2>
+            <p className="mt-3 text-base leading-7 text-[#2F2633]/70">
+              Find aktiviteter efter stemning, format, kategori eller det fællesskab, du længes efter.
+            </p>
+          </div>
+          <HomeDiscoveryTiles tiles={homeTiles} />
+        </div>
+      </section>
+
+
       <PublicFacilitatorCarousel facilitators={facilitatorCards} query={facilitatorQuery} />
 
       <HomeInspirationSections
@@ -854,19 +935,19 @@ export default async function Home({ searchParams }: HomeProps) {
         themes={homeThemes}
       />
 
-      <section className="bg-white py-20 sm:py-24" id="contact">
+      <section className="bg-[#FAF6EF] py-16 sm:py-20" id="contact">
         <div className="mx-auto grid max-w-[1200px] gap-10 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-rose">Kontakt</p>
-            <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Skriv til SoulEvents.dk</h2>
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Kontakt</p>
+            <h2 className="mt-3 text-5xl font-medium leading-tight text-[#2F2633]">Skriv til SoulEvents.dk</h2>
             <p className="mt-4 max-w-xl text-base leading-7 text-ink/70">
               Har du spørgsmål, ideer eller brug for hjælp, kan du sende en besked direkte til os.
             </p>
           </div>
 
-          <form action={sendContactMessageAction} className="grid gap-4 rounded-card bg-cream p-6 shadow-soft">
+          <form action={sendContactMessageAction} className="grid gap-4 rounded-card bg-[#FAF6EF] p-6 shadow-soft">
             {contactStatus === "sent" && (
-              <p className="rounded-input bg-white px-4 py-3 text-sm font-semibold text-olive">
+              <p className="rounded-input bg-white px-4 py-3 text-sm font-semibold text-[#2F2633]">
                 Tak for din besked, vi kommer retur hurtigst muligt.
               </p>
             )}
@@ -881,10 +962,10 @@ export default async function Home({ searchParams }: HomeProps) {
               </p>
             )}
 
-            <label className="grid gap-2 text-sm font-semibold text-olive">
+            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
               Navn
               <input
-                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
+                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
                 maxLength={120}
                 name="name"
                 required
@@ -892,10 +973,10 @@ export default async function Home({ searchParams }: HomeProps) {
               />
             </label>
 
-            <label className="grid gap-2 text-sm font-semibold text-olive">
+            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
               E-mail
               <input
-                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
+                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
                 maxLength={160}
                 name="email"
                 required
@@ -903,20 +984,20 @@ export default async function Home({ searchParams }: HomeProps) {
               />
             </label>
 
-            <label className="grid gap-2 text-sm font-semibold text-olive">
+            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
               Telefon
               <input
-                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-rose"
+                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
                 maxLength={40}
                 name="phone"
                 type="tel"
               />
             </label>
 
-            <label className="grid gap-2 text-sm font-semibold text-olive">
+            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
               Besked
               <textarea
-                className="min-h-40 rounded-input border border-olive/15 bg-white px-4 py-3 text-base font-normal outline-none transition focus:border-rose"
+                className="min-h-40 rounded-input border border-olive/15 bg-white px-4 py-3 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
                 maxLength={500}
                 name="message"
                 required
@@ -925,7 +1006,7 @@ export default async function Home({ searchParams }: HomeProps) {
             </label>
 
             <button
-              className="inline-flex h-12 items-center justify-center rounded-button bg-rose px-6 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+              className="inline-flex h-12 items-center justify-center rounded-button bg-[#7A4EAB] px-6 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
               type="submit"
             >
               Afsend

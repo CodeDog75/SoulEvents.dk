@@ -16,17 +16,17 @@ const statusText: Partial<Record<BookingStatus, { subject: string; headline: str
   confirmed: {
     subject: "Din tilmelding er bekræftet",
     headline: "Din tilmelding er bekræftet",
-    body: "Facilitatoren har bekræftet din tilmelding.",
+    body: "Værten har bekræftet din tilmelding.",
   },
   sold_out: {
     subject: "Arrangementet er udsolgt",
     headline: "Arrangementet er udsolgt",
-    body: "Facilitatoren har markeret arrangementet som udsolgt.",
+    body: "Værten har markeret arrangementet som udsolgt.",
   },
   cancelled: {
     subject: "Arrangementet er aflyst",
     headline: "Arrangementet er aflyst",
-    body: "Facilitatoren har aflyst arrangementet.",
+    body: "Værten har aflyst arrangementet.",
   },
 };
 
@@ -49,7 +49,7 @@ function buildHtml(input: ParticipantBookingResponseInput) {
             <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px;">${escapeHtml(formatDate(input.eventStartsAt))}</td>
           </tr>
           <tr>
-            <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px; font-weight: 700;">Facilitator</td>
+            <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px; font-weight: 700;">Vært</td>
             <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px;">${escapeHtml(input.facilitatorName)}</td>
           </tr>
         </tbody>
@@ -69,7 +69,7 @@ function buildText(input: ParticipantBookingResponseInput) {
     "",
     `Event: ${input.eventTitle}`,
     `Dato: ${formatDate(input.eventStartsAt)}`,
-    `Facilitator: ${input.facilitatorName}`,
+    `Vært: ${input.facilitatorName}`,
   ].join("\n");
 }
 

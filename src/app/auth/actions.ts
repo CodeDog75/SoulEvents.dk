@@ -292,13 +292,13 @@ export async function signUpFacilitatorAction(formData: FormData) {
   );
 
   if (facilitatorError) {
-    authRedirect("/auth/signup", "Kontoen blev oprettet, men facilitatorprofilen kunne ikke gemmes.");
+    authRedirect("/auth/signup", "Kontoen blev oprettet, men værtsprofilen kunne ikke gemmes.");
   }
 
   revalidatePath("/", "layout");
   authRedirect(
     "/auth/login",
-    "Din konto er oprettet. Tjek din indbakke og bekræft e-mailen. Når e-mailen er bekræftet, skal administrator godkende din facilitatorprofil.",
+    "Din konto er oprettet. Tjek din indbakke og bekræft e-mailen. Når e-mailen er bekræftet, skal administrator godkende din værtsprofil.",
   );
 }
 

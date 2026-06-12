@@ -55,7 +55,7 @@ export function AdminBookingTable({ bookings }: AdminBookingTableProps) {
           <thead className="bg-sage-50 text-xs uppercase tracking-wide text-ink/60">
             <tr>
               <th className="px-4 py-3">Event</th>
-              <th className="px-4 py-3">Facilitator</th>
+              <th className="px-4 py-3">Vært</th>
               <th className="px-4 py-3">Deltager</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3 text-right">Pladser</th>

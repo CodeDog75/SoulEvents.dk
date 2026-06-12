@@ -29,7 +29,7 @@ function startOfToday() {
 
 function nameOf(facilitator: any) {
   const profile = first(facilitator?.profiles);
-  return facilitator?.company_name || profile?.full_name || "Facilitator";
+  return facilitator?.company_name || profile?.full_name || "Vært";
 }
 
 export async function generateMetadata({ params }: FacilitatorPageProps): Promise<Metadata> {
@@ -46,8 +46,8 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
 
   const name = nameOf(facilitator);
   return {
-    title: name + " | Facilitator på SoulEvents",
-    description: facilitator.short_description || "Find facilitatorprofil på SoulEvents.",
+    title: name + " | Vært på SoulEvents",
+    description: facilitator.short_description || "Find værterprofil på SoulEvents.",
   };
 }
 
@@ -58,7 +58,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
   const { data: facilitator } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
+      "id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_vært, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
     )
     .eq("id", id)
     .eq("status", "approved")
@@ -119,7 +119,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
             href="/facilitators"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
-            Facilitatorer
+            Værter
           </Link>
         </div>
       </header>
@@ -142,7 +142,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
               <div>
                 <div className="flex flex-wrap gap-2">
                   {facilitator.is_online_facilitator && (
-                    <span className="rounded-full border border-olive/10 bg-white px-2.5 py-1 text-xs font-medium text-ink/55">💻 Online facilitator</span>
+                    <span className="rounded-full border border-olive/10 bg-white px-2.5 py-1 text-xs font-medium text-ink/55">💻 Online vært</span>
                   )}
                   {categories.map((category: any) => (
                     <span className="rounded-full px-3 py-1 text-xs font-semibold text-white" key={category.name} style={{ backgroundColor: category.color_hex }}>
@@ -152,16 +152,16 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
                 </div>
                 <h1 className="mt-4 text-5xl font-medium leading-tight text-olive">{name}</h1>
                 <p className="mt-4 max-w-3xl text-base leading-7 text-ink/72">
-                  {facilitator.short_description || "Facilitatorens korte præsentation kommer snart."}
+                  {facilitator.short_description || "Værtens korte præsentation kommer snart."}
                 </p>
               </div>
             </div>
           </section>
 
           <section className="rounded-card bg-white p-8 shadow-soft">
-            <h2 className="text-4xl font-medium text-olive">Om facilitatoren</h2>
+            <h2 className="text-4xl font-medium text-olive">Om værten</h2>
             <div className="mt-4 whitespace-pre-line text-sm leading-7 text-ink/72">
-              {facilitator.long_description || facilitator.short_description || "Der kommer mere information om facilitatoren snart."}
+              {facilitator.long_description || facilitator.short_description || "Der kommer mere information om værten snart."}
             </div>
           </section>
 
@@ -187,7 +187,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
               ) : (
                 <div className="rounded-card bg-cream p-8 text-center">
                   <Sparkles className="mx-auto size-8 text-rose" aria-hidden="true" />
-                  <p className="mt-4 text-lg font-semibold text-olive">Der er ingen planlagte events for denne facilitator.</p>
+                  <p className="mt-4 text-lg font-semibold text-olive">Der er ingen planlagte events for denne vært.</p>
                 </div>
               )}
             </div>
@@ -202,7 +202,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
                 <MapPinned className="mt-0.5 size-4 text-sage-700" aria-hidden="true" />
                 <span>
                   {facilitator.is_online_facilitator
-                    ? "Online facilitator"
+                    ? "Online vært"
                     : [facilitator.city, region?.name, facilitator.country].filter(Boolean).join(", ") || "Lokation kommer snart"}
                 </span>
               </div>
@@ -232,7 +232,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
           <section className="rounded-card bg-white p-6 shadow-soft">
             <h2 className="text-3xl font-medium text-olive">Tilmeld påmindelse</h2>
             <p className="mt-3 text-sm leading-6 text-ink/66">
-              Få besked på e-mail, når denne facilitator opretter et nyt event.
+              Få besked på e-mail, når denne vært opretter et nyt event.
             </p>
             <form className="mt-4 grid gap-3">
               <input className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base outline-none transition focus:border-rose" name="email" placeholder="din@email.dk" type="email" />

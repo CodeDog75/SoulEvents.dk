@@ -23,7 +23,7 @@ function first<T>(value: T | T[] | null | undefined) {
 
 function getName(facilitator: FacilitatorResult) {
   const profile = first(facilitator.profiles);
-  return facilitator.company_name || profile?.full_name || "Facilitator";
+  return facilitator.company_name || profile?.full_name || "Vært";
 }
 
 function getCategories(facilitator: FacilitatorResult) {
@@ -38,8 +38,8 @@ export function PublicFacilitatorResults({ facilitators }: { facilitators: Facil
   if (facilitators.length === 0) {
     return (
       <section className="rounded-[2rem] border border-sage-700/10 bg-white p-8 text-center shadow-soft">
-        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-terracotta">Ingen facilitatorer fundet</p>
-        <h3 className="mt-4 text-3xl font-medium text-olive">Der blev ikke fundet facilitatorer, der matcher din søgning.</h3>
+        <p className="text-sm font-semibold uppercase tracking-[0.22em] text-terracotta">Ingen værter fundet</p>
+        <h3 className="mt-4 text-3xl font-medium text-olive">Der blev ikke fundet værter, der matcher din søgning.</h3>
         <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-ink/64">
           Prøv et andet navn, en anden kategori eller et andet område.
         </p>
@@ -59,7 +59,7 @@ export function PublicFacilitatorResults({ facilitators }: { facilitators: Facil
           <article className="rounded-[1.5rem] border border-sage-700/10 bg-white p-5 shadow-soft" key={facilitator.id}>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-terracotta">Facilitator</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-terracotta">Vært</p>
                 <h3 className="mt-2 text-2xl font-medium text-olive">{name}</h3>
                 {(facilitator.city || region?.name) && (
                   <p className="mt-1 text-sm text-ink/60">
@@ -91,7 +91,7 @@ export function PublicFacilitatorResults({ facilitators }: { facilitators: Facil
               </div>
             )}
 
-            <p className="mt-4 text-xs italic text-ink/55">Facilitatoren kan findes, selvom der ikke er aktive events lige nu.</p>
+            <p className="mt-4 text-xs italic text-ink/55">Værten kan findes, selvom der ikke er aktive events lige nu.</p>
           </article>
         );
       })}

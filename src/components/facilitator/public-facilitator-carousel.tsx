@@ -17,31 +17,31 @@ type PublicFacilitatorCarouselProps = {
 
 export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilitatorCarouselProps) {
   return (
-    <section className="bg-cream py-20 sm:py-24" id="facilitators">
+    <section className="bg-[#EDE4F7]/45 py-16 sm:py-20" id="facilitators">
       <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
         <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-rose">Facilitatorer</p>
-            <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Find facilitatorer på SoulEvents</h2>
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Værter</p>
+            <h2 className="mt-3 text-5xl font-medium leading-tight text-[#2F2633]">Find værter på SoulEvents</h2>
             <p className="mt-4 max-w-2xl text-base leading-7 text-ink/70">
-              Gå på opdagelse blandt dygtige facilitatorer inden for yoga, meditation, healing, ceremonier, saunagus og meget mere.
+              Gå på opdagelse blandt dygtige værter inden for yoga, meditation, healing, ceremonier, saunagus og meget mere.
             </p>
           </div>
 
           <form action="/#facilitators" className="grid gap-3 rounded-card bg-white p-4 shadow-soft sm:grid-cols-[1fr_auto] sm:items-end">
             <input name="scroll_to" type="hidden" value="facilitators" />
-            <label className="grid gap-2 text-sm font-semibold text-olive">
-              Søg efter facilitator
+            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
+              Søg efter vært
               <input
-                className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-rose"
+                className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
                 defaultValue={query}
                 name="facilitator_q"
-                placeholder="Søg efter facilitatornavn..."
+                placeholder="Søg efter værtsnavn..."
                 type="search"
               />
             </label>
             <button
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-button bg-olive px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
               type="submit"
             >
               <Search className="size-4" aria-hidden="true" />
@@ -51,8 +51,8 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
         </div>
 
         {query && (
-          <p className="mt-6 text-sm font-semibold text-olive">
-            Viser facilitatorer der matcher: <span className="text-rose">{query}</span>
+          <p className="mt-6 text-sm font-semibold text-[#2F2633]">
+            Viser værter der matcher: <span className="text-[#7A4EAB]">{query}</span>
           </p>
         )}
 
@@ -75,15 +75,15 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
                   )}
                 </div>
                 <div className="p-5">
-                  <h3 className="text-2xl font-medium leading-7 text-olive">{facilitator.name}</h3>
+                  <h3 className="text-2xl font-medium leading-7 text-[#2F2633]">{facilitator.name}</h3>
                   <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink/66">
-                    {facilitator.tagline || [facilitator.city, "Facilitator på SoulEvents"].filter(Boolean).join(" · ")}
+                    {facilitator.tagline || [facilitator.city, "Vært på SoulEvents"].filter(Boolean).join(" · ")}
                   </p>
                   {facilitator.categories.length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2">
                       {facilitator.categories.slice(0, 3).map((category) => (
                         <span
-                          className="rounded-full px-3 py-1 text-xs font-semibold text-olive"
+                          className="rounded-full px-3 py-1 text-xs font-semibold text-[#2F2633]"
                           key={category.name}
                           style={{ backgroundColor: category.color_hex ? category.color_hex + "22" : "#eef2e3" }}
                         >
@@ -98,8 +98,8 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
           </div>
         ) : (
           <section className="mt-8 rounded-card bg-white p-8 text-center shadow-soft">
-            <Sparkles className="mx-auto size-8 text-rose" aria-hidden="true" />
-            <h3 className="mt-4 text-3xl font-medium text-olive">Ingen facilitatorer fundet</h3>
+            <Sparkles className="mx-auto size-8 text-[#7A4EAB]" aria-hidden="true" />
+            <h3 className="mt-4 text-3xl font-medium text-[#2F2633]">Ingen værter fundet</h3>
             <p className="mt-2 text-sm text-ink/64">Prøv et andet navn.</p>
           </section>
         )}

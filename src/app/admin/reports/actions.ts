@@ -40,7 +40,7 @@ export async function generateMonthlyReportAction(formData: FormData) {
   const bankDetails = getOptionalString(formData, "bank_details");
 
   if (!facilitatorId) {
-    reportsRedirect("Vælg en facilitator.");
+    reportsRedirect("Vælg en vært.");
   }
 
   const { periodStart, periodEnd, from, to } = monthBounds(month);

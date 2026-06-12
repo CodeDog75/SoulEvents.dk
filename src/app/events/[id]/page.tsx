@@ -123,7 +123,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const images = [...(event.event_images ?? [])].sort(
     (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
   );
-  const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Facilitator";
+  const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Vært";
   const facilitatorImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
@@ -205,7 +205,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           )}
 
           <section className="rounded-card bg-white p-8 shadow-soft">
-            <h2 className="text-4xl font-medium text-olive">Facilitator</h2>
+            <h2 className="text-4xl font-medium text-olive">Vært</h2>
             <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-start">
               {facilitatorImageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -222,7 +222,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               <div>
                 <Link className="font-semibold text-sage-700 transition hover:text-rose" href={"/facilitators/" + facilitatorProfile.id}>{facilitatorName}</Link>
                 <p className="mt-2 text-sm leading-6 text-ink/66">
-                  {facilitatorProfile?.short_description || "Facilitatorens profiltekst kommer snart."}
+                  {facilitatorProfile?.short_description || "Værtens profiltekst kommer snart."}
                 </p>
                 {facilitatorLinks.length > 0 && (
                   <div className="mt-4 flex flex-wrap gap-2">

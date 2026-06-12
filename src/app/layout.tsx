@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "SoulEvents.dk",
-  description: "Find events, facilitatorer og fællesskaber i Danmark.",
+  description: "Find events, værter og fællesskaber i Danmark.",
 };
 
 export default function RootLayout({

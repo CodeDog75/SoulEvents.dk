@@ -2,7 +2,6 @@ import Link from "next/link";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
 import { LegalConsentLinks } from "@/components/auth/legal-consent-links";
-import { SignupSteps } from "@/components/auth/signup-steps";
 import { signUpFacilitatorAction } from "@/app/auth/actions";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,110 +21,171 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
     .eq("is_published", true);
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[#fbfaf7] px-4 py-10">
-      <section className="w-full max-w-2xl rounded-md border border-midnight/10 bg-white p-6 shadow-soft">
-        <Link className="mb-8 flex items-center gap-3" href="/">
-          <BrandLogo className="h-24 w-24" priority />
-          <div>
-            <p className="text-sm text-ink/65">Facilitator</p>
-          </div>
-        </Link>
+    <main className="min-h-screen bg-[#FAF6EF] px-4 py-8 text-[#2F2633] sm:py-12">
+      <section className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
+        <aside className="rounded-[1.75rem] border border-[#EDE4F7] bg-white/80 p-6 shadow-soft sm:p-8">
+          <Link className="mb-8 flex items-center gap-3" href="/">
+            <BrandLogo className="h-20 w-20 sm:h-24 sm:w-24" priority />
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">SoulEvents.dk</p>
+              <p className="mt-1 text-sm text-[#2F2633]/65">For værter og fællesskaber</p>
+            </div>
+          </Link>
 
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-midnight">Opret facilitatorprofil</h1>
-          <div className="rounded-md border border-sage-700/10 bg-sage-50/60 px-3 py-3 text-sm leading-6 text-ink/72">
-            <p className="font-semibold text-midnight">Sådan kommer du i gang</p>
-            <SignupSteps />
-            <p className="mt-4 text-ink/68">
-              Det er gratis at blive en del af SoulEvents. Du har altid kontrol over dine oplysninger og kan få din
-              profil slettet når som helst.
+          <p className="inline-flex rounded-full bg-[#EDE4F7] px-4 py-2 text-sm font-semibold text-[#7A4EAB]">
+            Gratis og enkelt at komme i gang
+          </p>
+          <h1 className="mt-5 text-3xl font-semibold leading-tight text-[#2F2633] sm:text-5xl">
+            Opret ny og gratis værtsprofil
+          </h1>
+          <p className="mt-5 text-base leading-7 text-[#2F2633]/72 sm:text-lg">
+            Bliv en del af SoulEvents og del dine events, fællesskaber og aktiviteter med mennesker, der søger mere ro,
+            nærvær og balance i hverdagen.
+          </p>
+
+          <section className="mt-5 rounded-[1.25rem] border border-[#D8A7B1]/35 bg-[#D8A7B1]/14 p-5">
+            <h2 className="text-lg font-semibold text-[#2F2633]">💜 Gratis og uden binding</h2>
+            <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
+              Det er gratis at oprette en værtsprofil på SoulEvents. Du har altid fuld kontrol over dine oplysninger og
+              kan redigere eller slette din profil, når du ønsker det.
+            </p>
+          </section>
+
+          <section className="mt-5 rounded-[1.25rem] border border-[#EDE4F7] bg-white/75 p-5">
+            <h2 className="text-lg font-semibold text-[#2F2633]">Dansk udviklet med nærvær</h2>
+            <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
+              SoulEvents er dansk udviklet med fokus på tryghed, fællesskab og enkelhed. Du er altid velkommen til at
+              skrive til SoulEvents.dk, hvis du ønsker at høre mere, inden du opretter din profil.
+            </p>
+            <Link
+              className="mt-4 inline-flex min-h-10 items-center justify-center rounded-full border border-[#7A4EAB]/25 px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#EDE4F7]"
+              href="/#contact"
+            >
+              Skriv til SoulEvents
+            </Link>
+          </section>
+
+          <section className="mt-5 rounded-[1.25rem] border border-[#A8BFA3]/35 bg-[#A8BFA3]/14 p-5">
+            <h2 className="text-lg font-semibold text-[#2F2633]">Hvem er SoulEvents for?</h2>
+            <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
+              SoulEvents er for dig, der afholder aktiviteter inden for eksempelvis yoga, meditation, saunagus, healing,
+              breathwork, ceremonier, retreats, personlig udvikling og andre fællesskaber med fokus på krop, sind og sjæl.
+            </p>
+          </section>
+        </aside>
+
+        <section className="rounded-[1.75rem] border border-[#EDE4F7] bg-white p-5 shadow-soft sm:p-8">
+          <div className="mb-6">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Opret profil</p>
+            <h2 className="mt-2 text-2xl font-semibold text-[#2F2633]">Dine loginoplysninger</h2>
+            <p className="mt-2 text-sm leading-6 text-[#2F2633]/62">
+              Start med e-mail, adgangskode og navn. Resten kan du udfylde, når din profil er oprettet.
             </p>
           </div>
-        </div>
 
-        <div className="mt-5">
           <AuthMessage message={message} />
-        </div>
 
-        <form
-          action={signUpFacilitatorAction}
-          className="mt-6 grid gap-4 [&_input::placeholder]:text-sm [&_input::placeholder]:font-normal [&_input::placeholder]:text-ink/45"
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
-              E-mail *
-              <input
-                autoComplete="email"
-                className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
-                name="email"
-                placeholder="din@mail.dk"
-                required
-                type="email"
-              />
-            </label>
-
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
-              Adgangskode *
-              <input
-                autoComplete="new-password"
-                className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
-                minLength={8}
-                name="password"
-                placeholder="Mindst 8 tegn"
-                required
-                type="password"
-              />
-            </label>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
-              Dit rigtige navn *
-              <input
-                autoComplete="name"
-                className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
-                name="full_name"
-                placeholder="Dit fulde navn"
-                required
-              />
-            </label>
-
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
-              Telefon
-              <input
-                autoComplete="tel"
-                inputMode="tel"
-                className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
-                maxLength={11}
-                name="phone"
-                pattern="[0-9 ]*"
-                placeholder="Kan udfyldes senere"
-                title="Telefonnummer skal bestå af præcis 8 tal. Mellemrum er tilladt."
-              />
-            </label>
-          </div>
-
-          <label className="flex items-start gap-3 rounded-md bg-sage-50 p-4 text-sm leading-6 text-ink/72">
-            <input className="mt-1 size-4 accent-sage-700" name="accepted_terms" required type="checkbox" />
-            <span>
-              <LegalConsentLinks documents={legalDocuments ?? []} />
-            </span>
-          </label>
-
-          <button
-            className="mt-2 h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700"
-            type="submit"
+          <form
+            action={signUpFacilitatorAction}
+            className="mt-6 grid gap-5 [&_input::placeholder]:text-sm [&_input::placeholder]:font-normal [&_input::placeholder]:text-[#2F2633]/42"
           >
-            Opret facilitatorprofil
-          </button>
-        </form>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
+                E-mail *
+                <input
+                  autoComplete="email"
+                  className="h-12 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+                  name="email"
+                  placeholder="din@mail.dk"
+                  required
+                  type="email"
+                />
+              </label>
 
-        <p className="mt-6 text-sm text-ink/66">
-          Har du allerede en konto?{" "}
-          <Link className="font-semibold text-sage-700 hover:text-terracotta" href="/auth/login">
-            Log ind
-          </Link>
-        </p>
+              <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
+                Adgangskode *
+                <input
+                  autoComplete="new-password"
+                  className="h-12 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+                  minLength={8}
+                  name="password"
+                  placeholder="Mindst 8 tegn"
+                  required
+                  type="password"
+                />
+              </label>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
+                Dit rigtige navn *
+                <input
+                  autoComplete="name"
+                  className="h-12 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+                  name="full_name"
+                  placeholder="Dit fulde navn"
+                  required
+                />
+              </label>
+
+              <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
+                Telefon
+                <input
+                  autoComplete="tel"
+                  inputMode="tel"
+                  className="h-12 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+                  maxLength={11}
+                  name="phone"
+                  pattern="[0-9 ]*"
+                  placeholder="Kan udfyldes senere"
+                  title="Telefonnummer skal bestå af præcis 8 tal. Mellemrum er tilladt."
+                />
+              </label>
+            </div>
+
+            <label className="flex items-start gap-3 rounded-[1.25rem] bg-[#EDE4F7]/65 p-4 text-sm leading-6 text-[#2F2633]/72">
+              <input className="mt-1 size-4 accent-[#7A4EAB]" name="accepted_terms" required type="checkbox" />
+              <span>
+                <LegalConsentLinks documents={legalDocuments ?? []} />
+              </span>
+            </label>
+
+            <button
+              className="mt-1 h-12 rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6A4199] hover:shadow-lift"
+              type="submit"
+            >
+              Opret ny og gratis værtsprofil
+            </button>
+          </form>
+
+          <section className="mt-7 rounded-[1.25rem] border border-[#EDE4F7] bg-[#FAF6EF] p-5">
+            <h2 className="text-xl font-semibold text-[#2F2633]">Når din profil er oprettet 💜</h2>
+            <p className="mt-2 text-sm leading-6 text-[#2F2633]/70">
+              Det tager kun få minutter at komme videre.
+            </p>
+            <ol className="mt-5 grid gap-3 text-sm font-semibold text-[#2F2633]">
+              {["Bekræft din e-mail", "Fortæl lidt om dig selv", "Opret dit første event"].map((step, index) => (
+                <li className="flex items-center gap-3" key={step}>
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#7A4EAB] text-white">
+                    {index + 1}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-5 border-t border-[#7A4EAB]/10 pt-4 text-sm leading-6 text-[#2F2633]/62">
+              Du kan altid redigere dine oplysninger senere.
+            </p>
+          </section>
+
+
+          <p className="mt-6 text-sm text-[#2F2633]/66">
+            Har du allerede en konto?{" "}
+            <Link className="font-semibold text-[#7A4EAB] hover:text-[#D8A7B1]" href="/auth/login">
+              Log ind
+            </Link>
+          </p>
+        </section>
       </section>
     </main>
   );
