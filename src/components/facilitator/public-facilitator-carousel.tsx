@@ -24,7 +24,7 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Værter</p>
             <h2 className="mt-3 text-5xl font-medium leading-tight text-[#2F2633]">Find værter på SoulEvents</h2>
             <p className="mt-4 max-w-2xl text-base leading-7 text-ink/70">
-              Gå på opdagelse blandt dygtige værter inden for yoga, meditation, healing, ceremonier, saunagus og meget mere.
+              Bag hvert event står et menneske med en passion for at skabe nærvær, fællesskab og personlig udvikling. Her kan du udforske værter, der skaber meningsfulde aktiviteter og fællesskaber for krop, sind og sjæl. 💜
             </p>
           </div>
 
@@ -36,7 +36,7 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
                 className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
                 defaultValue={query}
                 name="facilitator_q"
-                placeholder="Søg efter værtsnavn..."
+                placeholder="Søg på navn, kategori, by, område eller ord fra profilen..."
                 type="search"
               />
             </label>
@@ -100,7 +100,7 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
           <section className="mt-8 rounded-card bg-white p-8 text-center shadow-soft">
             <Sparkles className="mx-auto size-8 text-[#7A4EAB]" aria-hidden="true" />
             <h3 className="mt-4 text-3xl font-medium text-[#2F2633]">Ingen værter fundet</h3>
-            <p className="mt-2 text-sm text-ink/64">Prøv et andet navn.</p>
+            <p className="mt-2 text-sm text-ink/64">Prøv et andet søgeord, en kategori eller et område.</p>
           </section>
         )}
       </div>

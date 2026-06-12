@@ -54,7 +54,7 @@ export function HomeDiscoveryTiles({ tiles }: { tiles: HomeDiscoveryTile[] }) {
                   </div>
                 )}
               </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-[#12091B]/95 via-[#2F1642]/70 via-55% to-black/10" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#12091B]/96 via-[#2F1642]/72 via-55% to-black/20" />
               <div className="absolute inset-x-0 bottom-0 grid min-h-[132px] content-end p-4 text-left text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)] sm:min-h-[142px] sm:p-5">
                 <h2 className="line-clamp-2 min-h-[2.5rem] text-lg font-bold leading-tight text-white sm:min-h-[3rem] sm:text-xl">{tile.title}</h2>
                 <p className="mt-1 line-clamp-2 min-h-[2.5rem] text-xs font-medium leading-5 text-white/95 sm:text-sm">{tile.description}</p>

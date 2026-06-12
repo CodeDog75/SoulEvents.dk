@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Copy, Mail, MessageCircle, Share2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 type ShareFacilitatorButtonProps = {
   facilitatorName: string;
@@ -10,17 +10,20 @@ type ShareFacilitatorButtonProps = {
 
 export function ShareFacilitatorButton({ facilitatorName, facilitatorId }: ShareFacilitatorButtonProps) {
   const [copied, setCopied] = useState(false);
-  const url = useMemo(() => {
-    if (typeof window === "undefined") return "/facilitators/" + facilitatorId;
-    return window.location.origin + "/facilitators/" + facilitatorId;
-  }, [facilitatorId]);
-  const text = "Jeg fandt " + facilitatorName + " på SoulEvents. Se profilen her: " + url;
+  const relativeUrl = "/facilitators/" + facilitatorId;
+  const [url, setUrl] = useState(relativeUrl);
+
+  useEffect(() => {
+    setUrl(window.location.origin + relativeUrl);
+  }, [relativeUrl]);
+
+  const text = "Jeg fandt " + facilitatorName + " på SoulEvents.dk. Se profilen her: " + url;
   const encodedText = encodeURIComponent(text);
-  const encodedSubject = encodeURIComponent(facilitatorName + " | Vært på SoulEvents");
+  const encodedSubject = encodeURIComponent(facilitatorName + " | Vært på SoulEvents.dk");
 
   async function shareNative() {
     if (navigator.share) {
-      await navigator.share({ title: facilitatorName + " | SoulEvents", text, url });
+      await navigator.share({ title: facilitatorName + " | SoulEvents.dk", text, url });
     }
   }
 

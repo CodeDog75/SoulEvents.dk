@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles, UserRound } from "lucide-react";
+import { UserRound } from "lucide-react";
 
 export type HomeFacilitatorCard = {
   id: string;
@@ -9,14 +9,6 @@ export type HomeFacilitatorCard = {
   tagline: string;
   primaryCategory: string | null;
   isOnline?: boolean;
-};
-
-export type HomeThemeCard = {
-  id: string;
-  title: string;
-  description: string;
-  href: string;
-  imageUrl: string | null;
 };
 
 function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) {
@@ -55,58 +47,20 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
 export function HomeInspirationSections({
   featuredFacilitators,
   newFacilitators,
-  themes,
 }: {
   featuredFacilitators: HomeFacilitatorCard[];
   newFacilitators: HomeFacilitatorCard[];
-  themes: HomeThemeCard[];
 }) {
   const hasFeatured = featuredFacilitators.length > 0;
   const hasNew = newFacilitators.length > 0;
-  const hasThemes = themes.length > 0;
 
-  if (!hasFeatured && !hasNew && !hasThemes) {
+  if (!hasFeatured && !hasNew) {
     return null;
   }
 
   return (
-    <section className="bg-white py-20 sm:py-24" id="inspiration">
+    <section className="bg-white py-20 sm:py-24" id="featured-hosts">
       <div className="mx-auto grid max-w-[1200px] gap-12 px-5 sm:px-8">
-        {hasThemes && (
-          <div>
-            <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-wide text-rose">Inspiration</p>
-              <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Find efter stemning og behov</h2>
-              <p className="mt-4 text-base leading-7 text-ink/70">
-                Udforsk redaktionelt udvalgte temaer, sæsoner og populære oplevelser.
-              </p>
-            </div>
-            <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
-              {themes.map((theme) => (
-                <Link
-                  className="group relative aspect-square overflow-hidden rounded-[1.25rem] bg-sage-50 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
-                  href={theme.href}
-                  key={theme.id}
-                >
-                  {theme.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img alt="" className="absolute inset-0 h-full w-full object-cover" src={theme.imageUrl} />
-                  ) : (
-                    <div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-sage-50 via-cream to-white text-4xl">
-                      <Sparkles className="size-10 text-sage-700" aria-hidden="true" />
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-ink/72 via-ink/20 to-transparent" />
-                  <div className="absolute inset-x-0 bottom-0 p-4 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)]">
-                    <h3 className="text-base font-bold leading-tight text-white sm:text-lg">{theme.title}</h3>
-                    <p className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-white/95">{theme.description}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
         {hasFeatured && (
           <div>
             <div className="max-w-3xl">

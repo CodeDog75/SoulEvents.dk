@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { areaOptions } from "@/lib/regions/areas";
 
 type HomeEventSearchFormProps = {
+  categoryEventCounts?: Record<string, number>;
   categories: Array<{ name: string; value: string }>;
   selected: {
     q: string;
@@ -22,7 +23,14 @@ type HomeEventSearchFormProps = {
 const popularCategoryNames = ["Yoga", "Lydbad", "Saunagus", "Healing", "Breathwork", "Ceremonier"];
 const priorityAreas = ["sjaelland-og-oerne", "fyn", "sonderjylland", "midtjylland", "nordjylland"];
 
-function categoryStyle(active: boolean) {
+function categoryStyle(active: boolean, disabled: boolean) {
+  if (disabled) {
+    return {
+      background: "radial-gradient(circle at center, rgba(255,255,255,0.94) 0%, rgba(241,239,242,0.96) 48%, rgba(219,215,221,0.98) 100%)",
+      boxShadow: undefined,
+    };
+  }
+
   return {
     background: active
       ? "radial-gradient(circle at center, rgba(255,255,255,0.96) 0%, rgba(237,228,247,0.96) 50%, rgba(122,78,171,0.34) 100%)"
@@ -31,24 +39,31 @@ function categoryStyle(active: boolean) {
   };
 }
 
-function categoryClass(active: boolean) {
+function categoryClass(active: boolean, disabled: boolean) {
   return [
-    "group relative min-h-[108px] overflow-hidden rounded-[1.35rem] border p-4 text-center shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift",
+    "group relative min-h-[104px] overflow-hidden rounded-[22px] border p-4 text-center shadow-[0_18px_45px_rgba(47,38,51,0.08)] transition sm:min-h-[112px] lg:min-h-[116px]",
     "flex items-center justify-center",
-    active ? "border-[#7A4EAB]/45 ring-2 ring-[#7A4EAB]/25" : "border-[#7A4EAB]/15",
+    disabled
+      ? "cursor-not-allowed border-stone-200 opacity-55 grayscale"
+      : "border-[#D9C5EA] bg-[#EDE4F7] hover:-translate-y-0.5 hover:border-[#7A4EAB]/45 hover:shadow-[0_22px_55px_rgba(122,78,171,0.16)]",
+    active && !disabled ? "ring-2 ring-[#7A4EAB] ring-offset-2 ring-offset-[#FAF6EF]" : "",
   ].join(" ");
 }
 
-export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFormProps) {
+export function HomeEventSearchForm({ categoryEventCounts = {}, categories, selected }: HomeEventSearchFormProps) {
   const formRef = useRef<HTMLFormElement | null>(null);
   const [locationMessage, setLocationMessage] = useState("");
-  const [showAllCategories, setShowAllCategories] = useState(false);
-  const popularCategories = categories.filter((category) => popularCategoryNames.includes(category.name));
-  const visibleCategories = showAllCategories
-    ? [...categories].sort((a, b) => a.name.localeCompare(b.name, "da-DK"))
-    : popularCategories.sort((a, b) => popularCategoryNames.indexOf(a.name) - popularCategoryNames.indexOf(b.name));
+  const visibleCategories = [...categories].sort((a, b) => {
+    const aCount = categoryEventCounts[a.name] ?? categoryEventCounts[a.value] ?? 0;
+    const bCount = categoryEventCounts[b.name] ?? categoryEventCounts[b.value] ?? 0;
 
-  function goToResults(form: HTMLFormElement, submitter?: HTMLButtonElement | HTMLInputElement | null) {
+    if (aCount > 0 && bCount <= 0) return -1;
+    if (aCount <= 0 && bCount > 0) return 1;
+
+    return a.name.localeCompare(b.name, "da-DK");
+  });
+
+  function goToResults(form: HTMLFormElement, submitter?: HTMLButtonElement | HTMLInputElement | null, anchor = "events") {
     const formData = new FormData(form);
     const params = new URLSearchParams();
     const area = formData.get("area");
@@ -74,7 +89,7 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
     }
 
     const query = params.toString();
-    window.location.assign(query ? "/?" + query + "#events" : "/#events");
+    window.location.assign(query ? "/?" + query + "#" + anchor : "/#" + anchor);
   }
 
   function submitForm(event: FormEvent<HTMLFormElement>) {
@@ -90,7 +105,7 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
     }
   }
 
-  function clearLocationWhenAreaIsSelected() {
+  function selectAreaAndRefresh() {
     const form = formRef.current;
 
     if (!form) {
@@ -103,6 +118,7 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
     if (latitudeInput) latitudeInput.value = "";
     if (longitudeInput) longitudeInput.value = "";
     setLocationMessage("");
+    goToResults(form, null, "categories");
   }
 
   function findNearby() {
@@ -113,7 +129,7 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
     }
 
     if (!navigator.geolocation) {
-      setLocationMessage("Din browser understøtter ikke placering. Vælg et område og tryk Søg i valgt område.");
+      setLocationMessage("Vi kunne ikke finde din placering. Vælg venligst dit område manuelt.");
       return;
     }
 
@@ -136,7 +152,7 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
         goToResults(form);
       },
       () => {
-        setLocationMessage("Placering kunne ikke hentes. Vælg et område og tryk Søg i valgt område.");
+        setLocationMessage("Vi kunne ikke finde din placering. Vælg venligst dit område manuelt.");
       },
       { enableHighAccuracy: false, maximumAge: 300000, timeout: 10000 },
     );
@@ -163,17 +179,26 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
             <LocateFixed className="size-4 shrink-0" aria-hidden="true" />
             Find events nær dig
           </button>
-          {locationMessage && <p className="mt-4 text-sm font-semibold text-[#2F2633]">{locationMessage}</p>}
+          {locationMessage && (
+            <p className="mt-3 rounded-xl border border-[#7A4EAB]/30 bg-[#EDE4F7] px-4 py-3 text-sm font-semibold leading-6 text-[#2F1642]">
+              {locationMessage}
+            </p>
+          )}
         </div>
 
-        <div className="mt-3 grid gap-2 sm:mt-4 sm:grid-cols-[1fr_auto] sm:items-end">
+        <div className="mt-3 grid gap-2 sm:mt-4">
           <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
             Område
             <select
-              className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
-              defaultValue=""
+              className={
+                "h-12 rounded-input bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB] " +
+                (locationMessage
+                  ? "border-2 border-[#7A4EAB] shadow-[0_0_0_4px_rgba(122,78,171,0.12)]"
+                  : "border border-olive/15")
+              }
+              defaultValue={selected.area}
               name="area"
-              onChange={clearLocationWhenAreaIsSelected}
+              onChange={selectAreaAndRefresh}
             >
               <option value="">Hele Danmark</option>
               {areaOptions
@@ -185,114 +210,109 @@ export function HomeEventSearchForm({ categories, selected }: HomeEventSearchFor
                 ))}
             </select>
           </label>
-
-          <button
-            className="inline-flex min-h-12 items-center justify-center rounded-button bg-[#7A4EAB] px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
-            type="submit"
-          >
-            Søg i valgt område
-          </button>
         </div>
       </section>
 
       <section className="mt-6" id="categories">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Populære kategorier</p>
-            <h2 className="mt-1 text-2xl font-medium text-[#2F2633]">Find det, der kalder</h2>
-          </div>
-          <button
-            className="shrink-0 text-sm font-semibold text-[#2F2633] transition hover:text-[#7A4EAB]"
-            onClick={() => setShowAllCategories((current) => !current)}
-            type="button"
-          >
-            {showAllCategories ? "Vis færre" : "Se alle kategorier"}
-          </button>
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Populære kategorier</p>
+          <h2 className="mt-1 text-2xl font-medium text-[#2F2633]">Find det, der kalder</h2>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {visibleCategories.map((category) => {
             const active = selected.categoryLabel === category.value;
-
+            const eventCount = categoryEventCounts[category.name] ?? categoryEventCounts[category.value] ?? 0;
+            const disabled = eventCount <= 0;
             return (
               <button
-                className={categoryClass(active)}
+                className={categoryClass(active, disabled)}
+                disabled={disabled}
                 key={category.name}
                 name="category_label"
-                style={categoryStyle(active)}
+                style={categoryStyle(active, disabled)}
                 type="submit"
                 value={category.value}
               >
                 <span className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(122,78,171,0.10),transparent_54%)]" aria-hidden="true" />
-                <span className="relative block max-w-[10rem] break-words font-serif text-[1.45rem] font-medium leading-tight text-[#2F1642] sm:text-[1.75rem]">
-                  {category.name}
+                {eventCount > 0 && (
+                  <span className="absolute right-3 top-3 grid size-7 place-items-center rounded-full bg-[#EDE4F7] text-xs font-semibold text-[#7A4EAB] shadow-soft sm:size-8 sm:text-sm">
+                    {eventCount}
+                  </span>
+                )}
+                <span className="relative grid gap-1">
+                  <span className={disabled ? "block max-w-[9.5rem] break-words text-center font-serif text-[1.15rem] font-medium leading-tight text-stone-500 sm:text-[1.25rem] lg:text-[1.35rem]" : "block max-w-[9.5rem] break-words text-center font-serif text-[1.15rem] font-medium leading-tight text-[#2F1642] sm:text-[1.25rem] lg:text-[1.35rem]"}>
+                    {category.name}
+                  </span>
                 </span>
               </button>
             );
           })}
         </div>
+      </section>
 
-        <div className="mt-5 flex justify-center">
-          <button
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#7A4EAB]/25 bg-white/85 px-5 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:-translate-y-0.5 hover:bg-[#EDE4F7]"
-            onClick={() => setShowAllCategories((current) => !current)}
-            type="button"
-          >
-            {showAllCategories ? "Vis færre kategorier" : "Se alle kategorier"}
-          </button>
+      <details
+        className="mt-6 rounded-[1.25rem] border border-[#7A4EAB]/12 bg-white/62 p-4"
+        open={Boolean(selected.q || selected.date || selected.format)}
+      >
+        <summary className="cursor-pointer list-none text-sm font-semibold text-[#7A4EAB] marker:hidden">
+          Avanceret søgning
+          <span className="ml-2 text-[#2F2633]/45">▾</span>
+        </summary>
+
+        <div className="mt-4 grid gap-4">
+          <section className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
+              Hvornår?
+              <select
+                className="h-12 rounded-input border border-[#7A4EAB]/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
+                defaultValue={selected.date}
+                name="date"
+              >
+                <option value="">Alle kommende events</option>
+                <option value="today">I dag</option>
+                <option value="weekend">Denne weekend</option>
+                <option value="next_week">Næste uge</option>
+                <option value="month">Denne måned</option>
+              </select>
+            </label>
+
+            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
+              Online eller fysisk?
+              <select
+                className="h-12 rounded-input border border-[#7A4EAB]/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
+                defaultValue={selected.format ?? ""}
+                name="format"
+              >
+                <option value="">Alle formater</option>
+                <option value="physical">Fysiske events</option>
+                <option value="online">Online events</option>
+                <option value="hybrid">Hybrid events</option>
+              </select>
+            </label>
+          </section>
+
+          <section className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
+              Hvad søger du?
+              <input
+                className="h-12 rounded-input border border-[#7A4EAB]/15 px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
+                defaultValue={selected.q}
+                name="q"
+                placeholder="Søg efter events, kategorier eller steder..."
+                type="search"
+              />
+            </label>
+            <button
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+              type="submit"
+            >
+              <Search className="size-4 shrink-0" aria-hidden="true" />
+              Søg
+            </button>
+          </section>
         </div>
-      </section>
-
-      <section className="mt-6 grid gap-3 sm:grid-cols-2">
-        <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
-          Hvornår?
-          <select
-            className="h-12 rounded-input border border-[#7A4EAB]/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
-            defaultValue={selected.date}
-            name="date"
-          >
-            <option value="">Alle kommende events</option>
-            <option value="today">I dag</option>
-            <option value="weekend">Denne weekend</option>
-            <option value="next_week">Næste uge</option>
-            <option value="month">Denne måned</option>
-          </select>
-        </label>
-
-        <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
-          Online eller fysisk?
-          <select
-            className="h-12 rounded-input border border-[#7A4EAB]/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
-            defaultValue={selected.format ?? ""}
-            name="format"
-          >
-            <option value="">Alle formater</option>
-            <option value="physical">Fysiske events</option>
-            <option value="online">Online events</option>
-            <option value="hybrid">Hybrid events</option>
-          </select>
-        </label>
-      </section>
-
-      <section className="mt-7 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-        <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
-          Hvad søger du?
-          <input
-            className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
-            defaultValue={selected.q}
-            name="q"
-            placeholder="Søg efter events, kategorier eller steder..."
-            type="search"
-          />
-        </label>
-        <button
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
-          type="submit"
-        >
-          <Search className="size-4 shrink-0" aria-hidden="true" />
-          Søg
-        </button>
-      </section>
+      </details>
     </form>
   );
 }

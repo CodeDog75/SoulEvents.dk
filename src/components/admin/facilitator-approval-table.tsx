@@ -1,4 +1,5 @@
-import { Check, Clock3, ExternalLink, Slash, UserRoundCheck } from "lucide-react";
+import Link from "next/link";
+import { Check, Clock3, ExternalLink, Pencil, Slash, UserRoundCheck } from "lucide-react";
 import { updateFacilitatorStatusAction } from "@/app/admin/facilitators/actions";
 import type { FacilitatorStatus } from "@/types/database";
 
@@ -144,6 +145,13 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
               </div>
 
               <div className="flex flex-wrap content-start gap-2 lg:justify-end">
+                <Link
+                  className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
+                  href={"/admin/facilitators/" + facilitator.id + "/edit"}
+                >
+                  <Pencil className="size-4" aria-hidden="true" />
+                  Rediger
+                </Link>
                 {facilitator.status !== "approved" && (
                   <StatusButton facilitatorId={facilitator.id} status="approved">
                     <Check className="size-4" aria-hidden="true" />

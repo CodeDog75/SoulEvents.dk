@@ -167,6 +167,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   const city = getOptionalString(formData, "city");
   let regionId = getOptionalString(formData, "region_id");
   const categoryIds = getAllStrings(formData, "category_ids");
+  const tagIds = getAllStrings(formData, "tag_ids");
   const galleryPaths = formData
     .getAll("gallery_image_paths")
     .slice(0, 3)
@@ -198,7 +199,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
 
   const { data: existingProfile } = await supabase
     .from("facilitator_profiles")
-    .select("id, address_line, city, company_name, postal_code, short_description, facilitator_categories(category_id)")
+    .select("id, address_line, city, company_name, postal_code, short_description, facilitator_categories(category_id), facilitator_tags(tag_id)")
     .eq("profile_id", profile.id)
     .single();
   const existingCategoryIds =

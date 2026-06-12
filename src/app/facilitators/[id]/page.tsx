@@ -5,12 +5,14 @@ import { ArrowLeft, ExternalLink, Mail, MapPinned, Phone, Sparkles, UserRound } 
 import { BrandLogo } from "@/components/brand-logo";
 import { PublicEventList } from "@/components/events/public-event-list";
 import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitator-button";
+import { subscribeToFacilitatorReminderAction } from "./actions";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 type FacilitatorPageProps = {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ reminder_message?: string }>;
 };
 
 function first<T>(value: T | T[] | null | undefined) {
@@ -51,20 +53,23 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
   };
 }
 
-export default async function PublicFacilitatorPage({ params }: FacilitatorPageProps) {
+export default async function PublicFacilitatorPage({ params, searchParams }: FacilitatorPageProps) {
   const { id } = await params;
+  const reminderMessage = (await searchParams)?.reminder_message ?? "";
   const supabase = await createClient();
 
   const { data: facilitator } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_vært, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
+      "id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
     )
     .eq("id", id)
     .eq("status", "approved")
     .single();
 
-  if (!facilitator) {
+  const facilitatorData = facilitator as any;
+
+  if (!facilitatorData) {
     notFound();
   }
 
@@ -79,14 +84,14 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
     .gte("starts_at", startOfToday().toISOString())
     .order("starts_at", { ascending: true });
 
-  const profile = first(facilitator.profiles);
-  const region = first(facilitator.regions);
+  const profile = first(facilitatorData.profiles);
+  const region = first(facilitatorData.regions);
   const name = nameOf(facilitator);
-  const imageUrl = facilitator.profile_image_path
-    ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
+  const imageUrl = facilitatorData.profile_image_path
+    ? supabase.storage.from("media").getPublicUrl(facilitatorData.profile_image_path).data.publicUrl
     : null;
   const gallery =
-    [...(facilitator.facilitator_images ?? [])]
+    [...(facilitatorData.facilitator_images ?? [])]
       .sort((a: any, b: any) => a.sort_order - b.sort_order)
       .slice(0, 10)
       .map((image: any) => ({
@@ -94,17 +99,17 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
         url: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,
       })) ?? [];
   const categories =
-    facilitator.facilitator_categories
+    facilitatorData.facilitator_categories
       ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
       .filter(Boolean) ?? [];
-  const publicEmail = facilitator.public_email || profile?.email || null;
-  const publicPhone = facilitator.public_phone || profile?.phone || null;
+  const publicEmail = facilitatorData.public_email || profile?.email || null;
+  const publicPhone = facilitatorData.public_phone || profile?.phone || null;
   const links = [
-    facilitator.website_url ? { label: "Hjemmeside", href: ensureUrl(facilitator.website_url) } : null,
-    facilitator.facebook_url ? { label: "Facebook", href: ensureUrl(facilitator.facebook_url) } : null,
-    facilitator.instagram_url ? { label: "Instagram", href: ensureUrl(facilitator.instagram_url) } : null,
-    facilitator.youtube_url ? { label: "YouTube", href: ensureUrl(facilitator.youtube_url) } : null,
-    facilitator.tiktok_url ? { label: "TikTok", href: ensureUrl(facilitator.tiktok_url) } : null,
+    facilitatorData.website_url ? { label: "Hjemmeside", href: ensureUrl(facilitatorData.website_url) } : null,
+    facilitatorData.facebook_url ? { label: "Facebook", href: ensureUrl(facilitatorData.facebook_url) } : null,
+    facilitatorData.instagram_url ? { label: "Instagram", href: ensureUrl(facilitatorData.instagram_url) } : null,
+    facilitatorData.youtube_url ? { label: "YouTube", href: ensureUrl(facilitatorData.youtube_url) } : null,
+    facilitatorData.tiktok_url ? { label: "TikTok", href: ensureUrl(facilitatorData.tiktok_url) } : null,
   ].filter((link): link is { label: string; href: string } => Boolean(link));
 
   return (
@@ -141,7 +146,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
 
               <div>
                 <div className="flex flex-wrap gap-2">
-                  {facilitator.is_online_facilitator && (
+                  {facilitatorData.is_online_facilitator && (
                     <span className="rounded-full border border-olive/10 bg-white px-2.5 py-1 text-xs font-medium text-ink/55">💻 Online vært</span>
                   )}
                   {categories.map((category: any) => (
@@ -152,7 +157,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
                 </div>
                 <h1 className="mt-4 text-5xl font-medium leading-tight text-olive">{name}</h1>
                 <p className="mt-4 max-w-3xl text-base leading-7 text-ink/72">
-                  {facilitator.short_description || "Værtens korte præsentation kommer snart."}
+                  {facilitatorData.short_description || "Værtens korte præsentation kommer snart."}
                 </p>
               </div>
             </div>
@@ -161,7 +166,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
           <section className="rounded-card bg-white p-8 shadow-soft">
             <h2 className="text-4xl font-medium text-olive">Om værten</h2>
             <div className="mt-4 whitespace-pre-line text-sm leading-7 text-ink/72">
-              {facilitator.long_description || facilitator.short_description || "Der kommer mere information om værten snart."}
+              {facilitatorData.long_description || facilitatorData.short_description || "Der kommer mere information om værten snart."}
             </div>
           </section>
 
@@ -201,9 +206,9 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
               <div className="flex gap-2">
                 <MapPinned className="mt-0.5 size-4 text-sage-700" aria-hidden="true" />
                 <span>
-                  {facilitator.is_online_facilitator
+                  {facilitatorData.is_online_facilitator
                     ? "Online vært"
-                    : [facilitator.city, region?.name, facilitator.country].filter(Boolean).join(", ") || "Lokation kommer snart"}
+                    : [facilitatorData.city, region?.name, facilitatorData.country].filter(Boolean).join(", ") || "Lokation kommer snart"}
                 </span>
               </div>
               {publicEmail && (
@@ -227,16 +232,31 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
             </div>
           </section>
 
-          <ShareFacilitatorButton facilitatorId={facilitator.id} facilitatorName={name} />
+          <ShareFacilitatorButton facilitatorId={facilitatorData.id} facilitatorName={name} />
 
-          <section className="rounded-card bg-white p-6 shadow-soft">
+          <section className="rounded-card border border-lavender/70 bg-lavender/20 p-6 shadow-soft">
             <h2 className="text-3xl font-medium text-olive">Tilmeld påmindelse</h2>
             <p className="mt-3 text-sm leading-6 text-ink/66">
               Få besked på e-mail, når denne vært opretter et nyt event.
             </p>
-            <form className="mt-4 grid gap-3">
-              <input className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base outline-none transition focus:border-rose" name="email" placeholder="din@email.dk" type="email" />
-              <button className="inline-flex h-12 items-center justify-center rounded-button bg-rose px-6 text-sm font-semibold text-white shadow-soft" type="button">
+            {reminderMessage && (
+              <p className="mt-4 rounded-card border border-lavender/70 bg-white/75 px-4 py-3 text-sm font-semibold text-ink/70">
+                {reminderMessage}
+              </p>
+            )}
+            <form action={subscribeToFacilitatorReminderAction.bind(null, facilitatorData.id)} className="mt-4 grid gap-3">
+              <label className="sr-only" htmlFor="reminder-email">
+                E-mail til påmindelse
+              </label>
+              <input
+                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base outline-none transition focus:border-purple"
+                id="reminder-email"
+                name="email"
+                placeholder="din@email.dk"
+                required
+                type="email"
+              />
+              <button className="inline-flex h-12 items-center justify-center rounded-button bg-purple px-6 text-sm font-semibold text-white shadow-soft" type="submit">
                 Tilmeld påmindelse
               </button>
             </form>

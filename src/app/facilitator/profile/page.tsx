@@ -66,6 +66,9 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Vært</p>
               <h1 className="text-xl font-semibold text-midnight">Rediger offentlig profil</h1>
+              {facilitatorProfile?.host_reference_id && (
+                <p className="mt-1 text-sm font-semibold text-ink/55">Vært-ID {facilitatorProfile.host_reference_id}</p>
+              )}
             </div>
           </div>
           <Link

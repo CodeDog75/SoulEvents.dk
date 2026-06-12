@@ -52,9 +52,9 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
     Boolean(profile.full_name) &&
     Boolean(facilitatorProfile?.company_name) &&
     Boolean(facilitatorProfile?.short_description && facilitatorProfile.short_description.trim().length >= 20) &&
-    Boolean(værtProfile?.postal_code) &&
-    Boolean(værtProfile?.city) &&
-    Boolean(værtProfile?.facilitator_categories?.length);
+    Boolean(facilitatorProfile?.postal_code) &&
+    Boolean(facilitatorProfile?.city) &&
+    Boolean(facilitatorProfile?.facilitator_categories?.length);
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -100,7 +100,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
               </div>
             </div>
           </section>
-        ) : værtProfile?.status !== "approved" ? (
+        ) : facilitatorProfile?.status !== "approved" ? (
           <section className="rounded-md border border-terracotta/25 bg-terracotta/10 p-5">
             <h2 className="font-semibold text-midnight">Profilen afventer godkendelse</h2>
             <p className="mt-1 text-sm leading-6 text-ink/65">

@@ -88,7 +88,7 @@ export async function createBookingAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const { data: event } = await supabase
+  const { data: eventResult } = await supabase
     .from("events")
     .select(eventSelect)
     .eq("id", eventId)
@@ -96,15 +96,18 @@ export async function createBookingAction(formData: FormData) {
     .eq("facilitator_profiles.status", "approved")
     .single();
 
+  const event = eventResult as any;
+
   if (!event) {
     bookingRedirect(eventId, "Eventet kunne ikke findes eller er ikke aktivt.");
   }
 
-  const { data: capacity } = await supabase
+  const { data: capacityResult } = await supabase
     .from("event_capacity_view")
     .select("available_seats")
     .eq("event_id", eventId)
     .single();
+  const capacity = capacityResult as { available_seats?: number } | null;
   const availableSeats = capacity?.available_seats ?? event.capacity;
 
   if (seats > availableSeats) {
@@ -125,7 +128,7 @@ export async function createBookingAction(formData: FormData) {
   const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Vært";
   const adminSupabase = createAdminClient();
 
-  const { data: booking, error } = await adminSupabase
+  const { data: bookingResult, error } = await adminSupabase
     .from("bookings")
     .insert({
       event_id: event.id,
@@ -145,6 +148,8 @@ export async function createBookingAction(formData: FormData) {
     })
     .select("id, booking_value_cents, commission_cents")
     .single();
+
+  const booking = bookingResult as any;
 
   if (error || !booking) {
     bookingRedirect(

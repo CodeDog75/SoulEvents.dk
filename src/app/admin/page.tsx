@@ -39,7 +39,7 @@ const statuses: Array<{ label: string; value: "all" | FacilitatorStatus }> = [
 ];
 
 function normalizeStatus(status?: string) {
-  return statuses.some((item) => item.value === status) ? (status as "all" | FacilitatorStatus) : "pending";
+  return statuses.some((item) => item.value === status) ? (status as "all" | FacilitatorStatus) : "all";
 }
 
 function formatNumber(value: number | null | undefined) {
@@ -61,7 +61,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
   let facilitatorQuery = supabase
     .from("facilitator_profiles")
-    .select("id, status, company_name, short_description, city, postal_code, website_url, created_at, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name))")
+    .select("id, host_reference_id, status, company_name, short_description, city, postal_code, website_url, created_at, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name))")
     .order("created_at", { ascending: false });
 
   if (selectedStatus !== "all") {
@@ -89,7 +89,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "pending_review"),
     supabase.from("bookings").select("id", { count: "exact", head: true }).gte("created_at", thirtyDaysAgo.toISOString()),
     supabase.from("bookings").select("booking_value_cents, commission_cents, seats"),
-    supabase.from("facilitator_profiles").select("id, status, company_name, created_at, profiles(full_name, email)").order("created_at", { ascending: false }).limit(5),
+    supabase.from("facilitator_profiles").select("id, host_reference_id, status, company_name, created_at, profiles(full_name, email)").order("created_at", { ascending: false }).limit(5),
     supabase.from("events").select("id, title, status, starts_at, created_at, facilitator_profiles(company_name, profiles(full_name))").order("created_at", { ascending: false }).limit(5),
     supabase.from("bookings").select("id, participant_name, created_at, events(title)").order("created_at", { ascending: false }).limit(5),
   ]);
@@ -165,7 +165,14 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                 const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
                 return (
                   <div className="rounded-md bg-sage-50 p-3" key={facilitator.id}>
-                    <p className="font-semibold text-midnight">{facilitator.company_name || profile?.full_name || "Uden navn"}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-midnight">{facilitator.company_name || profile?.full_name || "Uden navn"}</p>
+                      {facilitator.host_reference_id && (
+                        <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-sage-700">
+                          {facilitator.host_reference_id}
+                        </span>
+                      )}
+                    </div>
                     <p className="mt-1 text-xs text-ink/64">
                       {new Intl.DateTimeFormat("da-DK").format(new Date(facilitator.created_at))} · {facilitator.status}
                     </p>
@@ -242,7 +249,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     ? "rounded-md bg-midnight px-3 py-2 text-sm font-semibold text-white"
                     : "rounded-md border border-midnight/10 bg-white px-3 py-2 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta"
                 }
-                href={item.value === "pending" ? "/admin" : "/admin?status=" + item.value}
+                href={item.value === "all" ? "/admin" : "/admin?status=" + item.value}
                 key={item.value}
               >
                 {item.label}

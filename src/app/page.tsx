@@ -447,6 +447,27 @@ async function getSearchEvents(selected: {
 
 
 
+function getCategoryEventCounts(events: Array<{ event_categories?: Array<{ categories?: { name?: string } | Array<{ name?: string }> | null }> }>) {
+  const counts: Record<string, number> = {};
+
+  for (const event of events) {
+    const eventCategories = new Set<string>();
+
+    for (const row of event.event_categories ?? []) {
+      const category = Array.isArray(row.categories) ? row.categories[0] : row.categories;
+      if (category?.name) {
+        eventCategories.add(category.name);
+      }
+    }
+
+    for (const categoryName of eventCategories) {
+      counts[categoryName] = (counts[categoryName] ?? 0) + 1;
+    }
+  }
+
+  return counts;
+}
+
 async function getHomeThemes() {
   if (!env.supabaseUrl || !env.supabaseAnonKey) {
     return [];
@@ -544,18 +565,48 @@ async function getHomeFacilitators(queryText: string) {
   const supabase = await createClient();
   const { data: facilitators } = await supabase
     .from("facilitator_profiles")
-    .select("id, company_name, profile_image_path, short_description, city, profiles(full_name), facilitator_categories(categories(name, color_hex))")
+    .select(
+      "id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, is_online_facilitator, website_url, facebook_url, instagram_url, profiles(full_name), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_tags(tags(name))",
+    )
     .eq("status", "approved");
 
   const term = normalizeText(queryText);
   const filtered = (facilitators ?? []).filter((facilitator: any) => {
     const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
-    const name = facilitator.company_name || profile?.full_name || "";
-    return !term || normalizeText(name).includes(term);
+    const region = Array.isArray(facilitator.regions) ? facilitator.regions[0] : facilitator.regions;
+    const categories =
+      facilitator.facilitator_categories
+        ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
+        .filter(Boolean) ?? [];
+    const categoryNames = categories.map((category: any) => category.name).filter(Boolean).join(" ");
+    const tagNames =
+      facilitator.facilitator_tags
+        ?.map((row: any) => (Array.isArray(row.tags) ? row.tags[0] : row.tags)?.name)
+        .filter(Boolean)
+        .join(" ") ?? "";
+    const onlineWords = facilitator.is_online_facilitator ? "online online vært digital fjernundervisning hjemmefra" : "";
+    const searchText = [
+      facilitator.company_name,
+      profile?.full_name,
+      facilitator.short_description,
+      facilitator.long_description,
+      facilitator.city,
+      facilitator.postal_code,
+      facilitator.country,
+      region?.name,
+      categoryNames,
+      tagNames,
+      onlineWords,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return !term || normalizeText(searchText).includes(term);
   });
 
   const mapped = filtered.map((facilitator: any) => {
     const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
+    const region = Array.isArray(facilitator.regions) ? facilitator.regions[0] : facilitator.regions;
     const categories =
       facilitator.facilitator_categories
         ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
@@ -568,7 +619,7 @@ async function getHomeFacilitators(queryText: string) {
         ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
         : null,
       tagline: facilitator.short_description || "",
-      city: facilitator.city,
+      city: facilitator.city || region?.name || facilitator.country || null,
       categories,
     };
   });
@@ -580,6 +631,19 @@ export default async function Home({ searchParams }: HomeProps) {
   const params = searchParams ? await searchParams : {};
   const contactStatus = params.contact ?? "";
   const homeTiles = await getHomeTiles();
+  const discoveryTiles = [
+    ...homeTiles.filter(
+      (tile) => tile.tileType !== "category" && tile.id !== "become-host" && tile.href !== "/auth/signup",
+    ),
+    {
+      id: "become-host",
+      title: "Bliv vært",
+      description: "Opret en gratis værtsprofil og del dine aktiviteter med SoulEvents.",
+      href: "/auth/signup",
+      imageUrl: homeTileFallbackImages.facilitators,
+      tileType: "navigation" as const,
+    },
+  ];
   const facilitatorQuery = (params.facilitator_q ?? params.q ?? "").trim();
   const selected = {
     q: params.q?.trim() ?? "",
@@ -612,17 +676,37 @@ export default async function Home({ searchParams }: HomeProps) {
     longitude: "",
     format: "",
   });
+  const categoryAvailabilityEvents = await getSearchEvents({
+    ...selected,
+    q: "",
+    categoryLabel: "",
+    date: "",
+    distance: "",
+    latitude: "",
+    longitude: "",
+    format: "",
+  });
+  const mapOverviewEvents = await getSearchEvents({
+    ...selected,
+    q: "",
+    area: "",
+    date: "",
+    distance: "",
+    latitude: "",
+    longitude: "",
+    format: "",
+  });
+  const categoryEventCounts = getCategoryEventCounts(categoryAvailabilityEvents);
   const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
   const fairUpcomingEvents = selectFairHomepageEvents(upcomingEvents, 6);
-  const visibleEvents = uniqueEventsById(hasSearch ? searchEvents : upcomingEvents.slice(0, 24));
+  const mapSourceEvents = uniqueEventsById(mapOverviewEvents);
   const listEvents = hasSearch ? searchEvents : fairUpcomingEvents;
   const facilitatorCards = await getHomeFacilitators(facilitatorQuery);
-  const [featuredFacilitators, newFacilitators, homeThemes] = await Promise.all([
+  const [featuredFacilitators, newFacilitators] = await Promise.all([
     getFeaturedHomeFacilitators(),
     getNewHomeFacilitators(),
-    getHomeThemes(),
   ]);
-  const mapEvents = visibleEvents.map((event) => {
+  const mapEvents = mapSourceEvents.map((event) => {
     const facilitatorProfile = Array.isArray(event.facilitator_profiles)
       ? event.facilitator_profiles[0]
       : event.facilitator_profiles;
@@ -742,100 +826,78 @@ export default async function Home({ searchParams }: HomeProps) {
               SoulEvents samler mennesker, værter og fællesskaber fra hele Danmark. Her kan du opdage spirituelle aktiviteter og fællesskaber, der skaber ro, nærvær, personlig udvikling og meningsfulde møder med andre.
             </p>
           </div>
-            <div className="flex flex-col gap-3 pt-2 sm:flex-row">
-              <a
-                className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#7A4EAB] px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6a4199] hover:shadow-lift"
-                href="#find-events"
-              >
-                Find events nær dig
-              </a>
-              <Link
-                className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#7A4EAB]/30 bg-white/75 px-6 py-3 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:-translate-y-0.5 hover:bg-[#EDE4F7] hover:shadow-lift"
-                href="/auth/signup"
-              >
-                Bliv vært
-              </Link>
-            </div>
-</div>
-      </section>
 
-      <section className="bg-gradient-to-b from-[#EDE4F7]/70 to-white py-12 sm:py-16" id="find-events">
-        <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
-          <div className="mb-6 max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Find din næste oplevelse</p>
-            <h2 className="mt-2 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Søg efter det, der passer til dig</h2>
+          <div className="max-w-5xl pt-2 sm:pt-0" id="find-events">
+            <div className="mb-5 max-w-2xl">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Find din næste oplevelse</p>
+              <h2 className="mt-2 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Søg efter det, der passer til dig</h2>
+            </div>
+            <HomeEventSearchForm
+              categoryEventCounts={categoryEventCounts}
+              categories={categories.map(({ name, value }) => ({ name, value }))}
+              selected={selected}
+            />
           </div>
-          <HomeEventSearchForm categories={categories.map(({ name, value }) => ({ name, value }))} selected={selected} />
         </div>
       </section>
 
-      <section className="bg-white py-16 sm:py-20" id="events">
-        <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
-{activeFilters.length > 0 && (
-            <div className="mt-6 flex flex-wrap gap-2">
-              {activeFilters.map((filter) => (
-                <Link
-                  className="inline-flex items-center gap-2 rounded-full border border-sage-700/20 bg-[#EDE4F7]/55 px-3 py-2 text-sm font-semibold text-[#2F2633] transition hover:border-sage-700"
-                  href={filter.href}
-                  key={filter.key}
-                >
-                  {filter.label}
-                  <span aria-hidden="true">×</span>
-                </Link>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-8 grid gap-7">
-            {nearbyRadiusOptions.length > 0 && (
-              <section className="rounded-card border border-sage-700/15 bg-[#EDE4F7]/55 p-5 shadow-soft">
-                <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Events nær dig</p>
-                <h2 className="mt-2 text-3xl font-medium text-[#2F2633]">Vælg radius</h2>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {nearbyRadiusOptions.map((option) => (
-                    <Link
-                      className={
-                        selected.distance === option.value || (!selected.distance && option.value === "50")
-                          ? "rounded-full bg-olive px-4 py-2 text-sm font-semibold text-white"
-                          : "rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#2F2633] transition hover:bg-[#FAF6EF]"
-                      }
-                      href={option.href}
-                      key={option.value}
-                    >
-                      {option.label}
-                    </Link>
-                  ))}
-                </div>
-              </section>
+      {hasSearch && (
+        <section className="bg-white py-14 sm:py-16" id="events">
+          <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
+            {activeFilters.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {activeFilters.map((filter) => (
+                  <Link
+                    className="inline-flex items-center gap-2 rounded-full border border-sage-700/20 bg-[#EDE4F7]/55 px-3 py-2 text-sm font-semibold text-[#2F2633] transition hover:border-sage-700"
+                    href={filter.href}
+                    key={filter.key}
+                  >
+                    {filter.label}
+                    <span aria-hidden="true">×</span>
+                  </Link>
+                ))}
+              </div>
             )}
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">
-                {hasSearch ? "Søgeresultater" : "Kommende events"}
-              </p>
-              <h2 className="mt-3 text-5xl font-medium leading-tight text-[#2F2633]">
-                {hasSearch ? "Events der matcher din søgning" : "Førstkommende oplevelser"}
-              </h2>
-              {!hasSearch && (
-                <details className="mt-4 max-w-3xl rounded-card bg-[#EDE4F7]/55 px-4 py-3 text-sm leading-6 text-ink/70">
-                  <summary className="cursor-pointer font-semibold text-[#2F2633]">Hvordan udvælges oplevelserne?</summary>
-                  <p className="mt-2">
-                    For at give plads til både nye og etablerede værter viser SoulEvents en varieret
-                    sammensætning af kommende oplevelser. Derfor vises maksimalt ét event pr. vært ad gangen i
-                    denne sektion.
-                  </p>
-                </details>
+
+            <div className="mt-8 grid gap-7">
+              {nearbyRadiusOptions.length > 0 && (
+                <section className="rounded-card border border-sage-700/15 bg-[#EDE4F7]/55 p-5 shadow-soft">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Events nær dig</p>
+                  <h2 className="mt-2 text-3xl font-medium text-[#2F2633]">Vælg radius</h2>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {nearbyRadiusOptions.map((option) => (
+                      <Link
+                        className={
+                          selected.distance === option.value || (!selected.distance && option.value === "50")
+                            ? "rounded-full bg-olive px-4 py-2 text-sm font-semibold text-white"
+                            : "rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#2F2633] transition hover:bg-[#FAF6EF]"
+                        }
+                        href={option.href}
+                        key={option.value}
+                      >
+                        {option.label}
+                      </Link>
+                    ))}
+                  </div>
+                </section>
               )}
-            </div>
 
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Søgeresultater</p>
+                <h2 className="mt-3 text-4xl font-medium leading-tight text-[#2F2633] sm:text-5xl">
+                  Events der matcher din søgning
+                </h2>
+              </div>
 
-            {hasSearch ? (
-              searchEvents.length > 0 ? (
+              {searchEvents.length > 0 ? (
                 <PublicEventList events={searchEvents as never} />
               ) : (
                 <div className="grid gap-8">
                   <section className="rounded-card bg-[#FAF6EF] p-8 text-center shadow-soft">
                     <CalendarDays className="mx-auto size-8 text-sage-700" aria-hidden="true" />
-                    <h3 className="mt-4 text-3xl font-medium text-[#2F2633]">Der blev ikke fundet events, der matcher dine filtre.</h3>
+                    <h3 className="mt-4 text-3xl font-medium text-[#2F2633]">
+                      Der blev ikke fundet events, der matcher dine filtre.
+                    </h3>
                     <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-ink/64">
                       Prøv en anden kategori eller et andet område.
                     </p>
@@ -861,44 +923,11 @@ export default async function Home({ searchParams }: HomeProps) {
                     )}
                   </section>
                 </div>
-              )
-            ) : listEvents.length > 0 ? (
-              <PublicEventList events={listEvents as never} />
-            ) : (
-              <div className="grid gap-8 lg:grid-cols-3">
-                {featuredEvents.map((event) => (
-                  <article
-                    className="overflow-hidden rounded-card bg-[#FAF6EF] shadow-soft transition hover:-translate-y-1 hover:shadow-lift"
-                    key={event.title}
-                  >
-                    <div className="aspect-video bg-[#EDE4F7]/55 p-8">
-                      <div className="flex h-full items-center justify-center rounded-card bg-white/70">
-                        <Sparkles className="size-10 text-[#7A4EAB]" aria-hidden="true" />
-                      </div>
-                    </div>
-                    <div className="p-6">
-                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">
-                        <span>{event.category}</span>
-                        <span className="text-ink/30">/</span>
-                        <span>{event.location}</span>
-                      </div>
-                      <h3 className="mt-3 text-3xl font-medium leading-8 text-[#2F2633]">{event.title}</h3>
-                      <p className="mt-2 text-sm font-semibold text-sage-700">{event.facilitator}</p>
-                      <div className="mt-6 flex items-center justify-between gap-3 text-sm">
-                        <span className="flex items-center gap-2 text-ink/70">
-                          <CalendarDays className="size-4 text-[#7A4EAB]" aria-hidden="true" />
-                          {event.date}
-                        </span>
-                        <span className="rounded-full bg-white px-3 py-1.5 font-semibold text-[#2F2633]">{event.price}</span>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="bg-[#FAF6EF] py-16 sm:py-20" id="map">
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
@@ -919,10 +948,10 @@ export default async function Home({ searchParams }: HomeProps) {
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Kategorier og inspiration</p>
             <h2 className="mt-2 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Gå på opdagelse i SoulEvents</h2>
             <p className="mt-3 text-base leading-7 text-[#2F2633]/70">
-              Find aktiviteter efter stemning, format, kategori eller det fællesskab, du længes efter.
+              Udforsk kortet, online events, værter og særlige temaer på SoulEvents.dk.
             </p>
           </div>
-          <HomeDiscoveryTiles tiles={homeTiles} />
+          <HomeDiscoveryTiles tiles={discoveryTiles} />
         </div>
       </section>
 
@@ -932,7 +961,6 @@ export default async function Home({ searchParams }: HomeProps) {
       <HomeInspirationSections
         featuredFacilitators={featuredFacilitators}
         newFacilitators={newFacilitators}
-        themes={homeThemes}
       />
 
       <section className="bg-[#FAF6EF] py-16 sm:py-20" id="contact">

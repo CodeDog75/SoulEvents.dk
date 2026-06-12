@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
+import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
@@ -136,6 +137,9 @@ export async function createEventAction(formData: FormData) {
   const contactPhone = getOptionalString(formData, "contact_phone");
   const facebookUrl = getOptionalString(formData, "facebook_url");
   const instagramUrl = getOptionalString(formData, "instagram_url");
+  const eventFormat = getString(formData, "event_format") || "physical";
+  const onlineDescription = getOptionalString(formData, "online_description");
+  const onlineUrlOrNote = getOptionalString(formData, "online_url_or_note");
   const categoryIds = getAllStrings(formData, "category_ids");
   const mainCategoryIds = getAllStrings(formData, "main_category_ids");
   const subcategoryIds = getAllStrings(formData, "subcategory_ids");

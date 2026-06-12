@@ -353,13 +353,15 @@ export function EventMap({ events, mapboxToken }: EventMapProps) {
 
       map.on("click", "event-clusters", (event) => {
         const featuresAtClick = map.queryRenderedFeatures(event.point, { layers: ["event-clusters"] });
-        const clusterId = featuresAtClick[0]?.properties?.cluster_id;
+        const clickedFeature = featuresAtClick[0];
+        const clusterId = clickedFeature?.properties?.cluster_id;
         const source = map.getSource("events") as mapboxgl.GeoJSONSource;
         if (clusterId === undefined) return;
 
         source.getClusterExpansionZoom(clusterId, (error, zoom) => {
           if (error || zoom === null || zoom === undefined) return;
-          const coordinates = (featuresAtClick[0].geometry as GeoJSON.Point).coordinates as [number, number];
+          if (!clickedFeature) return;
+          const coordinates = (clickedFeature.geometry as GeoJSON.Point).coordinates as [number, number];
           map.easeTo({ center: coordinates, zoom });
         });
       });
@@ -368,7 +370,7 @@ export function EventMap({ events, mapboxToken }: EventMapProps) {
         const feature = event.features?.[0];
         const id = feature?.properties?.id;
         const selected = typeof id === "string" ? groupById.get(id) : null;
-        if (!selected) return;
+        if (!selected || !feature) return;
         const coordinates = (feature.geometry as GeoJSON.Point).coordinates.slice() as [number, number];
         const mapCanvas = map.getCanvas();
         const anchor = event.point.y < mapCanvas.clientHeight * 0.48 ? "top" : "bottom";
@@ -379,6 +381,7 @@ export function EventMap({ events, mapboxToken }: EventMapProps) {
 
         requestAnimationFrame(() => {
           const popupElement = popup.getElement();
+          if (!popupElement) return;
           const popupBox = popupElement.getBoundingClientRect();
           const mapBox = mapCanvas.getBoundingClientRect();
           let shiftX = 0;
