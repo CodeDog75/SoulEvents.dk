@@ -120,7 +120,7 @@ export async function createEventAction(formData: FormData) {
   }
 
   const title = getString(formData, "title");
-  const slug = getString(formData, "slug") || createSlug(title);
+  const slug = createSlug(title);
   const status = getString(formData, "status") as EventStatus;
   const shortDescription = getString(formData, "short_description");
   const longDescription = getString(formData, "long_description");

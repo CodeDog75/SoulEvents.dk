@@ -10,7 +10,6 @@ type FacilitatorDirectoryProps = {
     q?: string;
     category?: string;
     area?: string;
-    online?: string;
     letter?: string;
   }>;
 };
@@ -22,7 +21,11 @@ function first<T>(value: T | T[] | null | undefined) {
 }
 
 function normalize(value: string | null | undefined) {
-  return (value ?? "").trim().toLocaleLowerCase("da-DK");
+  return (value ?? "")
+    .trim()
+    .toLocaleLowerCase("da-DK")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function getName(facilitator: any) {
@@ -51,7 +54,6 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
     q: params.q?.trim() ?? "",
     category: params.category ?? "",
     area: params.area ?? "",
-    online: params.online ?? "",
     letter: params.letter ?? "",
   };
   const supabase = await createClient();
@@ -59,7 +61,9 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
   const [{ data: facilitators }, { data: categories }, { data: regions }, { data: events }] = await Promise.all([
     supabase
       .from("facilitator_profiles")
-      .select("id, company_name, profile_image_path, short_description, city, is_online_vært, profiles(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))")
+      .select(
+        "id, company_name, profile_image_path, short_description, city, is_online_facilitator, profiles(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))",
+      )
       .eq("status", "approved"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
     supabase.from("regions").select("slug, name").order("sort_order"),
@@ -80,13 +84,18 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
           ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
           .filter(Boolean) ?? [];
       const categoryIds = categoryRows.map((category: any) => category.id);
-      const haystack = normalize([name, facilitator.short_description, facilitator.city, region?.name].filter(Boolean).join(" "));
+      const categoryNames = categoryRows.map((category: any) => category.name);
+      const onlineWords = facilitator.is_online_facilitator ? ["online", "online vært"] : [];
+      const haystack = normalize(
+        [name, facilitator.short_description, facilitator.city, region?.name, ...categoryNames, ...onlineWords]
+          .filter(Boolean)
+          .join(" "),
+      );
       const matchesText = !selected.q || haystack.includes(normalize(selected.q));
       const matchesCategory = !selected.category || categoryIds.includes(selected.category);
       const matchesArea = !selected.area || region?.slug === selected.area;
-      const matchesOnline = selected.online !== "true" || facilitator.is_online_facilitator;
       const matchesLetter = startsWithLetter(name, selected.letter);
-      return matchesText && matchesCategory && matchesArea && matchesOnline && matchesLetter;
+      return matchesText && matchesCategory && matchesArea && matchesLetter;
     })
     .sort((a: any, b: any) => getName(a).localeCompare(getName(b), "da-DK"));
 
@@ -111,17 +120,18 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
         <p className="text-sm font-semibold uppercase tracking-wide text-rose">Værter</p>
         <h1 className="mt-3 text-5xl font-medium leading-tight text-olive">Find værter på SoulEvents</h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-ink/70">
-          Gå på opdagelse blandt dygtige værter inden for yoga, meditation, healing, ceremonier, saunagus og meget mere.
+          Bag hvert event står et menneske med en passion for at skabe nærvær, fællesskab og personlig udvikling. Her
+          kan du udforske værter, der skaber meningsfulde aktiviteter og fællesskaber for krop, sind og sjæl.
         </p>
 
-        <form className="mt-8 grid gap-3 rounded-card bg-white p-4 shadow-soft lg:grid-cols-[1.2fr_0.9fr_0.9fr_auto_auto] lg:items-end">
+        <form className="mt-8 grid gap-3 rounded-card bg-white p-4 shadow-soft lg:grid-cols-[1.2fr_0.9fr_0.9fr_auto] lg:items-end">
           <label className="grid gap-2 text-sm font-semibold text-olive">
-            Søg på navn
+            Søg
             <input
               className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-rose"
               defaultValue={selected.q}
               name="q"
-              placeholder="Søg efter værtsnavn..."
+              placeholder="Søg efter navn, profiltekst, kategori eller område..."
               type="search"
             />
           </label>
@@ -142,10 +152,6 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
                 <option key={region.slug} value={region.slug}>{region.name}</option>
               ))}
             </select>
-          </label>
-          <label className="flex h-12 items-center gap-2 rounded-input border border-olive/15 bg-white px-4 text-sm font-semibold text-olive">
-            <input defaultChecked={selected.online === "true"} name="online" type="checkbox" value="true" />
-            Online
           </label>
           <button className="inline-flex h-12 items-center justify-center gap-2 rounded-button bg-olive px-6 text-sm font-semibold text-white" type="submit">
             <Search className="size-4" aria-hidden="true" />
@@ -174,7 +180,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
 
         <div className="mt-8 flex items-center gap-2 text-sm font-semibold text-ink/60">
           <Filter className="size-4" aria-hidden="true" />
-          {filtered.length} facilitatorer fundet
+          {filtered.length} værter fundet
         </div>
 
         <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -204,7 +210,9 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
                 <div className="p-5">
                   <div className="flex flex-wrap gap-2">
                     {facilitator.is_online_facilitator && (
-                      <span className="rounded-full border border-olive/10 bg-white px-2.5 py-1 text-[11px] font-medium text-ink/55">💻 Online</span>
+                      <span className="rounded-full border border-olive/10 bg-white px-2.5 py-1 text-[11px] font-medium text-ink/55">
+                        Online vært
+                      </span>
                     )}
                     {categoryRows.slice(0, 3).map((category: any) => (
                       <span className="rounded-full px-3 py-1 text-xs font-semibold text-white" key={category.id} style={{ backgroundColor: category.color_hex }}>

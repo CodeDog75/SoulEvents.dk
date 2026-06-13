@@ -1,13 +1,24 @@
 "use client";
 
+import Link from "next/link";
 import { LocateFixed, Search } from "lucide-react";
 import type { FormEvent } from "react";
 import { useRef, useState } from "react";
-import { areaOptions } from "@/lib/regions/areas";
+
+type ExperienceGroup = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  colorHex: string;
+  imageUrl: string | null;
+  subcategories: Array<{ id: string; name: string; value: string }>;
+};
 
 type HomeEventSearchFormProps = {
   categoryEventCounts?: Record<string, number>;
   categories: Array<{ name: string; value: string }>;
+  experienceGroups?: ExperienceGroup[];
   selected: {
     q: string;
     area: string;
@@ -21,7 +32,34 @@ type HomeEventSearchFormProps = {
 };
 
 const popularCategoryNames = ["Yoga", "Lydbad", "Saunagus", "Healing", "Breathwork", "Ceremonier"];
-const priorityAreas = ["sjaelland-og-oerne", "fyn", "sonderjylland", "midtjylland", "nordjylland"];
+
+function LotusIcon() {
+  return (
+    <svg aria-hidden="true" className="size-5" fill="none" viewBox="0 0 24 24">
+      <path
+        d="M12 20c-2.7-2.1-4-4.4-4-6.9 0-2.4 1.4-4.7 4-6.8 2.6 2.1 4 4.4 4 6.8 0 2.5-1.3 4.8-4 6.9Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M7.9 18.8c-2.9-.6-5-2.5-5.9-5.6 2.7-.8 5.1-.4 7 1.2M16.1 18.8c2.9-.6 5-2.5 5.9-5.6-2.7-.8-5.1-.4-7 1.2"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M12 20c-1.1-2.2-1.1-4.4 0-6.7 1.1 2.3 1.1 4.5 0 6.7Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
 
 function categoryStyle(active: boolean, disabled: boolean) {
   if (disabled) {
@@ -39,6 +77,10 @@ function categoryStyle(active: boolean, disabled: boolean) {
   };
 }
 
+function categoryHref(slug: string) {
+  return "/categories/" + slug;
+}
+
 function categoryClass(active: boolean, disabled: boolean) {
   return [
     "group relative min-h-[104px] overflow-hidden rounded-[22px] border p-4 text-center shadow-[0_18px_45px_rgba(47,38,51,0.08)] transition sm:min-h-[112px] lg:min-h-[116px]",
@@ -50,7 +92,7 @@ function categoryClass(active: boolean, disabled: boolean) {
   ].join(" ");
 }
 
-export function HomeEventSearchForm({ categoryEventCounts = {}, categories, selected }: HomeEventSearchFormProps) {
+export function HomeEventSearchForm({ categoryEventCounts = {}, categories, experienceGroups = [], selected }: HomeEventSearchFormProps) {
   const formRef = useRef<HTMLFormElement | null>(null);
   const [locationMessage, setLocationMessage] = useState("");
   const visibleCategories = [...categories].sort((a, b) => {
@@ -62,6 +104,34 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, categories, sele
 
     return a.name.localeCompare(b.name, "da-DK");
   });
+  const groupedExperiences =
+    experienceGroups.length > 0
+      ? experienceGroups
+      : [
+          {
+            id: "fallback",
+            name: "Oplevelser",
+            slug: "oplevelser",
+            description: "Vælg den eventform, der kalder på dig.",
+            colorHex: "#7A4EAB",
+            imageUrl: null,
+            subcategories: visibleCategories,
+          },
+        ];
+  const sortedExperienceGroups = groupedExperiences
+    .map((group) => ({
+      ...group,
+      subcategories: [...group.subcategories].sort((a, b) => {
+        const aCount = categoryEventCounts[a.name] ?? categoryEventCounts[a.value] ?? 0;
+        const bCount = categoryEventCounts[b.name] ?? categoryEventCounts[b.value] ?? 0;
+
+        if (aCount > 0 && bCount <= 0) return -1;
+        if (aCount <= 0 && bCount > 0) return 1;
+
+        return a.name.localeCompare(b.name, "da-DK");
+      }),
+    }))
+;
 
   function goToResults(form: HTMLFormElement, submitter?: HTMLButtonElement | HTMLInputElement | null, anchor = "events") {
     const formData = new FormData(form);
@@ -103,22 +173,6 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, categories, sele
         submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement ? submitter : null,
       );
     }
-  }
-
-  function selectAreaAndRefresh() {
-    const form = formRef.current;
-
-    if (!form) {
-      return;
-    }
-
-    const latitudeInput = form.elements.namedItem("latitude") as HTMLInputElement | null;
-    const longitudeInput = form.elements.namedItem("longitude") as HTMLInputElement | null;
-
-    if (latitudeInput) latitudeInput.value = "";
-    if (longitudeInput) longitudeInput.value = "";
-    setLocationMessage("");
-    goToResults(form, null, "categories");
   }
 
   function findNearby() {
@@ -186,68 +240,62 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, categories, sele
           )}
         </div>
 
-        <div className="mt-3 grid gap-2 sm:mt-4">
-          <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
-            Område
-            <select
-              className={
-                "h-12 rounded-input bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB] " +
-                (locationMessage
-                  ? "border-2 border-[#7A4EAB] shadow-[0_0_0_4px_rgba(122,78,171,0.12)]"
-                  : "border border-olive/15")
-              }
-              defaultValue={selected.area}
-              name="area"
-              onChange={selectAreaAndRefresh}
-            >
-              <option value="">Hele Danmark</option>
-              {areaOptions
-                .filter((area) => priorityAreas.includes(area.value))
-                .map((area) => (
-                  <option key={area.value} value={area.value}>
-                    {area.label}
-                  </option>
-                ))}
-            </select>
-          </label>
-        </div>
       </section>
 
       <section className="mt-6" id="categories">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Populære kategorier</p>
-          <h2 className="mt-1 text-2xl font-medium text-[#2F2633]">Find det, der kalder</h2>
+          <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Udforsk oplevelser</p>
+          <h2 className="mt-1 text-2xl font-medium text-[#2F2633]">Vælg en retning</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#2F2633]/65">
+            Start med en hovedkategori. På næste side kan du gå dybere med underkategorier og filtre.
+          </p>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {visibleCategories.map((category) => {
-            const active = selected.categoryLabel === category.value;
-            const eventCount = categoryEventCounts[category.name] ?? categoryEventCounts[category.value] ?? 0;
-            const disabled = eventCount <= 0;
-            return (
-              <button
-                className={categoryClass(active, disabled)}
-                disabled={disabled}
-                key={category.name}
-                name="category_label"
-                style={categoryStyle(active, disabled)}
-                type="submit"
-                value={category.value}
-              >
-                <span className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(122,78,171,0.10),transparent_54%)]" aria-hidden="true" />
-                {eventCount > 0 && (
-                  <span className="absolute right-3 top-3 grid size-7 place-items-center rounded-full bg-[#EDE4F7] text-xs font-semibold text-[#7A4EAB] shadow-soft sm:size-8 sm:text-sm">
-                    {eventCount}
+        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
+          {sortedExperienceGroups.map((group) => (
+            <Link
+              className="group relative min-h-[168px] overflow-hidden rounded-[24px] border border-[#D9C5EA] p-4 shadow-[0_18px_45px_rgba(47,38,51,0.08)] transition hover:-translate-y-0.5 hover:border-[#7A4EAB]/45 hover:shadow-[0_22px_55px_rgba(122,78,171,0.16)] sm:min-h-[190px] sm:p-5"
+              href={categoryHref(group.slug)}
+              key={group.id}
+              style={{
+                background: group.imageUrl
+                  ? "linear-gradient(180deg, rgba(47, 38, 51, 0.18), rgba(47, 38, 51, 0.72)), url('" + group.imageUrl + "') center/cover"
+                  : "radial-gradient(circle at center, rgba(255,255,255,0.88) 0%, " + group.colorHex + "30 54%, " + group.colorHex + "70 100%)",
+              }}
+            >
+              <span
+                className={
+                  group.imageUrl
+                    ? "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),rgba(47,38,51,0.34)_62%,rgba(47,38,51,0.58))]"
+                    : "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.28),transparent_58%)]"
+                }
+                aria-hidden="true"
+              />
+              <span className="relative flex h-full min-h-[136px] flex-col justify-between sm:min-h-[150px]">
+                <span>
+                  <span className={
+                    "block min-h-[3.2rem] break-words font-serif text-[1.35rem] font-medium leading-[1.08] sm:min-h-[4.4rem] sm:text-3xl " +
+                    (group.imageUrl ? "text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]" : "text-[#2F1642]")
+                  }>
+                    {group.name}
                   </span>
-                )}
-                <span className="relative grid gap-1">
-                  <span className={disabled ? "block max-w-[9.5rem] break-words text-center font-serif text-[1.15rem] font-medium leading-tight text-stone-500 sm:text-[1.25rem] lg:text-[1.35rem]" : "block max-w-[9.5rem] break-words text-center font-serif text-[1.15rem] font-medium leading-tight text-[#2F1642] sm:text-[1.25rem] lg:text-[1.35rem]"}>
-                    {category.name}
+                  {group.description && (
+                    <span className={
+                      "mt-2 block min-h-[2.6rem] line-clamp-2 text-xs leading-5 sm:text-sm sm:leading-6 " +
+                      (group.imageUrl ? "text-white/92 drop-shadow-[0_2px_8px_rgba(0,0,0,0.45)]" : "text-[#2F2633]/72")
+                    }>
+                      {group.description}
+                    </span>
+                  )}
+                </span>
+                <span className="mt-4 flex justify-end">
+                  <span className="grid size-9 place-items-center rounded-full bg-white/75 text-[#7A4EAB] shadow-soft transition group-hover:translate-x-0.5 group-hover:bg-white">
+                    <LotusIcon />
                   </span>
                 </span>
-              </button>
-            );
-          })}
+              </span>
+            </Link>
+          ))}
         </div>
       </section>
 

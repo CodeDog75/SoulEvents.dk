@@ -468,6 +468,48 @@ function getCategoryEventCounts(events: Array<{ event_categories?: Array<{ categ
   return counts;
 }
 
+async function getExperienceGroups() {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("main_categories")
+    .select(
+      "id, name, slug, description, color_hex, image_path, sort_order, subcategory_main_categories(subcategories(id, name, sort_order, is_active))",
+    )
+    .eq("is_active", true)
+    .order("sort_order");
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((mainCategory: any) => {
+    const subcategories =
+      mainCategory.subcategory_main_categories
+        ?.map((row: any) => (Array.isArray(row.subcategories) ? row.subcategories[0] : row.subcategories))
+        .filter((subcategory: any) => subcategory?.is_active)
+        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "da-DK"))
+        .map((subcategory: any) => ({
+          id: subcategory.id,
+          name: subcategory.name,
+          value: subcategory.name,
+        })) ?? [];
+
+    return {
+      id: mainCategory.id,
+      name: mainCategory.name,
+      slug: mainCategory.slug,
+      description: mainCategory.description,
+      colorHex: mainCategory.color_hex || "#7A4EAB",
+      imageUrl: mainCategory.image_path ? supabase.storage.from("media").getPublicUrl(mainCategory.image_path).data.publicUrl : null,
+      subcategories,
+    };
+  });
+}
+
 async function getHomeThemes() {
   if (!env.supabaseUrl || !env.supabaseAnonKey) {
     return [];
@@ -697,6 +739,7 @@ export default async function Home({ searchParams }: HomeProps) {
     format: "",
   });
   const categoryEventCounts = getCategoryEventCounts(categoryAvailabilityEvents);
+  const experienceGroups = await getExperienceGroups();
   const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
   const fairUpcomingEvents = selectFairHomepageEvents(upcomingEvents, 6);
   const mapSourceEvents = uniqueEventsById(mapOverviewEvents);
@@ -835,6 +878,7 @@ export default async function Home({ searchParams }: HomeProps) {
             <HomeEventSearchForm
               categoryEventCounts={categoryEventCounts}
               categories={categories.map(({ name, value }) => ({ name, value }))}
+              experienceGroups={experienceGroups}
               selected={selected}
             />
           </div>

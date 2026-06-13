@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { createSlug } from "@/lib/slug";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 function go(message: string): never {
@@ -17,34 +18,116 @@ function sortOrder(formData: FormData) {
 }
 
 function slugFrom(formData: FormData, name: string) {
-  return getString(formData, "slug") || createSlug(name);
+  const originalSlug = getString(formData, "original_slug");
+  const slug = getString(formData, "slug");
+
+  return originalSlug || slug || createSlug(name);
+}
+
+async function uniqueSlugForCreate(supabase: ReturnType<typeof createAdminClient>, table: "main_categories" | "subcategories" | "tags", baseSlug: string) {
+  const cleanBaseSlug = baseSlug || "kategori";
+  let candidate = cleanBaseSlug;
+
+  for (let suffix = 2; suffix < 100; suffix += 1) {
+    const { data } = await supabase.from(table).select("id").eq("slug", candidate).maybeSingle();
+
+    if (!data) {
+      return candidate;
+    }
+
+    candidate = cleanBaseSlug + "-" + suffix;
+  }
+
+  return cleanBaseSlug + "-" + crypto.randomUUID().slice(0, 8);
+}
+
+function extensionFromFile(file: File) {
+  const fromName = file.name.split(".").pop()?.toLowerCase();
+  if (fromName && ["jpg", "jpeg", "png", "webp"].includes(fromName)) {
+    return fromName === "jpeg" ? "jpg" : fromName;
+  }
+
+  if (file.type === "image/png") return "png";
+  if (file.type === "image/webp") return "webp";
+  return "jpg";
+}
+
+async function uploadTaxonomyImage(formData: FormData, currentImagePath: string | null) {
+  const removeImage = formData.get("remove_image") === "on";
+  if (removeImage) {
+    return null;
+  }
+
+  const file = formData.get("image_file");
+  if (!(file instanceof File) || file.size === 0) {
+    return currentImagePath;
+  }
+
+  if (!file.type.startsWith("image/")) {
+    go("Billedet skal være en billedfil.");
+  }
+
+  if (file.size > 8 * 1024 * 1024) {
+    go("Billedet er for stort. Vælg et billede under 8 MB.");
+  }
+
+  const safeName = file.name
+    .replace(/\.[^.]+$/, "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 60);
+  const extension = extensionFromFile(file);
+  const imagePath = "taxonomy/" + Date.now() + "-" + (safeName || "kategori") + "." + extension;
+  const admin = createAdminClient();
+  const { error } = await admin.storage.from("media").upload(imagePath, file, {
+    cacheControl: "31536000",
+    contentType: file.type || "image/jpeg",
+    upsert: false,
+  });
+
+  if (error) {
+    go("Billedet kunne ikke uploades: " + error.message + ". Tjek at Supabase-bucketten media findes og tillader billeder op til 8 MB.");
+  }
+
+  return imagePath;
 }
 
 async function saveBasic(table: "main_categories" | "subcategories" | "tags", formData: FormData) {
   await requireRole("admin");
   const id = getOptionalString(formData, "id");
   const name = getString(formData, "name");
-  const slug = slugFrom(formData, name);
+  let slug = slugFrom(formData, name);
 
   if (!name || !slug) {
     go("Navn er påkrævet.");
   }
 
-  const supabase = await createClient();
+  const imagePath =
+    table === "main_categories" ? await uploadTaxonomyImage(formData, getOptionalString(formData, "image_path")) : undefined;
+  const supabase = createAdminClient();
+
+  if (!id) {
+    slug = await uniqueSlugForCreate(supabase, table, slug);
+  }
   const payload = {
     name,
     slug,
     description: getOptionalString(formData, "description"),
-    image_path: table === "tags" ? undefined : getOptionalString(formData, "image_path"),
-    color_hex: table === "main_categories" ? getString(formData, "color_hex") || "#87A878" : undefined,
+    image_path: imagePath,
+    color_hex: table === "main_categories" ? getString(formData, "color_hex") || "#7A4EAB" : undefined,
     is_active: formData.get("is_active") === "on",
     sort_order: sortOrder(formData),
   };
 
-  const result = id ? await supabase.from(table).update(payload).eq("id", id) : await supabase.from(table).insert(payload);
+  const result = id
+    ? await supabase.from(table).update(payload).eq("id", id)
+    : await supabase.from(table).insert(payload).select("id").single();
 
   if (result.error) {
-    go("Kunne ikke gemme. Tjek om slug allerede findes, og om migrationen er kørt.");
+    go("Kunne ikke gemme: " + result.error.message);
   }
 
   if (table === "subcategories") {
@@ -89,7 +172,7 @@ export async function deleteTaxonomyItemAction(formData: FormData) {
     go("Ugyldig sletning.");
   }
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { error } = await supabase.from(table).delete().eq("id", id);
 
   if (error) {

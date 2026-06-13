@@ -15,9 +15,6 @@ type FacilitatorEventsPageProps = {
 };
 
 export default async function FacilitatorEventsPage({ searchParams }: FacilitatorEventsPageProps) {
-  const [{ message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
-  const supabase = await createClient();
-
   const [
     { data: facilitatorProfile },
     { data: regions },
@@ -35,6 +32,13 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
       .single(),
     supabase.from("regions").select("id, name").order("sort_order"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
+    supabase.from("main_categories").select("id, name").eq("is_active", true).order("sort_order"),
+    supabase
+      .from("subcategories")
+      .select("id, name, subcategory_main_categories(main_category_id)")
+      .eq("is_active", true)
+      .order("sort_order"),
+    supabase.from("tags").select("id, name").eq("is_active", true).order("sort_order"),
   ]);
 
   const { data: events } = facilitatorProfile
@@ -115,7 +119,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
           <EventForm
             categories={categories ?? []}
             mainCategories={mainCategories ?? []}
-            subcategories={subcategories ?? []}
+            subcategories={(subcategories ?? []).map((subcategory: any) => ({ id: subcategory.id, name: subcategory.name, mainCategoryIds: (subcategory.subcategory_main_categories ?? []).map((row: any) => row.main_category_id) }))}
             tags={tags ?? []}
             facilitator={{
               contactEmail: contactProfile?.email ?? profile.email,

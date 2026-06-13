@@ -15,7 +15,9 @@ type Category = {
 };
 
 type MainCategory = Category;
-type Subcategory = Category;
+type Subcategory = Category & {
+  mainCategoryIds?: string[];
+};
 type Tag = Category;
 
 type EventFormProps = {
@@ -82,10 +84,29 @@ function TextInput({
   );
 }
 
-function CheckboxPill({ name, value, label }: { name: string; value: string; label: string }) {
+function CheckboxPill({
+  checked,
+  label,
+  name,
+  onChange,
+  value,
+}: {
+  checked?: boolean;
+  label: string;
+  name: string;
+  onChange?: (checked: boolean) => void;
+  value: string;
+}) {
   return (
     <label className="flex items-center gap-3 rounded-md border border-midnight/10 bg-white p-3 text-sm font-medium text-ink/75">
-      <input className="size-4 accent-sage-700" name={name} type="checkbox" value={value} />
+      <input
+        checked={checked}
+        className="size-4 accent-sage-700"
+        name={name}
+        onChange={onChange ? (event) => onChange(event.target.checked) : undefined}
+        type="checkbox"
+        value={value}
+      />
       {label}
     </label>
   );
@@ -93,7 +114,6 @@ function CheckboxPill({ name, value, label }: { name: string; value: string; lab
 
 export function EventForm({
   regions,
-  categories,
   mainCategories = [],
   subcategories = [],
   tags = [],
@@ -103,14 +123,26 @@ export function EventForm({
   const formRef = useRef<HTMLFormElement | null>(null);
   const [eventFormat, setEventFormat] = useState<"physical" | "online" | "hybrid">("physical");
   const [isFree, setIsFree] = useState(false);
+  const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState<string[]>([]);
   const [preview, setPreview] = useState<{ title: string; teaser: string; format: string; price: string } | null>(null);
   const showAddress = eventFormat === "physical" || eventFormat === "hybrid";
   const showOnline = eventFormat === "online" || eventFormat === "hybrid";
+  const relevantSubcategories = subcategories.filter((subcategory) => {
+    if (selectedMainCategoryIds.length === 0) return false;
+    if (!subcategory.mainCategoryIds || subcategory.mainCategoryIds.length === 0) return false;
+    return subcategory.mainCategoryIds.some((mainCategoryId) => selectedMainCategoryIds.includes(mainCategoryId));
+  });
   const statusHelp = useMemo(
     () =>
       "Gem som kladde hvis du vil arbejde videre. Publicer sender eventet videre til visning/godkendelse efter platformens regler.",
     [],
   );
+
+  function updateMainCategory(categoryId: string, checked: boolean) {
+    setSelectedMainCategoryIds((current) =>
+      checked ? [...current, categoryId] : current.filter((currentCategoryId) => currentCategoryId !== categoryId),
+    );
+  }
 
   function showPreview() {
     const form = formRef.current;
@@ -163,30 +195,50 @@ export function EventForm({
       </section>
 
       <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-        <StepHeader number={2} title="Kategori og tags" text="Vælg de ord der bedst hjælper brugeren med at finde eventet." />
+        <StepHeader number={2} title="Retning, eventform og tags" text="Vælg brede retninger først. Derefter vælger du konkrete eventformer." />
         {mainCategories.length > 0 && (
           <div className="mt-5">
-            <p className="text-sm font-semibold text-midnight">Hovedkategori</p>
+            <p className="text-sm font-semibold text-midnight">Hovedkategorier *</p>
+            <p className="mt-1 text-sm leading-6 text-ink/64">Vælg én eller flere brede retninger, eventet hører hjemme i.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {mainCategories.map((category) => (
-                <CheckboxPill key={category.id} label={category.name} name="main_category_ids" value={category.id} />
+                <CheckboxPill
+                  checked={selectedMainCategoryIds.includes(category.id)}
+                  key={category.id}
+                  label={category.name}
+                  name="main_category_ids"
+                  onChange={(checked) => updateMainCategory(category.id, checked)}
+                  value={category.id}
+                />
               ))}
             </div>
           </div>
         )}
-        {subcategories.length > 0 && (
-          <div className="mt-5">
-            <p className="text-sm font-semibold text-midnight">Underkategorier / eventformer</p>
+        <div className="mt-5">
+          <p className="text-sm font-semibold text-midnight">Underkategorier / eventformer *</p>
+          <p className="mt-1 text-sm leading-6 text-ink/64">
+            Underkategorierne vises ud fra de hovedkategorier, du vælger.
+          </p>
+          {selectedMainCategoryIds.length === 0 ? (
+            <div className="mt-3 rounded-md border border-dashed border-midnight/15 bg-cream p-4 text-sm leading-6 text-ink/64">
+              Vælg mindst én hovedkategori for at se relevante eventformer.
+            </div>
+          ) : relevantSubcategories.length > 0 ? (
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {subcategories.map((subcategory) => (
+              {relevantSubcategories.map((subcategory) => (
                 <CheckboxPill key={subcategory.id} label={subcategory.name} name="subcategory_ids" value={subcategory.id} />
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="mt-3 rounded-md border border-dashed border-midnight/15 bg-cream p-4 text-sm leading-6 text-ink/64">
+              Der er endnu ikke koblet underkategorier til den valgte hovedkategori. Det kan rettes under admin.
+            </div>
+          )}
+        </div>
         {tags.length > 0 && (
           <div className="mt-5">
             <p className="text-sm font-semibold text-midnight">Tags</p>
+            <p className="mt-1 text-sm leading-6 text-ink/64">Tags er ekstra filtre som begynder, gratis, weekend eller udendørs.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {tags.map((tag) => (
                 <CheckboxPill key={tag.id} label={tag.name} name="tag_ids" value={tag.id} />
@@ -194,23 +246,15 @@ export function EventForm({
             </div>
           </div>
         )}
-        <div className="mt-5">
-          <p className="text-sm font-semibold text-midnight">Nuværende kategorier</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[...categories].sort((a, b) => a.name.localeCompare(b.name, "da-DK")).map((category) => (
-              <CheckboxPill key={category.id} label={category.name} name="category_ids" value={category.id} />
-            ))}
-          </div>
-        </div>
       </section>
 
       <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
         <StepHeader number={3} title="Eventtype" text="Vælg om eventet foregår fysisk, online eller begge dele." />
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           {[
-            { value: "physical", label: "📍 Fysisk event" },
-            { value: "online", label: "💻 Online event" },
-            { value: "hybrid", label: "🔄 Hybrid event" },
+            { value: "physical", label: "Fysisk event" },
+            { value: "online", label: "Online event" },
+            { value: "hybrid", label: "Hybrid event" },
           ].map((option) => (
             <label className="flex items-center gap-3 rounded-md border border-midnight/10 p-4 text-sm font-semibold text-midnight" key={option.value}>
               <input

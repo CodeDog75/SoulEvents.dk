@@ -11,6 +11,8 @@ import { CategoryForm } from "@/components/admin/taxonomy/category-form";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +42,32 @@ type EventCategory = {
   sort_order: number;
 };
 
+const mainCategoryColorPalette = [
+  "#7A4EAB",
+  "#8A6FAD",
+  "#A7749D",
+  "#A8BFA3",
+  "#B86A4B",
+  "#6F8F72",
+  "#9A7BB8",
+  "#D8A7B1",
+];
+
+function suggestedMainCategoryColor(index: number) {
+  return mainCategoryColorPalette[index % mainCategoryColorPalette.length];
+}
+
+function mediaPublicUrl(path: string | null | undefined) {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  const encodedPath = path
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+
+  return env.supabaseUrl + "/storage/v1/object/public/media/" + encodedPath;
+}
+
 function SectionShell({
   id,
   eyebrow,
@@ -65,6 +93,82 @@ function SectionShell({
   );
 }
 
+function TaxonomyGuide() {
+  const steps = [
+    {
+      title: "1. Hovedkategori",
+      text: "Brede retninger, der giver brugeren overblik. Et event kan høre til én eller flere hovedkategorier.",
+      examples: "Fx Meditation & Nærvær, Ceremonier & Ritualer, Sauna & Velvære",
+    },
+    {
+      title: "2. Underkategori / eventform",
+      text: "Den konkrete eventform, som gør eventet let at finde og filtrere på.",
+      examples: "Fx Yoga, Lydbad, Saunagus, Breathwork, Fuldmåneceremoni",
+    },
+    {
+      title: "3. Tags",
+      text: "Ekstra ord, der beskriver praktiske forhold, stemning eller målgruppe. Tags er ikke kategorier.",
+      examples: "Fx Begyndervenlig, Weekend, Gratis, Udendørs, Fuldmåne",
+    },
+  ];
+
+  return (
+    <section className="rounded-md border border-lavender/70 bg-white p-5 shadow-soft">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="max-w-2xl">
+          <p className="text-xs font-semibold uppercase tracking-wide text-purple">Vejledning</p>
+          <h2 className="mt-1 text-xl font-semibold text-midnight">Sådan bygger du kategorier op</h2>
+          <p className="mt-2 text-sm leading-6 text-ink/68">
+            Brug hovedkategorier som brede retninger, underkategorier som konkrete eventformer og tags som ekstra
+            søgeord eller praktiske filtre.
+          </p>
+        </div>
+        <div className="rounded-md bg-lavender/35 px-4 py-3 text-sm leading-6 text-ink/70 lg:max-w-sm">
+          <p className="font-semibold text-midnight">Kort regel</p>
+          <p className="mt-1">
+            Hovedkategorier vises på forsiden. Underkategorier vises først inde på en hovedkategori og bruges som
+            filtre. Tags beskriver ekstra forhold som gratis, weekend eller begyndervenlig.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 lg:grid-cols-3">
+        {steps.map((step, index) => (
+          <article className="relative rounded-md border border-midnight/10 bg-[#fbfaf7] p-4" key={step.title}>
+            <div className="flex items-center gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-purple text-sm font-bold text-white">
+                {index + 1}
+              </span>
+              <h3 className="font-semibold text-midnight">{step.title}</h3>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-ink/68">{step.text}</p>
+            <p className="mt-3 rounded-md bg-white px-3 py-2 text-xs font-semibold leading-5 text-ink/58">
+              {step.examples}
+            </p>
+          </article>
+        ))}
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <div className="rounded-md border border-sage-700/20 bg-sage-50 p-4">
+          <h3 className="font-semibold text-midnight">Eksempel: Fuldmåne Saunagus & Ceremoni</h3>
+          <p className="mt-2 text-sm leading-6 text-ink/68">
+            Hovedkategorier: Sauna & Velvære, Ceremonier & Ritualer. Underkategorier: Saunagus,
+            Fuldmåneceremoni. Tags: Fuldmåne, Aften, Begyndervenlig.
+          </p>
+        </div>
+        <div className="rounded-md border border-terracotta/20 bg-sand p-4">
+          <h3 className="font-semibold text-midnight">Forsidevisning</h3>
+          <p className="mt-2 text-sm leading-6 text-ink/68">
+            Forsiden viser hovedkategorier, så brugeren starter bredt og først derefter kan gå dybere med
+            underkategorier og tags. Farven på hovedkategorien bruges i den visuelle kategori-boks.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function StatusPill({ active }: { active: boolean }) {
   return active ? (
     <span className="rounded-full bg-sage-50 px-2.5 py-1 text-xs font-semibold text-sage-700">Aktiv</span>
@@ -80,6 +184,7 @@ function BasicForm({
   table,
   showColor,
   showImage,
+  suggestedColor,
 }: {
   action: (formData: FormData) => Promise<void>;
   item?: BasicItem;
@@ -87,12 +192,14 @@ function BasicForm({
   table: string;
   showColor?: boolean;
   showImage?: boolean;
+  suggestedColor?: string;
 }) {
-  const color = item?.color_hex ?? "#87A878";
+  const color = item?.color_hex ?? suggestedColor ?? "#7A4EAB";
 
   return (
     <form action={action} className="rounded-md border border-midnight/10 bg-white p-4">
       <input name="id" type="hidden" value={item?.id ?? ""} />
+      <input name="original_slug" type="hidden" value={item?.slug ?? ""} />
       <div className="flex items-center justify-between gap-4">
         <h3 className="font-semibold text-midnight">{title}</h3>
         <label className="flex items-center gap-2 text-sm font-semibold text-ink/72">
@@ -107,8 +214,8 @@ function BasicForm({
           <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.name ?? ""} name="name" required />
         </label>
         <label className="grid gap-1 text-sm font-medium text-ink/72">
-          Slug
-          <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.slug ?? ""} name="slug" placeholder="dannes automatisk" />
+          Webadresse
+          <input className="h-10 rounded-md border border-midnight/15 bg-sage-50 px-3 text-ink/65" defaultValue={item?.slug ?? ""} name="slug" placeholder="dannes automatisk ved oprettelse" readOnly={Boolean(item?.id)} />
         </label>
         {showColor && (
           <label className="grid gap-1 text-sm font-medium text-ink/72">
@@ -122,10 +229,33 @@ function BasicForm({
           </label>
         )}
         {showImage && (
-          <label className="grid gap-1 text-sm font-medium text-ink/72">
-            Billede-sti
-            <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.image_path ?? ""} name="image_path" placeholder="Billede-sti" />
-          </label>
+          <div className="grid gap-2 text-sm font-medium text-ink/72">
+            {item?.image_path && (
+              <div className="overflow-hidden rounded-md border border-midnight/10 bg-sage-50">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img alt={"Billede for " + (item.name || "hovedkategori")} className="h-32 w-full object-cover" src={mediaPublicUrl(item.image_path)} />
+              </div>
+            )}
+            <input name="image_path" type="hidden" value={item?.image_path ?? ""} />
+            <label className="grid gap-1">
+              Upload billede
+              <input
+                accept="image/jpeg,image/png,image/webp"
+                className="rounded-md border border-midnight/15 bg-white px-3 py-2 text-sm"
+                name="image_file"
+                type="file"
+              />
+            </label>
+            {item?.image_path && (
+              <label className="flex items-center gap-2 text-xs font-semibold text-ink/58">
+                <input className="size-4 accent-sage-700" name="remove_image" type="checkbox" />
+                Fjern nuværende billede
+              </label>
+            )}
+            <p className="text-xs leading-5 text-ink/55">
+              Anbefalet: kvadratisk billede i JPG, PNG eller WebP under 8 MB.
+            </p>
+          </div>
         )}
         <label className="grid gap-1 text-sm font-medium text-ink/72">
           Sortering
@@ -170,7 +300,7 @@ function SubcategoryForm({ item, mainCategories }: { item?: BasicItem; mainCateg
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.name ?? ""} name="name" placeholder="Navn" required />
         <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.slug ?? ""} name="slug" placeholder="slug dannes automatisk" />
-        <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.image_path ?? ""} name="image_path" placeholder="Billede-sti" />
+
         <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.sort_order ?? 0} name="sort_order" type="number" />
       </div>
       <textarea className="mt-3 min-h-20 w-full rounded-md border border-midnight/15 p-3" defaultValue={item?.description ?? ""} name="description" placeholder="Beskrivelse" />
@@ -227,11 +357,12 @@ function EditableList({
 export default async function CategoryArchitecturePage({ searchParams }: PageProps) {
   const [{ message }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = await createClient();
+  const admin = createAdminClient();
   const [{ data: mainCategories }, { data: subcategories }, { data: tags }, { data: eventCategories }] = await Promise.all([
-    supabase.from("main_categories").select("*").order("sort_order"),
-    supabase.from("subcategories").select("*").order("sort_order"),
-    supabase.from("tags").select("*").order("sort_order"),
-    supabase.from("categories").select("*").order("sort_order"),
+    admin.from("main_categories").select("*").order("sort_order"),
+    admin.from("subcategories").select("*").order("sort_order"),
+    admin.from("tags").select("*").order("sort_order"),
+    admin.from("categories").select("*").order("sort_order"),
   ]);
 
   const mainItems = (mainCategories ?? []) as BasicItem[];
@@ -275,6 +406,8 @@ export default async function CategoryArchitecturePage({ searchParams }: PagePro
             </a>
           ))}
         </nav>
+
+        <TaxonomyGuide />
 
         <div className="rounded-md border border-sage-700/20 bg-white p-5 shadow-soft">
           <div className="flex items-start gap-3">
@@ -331,7 +464,14 @@ export default async function CategoryArchitecturePage({ searchParams }: PagePro
           <details className="mb-4 rounded-md border border-sage-700/20 bg-sage-50">
             <summary className="cursor-pointer list-none p-4 font-semibold text-olive">Opret hovedkategori</summary>
             <div className="border-t border-sage-700/15 bg-white p-4">
-              <BasicForm action={upsertMainCategoryAction} table="main_categories" title="Opret hovedkategori" showColor showImage />
+              <BasicForm
+                action={upsertMainCategoryAction}
+                table="main_categories"
+                title="Opret hovedkategori"
+                showColor
+                showImage
+                suggestedColor={suggestedMainCategoryColor(mainItems.length)}
+              />
             </div>
           </details>
           <EditableList

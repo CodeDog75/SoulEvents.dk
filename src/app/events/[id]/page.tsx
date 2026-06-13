@@ -321,11 +321,9 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
 
           <BookingForm availableSeats={availableSeats} eventId={event.id} message={message} messageVariant={messageVariant} />
 
-          {event.event_reference_id && (
-            <p className="rounded-card border border-lavender/50 bg-white/70 px-4 py-3 text-xs font-semibold text-ink/45 shadow-soft">
-              Referencenr. {event.event_reference_id}
-            </p>
-          )}
+          <p className="rounded-card border border-lavender/50 bg-white/70 px-4 py-3 text-xs font-semibold text-ink/45 shadow-soft">
+            Referencenr. {event.event_reference_id || "ikke tildelt endnu"}
+          </p>
         </aside>
       </section>
     </main>
