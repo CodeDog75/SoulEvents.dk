@@ -107,7 +107,7 @@ async function ensureMediaBucket(supabase: ReturnType<typeof createAdminClient>)
 
   const { error } = await supabase.storage.createBucket("media", {
     allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
-    fileSizeLimit: 5 * 1024 * 1024,
+    fileSizeLimit: 30 * 1024 * 1024,
     public: true,
   });
 
@@ -129,7 +129,7 @@ async function uploadImage(supabase: ReturnType<typeof createAdminClient>, file:
     profileRedirect("Du kan kun uploade billedfiler som JPG, PNG, WebP eller GIF.");
   }
 
-  if (file.size > 5 * 1024 * 1024) {
+  if (file.size > 8 * 1024 * 1024) {
     profileRedirect("Billedet må højst fylde 5 MB.");
   }
 
@@ -142,7 +142,7 @@ async function uploadImage(supabase: ReturnType<typeof createAdminClient>, file:
   });
 
   if (error) {
-    profileRedirect("Billedet kunne ikke uploades. Tjek at Storage-bucket 'media' er oprettet.");
+    profileRedirect("Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase, og at filen er JPG, PNG, WebP eller GIF under 8 MB.");
   }
 
   return path;

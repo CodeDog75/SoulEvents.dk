@@ -54,6 +54,12 @@ function ensureUrl(url: string) {
   return /^https?:\/\//i.test(url) ? url : "https://" + url;
 }
 
+function startOfToday() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
   const [{ id }, { booking, message }] = await Promise.all([params, searchParams]);
   const messageVariant = booking === "sent" ? "success" : "notice";
@@ -64,7 +70,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     .select(
       `
       id,
-      event_reference_id,
+      status,
       title,
       short_description,
       long_description,
@@ -335,7 +341,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           )}
 
           <p className="rounded-card border border-lavender/50 bg-white/70 px-4 py-3 text-xs font-semibold text-ink/45 shadow-soft">
-            Referencenr. {event.event_reference_id || "ikke tildelt endnu"}
+            Event-ID: {event.id}
           </p>
         </aside>
       </section>

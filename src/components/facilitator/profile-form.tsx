@@ -330,7 +330,7 @@ export function ProfileForm({
         </div>
 
         <div className="mt-5 flex justify-center sm:justify-end">
-          <SectionSaveButton section="contact">Gem kontakt og præsentation</SectionSaveButton>
+          <SectionSaveButton section="contact">Gem dette afsnit</SectionSaveButton>
         </div>
       </section>
 
@@ -408,7 +408,7 @@ export function ProfileForm({
         </div>
 
         <div className="mt-5 flex justify-center sm:justify-end">
-          <SectionSaveButton section="location">Gem lokation</SectionSaveButton>
+          <SectionSaveButton section="location">Gem dette afsnit</SectionSaveButton>
         </div>
       </section>
 
@@ -470,7 +470,7 @@ export function ProfileForm({
         </div>
 
         <div className="mt-5 flex justify-center sm:justify-end">
-          <SectionSaveButton section="social">Gem sociale medier</SectionSaveButton>
+          <SectionSaveButton section="social">Gem dette afsnit</SectionSaveButton>
         </div>
       </section>
 
@@ -494,7 +494,7 @@ export function ProfileForm({
         </div>
 
         <div className="mt-5 flex justify-center sm:justify-end">
-          <SectionSaveButton section="images">Gem billeder</SectionSaveButton>
+          <SectionSaveButton section="images">Gem dette afsnit</SectionSaveButton>
         </div>
       </section>
 
@@ -532,13 +532,13 @@ export function ProfileForm({
         </div>
 
         <div className="mt-5 flex justify-center sm:justify-end">
-          <SectionSaveButton section="categories">Gem værtydelser</SectionSaveButton>
+          <SectionSaveButton section="categories">Gem dette afsnit</SectionSaveButton>
         </div>
       </section>
 
       <div className="flex flex-col items-center gap-4 rounded-md border border-midnight/10 bg-white p-5 text-center shadow-soft sm:flex-row sm:items-center sm:justify-between sm:text-left">
         <p className="max-w-2xl text-sm leading-6 text-ink/64">
-          Har du ændret flere afsnit uden at bruge de enkelte gem-knapper, kan du gemme hele profilen samlet her.
+          Når du er færdig, kan du gemme hele profilen samlet her.
         </p>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Link

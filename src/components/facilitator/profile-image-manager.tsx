@@ -149,7 +149,7 @@ function uploadField({
       <span className="relative z-10 grid place-items-center gap-3">
         <ImagePlus className="size-8 text-sage-700" aria-hidden="true" />
         <span className="text-sm font-semibold leading-6 text-midnight">
-          Vælg et billede, der formidler din energi og personlighed
+          Vælg JPG, PNG, WebP eller GIF under 8 MB
         </span>
         <span className="inline-flex h-10 items-center gap-2 rounded-md bg-sage-700 px-4 text-sm font-semibold text-white">
           <Upload className="size-4" aria-hidden="true" />
