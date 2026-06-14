@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Sparkles } from "lucide-react";
+import { PartnerAdCarousel } from "@/components/ads/partner-ad-carousel";
 import { BrandLogo } from "@/components/brand-logo";
 import { PublicEventList } from "@/components/events/public-event-list";
 import { areaOptions } from "@/lib/regions/areas";
@@ -109,6 +110,30 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
   const mainCategoryImageUrl = mainCategory.image_path
     ? supabase.storage.from("media").getPublicUrl(mainCategory.image_path).data.publicUrl
     : null;
+  const nowIso = new Date().toISOString();
+
+  const { data: categoryAds } = await supabase
+    .from("ads")
+    .select("id, title, image_path, alt_text, sponsor_name, target_url, priority, display_seconds, ad_main_categories!inner(main_category_id)")
+    .eq("is_active", true)
+    .eq("show_on_category_pages", true)
+    .eq("ad_main_categories.main_category_id", mainCategory.id)
+    .or("starts_at.is.null,starts_at.lte." + nowIso)
+    .or("ends_at.is.null,ends_at.gte." + nowIso)
+    .order("priority", { ascending: true })
+    .order("created_at", { ascending: false });
+
+  const partnerAds = (categoryAds ?? [])
+    .filter((ad: any) => ad.image_path)
+    .map((ad: any) => ({
+      id: ad.id,
+      title: ad.title,
+      imageUrl: ad.image_path ? supabase.storage.from("media").getPublicUrl(ad.image_path).data.publicUrl : null,
+      altText: ad.alt_text || ad.title,
+      targetUrl: ad.target_url,
+      displaySeconds: ad.display_seconds ?? 10,
+      sponsorName: ad.sponsor_name,
+    }));
 
   const { data: rawEvents } = await supabase
     .from("events")
@@ -240,6 +265,8 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
             </div>
           </section>
         )}
+
+        <PartnerAdCarousel ads={partnerAds} />
 
         <section className="mt-8">
           <div className="mb-5">

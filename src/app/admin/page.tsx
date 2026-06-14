@@ -8,6 +8,7 @@ import {
   FileText,
   LayoutDashboard,
   LayoutGrid,
+  Megaphone,
   ReceiptText,
   Scale,
   Search,

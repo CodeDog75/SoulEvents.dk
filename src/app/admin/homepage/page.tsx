@@ -108,7 +108,10 @@ function TileForm({ tile, title }: { tile?: Tile; title: string }) {
             </label>
             <label className="grid gap-2 text-sm font-medium text-ink/72">
               Link
-              <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={tile?.href ?? "/#events"} name="href" />
+              <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={tile?.href ?? "/#events"} name="href" placeholder="/?tag=Gratis#events eller /artikler/plantemedicin" />
+              <span className="text-xs leading-5 text-ink/55">
+                Eksempler: /?tag=Gratis#events, /facilitators, /auth/signup eller en artikelside.
+              </span>
             </label>
             <label className="grid gap-2 text-sm font-medium text-ink/72">
               Type
