@@ -15,6 +15,9 @@ type FacilitatorEventsPageProps = {
 };
 
 export default async function FacilitatorEventsPage({ searchParams }: FacilitatorEventsPageProps) {
+  const [{ message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const supabase = await createClient();
+
   const [
     { data: facilitatorProfile },
     { data: regions },

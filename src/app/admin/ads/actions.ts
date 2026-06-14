@@ -23,34 +23,40 @@ function dateValue(formData: FormData, name: string) {
 
 function extensionFromFile(file: File) {
   const fromName = file.name.split(".").pop()?.toLowerCase();
-  if (fromName && ["jpg", "jpeg", "png", "webp"].includes(fromName)) {
+  if (fromName && ["jpg", "jpeg", "png", "webp", "mp4"].includes(fromName)) {
     return fromName === "jpeg" ? "jpg" : fromName;
   }
   if (file.type === "image/png") return "png";
   if (file.type === "image/webp") return "webp";
+  if (file.type === "video/mp4") return "mp4";
   return "jpg";
 }
 
-async function uploadAdImage(formData: FormData, currentImagePath: string | null) {
+function isAllowedAdMedia(file: File) {
+  return file.type.startsWith("image/") || file.type === "video/mp4";
+}
+
+async function uploadAdMedia(formData: FormData, currentImagePath: string | null) {
   const removeImage = formData.get("remove_image") === "on";
   if (removeImage) return null;
 
   const file = formData.get("image_file");
   if (!(file instanceof File) || file.size === 0) return currentImagePath;
 
-  if (!file.type.startsWith("image/")) {
-    go("Billedet skal være en billedfil.");
+  if (!isAllowedAdMedia(file)) {
+    go("Filen skal være et billede eller en MP4-video.");
   }
 
-  if (file.size > 8 * 1024 * 1024) {
-    go("Billedet er for stort. Vælg et billede under 8 MB.");
+  const maxSize = file.type === "video/mp4" ? 30 * 1024 * 1024 : 8 * 1024 * 1024;
+  if (file.size > maxSize) {
+    go(file.type === "video/mp4" ? "Videoen er for stor. Vælg en MP4 under 30 MB." : "Billedet er for stort. Vælg et billede under 8 MB.");
   }
 
   const safeName = file.name
-    .replace(/.[^.]+$/, "")
+    .replace(/\.[^.]+$/, "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "")
     .slice(0, 60);
@@ -59,12 +65,12 @@ async function uploadAdImage(formData: FormData, currentImagePath: string | null
   const supabase = createAdminClient();
   const { error } = await supabase.storage.from("media").upload(imagePath, file, {
     cacheControl: "31536000",
-    contentType: file.type || "image/jpeg",
+    contentType: file.type || "application/octet-stream",
     upsert: false,
   });
 
   if (error) {
-    go("Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
+    go("Filen kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
   }
 
   return imagePath;
@@ -76,14 +82,19 @@ export async function upsertAdAction(formData: FormData) {
   const id = getOptionalString(formData, "id");
   const title = getString(formData, "title");
   const currentImagePath = getOptionalString(formData, "image_path");
+  const showOnHomepage = formData.get("show_on_homepage") === "on";
+  const showOnCategoryPages = formData.get("show_on_category_pages") === "on";
   const categoryIds = formData.getAll("main_category_ids").map(String).filter(Boolean);
 
   if (!title) go("Titel er påkrævet.");
-  if (formData.get("show_on_category_pages") === "on" && categoryIds.length === 0) {
-    go("Vælg mindst én hovedkategori, hvis reklamen skal vises på hovedkategorisider.");
+  if (!showOnHomepage && !showOnCategoryPages) {
+    go("Vælg mindst én placering: forsiden eller hovedkategorisider.");
+  }
+  if (showOnCategoryPages && categoryIds.length === 0) {
+    go("Vælg mindst én hovedkategori - kun fordi du har valgt, at reklamen også skal vises på hovedkategorisider.");
   }
 
-  const imagePath = await uploadAdImage(formData, currentImagePath || null);
+  const imagePath = await uploadAdMedia(formData, currentImagePath || null);
   const supabase = createAdminClient();
   const payload = {
     title,
@@ -92,12 +103,15 @@ export async function upsertAdAction(formData: FormData) {
     sponsor_name: getOptionalString(formData, "sponsor_name"),
     target_url: getOptionalString(formData, "target_url"),
     priority: numberFrom(formData, "priority", 100),
-    display_seconds: Math.min(Math.max(numberFrom(formData, "display_seconds", 10), 6), 30),
+    display_seconds: 10,
     starts_at: dateValue(formData, "starts_at"),
     ends_at: dateValue(formData, "ends_at"),
     is_active: formData.get("is_active") === "on",
-    show_on_category_pages: formData.get("show_on_category_pages") === "on",
+    show_on_category_pages: showOnCategoryPages,
+    show_on_homepage: showOnHomepage,
     show_in_newsletter: formData.get("show_in_newsletter") === "on",
+    show_title_on_banner: formData.get("show_title_on_banner") === "on",
+    show_sponsor_on_banner: formData.get("show_sponsor_on_banner") === "on",
     admin_note: getOptionalString(formData, "admin_note"),
   };
 
@@ -111,13 +125,14 @@ export async function upsertAdAction(formData: FormData) {
 
   const adId = result.data.id;
   await supabase.from("ad_main_categories").delete().eq("ad_id", adId);
-  if (categoryIds.length > 0) {
+  if (showOnCategoryPages && categoryIds.length > 0) {
     const rows = categoryIds.map((mainCategoryId) => ({ ad_id: adId, main_category_id: mainCategoryId }));
     const { error } = await supabase.from("ad_main_categories").insert(rows);
     if (error) go("Reklamen blev gemt, men kategorierne kunne ikke tilknyttes.");
   }
 
   revalidatePath("/admin/ads");
+  revalidatePath("/");
   revalidatePath("/categories/[slug]", "page");
   go("Reklamen er gemt.");
 }
@@ -133,6 +148,7 @@ export async function deleteAdAction(formData: FormData) {
   if (error) go("Reklamen kunne ikke slettes.");
 
   revalidatePath("/admin/ads");
+  revalidatePath("/");
   revalidatePath("/categories/[slug]", "page");
   go("Reklamen er slettet.");
 }

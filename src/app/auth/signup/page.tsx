@@ -33,21 +33,20 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           </Link>
 
           <p className="inline-flex rounded-full bg-[#EDE4F7] px-4 py-2 text-sm font-semibold text-[#7A4EAB]">
-            Gratis og enkelt at komme i gang
+            Gratis værtsprofil og gratis eventoprettelse
           </p>
           <h1 className="mt-5 text-3xl font-semibold leading-tight text-[#2F2633] sm:text-5xl">
             Opret ny og gratis værtsprofil
           </h1>
           <p className="mt-5 text-base leading-7 text-[#2F2633]/72 sm:text-lg">
-            Bliv en del af SoulEvents og del dine events, fællesskaber og aktiviteter med mennesker, der søger mere ro,
+            Bliv en del af SoulEvents.dk og del dine events, fællesskaber og aktiviteter gratis med mennesker, der søger mere ro,
             nærvær og balance i hverdagen.
           </p>
 
           <section className="mt-5 rounded-[1.25rem] border border-[#D8A7B1]/35 bg-[#D8A7B1]/14 p-5">
             <h2 className="text-lg font-semibold text-[#2F2633]">💜 Gratis og uden binding</h2>
             <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
-              Det er gratis at oprette en værtsprofil på SoulEvents. Du har altid fuld kontrol over dine oplysninger og
-              kan redigere eller slette din profil, når du ønsker det.
+              Det er gratis at oprette en værtsprofil på SoulEvents.dk, og det er gratis at oprette events. Du har altid fuld kontrol over dine oplysninger og kan redigere eller slette din profil og dine events, når du ønsker det.
             </p>
           </section>
 
@@ -61,7 +60,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
               className="mt-4 inline-flex min-h-10 items-center justify-center rounded-full border border-[#7A4EAB]/25 px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#EDE4F7]"
               href="/#contact"
             >
-              Skriv til SoulEvents
+              Skriv til SoulEvents.dk
             </Link>
           </section>
 
@@ -164,7 +163,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
               Det tager kun få minutter at komme videre.
             </p>
             <ol className="mt-5 grid gap-3 text-sm font-semibold text-[#2F2633]">
-              {["Bekræft din e-mail", "Fortæl lidt om dig selv", "Opret dit første event"].map((step, index) => (
+              {["Bekræft din e-mail", "Fortæl lidt om dig selv", "Opret dit første event gratis"].map((step, index) => (
                 <li className="flex items-center gap-3" key={step}>
                   <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#7A4EAB] text-white">
                     {index + 1}

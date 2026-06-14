@@ -64,6 +64,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     .select(
       `
       id,
+      event_reference_id,
       title,
       short_description,
       long_description,
@@ -72,6 +73,8 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       address_line,
       postal_code,
       city,
+      latitude,
+      longitude,
       price_cents,
       event_format,
       online_description,
@@ -124,6 +127,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
   );
   const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Vært";
+  const isBookable = event.status === "active" && facilitatorProfile?.status === "approved";
   const facilitatorImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
@@ -319,7 +323,16 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             startsAt={event.starts_at}
           />
 
-          <BookingForm availableSeats={availableSeats} eventId={event.id} message={message} messageVariant={messageVariant} />
+          {isBookable ? (
+            <BookingForm availableSeats={availableSeats} eventId={event.id} message={message} messageVariant={messageVariant} />
+          ) : (
+            <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
+              <h2 className="text-3xl font-medium text-olive">Tilmelding er ikke åben</h2>
+              <p className="mt-3 text-sm leading-6 text-ink/70">
+                Dette event er en forhåndsvisning. Tilmelding åbner først, når eventet er aktivt og værten er godkendt.
+              </p>
+            </section>
+          )}
 
           <p className="rounded-card border border-lavender/50 bg-white/70 px-4 py-3 text-xs font-semibold text-ink/45 shadow-soft">
             Referencenr. {event.event_reference_id || "ikke tildelt endnu"}

@@ -5,9 +5,26 @@ import { PartnerAdCarousel } from "@/components/ads/partner-ad-carousel";
 import { BrandLogo } from "@/components/brand-logo";
 import { PublicEventList } from "@/components/events/public-event-list";
 import { areaOptions } from "@/lib/regions/areas";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+
+function publicMediaUrl(imagePath: string | null) {
+  if (!imagePath) return null;
+  if (/^https?:\/\//i.test(imagePath)) return imagePath;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return null;
+
+  const encodedPath = imagePath
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+
+  return supabaseUrl.replace(/\/$/, "") + "/storage/v1/object/public/media/" + encodedPath;
+}
+
 
 type CategoryPageProps = {
   params: Promise<{ slug: string }>;
@@ -61,7 +78,8 @@ function toggleSubcategoryHref(mainSlug: string, allSlugs: string[], activeSlugs
 }
 
 export default async function MainCategoryPage({ params, searchParams }: CategoryPageProps) {
-  const [{ slug }, query] = await Promise.all([params, searchParams ?? Promise.resolve({})]);
+  const emptyQuery: { sub?: string; area?: string } = {};
+  const [{ slug }, query] = await Promise.all([params, searchParams ?? Promise.resolve(emptyQuery)]);
   const supabase = await createClient();
 
   const [{ data: mainCategory }, { data: allSubcategories }] = await Promise.all([
@@ -98,8 +116,8 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
   const requestedSubSlugs =
     query?.sub
       ?.split(",")
-      .map((item) => item.trim())
-      .filter((item) => allSubcategorySlugs.includes(item)) ?? [];
+      .map((item: string) => item.trim())
+      .filter((item: string) => allSubcategorySlugs.includes(item)) ?? [];
   const activeSubcategorySlugs = requestedSubSlugs.length > 0 ? requestedSubSlugs : allSubcategorySlugs;
   const activeSubcategories = subcategories.filter((subcategory: any) => activeSubcategorySlugs.includes(subcategory.slug));
   const activeSubcategoryIds = activeSubcategories.map((subcategory: any) => subcategory.id);
@@ -112,9 +130,10 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
     : null;
   const nowIso = new Date().toISOString();
 
-  const { data: categoryAds } = await supabase
+  const adsClient = createAdminClient();
+  const { data: categoryAds } = await adsClient
     .from("ads")
-    .select("id, title, image_path, alt_text, sponsor_name, target_url, priority, display_seconds, ad_main_categories!inner(main_category_id)")
+    .select("id, title, image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count, ad_main_categories!inner(main_category_id)")
     .eq("is_active", true)
     .eq("show_on_category_pages", true)
     .eq("ad_main_categories.main_category_id", mainCategory.id)
@@ -124,15 +143,16 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
     .order("created_at", { ascending: false });
 
   const partnerAds = (categoryAds ?? [])
-    .filter((ad: any) => ad.image_path)
     .map((ad: any) => ({
       id: ad.id,
       title: ad.title,
-      imageUrl: ad.image_path ? supabase.storage.from("media").getPublicUrl(ad.image_path).data.publicUrl : null,
+      imageUrl: ad.image_path ? adsClient.storage.from("media").getPublicUrl(ad.image_path).data.publicUrl : null,
       altText: ad.alt_text || ad.title,
       targetUrl: ad.target_url,
       displaySeconds: ad.display_seconds ?? 10,
       sponsorName: ad.sponsor_name,
+      showTitle: ad.show_title_on_banner ?? true,
+      showSponsor: ad.show_sponsor_on_banner ?? true,
     }));
 
   const { data: rawEvents } = await supabase
@@ -161,7 +181,7 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
       activeSubcategoryNames.some((subcategoryName) => namesOverlap(eventCategoryName, subcategoryName)),
     );
     const matchesMainByLegacyName = legacyCategoryNames.some(
-      (eventCategoryName) =>
+      (eventCategoryName: string) =>
         namesOverlap(mainCategory.name, eventCategoryName) ||
         activeSubcategoryNames.some((subcategoryName) => namesOverlap(eventCategoryName, subcategoryName)),
     );

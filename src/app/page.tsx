@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { sendContactMessageAction } from "@/app/contact/actions";
+import { PartnerAdCarousel } from "@/components/ads/partner-ad-carousel";
 import { BrandLogo } from "@/components/brand-logo";
 import { EventMap } from "@/components/events/event-map";
 import { HomeEventSearchForm } from "@/components/events/home-event-search-form";
@@ -25,6 +26,7 @@ import { PublicFacilitatorCarousel } from "@/components/facilitator/public-facil
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import { env } from "@/lib/env";
 import { getAreaOption } from "@/lib/regions/areas";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -669,10 +671,47 @@ async function getHomeFacilitators(queryText: string) {
   return mapped.sort(() => Math.random() - 0.5).slice(0, queryText ? 24 : 12);
 }
 
+
+async function getHomepageAds() {
+  if (!env.supabaseUrl) {
+    return [];
+  }
+
+  const supabase = createAdminClient();
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("ads")
+    .select("id, title, image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count")
+    .eq("is_active", true)
+    .eq("show_on_homepage", true)
+    .or("starts_at.is.null,starts_at.lte." + nowIso)
+    .or("ends_at.is.null,ends_at.gte." + nowIso)
+    .order("priority", { ascending: true })
+    .order("created_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data
+    .map((ad: any) => ({
+      id: ad.id,
+      title: ad.title,
+      imageUrl: publicMediaUrl(ad.image_path),
+      altText: ad.alt_text || ad.title,
+      targetUrl: ad.target_url,
+      displaySeconds: ad.display_seconds ?? 10,
+      sponsorName: ad.sponsor_name,
+      showTitle: ad.show_title_on_banner ?? true,
+      showSponsor: ad.show_sponsor_on_banner ?? true,
+    }));
+}
+
 export default async function Home({ searchParams }: HomeProps) {
   const params = searchParams ? await searchParams : {};
   const contactStatus = params.contact ?? "";
   const homeTiles = await getHomeTiles();
+  const homepageAds = await getHomepageAds();
   const discoveryTiles = [
     ...homeTiles.filter(
       (tile) => tile.tileType !== "category" && tile.id !== "become-host" && tile.href !== "/auth/signup",
@@ -680,7 +719,7 @@ export default async function Home({ searchParams }: HomeProps) {
     {
       id: "become-host",
       title: "Bliv vært",
-      description: "Opret en gratis værtsprofil og del dine aktiviteter med SoulEvents.",
+      description: "Opret en gratis værtsprofil og opret events gratis på SoulEvents.dk.",
       href: "/auth/signup",
       imageUrl: homeTileFallbackImages.facilitators,
       tileType: "navigation" as const,
@@ -846,8 +885,8 @@ export default async function Home({ searchParams }: HomeProps) {
               <a className="transition hover:text-[#7A4EAB]" href="#categories">
                 Kategorier
               </a>
-              <Link className="transition hover:text-[#7A4EAB]" href="/facilitator/events">
-                Opret Event
+              <Link className="transition hover:text-[#7A4EAB]" href="/auth/signup">
+                Bliv vært og opret event gratis
               </Link>
               <Link className="transition hover:text-[#7A4EAB]" href="/auth/login">
                 Login
@@ -1006,6 +1045,14 @@ export default async function Home({ searchParams }: HomeProps) {
         featuredFacilitators={featuredFacilitators}
         newFacilitators={newFacilitators}
       />
+
+      {homepageAds.length > 0 && (
+        <section className="bg-white py-12 sm:py-14" aria-label="Partnerindhold">
+          <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
+            <PartnerAdCarousel ads={homepageAds} />
+          </div>
+        </section>
+      )}
 
       <section className="bg-[#FAF6EF] py-16 sm:py-20" id="contact">
         <div className="mx-auto grid max-w-[1200px] gap-10 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">

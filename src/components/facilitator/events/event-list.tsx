@@ -23,10 +23,13 @@ type EventListProps = {
 
 const statusLabels: Record<EventStatus, string> = {
   draft: "Kladde",
+  pending_review: "Afventer godkendelse",
   active: "Aktiv",
+  rejected: "Afvist",
   sold_out: "Udsolgt",
   cancelled: "Aflyst",
   completed: "Afholdt",
+  archived: "Arkiveret",
 };
 
 function StatusAction({

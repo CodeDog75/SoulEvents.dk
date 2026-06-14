@@ -11,6 +11,8 @@ type PartnerAd = {
   targetUrl: string | null;
   displaySeconds: number;
   sponsorName: string | null;
+  showTitle: boolean;
+  showSponsor: boolean;
 };
 
 type PartnerAdCarouselProps = {
@@ -19,13 +21,21 @@ type PartnerAdCarouselProps = {
 
 function safeSeconds(value: number) {
   if (!Number.isFinite(value)) return 10;
-  return Math.min(Math.max(value, 6), 30);
+  return Math.min(Math.max(value, 10), 30);
+}
+
+function isVideoAd(url: string | null) {
+  return Boolean(url && /\.mp4($|[?#])/i.test(url));
+}
+
+function isExternalUrl(url: string | null) {
+  return Boolean(url && /^https?:\/\//i.test(url));
 }
 
 export function PartnerAdCarousel({ ads }: PartnerAdCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
-  const visibleAds = useMemo(() => ads.filter((ad) => ad.imageUrl), [ads]);
+  const visibleAds = useMemo(() => ads, [ads]);
   const activeAd = visibleAds[activeIndex] ?? visibleAds[0];
 
   useEffect(() => {
@@ -45,6 +55,8 @@ export function PartnerAdCarousel({ ads }: PartnerAdCarouselProps) {
 
   if (!activeAd) return null;
 
+  const opensInNewTab = isExternalUrl(activeAd.targetUrl);
+
   const content = (
     <article
       className="group relative overflow-hidden rounded-[28px] border border-[#EDE4F7] bg-[#F6F1E7] shadow-soft transition hover:shadow-lift"
@@ -54,16 +66,28 @@ export function PartnerAdCarousel({ ads }: PartnerAdCarouselProps) {
       onBlur={() => setPaused(false)}
     >
       <div className="relative aspect-[16/7] min-h-[180px] sm:aspect-[16/5]">
-        <img alt={activeAd.altText} className="h-full w-full object-cover" src={activeAd.imageUrl ?? ""} />
+        {activeAd.imageUrl && isVideoAd(activeAd.imageUrl) ? (
+          <video
+            autoPlay
+            className="h-full w-full object-cover"
+            loop
+            muted
+            playsInline
+            src={activeAd.imageUrl}
+          />
+        ) : activeAd.imageUrl ? (
+          <img alt={activeAd.altText} className="h-full w-full object-cover" src={activeAd.imageUrl} />
+        ) : (
+          <div className="h-full w-full bg-gradient-to-br from-[#2F2633] via-[#7A4EAB] to-[#D8A7B1]" />
+        )}
         <div className="absolute inset-0 bg-gradient-to-r from-[#2F2633]/62 via-[#2F2633]/18 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
-          <span className="inline-flex rounded-full bg-white/86 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#7A4EAB] shadow-soft">
-            Partner
-          </span>
-          <h2 className="mt-3 max-w-2xl font-serif text-2xl font-semibold leading-tight text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)] sm:text-4xl">
-            {activeAd.title}
-          </h2>
-          {activeAd.sponsorName && (
+          {activeAd.showTitle && (
+            <h2 className="max-w-2xl font-serif text-2xl font-semibold leading-tight text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)] sm:text-4xl">
+              {activeAd.title}
+            </h2>
+          )}
+          {activeAd.showSponsor && activeAd.sponsorName && (
             <p className="mt-2 text-sm font-semibold text-white/88 drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]">
               {activeAd.sponsorName}
             </p>
@@ -91,7 +115,7 @@ export function PartnerAdCarousel({ ads }: PartnerAdCarouselProps) {
   return (
     <section className="mt-8" aria-label="Partnerindhold fra SoulEvents.dk">
       {activeAd.targetUrl ? (
-        <a aria-label={"Se partnerindhold: " + activeAd.title} href={activeAd.targetUrl} rel="noopener noreferrer" target={activeAd.targetUrl.startsWith("http") ? "_blank" : undefined}>
+        <a aria-label={"Se partnerindhold: " + activeAd.title} href={"/ads/" + activeAd.id + "/click"} rel={opensInNewTab ? "noopener noreferrer" : undefined} target={opensInNewTab ? "_blank" : undefined}>
           {content}
         </a>
       ) : (

@@ -96,7 +96,7 @@ export async function transferAdminByEmailAction(formData: FormData) {
   const { error: targetError } = await supabase.from("profiles").update({ role: "admin" }).eq("id", targetProfile.id);
 
   if (targetError) {
-    usersRedirect("Adminadgangen kunne ikke flyttes.");
+    usersRedirect("Adminadgangen kunne ikke tilføjes.");
   }
 
   if (makeCurrentFacilitator && targetProfile.id !== currentAdmin.id) {
@@ -106,7 +106,7 @@ export async function transferAdminByEmailAction(formData: FormData) {
       .eq("id", currentAdmin.id);
 
     if (currentError) {
-      usersRedirect("Ny administrator er aktiveret, men den gamle adminrolle kunne ikke fjernes.");
+      usersRedirect("Ny administrator er aktiveret, men din adminrolle kunne ikke fjernes.");
     }
 
     await ensureFacilitatorProfileExists(currentAdmin.id);
@@ -115,5 +115,5 @@ export async function transferAdminByEmailAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/users");
   revalidatePath("/dashboard");
-  redirect("/dashboard?message=Adminadgangen er opdateret.");
+  redirect("/dashboard?message=Adminadgangen er tilføjet.");
 }

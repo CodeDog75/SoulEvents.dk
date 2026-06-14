@@ -47,17 +47,16 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
           <div className="flex items-start gap-3">
             <ShieldCheck className="mt-1 size-5 text-sage-700" aria-hidden="true" />
             <div>
-              <h2 className="font-semibold text-midnight">Flyt adminadgang</h2>
+              <h2 className="font-semibold text-midnight">Tilføj administrator</h2>
               <p className="mt-1 text-sm leading-6 text-ink/65">
-                Brugeren skal først være oprettet i systemet. Skriv den nye admin-mail og vælg om din nuværende
-                adminrolle skal fjernes samtidig.
+                Brugeren skal først være oprettet i systemet. Skriv e-mailen på den bruger, der også skal have adminadgang. Din nuværende adminadgang bevares som standard.
               </p>
             </div>
           </div>
 
           <form action={transferAdminByEmailAction} className="mt-5 grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
             <label className="grid gap-2 text-sm font-medium text-ink/72">
-              Ny administrator
+              E-mail på ny administrator
               <input
                 className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
                 name="email"
@@ -72,12 +71,12 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
               type="submit"
             >
               <ShieldCheck className="size-4" aria-hidden="true" />
-              Opdater admin
+              Tilføj admin
             </button>
 
             <label className="flex items-start gap-2 text-sm leading-6 text-ink/72 md:col-span-2">
-              <input className="mt-1 size-4 accent-sage-700" defaultChecked name="make_current_facilitator" type="checkbox" />
-              Fjern adminadgang fra min nuværende bruger efter den nye admin er aktiveret.
+              <input className="mt-1 size-4 accent-sage-700" name="make_current_facilitator" type="checkbox" />
+              Fjern adminadgang fra min nuværende bruger efter den nye admin er aktiveret. Brug kun dette, hvis adminrollen skal flyttes i stedet for deles.
             </label>
           </form>
         </section>

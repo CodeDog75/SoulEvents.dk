@@ -112,6 +112,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { href: "/admin/bookings", title: "Tilmeldinger og statistik", text: "Se bookingværdi, kommission og pladser.", icon: Banknote },
     { href: "/admin/category-architecture", title: "Kategorier & tag-farver", text: "Administrer kategorier, tags, eventformat og farver på tags.", icon: Tags },
     { href: "/admin/homepage", title: "Forsidebokse og temaer", text: "Styr de store 1:1 bokse og kampagne-temaer på forsiden.", icon: LayoutGrid },
+    { href: "/admin/ads", title: "Reklamer / partnerindhold", text: "Styr diskrete reklamer på forsiden og hovedkategorisider.", icon: Megaphone },
     { href: "/admin/featured-facilitators", title: "Fremhævede værter", text: "Vælg hvem der skal vises særskilt på forsiden.", icon: Star },
     { href: "/admin/users", title: "Brugere og roller", text: "Styr adgang til adminpanelet.", icon: UserCog },
     { href: "/admin/legal", title: "Juridiske dokumenter", text: "Opdater betingelser, privatliv og retningslinjer.", icon: Scale },

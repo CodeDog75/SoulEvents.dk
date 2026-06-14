@@ -253,7 +253,7 @@ function BasicForm({
               </label>
             )}
             <p className="text-xs leading-5 text-ink/55">
-              Anbefalet: kvadratisk billede i JPG, PNG eller WebP under 8 MB.
+              Anbefalet: kvadratisk billede 1200 x 1200 px. Brug helst WebP, ellers JPG eller PNG. Hold gerne filen under 1-2 MB og maksimum 8 MB.
             </p>
           </div>
         )}
