@@ -72,7 +72,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
               <CalendarPlus className="size-5" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Vært - opret nyt event</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Vært</p>
               <h1 className="text-lg font-semibold text-midnight sm:text-xl">Opret nyt event</h1>
             </div>
           </div>
