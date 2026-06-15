@@ -238,7 +238,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
 
   const uploadedProfileImage =
     section === "all" || section === "images"
-      ? await uploadImage(supabase, formData.get("profile_image_file") as File, `værts/${profile.id}/profile`)
+      ? await uploadImage(supabase, formData.get("profile_image_file") as File, `hosts/${profile.id}/profile`)
       : null;
 
   if (uploadedProfileImage) {
@@ -312,7 +312,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       formData
         .getAll("gallery_image_files")
         .slice(0, 3)
-        .map((file, index) => uploadImage(supabase, file as File, `værts/${profile.id}/gallery/${index + 1}`)),
+        .map((file, index) => uploadImage(supabase, file as File, `hosts/${profile.id}/gallery/${index + 1}`)),
     );
 
     const finalGalleryPaths = galleryPaths.map((imagePath, index) => galleryUploads[index] || imagePath).filter(Boolean);

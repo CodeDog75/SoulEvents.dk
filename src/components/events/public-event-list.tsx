@@ -76,7 +76,6 @@ function uniqueEventsById<T extends { id: string }>(events: T[]) {
 
 function formatEventFormat(format?: string | null) {
   if (format === "online") return "💻 Online";
-  if (format === "hybrid") return "🔄 Hybrid";
   return "📍 Fysisk";
 }
 

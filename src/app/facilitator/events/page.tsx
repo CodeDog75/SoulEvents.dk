@@ -64,20 +64,20 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
     Boolean(facilitatorProfile?.facilitator_categories?.length);
 
   return (
-    <main className="min-h-screen bg-[#fbfaf7]">
+    <main className="min-h-screen overflow-x-hidden bg-[#fbfaf7]">
       <header className="border-b border-midnight/10 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex w-full max-w-7xl flex-col items-start gap-3 overflow-x-hidden px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="grid size-10 place-items-center rounded-md bg-terracotta text-white">
               <CalendarPlus className="size-5" aria-hidden="true" />
             </div>
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Vært</p>
-              <h1 className="text-xl font-semibold text-midnight">Begivenheder</h1>
+              <h1 className="text-lg font-semibold text-midnight sm:text-xl">Begivenheder</h1>
             </div>
           </div>
           <Link
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta"
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-xs font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta sm:h-10 sm:text-sm"
             href="/facilitator"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
@@ -86,7 +86,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      <section className="mx-auto grid w-full max-w-6xl gap-5 overflow-x-hidden px-4 py-5 sm:gap-6 sm:px-6 sm:py-8 lg:px-8">
         <AuthMessage message={message} />
 
         {!profileReady ? (

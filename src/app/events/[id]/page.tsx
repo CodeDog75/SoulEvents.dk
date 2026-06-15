@@ -18,7 +18,6 @@ type EventDetailPageProps = {
 
 function formatEventFormat(format?: string | null) {
   if (format === "online") return "💻 Online";
-  if (format === "hybrid") return "🔄 Hybrid";
   return "📍 Fysisk";
 }
 
@@ -301,7 +300,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                   <p className="mt-1">{event.practical_information}</p>
                 </div>
               )}
-              {(event.event_format === "online" || event.event_format === "hybrid") && (
+              {event.event_format === "online" && (
                 <div className="rounded-md bg-sage-50 p-3">
                   <p className="font-semibold text-olive">Online-info</p>
                   <p className="mt-1">{event.online_description || event.online_url_or_note || "Link sendes efter tilmelding."}</p>

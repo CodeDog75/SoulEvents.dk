@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { EventStatus } from "@/types/database";
 
 const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "rejected", "sold_out", "cancelled", "completed", "archived"];
-const allowedFormats = ["physical", "online", "hybrid"] as const;
+const allowedFormats = ["physical", "online"] as const;
 
 function eventsRedirect(message: string): never {
   redirect(`/facilitator/events?message=${encodeURIComponent(message)}`);
@@ -144,6 +144,10 @@ export async function createEventAction(formData: FormData) {
   const mainCategoryIds = getAllStrings(formData, "main_category_ids");
   const subcategoryIds = getAllStrings(formData, "subcategory_ids");
   const tagIds = getAllStrings(formData, "tag_ids");
+
+  if (!allowedFormats.includes(eventFormat as "physical" | "online")) {
+    eventsRedirect("Vælg om eventet er fysisk eller online.");
+  }
   const imagePaths = getAllStrings(formData, "event_image_paths");
   const imageAlts = getAllStrings(formData, "event_alt_texts");
 
@@ -178,6 +182,14 @@ export async function createEventAction(formData: FormData) {
       const { data: inferredRegion } = await supabase.from("regions").select("id").eq("slug", inferredSlug).maybeSingle();
       regionId = inferredRegion?.id ?? null;
     }
+  }
+
+  if (eventFormat === "physical" && !regionId) {
+    eventsRedirect("Region er påkrævet for fysiske events.");
+  }
+
+  if (eventFormat === "physical" && !regionId) {
+    eventsRedirect("Region er påkrævet for fysiske events.");
   }
 
   const coordinates =

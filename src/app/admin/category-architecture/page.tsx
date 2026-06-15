@@ -415,7 +415,7 @@ export default async function CategoryArchitecturePage({ searchParams }: PagePro
             <div>
               <h2 className="text-lg font-semibold text-midnight">Eventformat</h2>
               <p className="mt-2 text-sm leading-6 text-ink/64">
-                Eventformat er et separat felt på events: Fysisk event, Online event eller Hybrid event.
+                Eventformat er et separat felt på events: Fysisk event eller Online event.
               </p>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, CalendarPlus, CircleUserRound, Inbox } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarPlus, CheckCircle2, CircleUserRound, Clock3, Inbox } from "lucide-react";
 import Link from "next/link";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { AuthMessage } from "@/components/auth/auth-message";
@@ -15,41 +15,52 @@ type FacilitatorPageProps = {
   }>;
 };
 
+type CategoryRelation = {
+  categories?: { name: string; color_hex?: string } | { name: string; color_hex?: string }[] | null;
+};
+
+type MoodImage = {
+  image_path: string;
+  alt_text: string | null;
+  sort_order: number;
+};
+
 export default async function FacilitatorPage({ searchParams }: FacilitatorPageProps) {
   const [{ message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
   const supabase = createAdminClient();
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
     .select(
-      "status, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, facilitator_categories(category_id, categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
+      "status, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, facilitator_categories(category_id, categories(name, color_hex)), facilitator_tags(tag_id), facilitator_images(image_path, alt_text, sort_order)",
     )
     .eq("profile_id", profile.id)
     .single();
 
   const status = facilitatorProfile?.status ?? "pending";
   const hostReferenceId = facilitatorProfile?.host_reference_id ?? null;
+  const hasTopics =
+    Boolean(facilitatorProfile?.facilitator_categories?.length) ||
+    Boolean(facilitatorProfile?.facilitator_tags?.length);
   const profileReady =
     Boolean(profile.full_name) &&
     Boolean(facilitatorProfile?.company_name) &&
     Boolean(facilitatorProfile?.short_description && facilitatorProfile.short_description.trim().length >= 20) &&
     Boolean(facilitatorProfile?.postal_code) &&
     Boolean(facilitatorProfile?.city) &&
-    Boolean(facilitatorProfile?.facilitator_categories?.length);
+    hasTopics;
   const profileImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
   const profileName = facilitatorProfile?.company_name || profile.full_name || "Personlig profil";
   const categoryNames =
     facilitatorProfile?.facilitator_categories
-      ?.map((row: { categories?: { name: string; color_hex?: string } | { name: string; color_hex?: string }[] | null }) =>
-        Array.isArray(row.categories) ? row.categories[0] : row.categories,
-      )
+      ?.map((row: CategoryRelation) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
       .filter((category): category is { name: string; color_hex?: string } => Boolean(category)) ?? [];
   const moodImages =
     facilitatorProfile?.facilitator_images
       ?.slice()
-      .sort((a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order)
-      .map((image: { image_path: string; alt_text: string | null }) => ({
+      .sort((a: MoodImage, b: MoodImage) => a.sort_order - b.sort_order)
+      .map((image: MoodImage) => ({
         altText: image.alt_text,
         imagePath: image.image_path,
         url: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,
@@ -62,6 +73,9 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Vært</p>
             <h1 className="text-xl font-semibold text-midnight">Velkommen, {profile.full_name}</h1>
+            {hostReferenceId ? (
+              <p className="mt-1 text-sm font-semibold text-ink/55">Medlemsnummer {hostReferenceId}</p>
+            ) : null}
           </div>
           <SignOutButton />
         </div>
@@ -70,26 +84,22 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-5">
           <AuthMessage message={message} />
-        {hostReferenceId && (
-          <p className="mt-4 inline-flex rounded-md bg-white px-3 py-2 text-sm font-semibold text-ink/65 shadow-soft">
-            Vært-ID {hostReferenceId}
-          </p>
-        )}
         </div>
 
         <section className="rounded-md border border-midnight/10 bg-white p-6 shadow-soft">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-wide text-terracotta">Profilstatus</p>
               <h2 className="mt-2 text-2xl font-semibold text-midnight">
-                {status === "approved" ? "Godkendt" : "Profilgodkendelse"}
+                {status === "approved" ? "Din profil er godkendt" : profileReady ? "Din profil er sendt til godkendelse" : "Profilgodkendelse"}
               </h2>
+
               {!profileReady ? (
-                <div className="mt-2 max-w-3xl rounded-card border border-terracotta/25 bg-terracotta/10 p-4 text-sm leading-6 text-ink/70">
+                <div className="mt-4 rounded-card border border-red-300 bg-red-100 p-5 text-sm leading-6 text-red-950 shadow-soft">
                   <div className="flex items-start gap-3">
-                    <AlertTriangle className="mt-0.5 size-5 text-terracotta" aria-hidden="true" />
+                    <AlertTriangle className="mt-0.5 size-5 shrink-0 text-red-700" aria-hidden="true" />
                     <div>
-                      <h3 className="font-semibold text-midnight">Din profil mangler nogle obligatoriske oplysninger</h3>
+                      <h3 className="font-semibold">Din profil mangler nogle obligatoriske oplysninger</h3>
                       <p className="mt-2">
                         For at kunne oprette og offentliggøre events skal du først færdiggøre din profil.
                       </p>
@@ -104,36 +114,53 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                   </div>
                 </div>
               ) : status === "approved" ? (
-                <div className="mt-2 max-w-3xl rounded-card bg-sage-50 p-4 text-sm leading-6 text-ink/70">
-                  <h3 className="font-semibold text-midnight">🌿 Din profil er klar</h3>
-                  <p className="mt-2">Du kan nu oprette dit første event.</p>
-                  <Link
-                    className="mt-4 inline-flex h-11 items-center gap-2 rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500"
-                    href="/facilitator/events"
-                  >
-                    Opret dit første event
-                    <ArrowRight className="size-4" aria-hidden="true" />
-                  </Link>
+                <div className="mt-4 rounded-card border border-sage-700/25 bg-sage-50 p-5 text-sm leading-6 text-ink/70 shadow-soft">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-sage-700" aria-hidden="true" />
+                    <div>
+                      <h3 className="font-semibold text-midnight">Du er klar som vært på SoulEvents.dk</h3>
+                      <p className="mt-2">Din profil er godkendt, og du kan oprette og administrere events.</p>
+                      {hostReferenceId ? (
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-ink/55">
+                          Medlemsnummer {hostReferenceId}
+                        </p>
+                      ) : null}
+                      <Link
+                        className="mt-4 inline-flex h-11 items-center gap-2 rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500"
+                        href="/facilitator/events"
+                      >
+                        Opret event
+                        <ArrowRight className="size-4" aria-hidden="true" />
+                      </Link>
+                    </div>
+                  </div>
                 </div>
               ) : (
-                <div className="mt-2 max-w-3xl space-y-3 text-sm leading-6 text-ink/65">
-                  <p>En administrator skal godkende din profil, før den vises på SoulEvents.dk.</p>
-                  <p>
-                    Jo mere udfyldt din profil er, desto hurtigere kan vi behandle den. Det hjælper os med at
-                    skabe et trygt og inspirerende fællesskab af værter og events for krop, sind og sjæl.
-                  </p>
-                  <div className="rounded-card bg-sage-50 p-4">
-                    <h3 className="font-semibold text-midnight">🌿 Din profil er klar</h3>
-                    <p className="mt-2">
-                      Du kan nu oprette dit første event, mens vi gennemgår din profil.
-                    </p>
-                    <Link
-                      className="mt-4 inline-flex h-11 items-center gap-2 rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500"
-                      href="/facilitator/events"
-                    >
-                      Opret dit første event
-                      <ArrowRight className="size-4" aria-hidden="true" />
-                    </Link>
+                <div className="mt-4 rounded-card border border-sage-700/25 bg-sage-50 p-5 text-sm leading-6 text-ink/70 shadow-soft">
+                  <div className="flex items-start gap-3">
+                    <Clock3 className="mt-0.5 size-5 shrink-0 text-sage-700" aria-hidden="true" />
+                    <div>
+                      <h3 className="font-semibold text-midnight">Din profil er klar og sendt til godkendelse</h3>
+                      <p className="mt-2">
+                        Tak. Du har udfyldt de obligatoriske oplysninger, og profilen afventer nu godkendelse fra
+                        SoulEvents.dk.
+                      </p>
+                      <p className="mt-2">
+                        Du kan stadig rette din profil eller oprette events, mens vi gennemgår den.
+                      </p>
+                      {hostReferenceId ? (
+                        <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-ink/55">
+                          Medlemsnummer {hostReferenceId}
+                        </p>
+                      ) : null}
+                      <Link
+                        className="mt-4 inline-flex h-11 items-center gap-2 rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500"
+                        href="/facilitator/events"
+                      >
+                        Opret dit første event
+                        <ArrowRight className="size-4" aria-hidden="true" />
+                      </Link>
+                    </div>
                   </div>
                 </div>
               )}
@@ -144,7 +171,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                 name: category.name,
               }))}
               city={facilitatorProfile?.city}
-              introText="Dette er en forhåndsvisning af, hvordan deltagere vil se dig på SoulEvents og på dine events."
+              introText="Dette er en forhåndsvisning af, hvordan deltagere vil se dig på SoulEvents.dk og på dine events."
               moodImages={moodImages}
               profileImageUrl={profileImageUrl}
               profileName={profileName}

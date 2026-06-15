@@ -335,7 +335,6 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, categories, expe
                 <option value="">Alle formater</option>
                 <option value="physical">Fysiske events</option>
                 <option value="online">Online events</option>
-                <option value="hybrid">Hybrid events</option>
               </select>
             </label>
           </section>

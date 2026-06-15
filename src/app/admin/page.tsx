@@ -86,7 +86,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "approved"),
     supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "active").gte("starts_at", today.toISOString()),
-    supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "active").in("event_format", ["online", "hybrid"]).gte("starts_at", today.toISOString()),
+    supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "active").eq("event_format", "online").gte("starts_at", today.toISOString()),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "pending_review"),
     supabase.from("bookings").select("id", { count: "exact", head: true }).gte("created_at", thirtyDaysAgo.toISOString()),
     supabase.from("bookings").select("booking_value_cents, commission_cents, seats"),

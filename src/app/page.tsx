@@ -400,11 +400,9 @@ async function getSearchEvents(selected: {
   }
 
   if (selected.format === "online") {
-    query = query.in("event_format", ["online", "hybrid"]);
+    query = query.eq("event_format", "online");
   } else if (selected.format === "physical") {
     query = query.eq("event_format", "physical");
-  } else if (selected.format === "hybrid") {
-    query = query.eq("event_format", "hybrid");
   }
 
   const { data: events } = await query;
