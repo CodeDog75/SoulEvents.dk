@@ -119,11 +119,17 @@ export async function createEventAction(formData: FormData) {
     eventsRedirect("Færdiggør din profil, før du opretter events.");
   }
 
-  const title = getString(formData, "title");
-  const slug = createSlug(title);
   const status = getString(formData, "status") as EventStatus;
-  const shortDescription = getString(formData, "short_description");
-  const longDescription = getString(formData, "long_description");
+  const isDraft = status === "draft";
+  const rawTitle = getString(formData, "title");
+  const title = rawTitle || (isDraft ? "Kladde uden titel" : "");
+  const slugBase = createSlug(title || "kladde");
+  const eventDescription =
+    getString(formData, "event_description") ||
+    getString(formData, "long_description") ||
+    getString(formData, "short_description");
+  const shortDescription = eventDescription.slice(0, 220);
+  const longDescription = eventDescription;
   const coverImagePath = getOptionalString(formData, "cover_image_path");
   const startsAt = toDateTime(getString(formData, "start_date"), getString(formData, "start_time"));
   const endsAt = toDateTime(getString(formData, "end_date"), getString(formData, "end_time"));
@@ -132,7 +138,8 @@ export async function createEventAction(formData: FormData) {
   const city = getOptionalString(formData, "city");
   let regionId = getOptionalString(formData, "region_id");
   const priceCents = getPriceCents(formData);
-  const capacity = getInteger(formData, "capacity");
+  const rawCapacity = getInteger(formData, "capacity");
+  const capacity = isDraft && rawCapacity <= 0 ? 1 : rawCapacity;
   const contactEmail = getOptionalString(formData, "contact_email");
   const contactPhone = getOptionalString(formData, "contact_phone");
   const facebookUrl = getOptionalString(formData, "facebook_url");
@@ -151,27 +158,27 @@ export async function createEventAction(formData: FormData) {
   const imagePaths = getAllStrings(formData, "event_image_paths");
   const imageAlts = getAllStrings(formData, "event_alt_texts");
 
-  if (!title || !slug) {
-    eventsRedirect("Titel er påkrævet.");
-  }
-
   if (!allowedStatuses.includes(status)) {
     eventsRedirect("Ugyldig eventstatus.");
   }
 
-  if (!shortDescription || shortDescription.length < 20) {
-    eventsRedirect("Kort beskrivelse skal være mindst 20 tegn.");
+  if (!isDraft && (!rawTitle || !slugBase)) {
+    eventsRedirect("Titel er påkrævet.");
   }
 
-  if (!longDescription || longDescription.length < 60) {
-    eventsRedirect("Lang beskrivelse skal være mindst 60 tegn.");
+  if (!isDraft && (!eventDescription || eventDescription.length < 20)) {
+    eventsRedirect("Beskrivelse af event skal være mindst 20 tegn.");
+  }
+
+  if (eventDescription.length > 2000) {
+    eventsRedirect("Beskrivelse af event må højst være 2000 tegn.");
   }
 
   if (!startsAt || !endsAt || new Date(endsAt) <= new Date(startsAt)) {
     eventsRedirect("Sluttidspunkt skal være efter starttidspunkt.");
   }
 
-  if (capacity <= 0) {
+  if (!isDraft && capacity <= 0) {
     eventsRedirect("Kapacitet skal være mindst 1.");
   }
 
@@ -184,16 +191,15 @@ export async function createEventAction(formData: FormData) {
     }
   }
 
-  if (eventFormat === "physical" && !regionId) {
+  if (!isDraft && eventFormat === "physical" && !regionId) {
     eventsRedirect("Region er påkrævet for fysiske events.");
   }
 
-  if (eventFormat === "physical" && !regionId) {
-    eventsRedirect("Region er påkrævet for fysiske events.");
-  }
-
+  const hasAddressForGeocoding = Boolean(addressLine && postalCode && city);
   const coordinates =
-    eventFormat === "online" ? null : await geocodeDanishAddress({ addressLine, postalCode, city });
+    eventFormat === "online" || !hasAddressForGeocoding
+      ? null
+      : await geocodeDanishAddress({ addressLine, postalCode, city });
 
   const { data: event, error: eventError } = await supabase
     .from("events")
@@ -201,7 +207,7 @@ export async function createEventAction(formData: FormData) {
       facilitator_id: facilitatorProfile.id,
       status,
       title,
-      slug,
+      slug: await createUniqueEventSlug(supabase, slugBase),
       short_description: shortDescription,
       long_description: longDescription,
       cover_image_path: coverImagePath,
@@ -224,7 +230,13 @@ export async function createEventAction(formData: FormData) {
     .single();
 
   if (eventError || !event) {
-    eventsRedirect("Eventet kunne ikke oprettes. Prøv igen.");
+    console.error("Event insert error", eventError);
+    const errorMessage = eventError?.message ? ": " + eventError.message : "";
+    eventsRedirect(
+      isDraft
+        ? "Kladde kunne ikke gemmes" + errorMessage
+        : "Eventet kunne ikke oprettes" + errorMessage,
+    );
   }
 
   if (mainCategoryIds.length > 0) {
@@ -284,7 +296,7 @@ export async function createEventAction(formData: FormData) {
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/events");
-  eventsRedirect("Eventet er oprettet.");
+  eventsRedirect(isDraft ? "Kladde er gemt." : "Eventet er oprettet.");
 }
 
 export async function updateEventStatusAction(formData: FormData) {
