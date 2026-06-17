@@ -2,7 +2,6 @@ import Link from "next/link";
 import { AlertTriangle, ArrowLeft, CalendarPlus } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { EventForm } from "@/components/facilitator/events/event-form";
-import { EventList } from "@/components/facilitator/events/event-list";
 import { requireRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -10,12 +9,13 @@ export const dynamic = "force-dynamic";
 
 type FacilitatorEventsPageProps = {
   searchParams: Promise<{
+    draft?: string;
     message?: string;
   }>;
 };
 
 export default async function FacilitatorEventsPage({ searchParams }: FacilitatorEventsPageProps) {
-  const [{ message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const [{ draft, message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
   const supabase = await createClient();
 
   const [
@@ -44,13 +44,17 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
     supabase.from("tags").select("id, name").eq("is_active", true).order("sort_order"),
   ]);
 
-  const { data: events } = facilitatorProfile
-    ? await supabase
-        .from("events")
-        .select("id, title, status, starts_at, city, price_cents, capacity, event_categories(categories(name))")
-        .eq("facilitator_id", facilitatorProfile.id)
-        .order("starts_at", { ascending: true })
-    : { data: [] };
+
+  const { data: selectedDraft } =
+    draft && facilitatorProfile
+      ? await supabase
+          .from("events")
+          .select("*, event_categories(category_id), event_main_categories(main_category_id), event_subcategories(subcategory_id), event_tags(tag_id), event_images(image_path, alt_text, sort_order)")
+          .eq("id", draft)
+          .eq("facilitator_id", facilitatorProfile.id)
+          .in("status", ["draft", "active", "pending_review"])
+          .maybeSingle()
+      : { data: null };
 
   const contactProfile = Array.isArray(facilitatorProfile?.profiles)
     ? facilitatorProfile?.profiles[0]
@@ -116,10 +120,21 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
           </section>
         ) : null}
 
-        <EventList events={(events ?? []) as never} />
-
         {facilitatorProfile && profileReady && (
           <EventForm
+            draftEvent={
+              selectedDraft
+                ? {
+                    ...selectedDraft,
+                    categoryIds: selectedDraft.event_categories?.map((row: any) => row.category_id) ?? [],
+                    imageAlts: selectedDraft.event_images?.map((row: any) => row.alt_text ?? "") ?? [],
+                    imagePaths: selectedDraft.event_images?.map((row: any) => row.image_path) ?? [],
+                    mainCategoryIds: selectedDraft.event_main_categories?.map((row: any) => row.main_category_id) ?? [],
+                    subcategoryIds: selectedDraft.event_subcategories?.map((row: any) => row.subcategory_id) ?? [],
+                    tagIds: selectedDraft.event_tags?.map((row: any) => row.tag_id) ?? [],
+                  }
+                : null
+            }
             categories={categories ?? []}
             mainCategories={mainCategories ?? []}
             subcategories={(subcategories ?? []).map((subcategory: any) => ({ id: subcategory.id, name: subcategory.name, mainCategoryIds: (subcategory.subcategory_main_categories ?? []).map((row: any) => row.main_category_id) }))}

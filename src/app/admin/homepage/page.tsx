@@ -49,7 +49,7 @@ function tileTypeLabel(type: string) {
 
 function LogoForm({ logoPath, logoUrl }: { logoPath: string | null; logoUrl: string | null }) {
   return (
-    <details className="overflow-hidden rounded-card border border-midnight/10 bg-white shadow-soft" id="logo" open>
+    <details className="overflow-hidden rounded-card border border-midnight/10 bg-white shadow-soft" id="logo" open suppressHydrationWarning>
       <summary className="cursor-pointer list-none border-b border-midnight/10 bg-[#FAF6EF] px-5 py-4 marker:hidden sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -109,7 +109,7 @@ function TileForm({ tile, title }: { tile?: Tile; title: string }) {
   const isNew = !tile;
 
   return (
-    <details className={"overflow-hidden rounded-card border shadow-soft " + (!active ? "border-stone-300 bg-stone-50/80 opacity-85" : "border-midnight/10 bg-white")}>
+    <details className={"overflow-hidden rounded-card border shadow-soft " + (!active ? "border-stone-300 bg-stone-50/80 opacity-85" : "border-midnight/10 bg-white")} suppressHydrationWarning>
       <summary className="cursor-pointer list-none border-b border-midnight/10 bg-[#FAF6EF] px-5 py-4 marker:hidden sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

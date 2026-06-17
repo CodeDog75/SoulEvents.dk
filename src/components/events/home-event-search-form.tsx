@@ -28,6 +28,7 @@ type HomeEventSearchFormProps = {
     latitude: string;
     longitude: string;
     format?: string;
+    country?: string;
   };
 };
 
@@ -140,7 +141,7 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, categories, expe
     const latitude = formData.get("latitude");
     const longitude = formData.get("longitude");
 
-    for (const key of ["q", "area", "category_label", "date", "format"]) {
+    for (const key of ["q", "area", "category_label", "date", "format", "country"]) {
       const value = formData.get(key);
 
       if (typeof value === "string" && value.trim()) {
@@ -301,7 +302,7 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, categories, expe
 
       <details
         className="mt-6 rounded-[1.25rem] border border-[#7A4EAB]/12 bg-white/62 p-4"
-        open={Boolean(selected.q || selected.date || selected.format)}
+        open={Boolean(selected.q || selected.date || selected.format || selected.country)}
       >
         <summary className="cursor-pointer list-none text-sm font-semibold text-[#7A4EAB] marker:hidden">
           Avanceret søgning

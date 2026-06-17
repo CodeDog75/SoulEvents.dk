@@ -37,12 +37,45 @@ type Subcategory = Category & {
 };
 type Tag = Category;
 
+type DraftEvent = {
+  id: string;
+  title?: string | null;
+  short_description?: string | null;
+  long_description?: string | null;
+  cover_image_path?: string | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  address_line?: string | null;
+  postal_code?: string | null;
+  city?: string | null;
+  country?: string | null;
+  region_id?: string | null;
+  price_cents?: number | null;
+  capacity?: number | null;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  facebook_url?: string | null;
+  instagram_url?: string | null;
+  event_format?: "physical" | "online" | null;
+  online_description?: string | null;
+  online_url_or_note?: string | null;
+  practical_information?: string | null;
+  categoryIds?: string[];
+  imageAlts?: string[];
+  imagePaths?: string[];
+  mainCategoryIds?: string[];
+  subcategoryIds?: string[];
+  tagIds?: string[];
+};
+
 type EventFormProps = {
   regions: Region[];
   categories: Category[];
   mainCategories?: MainCategory[];
   subcategories?: Subcategory[];
   tags?: Tag[];
+  draftEvent?: DraftEvent | null;
   facilitator: {
     contactEmail: string;
     contactPhone: string | null;
@@ -61,6 +94,13 @@ type Step = {
 
 function value(input: string | number | null | undefined) {
   return input === null || input === undefined ? "" : String(input);
+}
+
+function fieldStateClass(value: string, options: { auto?: boolean; error?: boolean } = {}) {
+  if (options.error) return "border-[#D97A7A] bg-[#FFF3F3]";
+  if (value.trim()) return "border-[#D7C4F0] bg-[#F8F3FF]";
+  if (options.auto) return "border-[#D7C4F0] bg-[#F8F3FF]";
+  return "border-midnight/15 bg-white";
 }
 
 function openNativePicker(input: HTMLInputElement) {
@@ -96,6 +136,7 @@ function TimeSelect({
   value?: string;
   onChange?: (value: string) => void;
 }) {
+
   return (
     <label className="grid gap-2 text-sm font-medium text-ink/72">
       <span>
@@ -234,6 +275,7 @@ function TextInput({
   type = "text",
   placeholder,
   help,
+  maxLength,
   step,
 }: {
   label: string;
@@ -243,8 +285,11 @@ function TextInput({
   type?: string;
   placeholder?: string;
   help?: string;
+  maxLength?: number;
   step?: string;
 }) {
+  const [inputCharacterCount, setInputCharacterCount] = useState(defaultValue?.length ?? 0);
+
   return (
     <label className="grid gap-2 text-sm font-medium text-ink/72">
       <span>
@@ -254,12 +299,19 @@ function TextInput({
       <input
         className="h-12 w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:bg-[#F8F3FF] required:valid:border-[#D7C4F0] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
         defaultValue={defaultValue}
+        maxLength={maxLength}
         name={name}
+        onInput={(event) => setInputCharacterCount(event.currentTarget.value.length)}
         placeholder={placeholder}
         step={step}
         type={type}
       />
       {help ? <span className="text-xs leading-5 text-ink/52">{help}</span> : null}
+      {maxLength ? (
+        <span className="text-xs font-semibold text-[#7A4EAB]">
+          {inputCharacterCount} / {maxLength} tegn
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -269,6 +321,7 @@ function TextArea({
   name,
   placeholder,
   required,
+  defaultValue,
   minHeight = "min-h-28",
   help,
 }: {
@@ -276,6 +329,7 @@ function TextArea({
   name: string;
   placeholder?: string;
   required?: boolean;
+  defaultValue?: string;
   minHeight?: string;
   help?: string;
 }) {
@@ -287,6 +341,7 @@ function TextArea({
       </span>
       <textarea
         className={minHeight + " w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:bg-[#F8F3FF] required:valid:border-[#D7C4F0] p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"}
+        defaultValue={defaultValue}
         name={name}
         placeholder={placeholder}
       />
@@ -295,8 +350,8 @@ function TextArea({
   );
 }
 
-function EventDescriptionField() {
-  const [characterCount, setCharacterCount] = useState(0);
+function EventDescriptionField({ defaultValue = "" }: { defaultValue?: string }) {
+  const [characterCount, setCharacterCount] = useState(defaultValue.length);
   const remainingCharacters = maxEventDescriptionLength - characterCount;
   const isAtLimit = remainingCharacters <= 0;
 
@@ -308,6 +363,7 @@ function EventDescriptionField() {
       <textarea
         className="min-h-40 w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:!bg-[#F0E3FF] required:valid:!border-[#B894D6] p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
         maxLength={maxEventDescriptionLength}
+        defaultValue={defaultValue}
         name="event_description"
         onInput={(event) => setCharacterCount(event.currentTarget.value.length)}
         placeholder="Vi mødes til en rolig aften med guidet meditation, nærvær og fællesskab. Eventet er åbent for både begyndere og øvede. Medbring gerne en yogamåtte og behageligt tøj."
@@ -339,10 +395,16 @@ function CheckboxPill({
   return (
     <label className="flex items-center gap-3 rounded-card border border-[#E5D4F7] bg-white p-3 text-sm font-medium text-ink/75 shadow-soft transition hover:border-[#7A4EAB]/40 hover:bg-[#F6EFFF]">
       <input
-        checked={checked}
+        {...(onChange
+          ? {
+              checked,
+              onChange: (event) => onChange(event.target.checked),
+            }
+          : {
+              defaultChecked: checked,
+            })}
         className="size-4 accent-[#7A4EAB]"
         name={name}
-        onChange={onChange ? (event) => onChange(event.target.checked) : undefined}
         type="checkbox"
         value={value}
       />
@@ -368,27 +430,37 @@ export function EventForm({
   mainCategories = [],
   subcategories = [],
   tags = [],
+  draftEvent = null,
   facilitator,
 }: EventFormProps) {
   const today = new Date().toISOString().slice(0, 10);
+  const draftStart = draftEvent?.starts_at ? new Date(draftEvent.starts_at) : null;
+  const draftEnd = draftEvent?.ends_at ? new Date(draftEvent.ends_at) : null;
+  const draftStartDate = draftStart ? draftStart.toISOString().slice(0, 10) : today;
+  const draftEndDate = draftEnd ? draftEnd.toISOString().slice(0, 10) : draftStartDate;
+  const draftStartTime = draftStart ? draftStart.toISOString().slice(11, 16) : "19:00";
+  const draftEndTime = draftEnd ? draftEnd.toISOString().slice(11, 16) : "21:00";
   const formRef = useRef<HTMLFormElement | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
-  const [startTime, setStartTime] = useState("19:00");
-  const [endTime, setEndTime] = useState("21:00");
-  const [postalCode, setPostalCode] = useState(value(facilitator.postalCode));
-  const [city, setCity] = useState(value(facilitator.city));
-  const [regionId, setRegionId] = useState(value(facilitator.regionId));
+  const [startDate, setStartDate] = useState(draftStartDate);
+  const [endDate, setEndDate] = useState(draftEndDate);
+  const [startTime, setStartTime] = useState(draftStartTime);
+  const [endTime, setEndTime] = useState(draftEndTime);
+  const [postalCode, setPostalCode] = useState(value(draftEvent?.postal_code ?? facilitator.postalCode));
+  const [city, setCity] = useState(value(draftEvent?.city ?? facilitator.city));
+  const [country, setCountry] = useState(value(draftEvent?.country ?? "Danmark") || "Danmark");
+  const [regionId, setRegionId] = useState(value(draftEvent?.region_id ?? facilitator.regionId));
   const [postalCodeMessage, setPostalCodeMessage] = useState("");
-  const [eventFormat, setEventFormat] = useState<"physical" | "online">("physical");
-  const [isFree, setIsFree] = useState(false);
-  const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState<string[]>([]);
+  const [eventFormat, setEventFormat] = useState<"physical" | "online">(draftEvent?.event_format === "online" ? "online" : "physical");
+  const [isFree, setIsFree] = useState((draftEvent?.price_cents ?? 0) === 0);
+  const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState<string[]>(draftEvent?.mainCategoryIds ?? []);
   const [preview, setPreview] = useState<{ title: string; teaser: string; format: string; price: string } | null>(null);
   const [hasAutosavedDraft, setHasAutosavedDraft] = useState(false);
   const [autosaveMessage, setAutosaveMessage] = useState("");
   const showAddress = eventFormat === "physical";
   const showOnline = eventFormat === "online";
+  const isDanishPhysicalEvent = showAddress && country.trim().toLowerCase() === "danmark";
+  const selectedRegionName = regions.find((region) => region.id === regionId)?.name ?? "";
   const relevantSubcategories = subcategories.filter((subcategory) => {
     if (selectedMainCategoryIds.length === 0) return false;
     if (!subcategory.mainCategoryIds || subcategory.mainCategoryIds.length === 0) return false;
@@ -487,6 +559,12 @@ export function EventForm({
   }
 
   function handlePostalCodeChange(nextValue: string) {
+    if (country.trim().toLowerCase() !== "danmark") {
+      setPostalCode(nextValue);
+      setPostalCodeMessage("");
+      return;
+    }
+
     const normalizedPostalCode = nextValue.replace(/\D/g, "").slice(0, 4);
     setPostalCode(normalizedPostalCode);
 
@@ -577,6 +655,7 @@ export function EventForm({
         fields,
         state: {
           city,
+          country,
           endDate,
           endTime,
           eventFormat,
@@ -608,6 +687,7 @@ export function EventForm({
     setEndTime(draft.state?.endTime ?? "21:00");
     setPostalCode(draft.state?.postalCode ?? "");
     setCity(draft.state?.city ?? "");
+    setCountry(draft.state?.country ?? "Danmark");
     setRegionId(draft.state?.regionId ?? "");
     setEventFormat(draft.state?.eventFormat === "online" ? "online" : "physical");
     setIsFree(Boolean(draft.state?.isFree));
@@ -667,7 +747,7 @@ export function EventForm({
   useEffect(() => {
     const timeout = window.setTimeout(writeDraft, 350);
     return () => window.clearTimeout(timeout);
-  }, [city, endDate, endTime, eventFormat, isFree, postalCode, regionId, selectedMainCategoryIds, startDate, startTime]);
+  }, [city, country, endDate, endTime, eventFormat, isFree, postalCode, regionId, selectedMainCategoryIds, startDate, startTime]);
 
   return (
     <form
@@ -678,6 +758,7 @@ export function EventForm({
       onInput={writeDraft}
       ref={formRef}
     >
+      {draftEvent?.id ? <input name="event_id" type="hidden" value={draftEvent.id} /> : null}
       <section className="w-full max-w-full overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:p-5">
         <div className="grid gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">
@@ -705,7 +786,7 @@ export function EventForm({
 
       <section className={currentStep === 0 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <div className="grid gap-4 md:grid-cols-2">
-          <TextInput label="Eventtitel" name="title" placeholder="Fx Fuldmåneceremoni og ro i skoven" required />
+          <TextInput defaultValue={value(draftEvent?.title)} label="Eventtitel" maxLength={80} name="title" placeholder="Fx Fuldmåneceremoni og ro i skoven" required />
           <label className="grid gap-2 text-sm font-medium text-ink/72">
             <span>
               Startdato<span className="ml-1 text-[#B56F8A]">*</span>
@@ -747,92 +828,168 @@ export function EventForm({
             </div>
           )}
         </div>
-        <EventDescriptionField />
+        <EventDescriptionField defaultValue={value(draftEvent?.long_description || draftEvent?.short_description)} />
       </section>
 
       <section className={currentStep === 1 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <div>
           <p className="text-sm font-semibold text-midnight">Hvordan foregår eventet?</p>
-          <p className="mt-1 text-sm leading-6 text-ink/64">Vælg fysisk event, hvis deltageren skal møde op på en adresse. Vælg online event, hvis det foregår digitalt.</p>
+          <p className="mt-1 text-sm leading-6 text-ink/64">
+            Vælg fysisk event, hvis deltageren skal møde op på en adresse. Vælg online event, hvis det foregår digitalt.
+          </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {[
-              { value: "physical", label: "Fysisk event", help: "Adresse og fremmøde." },
-              { value: "online", label: "Online event", help: "Via link eller online møderum." },
-            ].map((option) => (
-              <label className="grid gap-2 rounded-card border border-[#E5D4F7] bg-white p-4 text-sm font-semibold text-midnight shadow-soft" key={option.value}>
-                <span className="flex items-center gap-3">
-                  <input
-                    checked={eventFormat === option.value}
-                    className="size-4 accent-[#7A4EAB]"
-                    name="event_format"
-                    onChange={() => setEventFormat(option.value as "physical" | "online")}
-                    type="radio"
-                    value={option.value}
-                  />
-                  {option.label}
-                </span>
-                <span className="text-xs font-normal leading-5 text-ink/55">{option.help}</span>
-              </label>
-            ))}
+              { value: "physical", label: "Fysisk event", help: "Adresse og fremmøde.", icon: MapPin },
+              { value: "online", label: "Online event", help: "Via link eller online møderum.", icon: MonitorSmartphone },
+            ].map((option) => {
+              const selected = eventFormat === option.value;
+              const Icon = option.icon;
+
+              return (
+                <label
+                  className={
+                    "grid cursor-pointer gap-2 rounded-card p-4 text-sm font-semibold transition shadow-soft " +
+                    (selected
+                      ? "border-2 border-[#7A4EAB] bg-[#F6EFFF] text-midnight"
+                      : "border border-midnight/15 bg-white text-midnight hover:border-[#D7C4F0] hover:bg-[#FBF7FF]")
+                  }
+                  key={option.value}
+                >
+                  <span className="flex items-center gap-3">
+                    <input
+                      checked={selected}
+                      className="size-4 accent-[#7A4EAB]"
+                      name="event_format"
+                      onChange={() => setEventFormat(option.value as "physical" | "online")}
+                      type="radio"
+                      value={option.value}
+                    />
+                    <span
+                      className={
+                        "grid size-10 place-items-center rounded-full " +
+                        (selected ? "bg-[#EDE4F7] text-[#7A4EAB]" : "bg-stone-100 text-ink/45")
+                      }
+                    >
+                      <Icon className="size-5" aria-hidden="true" />
+                    </span>
+                    <span>{option.label}</span>
+                  </span>
+                  <span className="text-xs font-normal leading-5 text-ink/55">{option.help}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
         {showAddress ? (
           <div className="grid gap-4 md:grid-cols-2">
-            <TextInput defaultValue={value(facilitator.addressLine)} label="Adresse" name="address_line" required />
+            <TextInput defaultValue={value(draftEvent?.address_line ?? facilitator.addressLine)} label="Adresse" name="address_line" required />
+
             <label className="grid gap-2 text-sm font-medium text-ink/72">
-              <span>Postnummer<span className="ml-1 text-[#B56F8A]">*</span></span>
+              <span>
+                Land<span className="ml-1 text-[#B56F8A]">*</span>
+              </span>
               <input
-                className="h-12 w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:bg-[#F8F3FF] required:valid:border-[#D7C4F0] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
-                inputMode="numeric"
-                maxLength={4}
-                name="postal_code"
+                className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(country)}
+                name="country"
+                onChange={(event) => setCountry(event.target.value)}
                 required
-                onChange={(event) => handlePostalCodeChange(event.target.value)}
-                pattern="[0-9]{4}"
+                value={country}
+              />
+              <span className="text-xs leading-5 text-ink/52">Skriv Danmark for danske events. Ved udenlandske retreats kan du skrive landet her.</span>
+            </label>
+
+            <label className="grid gap-2 text-sm font-medium text-ink/72">
+              <span>
+                {isDanishPhysicalEvent ? "Postnummer" : "Postnummer / ZIP"}<span className="ml-1 text-[#B56F8A]">*</span>
+              </span>
+              <input
+                className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(postalCode, { error: isDanishPhysicalEvent && postalCode.length > 0 && postalCode.length < 4 })}
+                inputMode={isDanishPhysicalEvent ? "numeric" : "text"}
+                maxLength={isDanishPhysicalEvent ? 4 : undefined}
+                name="postal_code"
+                onChange={(event) => (isDanishPhysicalEvent ? handlePostalCodeChange(event.target.value) : setPostalCode(event.target.value))}
+                pattern={isDanishPhysicalEvent ? "[0-9]{4}" : undefined}
+                required
                 value={postalCode}
               />
-              <span className="text-xs leading-5 text-ink/52">By og region opdateres automatisk, når postnummeret er gyldigt.</span>
+              <span className="text-xs leading-5 text-ink/52">
+                {isDanishPhysicalEvent
+                  ? "By og område opdateres automatisk, når postnummeret er gyldigt."
+                  : "For events uden for Danmark bruges postnummer/ZIP kun sammen med adresse, by og land."}
+              </span>
             </label>
+
             <label className="grid gap-2 text-sm font-medium text-ink/72">
-              <span>By<span className="ml-1 text-[#B56F8A]">*</span></span>
+              <span>
+                By<span className="ml-1 text-[#B56F8A]">*</span>
+              </span>
               <input
-                className="h-12 w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:bg-[#F8F3FF] required:valid:border-[#D7C4F0] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
+                className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(city, { auto: isDanishPhysicalEvent && Boolean(city) })}
                 name="city"
-                required
                 onChange={(event) => setCity(event.target.value)}
+                readOnly={isDanishPhysicalEvent}
+                required
                 value={city}
               />
-              {postalCodeMessage ? <span className="text-xs leading-5 text-[#7A4EAB]">{postalCodeMessage}</span> : null}
+              {postalCodeMessage && isDanishPhysicalEvent ? <span className="text-xs leading-5 text-[#7A4EAB]">{postalCodeMessage}</span> : null}
             </label>
-            <TextInput defaultValue="Danmark" label="Land" name="country" required />
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
-              <span>Region<span className="ml-1 text-[#B56F8A]">*</span></span>
-              <select
-                className="h-12 w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:bg-[#F8F3FF] required:valid:border-[#D7C4F0] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
-                name="region_id"
-                required
-                onChange={(event) => setRegionId(event.target.value)}
-                value={regionId}
-              >
-                <option value="">Vælg region</option>
-                {regions.map((region) => (
-                  <option key={region.id} value={region.id}>{region.name}</option>
-                ))}
-              </select>
-            </label>
+
+            {isDanishPhysicalEvent ? (
+              <div className="grid gap-2 text-sm font-medium text-ink/72">
+                <span>Område</span>
+                <input name="region_id" type="hidden" value={regionId} />
+                <div className="flex min-h-12 items-center rounded-card border border-[#D7C4F0] bg-[#F8F3FF] px-4 text-base text-ink">
+                  {selectedRegionName || "Område beregnes automatisk ud fra postnummer"}
+                </div>
+                <span className="text-xs leading-5 text-ink/52">Område styres automatisk ud fra postnummer, så eventet vises korrekt i søgning og på kort.</span>
+              </div>
+            ) : (
+              <TextInput label="Region / område" name="foreign_region" placeholder="Fx Skåne, Mallorca eller Bali" help="Valgfrit. Bruges kun som ekstra lokationshjælp ved events uden for Danmark." />
+            )}
           </div>
         ) : null}
         {showOnline ? (
           <div className="grid gap-4 md:grid-cols-2">
-            <TextArea label="Online-link eller tekst" name="online_url_or_note" placeholder="Zoom-link, Teams-link eller tekst om at link sendes senere." />
-            <TextArea label="Hvordan får deltageren adgang?" name="online_description" placeholder="Fx Link til online møderum sendes efter tilmelding." />
+            <TextArea
+              defaultValue={value(draftEvent?.online_url_or_note)}
+              help="Linket deles kun med tilmeldte deltagere, hvis du ønsker det."
+              label="Online-link / møderum"
+              name="online_url_or_note"
+              placeholder="Zoom-link, Teams-link eller tekst om at link sendes senere."
+            />
+            <label className="grid gap-2 text-sm font-medium text-ink/72">
+              <span>Platform</span>
+              <select
+                className="h-12 w-full min-w-0 rounded-card border border-midnight/15 bg-white px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA]"
+                name="online_platform"
+              >
+                <option value="">Vælg platform, hvis du vil</option>
+                <option value="Zoom">Zoom</option>
+                <option value="Teams">Teams</option>
+                <option value="Google Meet">Google Meet</option>
+                <option value="Andet">Andet</option>
+              </select>
+            </label>
+            <div className="md:col-span-2">
+              <TextArea
+                defaultValue={value(draftEvent?.online_description)}
+                label="Hvordan får deltageren adgang?"
+                name="online_description"
+                placeholder="Fx Link til online møderum sendes efter tilmelding."
+              />
+            </div>
           </div>
         ) : null}
         <Tip>
-          <p>Hvis adressen er privat, kan du nøjes med by og praktisk information. Deltageren kan få den præcise adresse efter bekræftelse.</p>
+          {showOnline ? (
+            <p>Fortæl deltageren, om linket sendes efter tilmelding, eller om de får adgang via et fast møderum. Skriv også gerne, hvis de skal bruge kamera, headset eller have ro omkring sig.</p>
+          ) : isDanishPhysicalEvent ? (
+            <p>By og område beregnes automatisk ud fra postnummeret, så eventet bliver vist korrekt i søgning og på kort.</p>
+          ) : (
+            <p>Ved events uden for Danmark bruges adresse, by og land til at finde placeringen på kortet. Hvis kortet ikke rammer rigtigt, kan du justere adressen før publicering.</p>
+          )}
         </Tip>
       </section>
-
       <section className={currentStep === 2 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <details className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4">
           <summary className="cursor-pointer list-none text-sm font-semibold text-[#7A4EAB] [&::-webkit-details-marker]:hidden">
@@ -841,6 +998,7 @@ export function EventForm({
           <div className="mt-4">
             <TextArea
               label="Særlige oplysninger til deltagere"
+              defaultValue={value(draftEvent?.practical_information)}
               name="practical_information"
               placeholder="Medbring yogamåtte. Kom i behageligt tøj. Dørene åbner 15 minutter før."
               help="Valgfrit. Brug kun feltet, hvis der er noget praktisk deltageren skal vide."
@@ -851,6 +1009,7 @@ export function EventForm({
 
       <section className={currentStep === 2 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <TextInput
+          defaultValue={value(draftEvent?.cover_image_path)}
           label="Eventbillede"
           name="cover_image_path"
           placeholder="events/forside.jpg"
@@ -869,8 +1028,8 @@ export function EventForm({
           <div className="mt-4 grid gap-4">
             {Array.from({ length: 3 }, (_, index) => (
               <div className="grid gap-3 rounded-md border border-[#E5D4F7] bg-white p-4 md:grid-cols-2" key={index}>
-                <TextInput label={"Galleri-billede " + (index + 1)} name="event_image_paths" placeholder="events/galleri.jpg" />
-                <TextInput label="Billedtekst" name="event_alt_texts" placeholder="Fx Meditation i lyse omgivelser" />
+                <TextInput defaultValue={draftEvent?.imagePaths?.[index] ?? ""} label={"Galleri-billede " + (index + 1)} name="event_image_paths" placeholder="events/galleri.jpg" />
+                <TextInput defaultValue={draftEvent?.imageAlts?.[index] ?? ""} label="Billedtekst" name="event_alt_texts" placeholder="Fx Meditation i lyse omgivelser" />
               </div>
             ))}
           </div>
@@ -908,7 +1067,7 @@ export function EventForm({
           ) : relevantSubcategories.length > 0 ? (
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {relevantSubcategories.map((subcategory) => (
-                <CheckboxPill key={subcategory.id} label={subcategory.name} name="subcategory_ids" value={subcategory.id} />
+                <CheckboxPill checked={draftEvent?.subcategoryIds?.includes(subcategory.id)} key={subcategory.id} label={subcategory.name} name="subcategory_ids" value={subcategory.id} />
               ))}
             </div>
           ) : (
@@ -923,7 +1082,7 @@ export function EventForm({
             <p className="mt-1 text-sm leading-6 text-ink/64">Tags er ekstra filtre som begynder, gratis, weekend eller udendørs.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {tags.map((tag) => (
-                <CheckboxPill key={tag.id} label={tag.name} name="tag_ids" value={tag.id} />
+                <CheckboxPill checked={draftEvent?.tagIds?.includes(tag.id)} key={tag.id} label={tag.name} name="tag_ids" value={tag.id} />
               ))}
             </div>
           </div>
@@ -935,8 +1094,8 @@ export function EventForm({
 
       <section className={currentStep === 3 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <div className="grid gap-4 md:grid-cols-3">
-          <TextInput defaultValue={isFree ? "0" : "0"} label="Pris i kr." name="price" type="number" help="Skriv 0 hvis eventet er gratis." />
-          <TextInput defaultValue="12" label="Maks. antal deltagere" name="capacity" type="number" />
+          <TextInput defaultValue={String((draftEvent?.price_cents ?? 0) / 100)} label="Pris i kr." name="price" type="number" help="Skriv 0 hvis eventet er gratis." />
+          <TextInput defaultValue={String(draftEvent?.capacity ?? 12)} label="Maks. antal deltagere" name="capacity" type="number" />
           <label className="flex h-12 items-center gap-3 rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-3 text-sm font-semibold text-midnight">
             <input checked={isFree} className="size-4 accent-[#7A4EAB]" onChange={(event) => setIsFree(event.target.checked)} type="checkbox" />
             Gratis event
@@ -946,11 +1105,11 @@ export function EventForm({
 
       <section className={currentStep === 4 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <div className="grid gap-4 md:grid-cols-2">
-          <TextInput label="Kontaktperson" name="contact_name" placeholder="Navn på kontaktperson" />
-          <TextInput defaultValue={facilitator.contactEmail} label="E-mail" name="contact_email" type="email" />
-          <TextInput defaultValue={value(facilitator.contactPhone)} label="Telefonnummer" name="contact_phone" />
-          <TextInput label="Facebook" name="facebook_url" type="url" />
-          <TextInput label="Instagram" name="instagram_url" type="url" />
+          <TextInput defaultValue={value(draftEvent?.contact_name)} label="Kontaktperson" name="contact_name" placeholder="Navn på kontaktperson" />
+          <TextInput defaultValue={value(draftEvent?.contact_email ?? facilitator.contactEmail)} label="E-mail" name="contact_email" type="email" />
+          <TextInput defaultValue={value(draftEvent?.contact_phone ?? facilitator.contactPhone)} label="Telefonnummer" name="contact_phone" />
+          <TextInput defaultValue={value(draftEvent?.facebook_url)} label="Facebook" name="facebook_url" type="url" />
+          <TextInput defaultValue={value(draftEvent?.instagram_url)} label="Instagram" name="instagram_url" type="url" />
         </div>
         {preview && (
           <article className="rounded-card bg-[#FAF6EF] p-5">

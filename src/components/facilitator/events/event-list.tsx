@@ -1,5 +1,6 @@
-import { Clock3, Eye, PauseCircle, XCircle } from "lucide-react";
-import { updateEventStatusAction } from "@/app/facilitator/events/actions";
+import Link from "next/link";
+import { Clock3, Copy, Eye, PauseCircle, PencilLine, XCircle } from "lucide-react";
+import { copyEventAsDraftAction, deleteDraftEventAction, updateEventStatusAction } from "@/app/facilitator/events/actions";
 import type { EventStatus } from "@/types/database";
 
 type EventRow = {
@@ -10,6 +11,7 @@ type EventRow = {
   city: string | null;
   price_cents: number;
   capacity: number;
+  event_reference_id?: string | null;
   event_categories?: Array<{
     categories: {
       name: string;
@@ -69,8 +71,8 @@ export function EventList({ events }: EventListProps) {
   return (
     <section className="w-full max-w-full overflow-hidden rounded-card border border-midnight/10 bg-white shadow-soft">
       <div className="border-b border-midnight/10 px-4 py-4 sm:px-5">
-        <h2 className="text-lg font-semibold text-midnight">Dine events</h2>
-        <p className="mt-1 text-sm text-ink/64">Administrer status for begivenheder.</p>
+        <h2 className="text-lg font-semibold text-midnight">Mine events</h2>
+        <p className="mt-1 text-sm text-ink/64">Se og administrer dine kladder, aktive og aflyste events.</p>
       </div>
 
       <div className="divide-y divide-midnight/10">
@@ -88,6 +90,7 @@ export function EventList({ events }: EventListProps) {
                   </span>
                   <span>{new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.starts_at))}</span>
                   {event.city && <span>{event.city}</span>}
+                  {event.event_reference_id ? <span>Ref. {event.event_reference_id}</span> : null}
                 </div>
                 <h3 className="mt-3 break-words text-base font-semibold text-midnight sm:text-lg">{event.title}</h3>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-ink/68">
@@ -104,6 +107,48 @@ export function EventList({ events }: EventListProps) {
               </div>
 
               <div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:content-start lg:justify-end">
+                {event.status === "draft" && (
+                  <Link
+                    className="inline-flex min-h-10 w-full max-w-full items-center justify-center gap-2 whitespace-normal rounded-md bg-[#7A4EAB] px-3 text-center text-sm font-semibold text-white shadow-soft transition hover:bg-[#6A3D98] sm:w-auto"
+                    href={"/facilitator/events?draft=" + event.id}
+                  >
+                    <PencilLine className="size-4" aria-hidden="true" />
+                    Fortsæt kladde
+                  </Link>
+                )}
+                {event.status === "active" && (
+                  <Link
+                    className="inline-flex min-h-10 w-full max-w-full items-center justify-center gap-2 whitespace-normal rounded-md border border-[#7A4EAB]/25 bg-white px-3 text-center text-sm font-semibold text-[#7A4EAB] transition hover:border-[#7A4EAB] sm:w-auto"
+                    href={"/facilitator/events?draft=" + event.id}
+                  >
+                    <PencilLine className="size-4" aria-hidden="true" />
+                    Rediger
+                  </Link>
+                )}
+                {event.status === "draft" && (
+                  <form action={deleteDraftEventAction} className="w-full sm:w-auto">
+                    <input name="event_id" type="hidden" value={event.id} />
+                    <button
+                      className="inline-flex min-h-10 w-full max-w-full items-center justify-center gap-2 whitespace-normal rounded-md border border-red-300 bg-red-50 px-3 text-center text-sm font-semibold text-red-800 transition hover:bg-red-100 sm:w-auto"
+                      type="submit"
+                    >
+                      <XCircle className="size-4" aria-hidden="true" />
+                      Slet kladde
+                    </button>
+                  </form>
+                )}
+                {event.status === "completed" && (
+                  <form action={copyEventAsDraftAction} className="w-full sm:w-auto">
+                    <input name="event_id" type="hidden" value={event.id} />
+                    <button
+                      className="inline-flex min-h-10 w-full max-w-full items-center justify-center gap-2 whitespace-normal rounded-md border border-[#7A4EAB]/25 bg-[#F6EFFF] px-3 text-center text-sm font-semibold text-[#7A4EAB] transition hover:border-[#7A4EAB] sm:w-auto"
+                      type="submit"
+                    >
+                      <Copy className="size-4" aria-hidden="true" />
+                      Kopiér som nyt event
+                    </button>
+                  </form>
+                )}
                 {event.status !== "active" && (
                   <StatusAction eventId={event.id} status="active">
                     <Eye className="size-4" aria-hidden="true" />

@@ -57,6 +57,7 @@ type HomeProps = {
     latitude?: string;
     longitude?: string;
     format?: string;
+    country?: string;
     facilitator_q?: string;
   }>;
 };
@@ -355,6 +356,7 @@ async function getSearchEvents(selected: {
   latitude: string;
   longitude: string;
   format?: string;
+  country: string;
 }) {
   if (!env.supabaseUrl || !env.supabaseAnonKey) {
     return [];
@@ -372,6 +374,10 @@ async function getSearchEvents(selected: {
     .eq("facilitator_profiles.status", "approved")
     .gte("starts_at", startOfToday().toISOString())
     .order("starts_at", { ascending: true });
+
+  if (selected.country === "udenfor-danmark") {
+    query = query.neq("country", "Danmark");
+  }
 
   const selectedArea = getAreaOption(selected.area);
   if (selectedArea && regions) {
@@ -733,6 +739,7 @@ export default async function Home({ searchParams }: HomeProps) {
     latitude: params.latitude ?? "",
     longitude: params.longitude ?? "",
     format: params.format ?? "",
+    country: params.country ?? "",
   };
   const hasSearch = Boolean(
     selected.q ||
@@ -742,7 +749,8 @@ export default async function Home({ searchParams }: HomeProps) {
       selected.distance ||
       selected.latitude ||
       selected.longitude ||
-      selected.format,
+      selected.format ||
+      selected.country,
   );
   const upcomingEvents = await getSearchEvents({
     ...selected,
@@ -753,6 +761,7 @@ export default async function Home({ searchParams }: HomeProps) {
     distance: "",
     latitude: "",
     longitude: "",
+    country: "",
     format: "",
   });
   const categoryAvailabilityEvents = await getSearchEvents({
@@ -821,6 +830,7 @@ export default async function Home({ searchParams }: HomeProps) {
     latitude: selected.latitude,
     longitude: selected.longitude,
     format: selected.format,
+    country: selected.country,
   };
   const nearbyRadiusOptions =
     selected.latitude && selected.longitude
@@ -850,6 +860,9 @@ export default async function Home({ searchParams }: HomeProps) {
       ? { key: "area", label: getAreaOption(selected.area)?.label ?? selected.area, href: removeSearchParam(activeFilterParams, "area") }
       : null,
     selected.q ? { key: "q", label: "Søgning: " + selected.q, href: removeSearchParam(activeFilterParams, "q") } : null,
+    selected.country === "udenfor-danmark"
+      ? { key: "country", label: "Events i udlandet", href: removeSearchParam(activeFilterParams, "country") }
+      : null,
     selected.latitude && selected.longitude
       ? { key: "nearby", label: "I nærheden", href: "/#events" }
       : null,

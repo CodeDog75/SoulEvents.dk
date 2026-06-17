@@ -2,6 +2,7 @@ import { AlertTriangle, ArrowRight, CalendarPlus, CheckCircle2, CircleUserRound,
 import Link from "next/link";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { AuthMessage } from "@/components/auth/auth-message";
+import { EventList } from "@/components/facilitator/events/event-list";
 import { FacilitatorProfilePreview } from "@/components/facilitator/facilitator-profile-preview";
 import { requireRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -31,7 +32,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
     .select(
-      "status, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, facilitator_categories(category_id, categories(name, color_hex)), facilitator_tags(tag_id), facilitator_images(image_path, alt_text, sort_order)",
+      "id, status, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, facilitator_categories(category_id, categories(name, color_hex)), facilitator_tags(tag_id), facilitator_images(image_path, alt_text, sort_order)",
     )
     .eq("profile_id", profile.id)
     .single();
@@ -56,6 +57,14 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     facilitatorProfile?.facilitator_categories
       ?.map((row: CategoryRelation) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
       .filter((category): category is { name: string; color_hex?: string } => Boolean(category)) ?? [];
+  const { data: events } = facilitatorProfile
+    ? await supabase
+        .from("events")
+        .select("id, title, status, starts_at, city, price_cents, capacity, event_reference_id, event_categories(categories(name))")
+        .eq("facilitator_id", facilitatorProfile.id)
+        .order("updated_at", { ascending: false })
+    : { data: [] };
+
   const moodImages =
     facilitatorProfile?.facilitator_images
       ?.slice()
@@ -129,7 +138,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                         className="mt-4 inline-flex h-11 items-center gap-2 rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500"
                         href="/facilitator/events"
                       >
-                        Opret event
+                        Opret nyt event
                         <ArrowRight className="size-4" aria-hidden="true" />
                       </Link>
                     </div>
@@ -157,7 +166,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                         className="mt-4 inline-flex h-11 items-center gap-2 rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500"
                         href="/facilitator/events"
                       >
-                        Opret dit første event
+                        Opret nyt event
                         <ArrowRight className="size-4" aria-hidden="true" />
                       </Link>
                     </div>
@@ -179,6 +188,22 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
               shortDescription={facilitatorProfile?.short_description}
             />
           </div>
+        </section>
+        <section className="mt-6 grid gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Mine events</p>
+              <h2 className="mt-1 text-2xl font-semibold text-midnight">Dit overblik</h2>
+            </div>
+            <Link
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6A3D98]"
+              href="/facilitator/events"
+            >
+              <CalendarPlus className="size-4" aria-hidden="true" />
+              Opret nyt event
+            </Link>
+          </div>
+          <EventList events={(events ?? []) as never} />
         </section>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -202,7 +227,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             <CalendarPlus className="size-9 text-terracotta" aria-hidden="true" />
             <h3 className="mt-4 font-semibold text-midnight">Event</h3>
             <p className="mt-2 text-sm leading-6 text-ink/64">
-              Opret dit første event og administrer priser og kapacitet.
+              Opret nyt event og administrer priser og kapacitet.
             </p>
           </Link>
           <Link
