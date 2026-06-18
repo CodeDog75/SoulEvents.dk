@@ -31,7 +31,7 @@ function startOfToday() {
 
 function nameOf(facilitator: any) {
   const profile = first(facilitator?.profiles);
-  return facilitator?.company_name || profile?.full_name || "Vært";
+  return facilitator?.company_name || profile?.full_name || "Arrangør";
 }
 
 export async function generateMetadata({ params }: FacilitatorPageProps): Promise<Metadata> {
@@ -48,8 +48,8 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
 
   const name = nameOf(facilitator);
   return {
-    title: name + " | Vært på SoulEvents",
-    description: facilitator.short_description || "Find værterprofil på SoulEvents.",
+    title: name + " | Arrangør på SoulEvents",
+    description: facilitator.short_description || "Find arrangørerprofil på SoulEvents.",
   };
 }
 
@@ -124,7 +124,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
             href="/facilitators"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
-            Værter
+            Arrangører
           </Link>
         </div>
       </header>
@@ -147,7 +147,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
               <div>
                 <div className="flex flex-wrap gap-2">
                   {facilitatorData.is_online_facilitator && (
-                    <span className="rounded-full border border-olive/10 bg-white px-2.5 py-1 text-xs font-medium text-ink/55">💻 Online vært</span>
+                    <span className="rounded-full border border-olive/10 bg-white px-2.5 py-1 text-xs font-medium text-ink/55">💻 Online arrangør</span>
                   )}
                   {categories.map((category: any) => (
                     <span className="rounded-full px-3 py-1 text-xs font-semibold text-white" key={category.name} style={{ backgroundColor: category.color_hex }}>
@@ -157,16 +157,16 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
                 </div>
                 <h1 className="mt-4 text-5xl font-medium leading-tight text-olive">{name}</h1>
                 <p className="mt-4 max-w-3xl text-base leading-7 text-ink/72">
-                  {facilitatorData.short_description || "Værtens korte præsentation kommer snart."}
+                  {facilitatorData.short_description || "Arrangørens korte præsentation kommer snart."}
                 </p>
               </div>
             </div>
           </section>
 
           <section className="rounded-card bg-white p-8 shadow-soft">
-            <h2 className="text-4xl font-medium text-olive">Om værten</h2>
+            <h2 className="text-4xl font-medium text-olive">Om arrangøren</h2>
             <div className="mt-4 whitespace-pre-line text-sm leading-7 text-ink/72">
-              {facilitatorData.long_description || facilitatorData.short_description || "Der kommer mere information om værten snart."}
+              {facilitatorData.long_description || facilitatorData.short_description || "Der kommer mere information om arrangøren snart."}
             </div>
           </section>
 
@@ -192,7 +192,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
               ) : (
                 <div className="rounded-card bg-cream p-8 text-center">
                   <Sparkles className="mx-auto size-8 text-rose" aria-hidden="true" />
-                  <p className="mt-4 text-lg font-semibold text-olive">Der er ingen planlagte events for denne vært.</p>
+                  <p className="mt-4 text-lg font-semibold text-olive">Der er ingen planlagte events for denne arrangør.</p>
                 </div>
               )}
             </div>
@@ -207,7 +207,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
                 <MapPinned className="mt-0.5 size-4 text-sage-700" aria-hidden="true" />
                 <span>
                   {facilitatorData.is_online_facilitator
-                    ? "Online vært"
+                    ? "Online arrangør"
                     : [facilitatorData.city, region?.name, facilitatorData.country].filter(Boolean).join(", ") || "Lokation kommer snart"}
                 </span>
               </div>
@@ -237,7 +237,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
           <section className="rounded-card border border-lavender/70 bg-lavender/20 p-6 shadow-soft">
             <h2 className="text-3xl font-medium text-olive">Tilmeld påmindelse</h2>
             <p className="mt-3 text-sm leading-6 text-ink/66">
-              Få besked på e-mail, når denne vært opretter et nyt event.
+              Få besked på e-mail, når denne arrangør opretter et nyt event.
             </p>
             {reminderMessage && (
               <p className="mt-4 rounded-card border border-lavender/70 bg-white/75 px-4 py-3 text-sm font-semibold text-ink/70">

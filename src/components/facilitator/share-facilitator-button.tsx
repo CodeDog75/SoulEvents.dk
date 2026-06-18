@@ -19,7 +19,7 @@ export function ShareFacilitatorButton({ facilitatorName, facilitatorId }: Share
 
   const text = "Jeg fandt " + facilitatorName + " på SoulEvents.dk. Se profilen her: " + url;
   const encodedText = encodeURIComponent(text);
-  const encodedSubject = encodeURIComponent(facilitatorName + " | Vært på SoulEvents.dk");
+  const encodedSubject = encodeURIComponent(facilitatorName + " | Arrangør på SoulEvents.dk");
 
   async function shareNative() {
     if (navigator.share) {
@@ -35,7 +35,7 @@ export function ShareFacilitatorButton({ facilitatorName, facilitatorId }: Share
 
   return (
     <section className="rounded-card bg-white p-6 shadow-soft">
-      <h2 className="text-3xl font-medium text-olive">Del vært</h2>
+      <h2 className="text-3xl font-medium text-olive">Del arrangør</h2>
       <div className="mt-4 grid gap-2">
         <button
           className="inline-flex h-11 items-center justify-center gap-2 rounded-button bg-olive px-4 text-sm font-semibold text-white"

@@ -18,7 +18,7 @@ type UserRoleTableProps = {
 
 const roleLabels: Record<AppRole, string> = {
   admin: "Administrator",
-  facilitator: "Vært",
+  facilitator: "Arrangør",
 };
 
 function RoleButton({ profileId, role, label }: { profileId: string; role: AppRole; label: string }) {
@@ -80,7 +80,7 @@ export function UserRoleTable({ currentProfileId, users }: UserRoleTableProps) {
             <div className="flex flex-wrap content-start gap-2 lg:justify-end">
               {user.role !== "admin" && <RoleButton label="Gør til admin" profileId={user.id} role="admin" />}
               {user.role !== "facilitator" && (
-                <RoleButton label="Gør til vært" profileId={user.id} role="facilitator" />
+                <RoleButton label="Gør til arrangør" profileId={user.id} role="facilitator" />
               )}
             </div>
           </article>

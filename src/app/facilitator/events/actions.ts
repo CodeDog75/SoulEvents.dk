@@ -168,7 +168,7 @@ export async function createEventAction(formData: FormData) {
     .single();
 
   if (!facilitatorProfile) {
-    eventsRedirect("Værtsprofilen mangler.");
+    eventsRedirect("Arrangørprofilen mangler.");
   }
 
   const facilitatorCategoryIds =
@@ -219,7 +219,7 @@ export async function createEventAction(formData: FormData) {
 
   const isDanishPhysicalEvent = eventFormat === "physical" && country.trim().toLowerCase() === "danmark";
 
-  // Danske fysiske events styres altid af postnummeret, så værten ikke kan vælge et område, der ikke passer til adressen.
+  // Danske fysiske events styres altid af postnummeret, så arrangøren ikke kan vælge et område, der ikke passer til adressen.
   if (isDanishPhysicalEvent) {
     regionId = null;
   }
@@ -539,7 +539,7 @@ export async function copyEventAsDraftAction(formData: FormData) {
     .single();
 
   if (!facilitatorProfile) {
-    eventsRedirect("Værtsprofilen mangler.");
+    eventsRedirect("Arrangørprofilen mangler.");
   }
 
   const { data: sourceEvent, error: sourceError } = await supabase
@@ -625,7 +625,7 @@ export async function deleteDraftEventAction(formData: FormData) {
   const facilitatorIds = facilitatorProfiles?.map((row: { id: string }) => row.id) ?? [];
 
   if (facilitatorIds.length === 0) {
-    eventsRedirect("Værtsprofilen mangler.");
+    eventsRedirect("Arrangørprofilen mangler.");
   }
 
   const { error } = await supabase

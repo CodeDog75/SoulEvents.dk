@@ -70,7 +70,7 @@ export async function updateUserRoleAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/users");
   revalidatePath("/dashboard");
-  usersRedirect(role === "admin" ? "Brugeren er nu administrator." : "Brugeren er nu vært.");
+  usersRedirect(role === "admin" ? "Brugeren er nu administrator." : "Brugeren er nu arrangør.");
 }
 
 export async function transferAdminByEmailAction(formData: FormData) {

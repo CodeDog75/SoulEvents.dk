@@ -25,8 +25,8 @@ function buildHtml(input: FacilitatorProfileReadyInput) {
 
   return `
     <div style="font-family: Arial, sans-serif; color: #4B5645; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Værtsprofil klar til godkendelse</h1>
-      <p style="margin: 0 0 20px;">En vært har udfyldt minimumskravene og er klar til gennemgang.</p>
+      <h1 style="font-size: 22px; margin: 0 0 12px;">Arrangørprofil klar til godkendelse</h1>
+      <p style="margin: 0 0 20px;">En arrangør har udfyldt minimumskravene og er klar til gennemgang.</p>
       <table style="border-collapse: collapse; width: 100%; max-width: 620px;">
         <tbody>
           ${rows
@@ -50,7 +50,7 @@ function buildHtml(input: FacilitatorProfileReadyInput) {
 
 function buildText(input: FacilitatorProfileReadyInput) {
   return [
-    "Værtsprofil klar til godkendelse",
+    "Arrangørprofil klar til godkendelse",
     "",
     `Navn: ${input.facilitatorName}`,
     `E-mailadresse: ${input.facilitatorEmail}`,

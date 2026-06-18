@@ -31,7 +31,7 @@ export default async function FeaturedFacilitatorsAdminPage({ searchParams }: Pa
             </div>
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Administrator</p>
-              <h1 className="text-xl font-semibold text-midnight">Fremhævede værter</h1>
+              <h1 className="text-xl font-semibold text-midnight">Fremhævede arrangører</h1>
             </div>
           </div>
           <Link className="inline-flex h-10 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta" href="/admin">
@@ -46,12 +46,12 @@ export default async function FeaturedFacilitatorsAdminPage({ searchParams }: Pa
 
         {error ? (
           <section className="mt-5 rounded-md border border-terracotta/20 bg-white p-6 text-sm leading-6 text-terracotta shadow-soft">
-            Fremhævede værter kræver, at migration 011 er kørt i Supabase.
+            Fremhævede arrangører kræver, at migration 011 er kørt i Supabase.
           </section>
         ) : (
           <section className="mt-5 overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
             <div className="border-b border-midnight/10 px-5 py-4">
-              <h2 className="font-semibold text-midnight">Aktive værter</h2>
+              <h2 className="font-semibold text-midnight">Aktive arrangører</h2>
               <p className="mt-1 text-sm text-ink/64">Markér hvem der skal vises som fremhævede på forsiden.</p>
             </div>
             <div className="divide-y divide-midnight/10">

@@ -31,7 +31,7 @@ export async function updateBookingStatusAction(formData: FormData) {
     .single();
 
   if (!facilitatorProfile) {
-    bookingsRedirect("Værtsprofilen mangler.");
+    bookingsRedirect("Arrangørprofilen mangler.");
   }
 
   const { data: booking } = await supabase

@@ -22,21 +22,29 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
 
   return (
     <main className="min-h-screen bg-[#FAF6EF] px-4 py-8 text-[#2F2633] sm:py-12">
+      <div className="mx-auto mb-5 flex w-full max-w-6xl justify-end">
+        <Link
+          className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#7A4EAB]/15 bg-white/85 px-4 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:border-[#7A4EAB]/35 hover:bg-[#EDE4F7]/70"
+          href="/"
+        >
+          Tilbage til forsiden
+        </Link>
+      </div>
       <section className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
         <aside className="rounded-[1.75rem] border border-[#EDE4F7] bg-white/80 p-6 shadow-soft sm:p-8">
           <Link className="mb-8 flex items-center gap-3" href="/">
             <BrandLogo className="h-28 w-28 sm:h-36 sm:w-36" priority />
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">SoulEvents.dk</p>
-              <p className="mt-1 text-sm text-[#2F2633]/65">For værter og fællesskaber</p>
+              <p className="mt-1 text-sm text-[#2F2633]/65">For arrangører og fællesskaber</p>
             </div>
           </Link>
 
           <p className="inline-flex rounded-full bg-[#EDE4F7] px-4 py-2 text-sm font-semibold text-[#7A4EAB]">
-            Gratis værtsprofil og gratis eventoprettelse
+            Gratis arrangørprofil og gratis eventoprettelse
           </p>
           <h1 className="mt-5 text-3xl font-semibold leading-tight text-[#2F2633] sm:text-5xl">
-            Opret ny og gratis værtsprofil
+            Opret gratis arrangørprofil
           </h1>
           <p className="mt-5 text-base leading-7 text-[#2F2633]/72 sm:text-lg">
             Bliv en del af SoulEvents.dk og del dine events, fællesskaber og aktiviteter gratis med mennesker, der søger mere ro,
@@ -46,7 +54,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           <section className="mt-5 rounded-[1.25rem] border border-[#D8A7B1]/35 bg-[#D8A7B1]/14 p-5">
             <h2 className="text-lg font-semibold text-[#2F2633]">💜 Gratis og uden binding</h2>
             <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
-              Det er gratis at oprette en værtsprofil på SoulEvents.dk, og det er gratis at oprette events. Du har altid fuld kontrol over dine oplysninger og kan redigere eller slette din profil og dine events, når du ønsker det.
+              Det er gratis at oprette en arrangørprofil på SoulEvents.dk, og det er gratis at oprette events. Du har altid fuld kontrol over dine oplysninger og kan redigere eller slette din profil og dine events, når du ønsker det.
             </p>
           </section>
 
@@ -153,7 +161,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
               className="mt-1 h-12 rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6A4199] hover:shadow-lift"
               type="submit"
             >
-              Opret ny og gratis værtsprofil
+              Opret gratis arrangørprofil
             </button>
           </form>
 

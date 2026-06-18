@@ -1151,7 +1151,7 @@ export function EventForm({
             type="button"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
-            {currentStep === 0 ? "Værtsforside" : "Tilbage"}
+            {currentStep === 0 ? "Arrangørforside" : "Tilbage"}
           </button>
           <button
             className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/30 bg-[#F6EFFF] px-3 text-sm font-semibold text-[#7A4EAB] shadow-soft sm:h-11 sm:px-4"

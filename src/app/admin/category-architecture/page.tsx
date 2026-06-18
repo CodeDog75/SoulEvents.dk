@@ -7,6 +7,7 @@ import {
   upsertSubcategoryAction,
   upsertTagAction,
 } from "@/app/admin/category-architecture/actions";
+import { RecommendedColorPalette } from "@/components/admin/recommended-color-palette";
 import { CategoryForm } from "@/components/admin/taxonomy/category-form";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
@@ -93,20 +94,81 @@ function SectionShell({
   );
 }
 
+function AdminWorkflowGuide() {
+  const cards = [
+    {
+      href: "#main",
+      label: "1",
+      title: "Opret hovedkategori",
+      text: "Det brede valg brugeren møder først. Bruges på forsiden som retning, fx Meditation & Nærvær.",
+      cta: "Gå til hovedkategorier",
+    },
+    {
+      href: "#sub",
+      label: "2",
+      title: "Opret underkategori",
+      text: "Den konkrete eventform. Kobl den til én eller flere hovedkategorier, fx Breathwork eller Lydbad.",
+      cta: "Gå til underkategorier",
+    },
+    {
+      href: "#tags",
+      label: "3",
+      title: "Opret tags",
+      text: "Ekstra filtre og stemninger som Begyndervenlig, Weekend, Gratis eller Udendørs.",
+      cta: "Gå til tags",
+    },
+    {
+      href: "#event-tags",
+      label: "4",
+      title: "Justér visuelle badges",
+      text: "Her styrer du farverne på de små kategori-tags, der vises på eventkort og eventsider.",
+      cta: "Gå til badge-farver",
+    },
+  ];
+
+  return (
+    <section className="rounded-md border border-lavender/70 bg-[#FAF6EF] p-5 shadow-soft">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-purple">Start her</p>
+          <h2 className="mt-1 text-2xl font-semibold text-midnight">Byg strukturen i den rigtige rækkefølge</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/68">
+            Tænk siden som fire trin. Start med hovedkategorier, gå derefter dybere med underkategorier, og brug tags som ekstra filtre.
+          </p>
+        </div>
+        <div className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-purple shadow-sm">
+          Deaktivér hellere end at slette brugte elementer
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
+          <a className="group rounded-card border border-midnight/10 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-purple/40 hover:shadow-soft" href={card.href} key={card.href}>
+            <span className="grid size-9 place-items-center rounded-full bg-lavender text-sm font-bold text-purple">{card.label}</span>
+            <h3 className="mt-4 text-lg font-semibold text-midnight">{card.title}</h3>
+            <p className="mt-2 min-h-20 text-sm leading-6 text-ink/64">{card.text}</p>
+            <p className="mt-4 text-sm font-semibold text-purple transition group-hover:translate-x-1">{card.cta} →</p>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function TaxonomyGuide() {
   const steps = [
     {
-      title: "1. Hovedkategori",
+      title: "Hovedkategori",
       text: "Brede retninger, der giver brugeren overblik. Et event kan høre til én eller flere hovedkategorier.",
       examples: "Fx Meditation & Nærvær, Ceremonier & Ritualer, Sauna & Velvære",
     },
     {
-      title: "2. Underkategori / eventform",
-      text: "Den konkrete eventform, som gør eventet let at finde og filtrere på.",
+      title: "Underkategori",
+      text: "Den konkrete eventform, som gør eventet let at finde og filtrere på hovedkategorisiden.",
       examples: "Fx Yoga, Lydbad, Saunagus, Breathwork, Fuldmåneceremoni",
     },
     {
-      title: "3. Tags",
+      title: "Tags",
       text: "Ekstra ord, der beskriver praktiske forhold, stemning eller målgruppe. Tags er ikke kategorier.",
       examples: "Fx Begyndervenlig, Weekend, Gratis, Udendørs, Fuldmåne",
     },
@@ -117,17 +179,15 @@ function TaxonomyGuide() {
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-wide text-purple">Vejledning</p>
-          <h2 className="mt-1 text-xl font-semibold text-midnight">Sådan bygger du kategorier op</h2>
+          <h2 className="mt-1 text-xl font-semibold text-midnight">Hvad betyder de forskellige valg?</h2>
           <p className="mt-2 text-sm leading-6 text-ink/68">
-            Brug hovedkategorier som brede retninger, underkategorier som konkrete eventformer og tags som ekstra
-            søgeord eller praktiske filtre.
+            Hovedkategorier er de store retninger. Underkategorier er konkrete eventformer. Tags er små ekstra filtre, der hjælper brugeren med at finde det rigtige.
           </p>
         </div>
         <div className="rounded-md bg-lavender/35 px-4 py-3 text-sm leading-6 text-ink/70 lg:max-w-sm">
           <p className="font-semibold text-midnight">Kort regel</p>
           <p className="mt-1">
-            Hovedkategorier vises på forsiden. Underkategorier vises først inde på en hovedkategori og bruges som
-            filtre. Tags beskriver ekstra forhold som gratis, weekend eller begyndervenlig.
+            Hvis det skal være et stort valg på forsiden, er det en hovedkategori. Hvis det er en konkret eventform, er det en underkategori. Hvis det beskriver oplevelsen, er det et tag.
           </p>
         </div>
       </div>
@@ -158,10 +218,9 @@ function TaxonomyGuide() {
           </p>
         </div>
         <div className="rounded-md border border-terracotta/20 bg-sand p-4">
-          <h3 className="font-semibold text-midnight">Forsidevisning</h3>
+          <h3 className="font-semibold text-midnight">Vigtigt om sletning</h3>
           <p className="mt-2 text-sm leading-6 text-ink/68">
-            Forsiden viser hovedkategorier, så brugeren starter bredt og først derefter kan gå dybere med
-            underkategorier og tags. Farven på hovedkategorien bruges i den visuelle kategori-boks.
+            Hvis et tag eller en kategori har været brugt, bør det normalt deaktiveres i stedet for at slettes. Så bevarer du historik og gamle events mister ikke sammenhæng.
           </p>
         </div>
       </div>
@@ -207,6 +266,7 @@ function BasicForm({
           Aktiv
         </label>
       </div>
+      <p className="mt-2 text-xs leading-5 text-ink/55">Deaktivér gamle eller brugte kategorier/tags i stedet for at slette dem. Så bevares historik og gamle events mister ikke deres sammenhæng.</p>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <label className="grid gap-1 text-sm font-medium text-ink/72">
@@ -226,6 +286,7 @@ function BasicForm({
                 {item?.name || "Preview"}
               </span>
             </div>
+            <RecommendedColorPalette />
           </label>
         )}
         {showImage && (
@@ -283,7 +344,7 @@ function BasicForm({
               type="submit"
             >
               <Trash2 className="size-4" aria-hidden="true" />
-              Slet
+              Slet test/dublet
             </button>
           </>
         )}
@@ -395,10 +456,10 @@ export default async function CategoryArchitecturePage({ searchParams }: PagePro
 
         <nav className="grid gap-3 md:grid-cols-4">
           {[
-            { href: "#event-tags", title: "Event-tags", count: eventCategoryItems.length },
             { href: "#main", title: "Hovedkategorier", count: mainItems.length },
             { href: "#sub", title: "Underkategorier", count: subItems.length },
             { href: "#tags", title: "Tags", count: tagItems.length },
+            { href: "#event-tags", title: "Badge-farver", count: eventCategoryItems.length },
           ].map((item) => (
             <a className="rounded-md border border-midnight/10 bg-white p-4 shadow-soft transition hover:border-sage-700" href={item.href} key={item.href}>
               <p className="text-sm font-semibold text-sage-700">{item.title}</p>
@@ -406,6 +467,8 @@ export default async function CategoryArchitecturePage({ searchParams }: PagePro
             </a>
           ))}
         </nav>
+
+        <AdminWorkflowGuide />
 
         <TaxonomyGuide />
 
@@ -420,40 +483,6 @@ export default async function CategoryArchitecturePage({ searchParams }: PagePro
             </div>
           </div>
         </div>
-
-        <SectionShell
-          id="event-tags"
-          eyebrow="Visning"
-          title="Farver på event-tags"
-          description="Disse farver bruges på kategori-tags på eventkort, kort-popup og eventsider."
-        >
-          <details className="mb-4 rounded-md border border-sage-700/20 bg-sage-50">
-            <summary className="cursor-pointer list-none p-4 font-semibold text-olive">Opret nyt kategori-tag</summary>
-            <div className="border-t border-sage-700/15 bg-white p-4">
-              <CategoryForm title="Opret kategori-tag" />
-            </div>
-          </details>
-
-          <div className="grid gap-3">
-            {eventCategoryItems.map((category) => (
-              <details className="group rounded-md border border-midnight/10 bg-white" key={category.id}>
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ backgroundColor: category.color_hex }}>
-                      {category.name}
-                    </span>
-                    <span className="rounded-md bg-midnight/5 px-2 py-1 text-xs font-semibold text-midnight">{category.color_hex}</span>
-                    <StatusPill active={category.is_active} />
-                  </div>
-                  <ChevronDown className="size-4 shrink-0 text-ink/45 transition group-open:rotate-180" aria-hidden="true" />
-                </summary>
-                <div className="border-t border-midnight/10 bg-[#fbfaf7] p-4">
-                  <CategoryForm category={category as never} title={"Rediger: " + category.name} />
-                </div>
-              </details>
-            ))}
-          </div>
-        </SectionShell>
 
         <SectionShell
           id="main"
@@ -539,6 +568,41 @@ export default async function CategoryArchitecturePage({ searchParams }: PagePro
             )}
           />
         </SectionShell>
+        <SectionShell
+          id="event-tags"
+          eyebrow="Visning"
+          title="Farver på event-tags"
+          description="Disse farver bruges på kategori-tags på eventkort, kort-popup og eventsider."
+        >
+          <details className="mb-4 rounded-md border border-sage-700/20 bg-sage-50">
+            <summary className="cursor-pointer list-none p-4 font-semibold text-olive">Opret nyt badge/tag på eventkort</summary>
+            <div className="border-t border-sage-700/15 bg-white p-4">
+              <CategoryForm title="Opret badge/tag på eventkort" />
+            </div>
+          </details>
+
+          <div className="grid gap-3">
+            {eventCategoryItems.map((category) => (
+              <details className="group rounded-md border border-midnight/10 bg-white" key={category.id}>
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ backgroundColor: category.color_hex }}>
+                      {category.name}
+                    </span>
+                    <span className="rounded-md bg-midnight/5 px-2 py-1 text-xs font-semibold text-midnight">{category.color_hex}</span>
+                    <StatusPill active={category.is_active} />
+                  </div>
+                  <ChevronDown className="size-4 shrink-0 text-ink/45 transition group-open:rotate-180" aria-hidden="true" />
+                </summary>
+                <div className="border-t border-midnight/10 bg-[#fbfaf7] p-4">
+                  <CategoryForm category={category as never} title={"Rediger: " + category.name} />
+                </div>
+              </details>
+            ))}
+          </div>
+        </SectionShell>
+
+
       </section>
     </main>
   );

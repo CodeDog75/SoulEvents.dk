@@ -30,7 +30,7 @@ function normalize(value: string | null | undefined) {
 
 function getName(facilitator: any) {
   const profile = first(facilitator.profiles);
-  return facilitator.company_name || profile?.full_name || "Vært";
+  return facilitator.company_name || profile?.full_name || "Arrangør";
 }
 
 function startsWithLetter(name: string, letter: string) {
@@ -85,7 +85,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
           .filter(Boolean) ?? [];
       const categoryIds = categoryRows.map((category: any) => category.id);
       const categoryNames = categoryRows.map((category: any) => category.name);
-      const onlineWords = facilitator.is_online_facilitator ? ["online", "online vært"] : [];
+      const onlineWords = facilitator.is_online_facilitator ? ["online", "online arrangør"] : [];
       const haystack = normalize(
         [name, facilitator.short_description, facilitator.city, region?.name, ...categoryNames, ...onlineWords]
           .filter(Boolean)
@@ -117,11 +117,11 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
       </header>
 
       <section className="mx-auto max-w-[1200px] px-5 py-10 sm:px-8">
-        <p className="text-sm font-semibold uppercase tracking-wide text-rose">Værter</p>
-        <h1 className="mt-3 text-5xl font-medium leading-tight text-olive">Find værter på SoulEvents</h1>
+        <p className="text-sm font-semibold uppercase tracking-wide text-rose">Arrangører</p>
+        <h1 className="mt-3 text-5xl font-medium leading-tight text-olive">Find arrangører på SoulEvents</h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-ink/70">
           Bag hvert event står et menneske med en passion for at skabe nærvær, fællesskab og personlig udvikling. Her
-          kan du udforske værter, der skaber meningsfulde aktiviteter og fællesskaber for krop, sind og sjæl.
+          kan du udforske arrangører, der skaber meningsfulde aktiviteter og fællesskaber for krop, sind og sjæl.
         </p>
 
         <form className="mt-8 grid gap-3 rounded-card bg-white p-4 shadow-soft lg:grid-cols-[1.2fr_0.9fr_0.9fr_auto] lg:items-end">
@@ -180,7 +180,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
 
         <div className="mt-8 flex items-center gap-2 text-sm font-semibold text-ink/60">
           <Filter className="size-4" aria-hidden="true" />
-          {filtered.length} værter fundet
+          {filtered.length} arrangører fundet
         </div>
 
         <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -211,7 +211,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
                   <div className="flex flex-wrap gap-2">
                     {facilitator.is_online_facilitator && (
                       <span className="rounded-full border border-olive/10 bg-white px-2.5 py-1 text-[11px] font-medium text-ink/55">
-                        Online vært
+                        Online arrangør
                       </span>
                     )}
                     {categoryRows.slice(0, 3).map((category: any) => (
@@ -222,7 +222,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
                   </div>
                   <h2 className="mt-3 text-2xl font-medium leading-7 text-olive">{name}</h2>
                   <p className="mt-1 text-sm text-ink/58">{[facilitator.city, region?.name].filter(Boolean).join(", ")}</p>
-                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-ink/66">{facilitator.short_description || "Værtens profiltekst kommer snart."}</p>
+                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-ink/66">{facilitator.short_description || "Arrangørens profiltekst kommer snart."}</p>
                   <p className="mt-4 flex items-center gap-2 text-sm font-semibold text-olive">
                     <CalendarDays className="size-4" aria-hidden="true" />
                     {eventCounts.get(facilitator.id) ?? 0} kommende events

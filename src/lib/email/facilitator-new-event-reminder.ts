@@ -35,7 +35,7 @@ function eventUrl(eventId: string) {
 function facilitatorName(event: ReminderEvent) {
   const facilitator = first(event.facilitator_profiles);
   const profile = first(facilitator?.profiles);
-  return facilitator?.company_name || profile?.full_name || "Værten";
+  return facilitator?.company_name || profile?.full_name || "Arrangøren";
 }
 
 function buildHtml(input: { event: ReminderEvent; name: string; url: string }) {
@@ -44,7 +44,7 @@ function buildHtml(input: { event: ReminderEvent; name: string; url: string }) {
     '<div style="font-family: Arial, sans-serif; color: #2F2633; line-height: 1.55;">',
     '<p style="margin: 0 0 12px;">Hej</p>',
     '<h1 style="font-size: 24px; margin: 0 0 12px; color: #7A4EAB;">' + escapeHtml(input.name) + ' har oprettet et nyt event</h1>',
-    '<p style="margin: 0 0 18px;">Du modtager denne mail, fordi du har tilmeldt dig påmindelser fra denne vært på SoulEvents.dk.</p>',
+    '<p style="margin: 0 0 18px;">Du modtager denne mail, fordi du har tilmeldt dig påmindelser fra denne arrangør på SoulEvents.dk.</p>',
     '<div style="background: #FAF6EF; border: 1px solid #EDE4F7; border-radius: 18px; padding: 18px; max-width: 620px;">',
     '<h2 style="font-size: 20px; margin: 0 0 10px; color: #2F2633;">' + escapeHtml(input.event.title) + '</h2>',
     '<p style="margin: 0 0 8px;"><strong>Dato:</strong> ' + escapeHtml(formatDate(input.event.starts_at)) + '</p>',
@@ -62,7 +62,7 @@ function buildText(input: { event: ReminderEvent; name: string; url: string }) {
   return [
     input.name + " har oprettet et nyt event",
     "",
-    "Du modtager denne mail, fordi du har tilmeldt dig påmindelser fra denne vært på SoulEvents.dk.",
+    "Du modtager denne mail, fordi du har tilmeldt dig påmindelser fra denne arrangør på SoulEvents.dk.",
     "",
     "Event: " + input.event.title,
     "Dato: " + formatDate(input.event.starts_at),

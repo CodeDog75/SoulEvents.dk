@@ -80,7 +80,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
       <header className="border-b border-midnight/10 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Vært</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Arrangør</p>
             <h1 className="text-xl font-semibold text-midnight">Velkommen, {profile.full_name}</h1>
             {hostReferenceId ? (
               <p className="mt-1 text-sm font-semibold text-ink/55">Medlemsnummer {hostReferenceId}</p>
@@ -127,7 +127,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-sage-700" aria-hidden="true" />
                     <div>
-                      <h3 className="font-semibold text-midnight">Du er klar som vært på SoulEvents.dk</h3>
+                      <h3 className="font-semibold text-midnight">Du er klar som arrangør på SoulEvents.dk</h3>
                       <p className="mt-2">Din profil er godkendt, og du kan oprette og administrere events.</p>
                       {hostReferenceId ? (
                         <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-ink/55">

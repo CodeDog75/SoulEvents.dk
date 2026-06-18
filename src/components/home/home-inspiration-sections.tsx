@@ -36,7 +36,7 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
         <h3 className="mt-3 text-2xl font-medium leading-7 text-olive">{facilitator.name}</h3>
         <p className="mt-1 text-sm font-semibold text-sage-700">{facilitator.isOnline ? "Online" : facilitator.city || "Danmark"}</p>
         <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink/66">
-          {facilitator.tagline || "Vært på SoulEvents"}
+          {facilitator.tagline || "Arrangør på SoulEvents"}
         </p>
         <span className="mt-4 inline-flex text-sm font-semibold text-rose">Se profil</span>
       </div>
@@ -64,10 +64,10 @@ export function HomeInspirationSections({
         {hasFeatured && (
           <div>
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-wide text-rose">Fremhævede værter</p>
-              <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Mød udvalgte værter</h2>
+              <p className="text-sm font-semibold uppercase tracking-wide text-rose">Fremhævede arrangører</p>
+              <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Mød udvalgte arrangører</h2>
               <p className="mt-4 text-base leading-7 text-ink/70">
-                Værter, som SoulEvents fremhæver for deres nærvær, faglighed og aktuelle tilbud.
+                Arrangører, som SoulEvents fremhæver for deres nærvær, faglighed og aktuelle tilbud.
               </p>
             </div>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -81,10 +81,10 @@ export function HomeInspirationSections({
         {hasNew && (
           <div>
             <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-wide text-rose">Nye værter</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-rose">Nye arrangører</p>
               <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Nye stemmer på SoulEvents</h2>
               <p className="mt-4 text-base leading-7 text-ink/70">
-                Senest godkendte aktive værter på platformen.
+                Senest godkendte aktive arrangører på platformen.
               </p>
             </div>
             <div className="mt-6 flex snap-x gap-4 overflow-x-auto pb-4">

@@ -21,17 +21,17 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
       <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
         <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Værter</p>
-            <h2 className="mt-3 text-5xl font-medium leading-tight text-[#2F2633]">Find værter på SoulEvents</h2>
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Arrangører</p>
+            <h2 className="mt-3 text-5xl font-medium leading-tight text-[#2F2633]">Find arrangører på SoulEvents</h2>
             <p className="mt-4 max-w-2xl text-base leading-7 text-ink/70">
-              Bag hvert event står et menneske med en passion for at skabe nærvær, fællesskab og personlig udvikling. Her kan du udforske værter, der skaber meningsfulde aktiviteter og fællesskaber for krop, sind og sjæl. 💜
+              Bag hvert event står et menneske med en passion for at skabe nærvær, fællesskab og personlig udvikling. Her kan du udforske arrangører, der skaber meningsfulde aktiviteter og fællesskaber for krop, sind og sjæl. 💜
             </p>
           </div>
 
           <form action="/#facilitators" className="grid gap-3 rounded-card bg-white p-4 shadow-soft sm:grid-cols-[1fr_auto] sm:items-end">
             <input name="scroll_to" type="hidden" value="facilitators" />
             <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
-              Søg efter vært
+              Søg efter arrangør
               <input
                 className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
                 defaultValue={query}
@@ -52,7 +52,7 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
 
         {query && (
           <p className="mt-6 text-sm font-semibold text-[#2F2633]">
-            Viser værter der matcher: <span className="text-[#7A4EAB]">{query}</span>
+            Viser arrangører der matcher: <span className="text-[#7A4EAB]">{query}</span>
           </p>
         )}
 
@@ -77,7 +77,7 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
                 <div className="p-5">
                   <h3 className="text-2xl font-medium leading-7 text-[#2F2633]">{facilitator.name}</h3>
                   <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink/66">
-                    {facilitator.tagline || [facilitator.city, "Vært på SoulEvents"].filter(Boolean).join(" · ")}
+                    {facilitator.tagline || [facilitator.city, "Arrangør på SoulEvents"].filter(Boolean).join(" · ")}
                   </p>
                   {facilitator.categories.length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -99,7 +99,7 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
         ) : (
           <section className="mt-8 rounded-card bg-white p-8 text-center shadow-soft">
             <Sparkles className="mx-auto size-8 text-[#7A4EAB]" aria-hidden="true" />
-            <h3 className="mt-4 text-3xl font-medium text-[#2F2633]">Ingen værter fundet</h3>
+            <h3 className="mt-4 text-3xl font-medium text-[#2F2633]">Ingen arrangører fundet</h3>
             <p className="mt-2 text-sm text-ink/64">Prøv et andet søgeord, en kategori eller et område.</p>
           </section>
         )}

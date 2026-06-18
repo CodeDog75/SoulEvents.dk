@@ -283,7 +283,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     : await supabase.from("facilitator_profiles").select("id").eq("profile_id", profile.id).single();
 
   if (facilitatorError || !facilitatorProfile) {
-    profileRedirect("Værtsprofilen kunne ikke gemmes.");
+    profileRedirect("Arrangørprofilen kunne ikke gemmes.");
   }
 
   const facilitatorId = facilitatorProfile.id as string;

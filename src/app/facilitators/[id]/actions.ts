@@ -28,7 +28,7 @@ export async function subscribeToFacilitatorReminderAction(facilitatorId: string
     .maybeSingle();
 
   if (!facilitator) {
-    messageRedirect(facilitatorId, "Værten kunne ikke findes.");
+    messageRedirect(facilitatorId, "Arrangøren kunne ikke findes.");
   }
 
   const { error } = await admin
@@ -48,5 +48,5 @@ export async function subscribeToFacilitatorReminderAction(facilitatorId: string
   }
 
   revalidatePath("/facilitators/" + facilitatorId);
-  messageRedirect(facilitatorId, "Tak. Du får besked på e-mail, når værten opretter et nyt event.");
+  messageRedirect(facilitatorId, "Tak. Du får besked på e-mail, når arrangøren opretter et nyt event.");
 }

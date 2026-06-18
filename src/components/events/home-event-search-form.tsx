@@ -255,19 +255,19 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, categories, expe
         <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
           {sortedExperienceGroups.map((group) => (
             <Link
-              className="group relative min-h-[168px] overflow-hidden rounded-[24px] border border-[#D9C5EA] p-4 shadow-[0_18px_45px_rgba(47,38,51,0.08)] transition hover:-translate-y-0.5 hover:border-[#7A4EAB]/45 hover:shadow-[0_22px_55px_rgba(122,78,171,0.16)] sm:min-h-[190px] sm:p-5"
+              className="group relative min-h-[168px] overflow-hidden rounded-[24px] border border-[#D9C5EA] p-4 shadow-[0_18px_45px_rgba(47,38,51,0.08)] transition duration-500 hover:-translate-y-0.5 hover:scale-[1.015] hover:border-[#7A4EAB]/45 hover:shadow-[0_24px_60px_rgba(122,78,171,0.18)] sm:min-h-[190px] sm:p-5"
               href={categoryHref(group.slug)}
               key={group.id}
               style={{
                 background: group.imageUrl
-                  ? "linear-gradient(180deg, rgba(47, 38, 51, 0.18), rgba(47, 38, 51, 0.72)), url('" + group.imageUrl + "') center/cover"
+                  ? "linear-gradient(180deg, rgba(47, 38, 51, 0.16), rgba(47, 38, 51, 0.68)), url('" + group.imageUrl + "') center/cover"
                   : "radial-gradient(circle at center, rgba(255,255,255,0.88) 0%, " + group.colorHex + "30 54%, " + group.colorHex + "70 100%)",
               }}
             >
               <span
                 className={
                   group.imageUrl
-                    ? "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08),rgba(47,38,51,0.34)_62%,rgba(47,38,51,0.58))]"
+                    ? "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.10),rgba(47,38,51,0.28)_62%,rgba(47,38,51,0.52))] transition duration-500 group-hover:bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.16),rgba(47,38,51,0.20)_62%,rgba(47,38,51,0.44))]"
                     : "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.28),transparent_58%)]"
                 }
                 aria-hidden="true"
@@ -276,21 +276,21 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, categories, expe
                 <span>
                   <span className={
                     "block min-h-[3.2rem] break-words font-serif text-[1.35rem] font-medium leading-[1.08] sm:min-h-[4.4rem] sm:text-3xl " +
-                    (group.imageUrl ? "text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]" : "text-[#2F1642]")
+                    (group.imageUrl ? "text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.72)]" : "text-[#2F1642]")
                   }>
                     {group.name}
                   </span>
                   {group.description && (
                     <span className={
                       "mt-2 block min-h-[2.6rem] line-clamp-2 text-xs leading-5 sm:text-sm sm:leading-6 " +
-                      (group.imageUrl ? "text-white/92 drop-shadow-[0_2px_8px_rgba(0,0,0,0.45)]" : "text-[#2F2633]/72")
+                      (group.imageUrl ? "font-semibold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.82)]" : "text-[#2F2633]/72")
                     }>
                       {group.description}
                     </span>
                   )}
                 </span>
                 <span className="mt-4 flex justify-end">
-                  <span className="grid size-9 place-items-center rounded-full bg-white/75 text-[#7A4EAB] shadow-soft transition group-hover:translate-x-0.5 group-hover:bg-white">
+                  <span className="grid size-7 place-items-center rounded-full bg-white/70 text-[#7A4EAB] opacity-0 shadow-soft transition duration-300 group-hover:translate-x-0.5 group-hover:bg-white group-hover:opacity-100">
                     <LotusIcon />
                   </span>
                 </span>

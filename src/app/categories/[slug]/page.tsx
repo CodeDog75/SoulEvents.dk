@@ -196,9 +196,9 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
   return (
     <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
       <header className="border-b border-[#EDE4F7] bg-white/90">
-        <div className="mx-auto flex max-w-[1200px] items-center justify-between px-5 py-5 sm:px-8">
+        <div className="mx-auto flex max-w-[1200px] items-center justify-between px-5 py-6 sm:px-8 sm:py-7">
           <Link aria-label="SoulEvents.dk forside" href="/">
-            <BrandLogo className="h-24 w-24 sm:h-28 sm:w-28" priority />
+            <BrandLogo className="h-32 w-32 sm:h-36 sm:w-36" priority />
           </Link>
           <Link className="inline-flex h-11 items-center gap-2 rounded-button border border-[#7A4EAB]/15 bg-white px-4 text-sm font-semibold text-[#7A4EAB]" href="/">
             <ArrowLeft className="size-4" aria-hidden="true" />
@@ -209,26 +209,28 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
 
       <section className="mx-auto max-w-[1200px] px-5 py-10 sm:px-8 sm:py-14">
         <section
-          className="overflow-hidden rounded-[30px] border border-[#D9C5EA] p-8 shadow-soft sm:p-10"
+          className="relative overflow-hidden rounded-[30px] border border-[#D9C5EA] p-8 shadow-soft sm:p-10"
           style={{
             background: mainCategoryImageUrl
-              ? "linear-gradient(120deg, rgba(47,38,51,0.74), rgba(47,38,51,0.34)), url('" + mainCategoryImageUrl + "') center/cover"
-              : "radial-gradient(circle at center, rgba(255,255,255,0.96) 0%, " +
+              ? "linear-gradient(120deg, rgba(47,38,51,0.84), rgba(47,38,51,0.58)), url('" + mainCategoryImageUrl + "') center/cover"
+              : "radial-gradient(circle at 18% 12%, rgba(237,228,247,0.92) 0%, rgba(255,255,255,0.84) 34%, transparent 62%), radial-gradient(circle at center, rgba(255,255,255,0.96) 0%, " +
                 (mainCategory.color_hex || "#7A4EAB") +
                 "18 52%, " +
                 (mainCategory.color_hex || "#7A4EAB") +
                 "38 100%)",
           }}
         >
-          <p className={"inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-soft " + (mainCategoryImageUrl ? "bg-white/88 text-[#2F1642]" : "bg-white/78 text-[#7A4EAB]")}>
+          <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#EDE4F7]/28 blur-3xl sm:h-96 sm:w-96" aria-hidden="true" />
+          <div className="pointer-events-none absolute -left-24 bottom-[-120px] h-72 w-72 rounded-full bg-[#D8A7B1]/16 blur-3xl" aria-hidden="true" />
+          <p className={"relative z-10 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-soft " + (mainCategoryImageUrl ? "bg-white/95 text-[#2F1642]" : "bg-white/78 text-[#7A4EAB]")}>
             <Sparkles className="size-4" aria-hidden="true" />
             Hovedkategori
           </p>
-          <h1 className={"mt-5 max-w-4xl font-serif text-4xl font-medium leading-tight sm:text-6xl " + (mainCategoryImageUrl ? "text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : "text-[#2F1642]")}>
+          <h1 className={"relative z-10 mt-5 max-w-4xl font-serif text-4xl font-medium leading-tight sm:text-6xl " + (mainCategoryImageUrl ? "text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : "text-[#2F1642]")}>
             {mainCategory.name}
           </h1>
           {mainCategory.description && (
-            <p className={"mt-4 max-w-3xl text-base leading-7 sm:text-lg " + (mainCategoryImageUrl ? "text-white/92 drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]" : "text-[#2F2633]/72")}>{mainCategory.description}</p>
+            <p className={"relative z-10 mt-4 max-w-3xl text-base leading-7 sm:text-lg " + (mainCategoryImageUrl ? "font-semibold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]" : "text-[#2F2633]/72")}>{mainCategory.description}</p>
           )}
         </section>
 

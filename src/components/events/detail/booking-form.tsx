@@ -48,10 +48,10 @@ export function BookingForm({ eventId, availableSeats, message, messageVariant =
       <div className="mt-4 rounded-md border border-white/70 bg-white/70 px-3 py-3 text-sm leading-6 text-ink/72 shadow-soft">
         <p className="font-semibold text-midnight">{"\ud83d\udc9c Vigtigt f\u00f8r du tilmelder dig"}</p>
         <p className="mt-2">
-          {"Din tilmelding sendes som en foresp\u00f8rgsel til værten. Din plads er f\u00f8rst reserveret, n\u00e5r du har modtaget en bekr\u00e6ftelse."}
+          {"Din tilmelding sendes som en foresp\u00f8rgsel til arrangøren. Din plads er f\u00f8rst reserveret, n\u00e5r du har modtaget en bekr\u00e6ftelse."}
         </p>
         <p className="mt-2 italic">
-          {"SoulEvents.dk hj\u00e6lper deltagere og værter med at finde hinanden. Det er den enkelte vært, der st\u00e5r for eventet og h\u00e5ndterer tilmeldinger."}
+          {"SoulEvents.dk hj\u00e6lper deltagere og arrangører med at finde hinanden. Det er den enkelte arrangør, der st\u00e5r for eventet og h\u00e5ndterer tilmeldinger."}
         </p>
       </div>
 
@@ -148,7 +148,7 @@ export function BookingForm({ eventId, availableSeats, message, messageVariant =
             value="yes"
           />
           <span>
-            {"Jeg accepterer SoulEvents.dk's retningslinjer og forst\u00e5r, at min tilmelding f\u00f8rst er g\u00e6ldende, n\u00e5r værten har bekr\u00e6ftet den."}
+            {"Jeg accepterer SoulEvents.dk's retningslinjer og forst\u00e5r, at min tilmelding f\u00f8rst er g\u00e6ldende, n\u00e5r arrangøren har bekr\u00e6ftet den."}
           </span>
         </label>
       </div>

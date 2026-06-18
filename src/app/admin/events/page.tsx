@@ -123,7 +123,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                 className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
                 defaultValue={q ?? ""}
                 name="q"
-                placeholder="Søg eventtitel, vært, by, kategori eller e-mail"
+                placeholder="Søg eventtitel, arrangør, by, kategori eller e-mail"
               />
             </label>
             <button className="h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">
@@ -184,7 +184,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
 
                       <h3 className="mt-3 text-lg font-semibold text-midnight">{event.title}</h3>
                       <p className="mt-1 text-sm text-ink/64">
-                        {facilitator?.company_name || profile?.full_name || "Vært"} · {profile?.email || "Ingen e-mail"}
+                        {facilitator?.company_name || profile?.full_name || "Arrangør"} · {profile?.email || "Ingen e-mail"}
                       </p>
                       <p className="mt-2 text-sm text-ink/72">
                         {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.starts_at))}

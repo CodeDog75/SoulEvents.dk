@@ -14,13 +14,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const { message, role } = await searchParams;
   const loginRole = role === "admin" ? "admin" : role === "facilitator" ? "facilitator" : null;
   const title =
-    loginRole === "admin" ? "Admin-login" : loginRole === "facilitator" ? "Vært-login" : "Log ind";
+    loginRole === "admin" ? "Admin-login" : loginRole === "facilitator" ? "Arrangør-login" : "Log ind";
   const description =
     loginRole === "admin"
       ? "Log ind for at godkende profiler, se dashboard og arbejde med fakturakladder."
       : loginRole === "facilitator"
         ? "Log ind for at redigere profil, oprette events og håndtere tilmeldinger."
-        : "Brug din konto som administrator eller vært.";
+        : "Brug din konto som administrator eller arrangør.";
 
   return (
     <main className="grid min-h-screen place-items-center bg-[#fbfaf7] px-4 py-10">

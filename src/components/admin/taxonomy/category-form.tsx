@@ -1,5 +1,6 @@
 import { Save } from "lucide-react";
 import { upsertCategoryAction } from "@/app/admin/taxonomy/actions";
+import { RecommendedColorPalette } from "@/components/admin/recommended-color-palette";
 
 type Category = {
   id?: string;
@@ -76,6 +77,7 @@ export function CategoryForm({ category, title }: CategoryFormProps) {
             />
           </div>
           <span className="text-xs text-ink/55">Farven bruges på kategori-tags på eventkort, kort-popup og eventside.</span>
+          <RecommendedColorPalette />
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">

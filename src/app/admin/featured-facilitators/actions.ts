@@ -18,7 +18,7 @@ export async function updateFeaturedFacilitatorAction(formData: FormData) {
   const sortOrder = Number(getString(formData, "featured_sort_order") || "0");
 
   if (!facilitatorId) {
-    go("Vært mangler ID.");
+    go("Arrangør mangler ID.");
   }
 
   const supabase = createAdminClient();
@@ -37,5 +37,5 @@ export async function updateFeaturedFacilitatorAction(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/admin");
   revalidatePath("/admin/featured-facilitators");
-  go("Fremhævet vært er opdateret.");
+  go("Fremhævet arrangør er opdateret.");
 }

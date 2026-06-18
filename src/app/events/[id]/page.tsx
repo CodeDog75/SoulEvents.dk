@@ -131,7 +131,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const images = [...(event.event_images ?? [])].sort(
     (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
   );
-  const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Vært";
+  const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør";
   const isBookable = event.status === "active" && facilitatorProfile?.status === "approved";
   const facilitatorImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
@@ -214,7 +214,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           )}
 
           <section className="rounded-card bg-white p-8 shadow-soft">
-            <h2 className="text-4xl font-medium text-olive">Vært</h2>
+            <h2 className="text-4xl font-medium text-olive">Arrangør</h2>
             <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-start">
               {facilitatorImageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -231,7 +231,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               <div>
                 <Link className="font-semibold text-sage-700 transition hover:text-rose" href={"/facilitators/" + facilitatorProfile.id}>{facilitatorName}</Link>
                 <p className="mt-2 text-sm leading-6 text-ink/66">
-                  {facilitatorProfile?.short_description || "Værtens profiltekst kommer snart."}
+                  {facilitatorProfile?.short_description || "Arrangørens profiltekst kommer snart."}
                 </p>
                 {facilitatorLinks.length > 0 && (
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -334,7 +334,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
               <h2 className="text-3xl font-medium text-olive">Tilmelding er ikke åben</h2>
               <p className="mt-3 text-sm leading-6 text-ink/70">
-                Dette event er en forhåndsvisning. Tilmelding åbner først, når eventet er aktivt og værten er godkendt.
+                Dette event er en forhåndsvisning. Tilmelding åbner først, når eventet er aktivt og arrangøren er godkendt.
               </p>
             </section>
           )}

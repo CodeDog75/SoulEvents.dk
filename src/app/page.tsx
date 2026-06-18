@@ -299,7 +299,7 @@ function getHomeTileFallbackImage(tile: { id?: string | null; title?: string | n
   if (id.includes("nearby") || title.includes("nær")) return homeTileFallbackImages.nearby;
   if (id.includes("map") || title.includes("kort")) return homeTileFallbackImages.map;
   if (id.includes("online") || title.includes("online")) return homeTileFallbackImages.online;
-  if (id.includes("facilitator") || title.includes("vært")) return homeTileFallbackImages.facilitators;
+  if (id.includes("facilitator") || title.includes("arrangør")) return homeTileFallbackImages.facilitators;
   if (id.includes("all-events") || title.includes("alle events")) return homeTileFallbackImages.allEvents;
   if (id.includes("meditation") || title.includes("meditation") || title.includes("nærvær")) return homeTileFallbackImages.meditation;
   if (id.includes("sound") || title.includes("lyd") || title.includes("musik") || title.includes("lydbad")) return homeTileFallbackImages.sound;
@@ -314,7 +314,7 @@ const fallbackHomeTiles = [
   { id: "nearby", title: "Events nær dig", description: "Find oplevelser tæt på din aktuelle placering.", href: "/#events", imageUrl: homeTileFallbackImages.nearby, tileType: "nearby" as const },
   { id: "map", title: "Alle events på kort", description: "Udforsk events visuelt på kortet.", href: "/#map", imageUrl: homeTileFallbackImages.map, tileType: "navigation" as const },
   { id: "online", title: "Online events", description: "Find events du kan deltage i hjemmefra.", href: "/?format=online#events", imageUrl: homeTileFallbackImages.online, tileType: "navigation" as const },
-  { id: "facilitators", title: "Værter", description: "Gå på opdagelse blandt SoulEvents værter.", href: "/facilitators", imageUrl: homeTileFallbackImages.facilitators, tileType: "navigation" as const },
+  { id: "facilitators", title: "Arrangører", description: "Gå på opdagelse blandt SoulEvents arrangører.", href: "/facilitators", imageUrl: homeTileFallbackImages.facilitators, tileType: "navigation" as const },
   { id: "all-events", title: "Alle events", description: "Se kommende events i kronologisk rækkefølge.", href: "/#events", imageUrl: homeTileFallbackImages.allEvents, tileType: "navigation" as const },
   { id: "meditation", title: "Meditation & Nærvær", description: "Rolige events med meditation og fordybelse.", href: "/?category_label=Meditation#events", imageUrl: homeTileFallbackImages.meditation, tileType: "category" as const },
   { id: "sound", title: "Lyd & Musik", description: "Lydbade, kirtan og musikalske oplevelser.", href: "/?category_label=Lydbad#events", imageUrl: homeTileFallbackImages.sound, tileType: "category" as const },
@@ -552,7 +552,7 @@ function mapFacilitatorCard(facilitator: any, supabase: Awaited<ReturnType<typeo
 
   return {
     id: facilitator.id,
-    name: facilitator.company_name || profile?.full_name || "Vært",
+    name: facilitator.company_name || profile?.full_name || "Arrangør",
     imageUrl: facilitator.profile_image_path
       ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
       : null,
@@ -632,7 +632,7 @@ async function getHomeFacilitators(queryText: string) {
         ?.map((row: any) => (Array.isArray(row.tags) ? row.tags[0] : row.tags)?.name)
         .filter(Boolean)
         .join(" ") ?? "";
-    const onlineWords = facilitator.is_online_facilitator ? "online online vært digital fjernundervisning hjemmefra" : "";
+    const onlineWords = facilitator.is_online_facilitator ? "online online arrangør digital fjernundervisning hjemmefra" : "";
     const searchText = [
       facilitator.company_name,
       profile?.full_name,
@@ -662,7 +662,7 @@ async function getHomeFacilitators(queryText: string) {
 
     return {
       id: facilitator.id,
-      name: facilitator.company_name || profile?.full_name || "Vært",
+      name: facilitator.company_name || profile?.full_name || "Arrangør",
       imageUrl: facilitator.profile_image_path
         ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
         : null,
@@ -722,8 +722,8 @@ export default async function Home({ searchParams }: HomeProps) {
     ),
     {
       id: "become-host",
-      title: "Bliv vært",
-      description: "Opret en gratis værtsprofil og opret events gratis på SoulEvents.dk.",
+      title: "Del dine events",
+      description: "Del det, du skaber, med mennesker der aktivt søger nærvær, fællesskab og udvikling.",
       href: "/auth/signup",
       imageUrl: homeTileFallbackImages.facilitators,
       tileType: "navigation" as const,
@@ -814,7 +814,7 @@ export default async function Home({ searchParams }: HomeProps) {
       priceCents: event.price_cents,
       latitude: event.latitude,
       longitude: event.longitude,
-      facilitatorName: facilitatorProfile?.company_name || facilitatorUser?.full_name || "Vært",
+      facilitatorName: facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør",
       categoryName: firstCategory?.name ?? null,
       categoryColor: firstCategory?.color_hex ?? null,
       imageUrl: publicMediaUrl(event.cover_image_path),
@@ -875,29 +875,41 @@ export default async function Home({ searchParams }: HomeProps) {
           className="absolute inset-0 bg-[url('/brand/soulevents-logo.png')] bg-[length:360px_360px] sm:bg-[length:680px_680px] bg-center bg-no-repeat opacity-20"
           aria-hidden="true"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#FAF6EF]/90 via-[#FAF6EF]/78 to-[#EDE4F7]/70" aria-hidden="true" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#FAF6EF]/92 via-[#F7F0FA]/82 to-[#EDE4F7]/72" aria-hidden="true" />
+        <div className="absolute left-1/2 top-8 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-[#EDE4F7]/45 blur-3xl sm:top-12 sm:h-[680px] sm:w-[680px]" aria-hidden="true" />
+        <div className="absolute -right-28 top-28 h-[320px] w-[320px] rounded-full bg-[#D8A7B1]/18 blur-3xl sm:h-[460px] sm:w-[460px]" aria-hidden="true" />
 
         <header className="relative z-10">
-          <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-5 sm:px-8">
+          <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-6 sm:px-8 sm:py-8">
             <Link aria-label="SoulEvents.dk forside" href="/">
-              <BrandLogo className="h-28 w-28 sm:h-36 sm:w-36" priority />
+              <BrandLogo className="h-32 w-32 sm:h-52 sm:w-52" priority />
             </Link>
 
-            <nav className="hidden items-center gap-7 text-sm font-semibold text-[#2F2633] md:flex">
-              <a className="transition hover:text-[#7A4EAB]" href="#events">
+            <Link
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#D8A7B1] px-4 text-sm font-semibold text-[#2F2633] shadow-soft transition hover:bg-[#C9939F] md:hidden"
+              href="/auth/signup"
+            >
+              Opret gratis event
+            </Link>
+
+            <nav className="hidden items-center gap-9 text-[15px] font-semibold tracking-[0.01em] text-[#2F2633] md:flex">
+              <a className="transition hover:text-[#7A4EAB]" href="#find-events">
                 Events
               </a>
               <a className="transition hover:text-[#7A4EAB]" href="#map">
                 Kort
               </a>
               <a className="transition hover:text-[#7A4EAB]" href="/facilitators">
-                Værter
+                Arrangører
               </a>
               <a className="transition hover:text-[#7A4EAB]" href="#categories">
                 Kategorier
               </a>
-              <Link className="transition hover:text-[#7A4EAB]" href="/auth/signup">
-                Bliv vært og opret event gratis
+              <Link
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#D8A7B1] px-5 text-sm font-semibold text-[#2F2633] shadow-soft transition hover:-translate-y-0.5 hover:bg-[#C9939F]"
+                href="/auth/signup"
+              >
+                Opret gratis event
               </Link>
               <Link className="transition hover:text-[#7A4EAB]" href="/auth/login">
                 Login
@@ -906,7 +918,7 @@ export default async function Home({ searchParams }: HomeProps) {
           </div>
         </header>
 
-        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-6 px-4 pb-12 pt-6 sm:gap-10 sm:px-8 sm:pb-20 sm:pt-14 lg:pt-20">
+        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-5 px-4 pb-10 pt-4 sm:gap-8 sm:px-8 sm:pb-16 sm:pt-8 lg:pt-10">
           <div className="max-w-4xl">
             <p className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#2F2633] shadow-soft">
               <Sparkles className="size-4 text-[#7A4EAB]" aria-hidden="true" />
@@ -916,7 +928,13 @@ export default async function Home({ searchParams }: HomeProps) {
               Find ro, balance og nærvær
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#2F2633]/76 sm:mt-6 sm:text-xl sm:leading-8">
-              SoulEvents samler mennesker, værter og fællesskaber fra hele Danmark. Her kan du opdage spirituelle aktiviteter og fællesskaber, der skaber ro, nærvær, personlig udvikling og meningsfulde møder med andre.
+              SoulEvents samler mennesker, arrangører og fællesskaber fra hele Danmark. Her kan du opdage spirituelle aktiviteter og fællesskaber, der skaber ro, nærvær, personlig udvikling og meningsfulde møder med andre.
+            </p>
+            <p className="mt-5 text-sm font-semibold text-[#2F2633]/70 sm:mt-6">
+              Er du arrangør?{" "}
+              <Link className="text-[#7A4EAB] underline decoration-[#7A4EAB]/25 underline-offset-4 transition hover:text-[#6D439C]" href="/auth/signup">
+                Opret dit event gratis →
+              </Link>
             </p>
           </div>
 
@@ -997,9 +1015,9 @@ export default async function Home({ searchParams }: HomeProps) {
                     </p>
                     {selected.q && facilitatorCards.length > 0 && (
                       <div className="mx-auto mt-6 max-w-2xl rounded-card bg-white p-5 text-left shadow-soft">
-                        <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Vært fundet</p>
+                        <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Arrangør fundet</p>
                         <h4 className="mt-2 text-2xl font-medium text-[#2F2633]">
-                          Måske leder du efter en vært?
+                          Måske leder du efter en arrangør?
                         </h4>
                         <div className="mt-4 grid gap-3">
                           {facilitatorCards.slice(0, 3).map((facilitator) => (
@@ -1032,7 +1050,7 @@ export default async function Home({ searchParams }: HomeProps) {
               Brug kortet som et roligt overblik, når du vil se, hvor oplevelserne finder sted.
             </p>
           </div>
-          <EventMap events={mapEvents} mapboxToken={env.mapboxToken} />
+          <EventMap events={mapEvents} mapboxStyleUrl={env.mapboxStyleUrl} mapboxToken={env.mapboxToken} />
         </div>
       </section>
 
@@ -1042,7 +1060,7 @@ export default async function Home({ searchParams }: HomeProps) {
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Kategorier og inspiration</p>
             <h2 className="mt-2 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Gå på opdagelse i SoulEvents</h2>
             <p className="mt-3 text-base leading-7 text-[#2F2633]/70">
-              Udforsk kortet, online events, værter og særlige temaer på SoulEvents.dk.
+              Udforsk kortet, online events, arrangører og særlige temaer på SoulEvents.dk.
             </p>
           </div>
           <HomeDiscoveryTiles tiles={discoveryTiles} />

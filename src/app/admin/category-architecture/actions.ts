@@ -163,6 +163,15 @@ export async function upsertTagAction(formData: FormData) {
   await saveBasic("tags", formData);
 }
 
+async function relationExists(supabase: ReturnType<typeof createAdminClient>, table: string, column: string, id: string) {
+  const { count, error } = await supabase.from(table).select(column, { count: "exact", head: true }).eq(column, id);
+  if (error) {
+    return false;
+  }
+
+  return (count ?? 0) > 0;
+}
+
 export async function deleteTaxonomyItemAction(formData: FormData) {
   await requireRole("admin");
   const table = getString(formData, "table") || getString(formData, "delete_table");
@@ -173,6 +182,36 @@ export async function deleteTaxonomyItemAction(formData: FormData) {
   }
 
   const supabase = createAdminClient();
+
+  if (table === "main_categories") {
+    const isUsed =
+      (await relationExists(supabase, "event_main_categories", "main_category_id", id)) ||
+      (await relationExists(supabase, "subcategory_main_categories", "main_category_id", id)) ||
+      (await relationExists(supabase, "ad_main_categories", "main_category_id", id));
+
+    if (isUsed) {
+      go("Kan ikke slette hovedkategorien, fordi den er i brug. Deaktivér den i stedet.");
+    }
+  }
+
+  if (table === "subcategories") {
+    const isUsed = await relationExists(supabase, "event_subcategories", "subcategory_id", id);
+
+    if (isUsed) {
+      go("Kan ikke slette underkategorien, fordi den er brugt på events. Deaktivér den i stedet.");
+    }
+  }
+
+  if (table === "tags") {
+    const isUsed =
+      (await relationExists(supabase, "event_tags", "tag_id", id)) ||
+      (await relationExists(supabase, "facilitator_tags", "tag_id", id));
+
+    if (isUsed) {
+      go("Kan ikke slette tagget, fordi det er i brug. Deaktivér det i stedet.");
+    }
+  }
+
   const { error } = await supabase.from(table).delete().eq("id", id);
 
   if (error) {

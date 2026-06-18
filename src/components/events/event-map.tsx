@@ -24,6 +24,7 @@ type MapEvent = {
 type EventMapProps = {
   events: MapEvent[];
   mapboxToken: string;
+  mapboxStyleUrl?: string;
 };
 
 type EventGroup = {
@@ -236,7 +237,7 @@ function popupHtml(group: EventGroup) {
   ].join("");
 }
 
-export function EventMap({ events, mapboxToken }: EventMapProps) {
+export function EventMap({ events, mapboxToken, mapboxStyleUrl }: EventMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const [mapError, setMapError] = useState("");
@@ -259,7 +260,7 @@ export function EventMap({ events, mapboxToken }: EventMapProps) {
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: "mapbox://styles/mapbox/light-v11",
+      style: mapboxStyleUrl || "mapbox://styles/mapbox/light-v11",
       center: [10.2, 56.1],
       zoom: 5.9,
       cooperativeGestures: true,

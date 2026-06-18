@@ -30,7 +30,7 @@ export function TaxonomyLists({ categories, regions }: TaxonomyListsProps) {
       <section className="overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
         <div className="border-b border-midnight/10 px-5 py-4">
           <h2 className="text-lg font-semibold text-midnight">Kategorier</h2>
-          <p className="mt-1 text-sm text-ink/64">Bruges til værtsprofiler, events, kategori-tags og kortmarkører.</p>
+          <p className="mt-1 text-sm text-ink/64">Bruges til arrangørprofiler, events, kategori-tags og kortmarkører.</p>
         </div>
 
         <div className="divide-y divide-midnight/10">

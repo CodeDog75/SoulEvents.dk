@@ -25,7 +25,7 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
   const status = getString(formData, "status") as FacilitatorStatus;
 
   if (!facilitatorId || !allowedStatuses.includes(status)) {
-    adminRedirect("Ugyldig værthandling.");
+    adminRedirect("Ugyldig arrangørhandling.");
   }
 
   const supabase = createAdminClient();
@@ -35,7 +35,7 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
     .eq("id", facilitatorId);
 
   if (error) {
-    adminRedirect("Værtstatus kunne ikke opdateres.");
+    adminRedirect("Arrangørtatus kunne ikke opdateres.");
   }
 
   revalidatePath("/admin");
@@ -48,7 +48,7 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
     disabled: "deaktiveret",
   };
 
-  adminRedirect(`Vært er ${labels[status]}.`);
+  adminRedirect(`Arrangør er ${labels[status]}.`);
 }
 
 
@@ -78,11 +78,11 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   const tagIds = Array.from(new Set(getAllStrings(formData, "tag_ids")));
 
   if (!facilitatorId || !profileId) {
-    adminRedirect("Værten kunne ikke findes.");
+    adminRedirect("Arrangøren kunne ikke findes.");
   }
 
   if (!allowedStatuses.includes(status)) {
-    adminFacilitatorEditRedirect(facilitatorId, "Ugyldig værtstatus.");
+    adminFacilitatorEditRedirect(facilitatorId, "Ugyldig arrangørtatus.");
   }
 
   if (!fullName) {
@@ -132,7 +132,7 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
     .eq("id", facilitatorId);
 
   if (facilitatorError) {
-    adminFacilitatorEditRedirect(facilitatorId, "Værtsprofilen kunne ikke gemmes.");
+    adminFacilitatorEditRedirect(facilitatorId, "Arrangørprofilen kunne ikke gemmes.");
   }
 
   await supabase.from("facilitator_categories").delete().eq("facilitator_id", facilitatorId);
@@ -169,5 +169,5 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   revalidatePath("/facilitators/" + facilitatorId);
   revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
 
-  adminFacilitatorEditRedirect(facilitatorId, "Værtsprofilen er gemt.");
+  adminFacilitatorEditRedirect(facilitatorId, "Arrangørprofilen er gemt.");
 }

@@ -8,6 +8,7 @@ export const env = {
   supabaseAnonKey: optionalEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY") || optionalEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
   supabaseServiceRoleKey: optionalEnv("SUPABASE_SERVICE_ROLE_KEY"),
   mapboxToken: optionalEnv("NEXT_PUBLIC_MAPBOX_TOKEN"),
+  mapboxStyleUrl: optionalEnv("NEXT_PUBLIC_MAPBOX_STYLE_URL"),
   resendApiKey: optionalEnv("RESEND_API_KEY"),
   resendFromEmail: optionalEnv("RESEND_FROM_EMAIL"),
 };

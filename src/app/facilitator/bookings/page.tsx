@@ -42,7 +42,7 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
               <Inbox className="size-5" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Vært</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Arrangør</p>
               <h1 className="text-xl font-semibold text-midnight">Tilmeldinger</h1>
             </div>
           </div>

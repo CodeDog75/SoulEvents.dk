@@ -99,11 +99,11 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   const totalCommission = bookingStats?.reduce((sum: number, booking: { commission_cents: number }) => sum + booking.commission_cents, 0) ?? 0;
 
   const stats = [
-    { label: "Aktive værter", value: formatNumber(activeFacilitators), icon: UsersRound },
+    { label: "Aktive arrangører", value: formatNumber(activeFacilitators), icon: UsersRound },
     { label: "Kommende events", value: formatNumber(upcomingEvents), icon: CalendarDays },
     { label: "Online events", value: formatNumber(onlineEvents), icon: CheckCircle2 },
     { label: "Tilmeldinger seneste 30 dage", value: formatNumber(recentBookings), icon: ReceiptText },
-    { label: "Nye værtansøgninger", value: formatNumber(pendingFacilitators), icon: Clock3 },
+    { label: "Nye arrangøransøgninger", value: formatNumber(pendingFacilitators), icon: Clock3 },
     { label: "Events til godkendelse", value: formatNumber(pendingEvents), icon: AlertCircle },
   ];
 
@@ -113,7 +113,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { href: "/admin/category-architecture", title: "Kategorier & tag-farver", text: "Administrer kategorier, tags, eventformat og farver på tags.", icon: Tags },
     { href: "/admin/homepage", title: "Forsidebokse og temaer", text: "Styr de store 1:1 bokse og kampagne-temaer på forsiden.", icon: LayoutGrid },
     { href: "/admin/ads", title: "Reklamer / partnerindhold", text: "Styr diskrete reklamer på forsiden og hovedkategorisider.", icon: Megaphone },
-    { href: "/admin/featured-facilitators", title: "Fremhævede værter", text: "Vælg hvem der skal vises særskilt på forsiden.", icon: Star },
+    { href: "/admin/featured-facilitators", title: "Fremhævede arrangører", text: "Vælg hvem der skal vises særskilt på forsiden.", icon: Star },
     { href: "/admin/users", title: "Brugere og roller", text: "Styr adgang til adminpanelet.", icon: UserCog },
     { href: "/admin/legal", title: "Juridiske dokumenter", text: "Opdater betingelser, privatliv og retningslinjer.", icon: Scale },
     { href: "/admin/reports", title: "Rapporter og faktura", text: "Månedsrapporter og fakturakladder.", icon: FileText },
@@ -161,7 +161,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
         <div className="mt-6 grid gap-4 lg:grid-cols-3">
           <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-            <h2 className="font-semibold text-midnight">Nye værter</h2>
+            <h2 className="font-semibold text-midnight">Nye arrangører</h2>
             <div className="mt-4 grid gap-3">
               {(recentFacilitators ?? []).map((facilitator: any) => {
                 const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
@@ -199,7 +199,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                   <div className="rounded-md bg-sage-50 p-3" key={event.id}>
                     <p className="font-semibold text-midnight">{event.title}</p>
                     <p className="mt-1 text-xs text-ink/64">
-                      {facilitator?.company_name || eventProfile?.full_name || "Vært"} · {event.status}
+                      {facilitator?.company_name || eventProfile?.full_name || "Arrangør"} · {event.status}
                     </p>
                     <Link className="mt-2 inline-flex text-sm font-semibold text-sage-700" href="/admin/events">
                       Gå til moderation

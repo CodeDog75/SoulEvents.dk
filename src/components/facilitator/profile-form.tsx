@@ -501,7 +501,7 @@ export function ProfileForm({
       <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
         <div className="flex items-center justify-between gap-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-midnight">
-            Værtydelser
+            Arrangørydelser
             <FieldStatus complete={categoriesComplete} />
             <InfoHelp>Vælg mindst én kategori, så brugerne kan finde dig under de rigtige emner.</InfoHelp>
           </h2>
