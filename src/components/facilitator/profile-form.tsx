@@ -16,6 +16,12 @@ type Category = {
   name: string;
 };
 
+type ServiceTitle = {
+  id: string;
+  name: string;
+  is_active?: boolean;
+};
+
 type FacilitatorProfile = {
   company_name: string | null;
   profile_image_path: string | null;
@@ -28,6 +34,10 @@ type FacilitatorProfile = {
   postal_code: string | null;
   city: string | null;
   region_id: string | null;
+  offers_services?: boolean | null;
+  service_description?: string | null;
+  service_other_title?: string | null;
+  show_in_local_service_results?: boolean | null;
 };
 
 type GalleryImage = {
@@ -46,6 +56,8 @@ type ProfileFormProps = {
   categories: Category[];
   selectedCategoryIds: string[];
   galleryImages: GalleryImage[];
+  serviceTitles: ServiceTitle[];
+  selectedServiceTitleIds: string[];
 };
 
 function value(input: string | number | null | undefined) {
@@ -175,6 +187,8 @@ export function ProfileForm({
   categories,
   selectedCategoryIds,
   galleryImages,
+  serviceTitles,
+  selectedServiceTitleIds,
 }: ProfileFormProps) {
   const [postalCode, setPostalCode] = useState(value(facilitatorProfile.postal_code));
   const [city, setCity] = useState(value(facilitatorProfile.city));
@@ -188,12 +202,17 @@ export function ProfileForm({
   const [facebookUrl, setFacebookUrl] = useState(value(facilitatorProfile.facebook_url));
   const [instagramUrl, setInstagramUrl] = useState(value(facilitatorProfile.instagram_url));
   const [selectedCategories, setSelectedCategories] = useState(selectedCategoryIds);
+  const [offersServices, setOffersServices] = useState(Boolean(facilitatorProfile.offers_services));
+  const [selectedServiceTitles, setSelectedServiceTitles] = useState(selectedServiceTitleIds);
+  const [serviceDescription, setServiceDescription] = useState(value(facilitatorProfile.service_description));
+  const [serviceOtherTitle, setServiceOtherTitle] = useState(value(facilitatorProfile.service_other_title));
   const fullNameComplete = Boolean(fullName.trim());
   const companyNameComplete = Boolean(companyName.trim());
   const shortComplete = shortDescription.trim().length >= 20;
   const phoneComplete = Boolean(phone && digits(phone).length === 8);
   const locationComplete = Boolean(postalCode.trim() && city.trim());
   const categoriesComplete = selectedCategories.length > 0;
+  const servicesComplete = !offersServices || selectedServiceTitles.length > 0;
 
   async function fetchPostalCodeCity(normalizedPostalCode: string) {
     try {
@@ -243,6 +262,8 @@ export function ProfileForm({
             <input
               className={`h-11 ${fieldClass(fullNameComplete)}`}
               name="full_name"
+              maxLength={80}
+
               onChange={(event) => setFullName(event.target.value)}
               placeholder="Skal udfyldes"
               value={fullName}
@@ -288,6 +309,8 @@ export function ProfileForm({
             <input
               className={`h-11 ${fieldClass(companyNameComplete)}`}
               name="company_name"
+              maxLength={100}
+
               onChange={(event) => setCompanyName(event.target.value)}
               placeholder="Skal udfyldes"
               value={companyName}
@@ -305,6 +328,8 @@ export function ProfileForm({
             <textarea
               className={`min-h-24 p-3 ${fieldClass(shortComplete)}`}
               name="short_description"
+              maxLength={300}
+
               onChange={(event) => setShortDescription(event.target.value)}
               placeholder="Skal udfyldes"
               value={shortDescription}
@@ -322,6 +347,8 @@ export function ProfileForm({
             <textarea
               className={`min-h-40 p-3 ${fieldClass(Boolean(longDescription.trim()), true)}`}
               name="long_description"
+              maxLength={2000}
+
               onChange={(event) => setLongDescription(event.target.value)}
               placeholder="Valgfrit"
               value={longDescription}
@@ -351,6 +378,8 @@ export function ProfileForm({
             <input
               className={`h-11 ${fieldClass(Boolean(addressLine.trim()), true)}`}
               name="address_line"
+              maxLength={120}
+
               onChange={(event) => setAddressLine(event.target.value)}
               placeholder="Valgfrit"
               value={addressLine}
@@ -364,6 +393,8 @@ export function ProfileForm({
             <input
               className={`h-11 ${fieldClass(Boolean(postalCode.trim()))}`}
               name="postal_code"
+              maxLength={20}
+
               onChange={(event) => handlePostalCodeChange(event.target.value)}
               placeholder="Skal udfyldes"
               value={postalCode}
@@ -377,6 +408,8 @@ export function ProfileForm({
             <input
               className={`h-11 ${fieldClass(Boolean(city.trim()))}`}
               name="city"
+              maxLength={80}
+
               onChange={(event) => setCity(event.target.value)}
               placeholder="Skal udfyldes"
               value={city}
@@ -431,6 +464,8 @@ export function ProfileForm({
             <input
               className={`h-11 ${fieldClass(Boolean(websiteUrl.trim()), true)}`}
               name="website_url"
+              maxLength={300}
+
               onChange={(event) => setWebsiteUrl(event.target.value)}
               placeholder="Valgfrit"
               type="url"
@@ -446,6 +481,8 @@ export function ProfileForm({
             <input
               className={`h-11 ${fieldClass(Boolean(facebookUrl.trim()), true)}`}
               name="facebook_url"
+              maxLength={300}
+
               onChange={(event) => setFacebookUrl(event.target.value)}
               placeholder="Valgfrit"
               type="url"
@@ -461,6 +498,8 @@ export function ProfileForm({
             <input
               className={`h-11 ${fieldClass(Boolean(instagramUrl.trim()), true)}`}
               name="instagram_url"
+              maxLength={300}
+
               onChange={(event) => setInstagramUrl(event.target.value)}
               placeholder="Valgfrit"
               type="url"
@@ -501,7 +540,7 @@ export function ProfileForm({
       <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
         <div className="flex items-center justify-between gap-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-midnight">
-            Arrangørydelser
+            Kategorier
             <FieldStatus complete={categoriesComplete} />
             <InfoHelp>Vælg mindst én kategori, så brugerne kan finde dig under de rigtige emner.</InfoHelp>
           </h2>
@@ -533,6 +572,121 @@ export function ProfileForm({
 
         <div className="mt-5 flex justify-center sm:justify-end">
           <SectionSaveButton section="categories">Gem dette afsnit</SectionSaveButton>
+        </div>
+      </section>
+
+
+
+      <section className="rounded-md border border-[#E5D4F7] bg-[#FAF6EF] p-5 shadow-soft">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Behandlinger og ydelser</p>
+            <h2 className="mt-1 flex items-center gap-2 text-lg font-semibold text-midnight">
+              Tilbyder du også sessioner?
+              <FieldStatus complete={servicesComplete} optional={!offersServices} />
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-ink/64">
+              Vælg titler fra listen, så din profil senere kan findes i lokale søgeresultater og på kortet.
+            </p>
+          </div>
+        </div>
+
+        <label className="mt-5 flex items-start gap-3 rounded-md border border-[#E5D4F7] bg-white p-4 text-sm font-semibold text-midnight">
+          <input
+            checked={offersServices}
+            className="mt-1 size-4 accent-[#7A4EAB]"
+            name="offers_services"
+            onChange={(event) => setOffersServices(event.target.checked)}
+            type="checkbox"
+          />
+          <span>
+            Jeg tilbyder også behandlinger, sessioner eller ydelser
+            <span className="mt-1 block text-sm font-normal leading-6 text-ink/64">
+              Fx healing, massage, coaching, lydterapi, åndedræt eller individuel undervisning.
+            </span>
+          </span>
+        </label>
+
+        {offersServices && (
+          <div className="mt-5 grid gap-5">
+            <div>
+              <p className="text-sm font-semibold text-ink/72">Vælg dine titler/ydelser</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {serviceTitles.map((title) => (
+                  <label
+                    className={
+                      selectedServiceTitles.includes(title.id)
+                        ? "flex items-center gap-3 rounded-md border border-[#7A4EAB] bg-[#EDE4F7] p-3 text-sm font-semibold text-[#2F2633]"
+                        : "flex items-center gap-3 rounded-md border border-midnight/10 bg-white p-3 text-sm font-medium text-ink/75"
+                    }
+                    key={title.id}
+                  >
+                    <input
+                      checked={selectedServiceTitles.includes(title.id)}
+                      className="size-4 accent-[#7A4EAB]"
+                      name="service_title_ids"
+                      onChange={(event) => {
+                        setSelectedServiceTitles((current) =>
+                          event.target.checked
+                            ? [...current, title.id]
+                            : current.filter((titleId) => titleId !== title.id),
+                        );
+                      }}
+                      type="checkbox"
+                      value={title.id}
+                    />
+                    {title.name}
+                    {title.is_active === false && <span className="ml-auto text-xs text-ink/45">Skjult</span>}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <label className="grid gap-2 text-sm font-medium text-ink/72">
+              Kort beskrivelse
+              <textarea
+                className={"min-h-28 p-3 " + fieldClass(Boolean(serviceDescription.trim()), true)}
+                name="service_description"
+                maxLength={500}
+
+                onChange={(event) => setServiceDescription(event.target.value)}
+                placeholder="Fortæl kort hvilke behandlinger, sessioner eller ydelser du tilbyder."
+                value={serviceDescription}
+              />
+            </label>
+
+            <label className="grid gap-2 text-sm font-medium text-ink/72">
+              Anden titel eller uddybning
+              <input
+                className={"h-11 " + fieldClass(Boolean(serviceOtherTitle.trim()), true)}
+                name="service_other_title"
+                maxLength={120}
+
+                onChange={(event) => setServiceOtherTitle(event.target.value)}
+                placeholder="Valgfrit - fx Reiki Master, Breathwork facilitator eller lignende"
+                value={serviceOtherTitle}
+              />
+            </label>
+
+            <label className="flex items-start gap-3 rounded-md border border-midnight/10 bg-white p-4 text-sm font-semibold text-midnight">
+              <input
+                className="mt-1 size-4 accent-[#7A4EAB]"
+                defaultChecked={Boolean(facilitatorProfile.show_in_local_service_results)}
+                name="show_in_local_service_results"
+                type="checkbox"
+              />
+              <span>
+                Vis min profil i lokale søgeresultater, hvor det er relevant
+                <span className="mt-1 block text-sm font-normal leading-6 text-ink/64">
+                  Bruges senere til lokale søgninger, kort og filtre for behandlinger og ydelser.
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
+
+        <div className="mt-5 flex justify-center sm:justify-end">
+          <SectionSaveButton section="services">Gem dette afsnit</SectionSaveButton>
         </div>
       </section>
 

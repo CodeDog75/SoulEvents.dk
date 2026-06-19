@@ -324,6 +324,7 @@ function TextArea({
   defaultValue,
   minHeight = "min-h-28",
   help,
+  maxLength,
 }: {
   label: string;
   name: string;
@@ -332,6 +333,7 @@ function TextArea({
   defaultValue?: string;
   minHeight?: string;
   help?: string;
+  maxLength?: number;
 }) {
   return (
     <label className="grid gap-2 text-sm font-medium text-ink/72">
@@ -342,6 +344,7 @@ function TextArea({
       <textarea
         className={minHeight + " w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:bg-[#F8F3FF] required:valid:border-[#D7C4F0] p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"}
         defaultValue={defaultValue}
+        maxLength={maxLength}
         name={name}
         placeholder={placeholder}
       />
@@ -882,7 +885,7 @@ export function EventForm({
         </div>
         {showAddress ? (
           <div className="grid gap-4 md:grid-cols-2">
-            <TextInput defaultValue={value(draftEvent?.address_line ?? facilitator.addressLine)} label="Adresse" name="address_line" required />
+            <TextInput defaultValue={value(draftEvent?.address_line ?? facilitator.addressLine)} label="Adresse" name="address_line" required maxLength={120} />
 
             <label className="grid gap-2 text-sm font-medium text-ink/72">
               <span>
@@ -944,7 +947,7 @@ export function EventForm({
                 <span className="text-xs leading-5 text-ink/52">Område styres automatisk ud fra postnummer, så eventet vises korrekt i søgning og på kort.</span>
               </div>
             ) : (
-              <TextInput label="Region / område" name="foreign_region" placeholder="Fx Skåne, Mallorca eller Bali" help="Valgfrit. Bruges kun som ekstra lokationshjælp ved events uden for Danmark." />
+              <TextInput label="Region / område" name="foreign_region" placeholder="Fx Skåne, Mallorca eller Bali" help="Valgfrit. Bruges kun som ekstra lokationshjælp ved events uden for Danmark." maxLength={80} />
             )}
           </div>
         ) : null}
@@ -955,7 +958,7 @@ export function EventForm({
               help="Linket deles kun med tilmeldte deltagere, hvis du ønsker det."
               label="Online-link / møderum"
               name="online_url_or_note"
-              placeholder="Zoom-link, Teams-link eller tekst om at link sendes senere."
+              placeholder="Zoom-link, Teams-link eller tekst om at link sendes senere." maxLength={500}
             />
             <label className="grid gap-2 text-sm font-medium text-ink/72">
               <span>Platform</span>
@@ -975,7 +978,7 @@ export function EventForm({
                 defaultValue={value(draftEvent?.online_description)}
                 label="Hvordan får deltageren adgang?"
                 name="online_description"
-                placeholder="Fx Link til online møderum sendes efter tilmelding."
+                placeholder="Fx Link til online møderum sendes efter tilmelding." maxLength={500}
               />
             </div>
           </div>
@@ -1001,7 +1004,7 @@ export function EventForm({
               defaultValue={value(draftEvent?.practical_information)}
               name="practical_information"
               placeholder="Medbring yogamåtte. Kom i behageligt tøj. Dørene åbner 15 minutter før."
-              help="Valgfrit. Brug kun feltet, hvis der er noget praktisk deltageren skal vide."
+              help="Valgfrit. Brug kun feltet, hvis der er noget praktisk deltageren skal vide." maxLength={800}
             />
           </div>
         </details>
@@ -1013,7 +1016,7 @@ export function EventForm({
           label="Eventbillede"
           name="cover_image_path"
           placeholder="events/forside.jpg"
-          help="Brug et varmt og roligt billede i vandret format. Undgå plakater med meget tekst."
+          help="Brug et varmt og roligt billede i vandret format. Undgå plakater med meget tekst." maxLength={300}
         />
         <div className="rounded-card bg-[#FAF6EF] p-4">
           <div className="flex items-start gap-3">
@@ -1028,8 +1031,8 @@ export function EventForm({
           <div className="mt-4 grid gap-4">
             {Array.from({ length: 3 }, (_, index) => (
               <div className="grid gap-3 rounded-md border border-[#E5D4F7] bg-white p-4 md:grid-cols-2" key={index}>
-                <TextInput defaultValue={draftEvent?.imagePaths?.[index] ?? ""} label={"Galleri-billede " + (index + 1)} name="event_image_paths" placeholder="events/galleri.jpg" />
-                <TextInput defaultValue={draftEvent?.imageAlts?.[index] ?? ""} label="Billedtekst" name="event_alt_texts" placeholder="Fx Meditation i lyse omgivelser" />
+                <TextInput defaultValue={draftEvent?.imagePaths?.[index] ?? ""} label={"Galleri-billede " + (index + 1)} name="event_image_paths" placeholder="events/galleri.jpg" maxLength={300} />
+                <TextInput defaultValue={draftEvent?.imageAlts?.[index] ?? ""} label="Billedtekst" name="event_alt_texts" placeholder="Fx Meditation i lyse omgivelser" maxLength={120} />
               </div>
             ))}
           </div>
@@ -1105,11 +1108,11 @@ export function EventForm({
 
       <section className={currentStep === 4 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <div className="grid gap-4 md:grid-cols-2">
-          <TextInput defaultValue={value(draftEvent?.contact_name)} label="Kontaktperson" name="contact_name" placeholder="Navn på kontaktperson" />
-          <TextInput defaultValue={value(draftEvent?.contact_email ?? facilitator.contactEmail)} label="E-mail" name="contact_email" type="email" />
-          <TextInput defaultValue={value(draftEvent?.contact_phone ?? facilitator.contactPhone)} label="Telefonnummer" name="contact_phone" />
-          <TextInput defaultValue={value(draftEvent?.facebook_url)} label="Facebook" name="facebook_url" type="url" />
-          <TextInput defaultValue={value(draftEvent?.instagram_url)} label="Instagram" name="instagram_url" type="url" />
+          <TextInput defaultValue={value(draftEvent?.contact_name)} label="Kontaktperson" name="contact_name" placeholder="Navn på kontaktperson" maxLength={80} />
+          <TextInput defaultValue={value(draftEvent?.contact_email ?? facilitator.contactEmail)} label="E-mail" name="contact_email" type="email" maxLength={160} />
+          <TextInput defaultValue={value(draftEvent?.contact_phone ?? facilitator.contactPhone)} label="Telefonnummer" name="contact_phone" maxLength={20} />
+          <TextInput defaultValue={value(draftEvent?.facebook_url)} label="Facebook" name="facebook_url" type="url" maxLength={300} />
+          <TextInput defaultValue={value(draftEvent?.instagram_url)} label="Instagram" name="instagram_url" type="url" maxLength={300} />
         </div>
         {preview && (
           <article className="rounded-card bg-[#FAF6EF] p-5">

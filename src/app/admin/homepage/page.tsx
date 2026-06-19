@@ -157,11 +157,11 @@ function TileForm({ tile, title }: { tile?: Tile; title: string }) {
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2 text-sm font-medium text-ink/72">
                   Titel
-                  <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={tile?.title ?? ""} name="title" required />
+                  <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={tile?.title ?? ""} name="title" required maxLength={80} />
                 </label>
                 <label className="grid gap-2 text-sm font-medium text-ink/72">
                   Link
-                  <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={tile?.href ?? "/#events"} name="href" placeholder="/?tag=Gratis#events eller /artikler/plantemedicin" />
+                  <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={tile?.href ?? "/#events"} name="href" placeholder="/?tag=Gratis#events eller /artikler/plantemedicin" maxLength={300} />
                   <span className="text-xs leading-5 text-ink/55">
                     Eksempler: /?tag=Gratis#events, /facilitators, /auth/signup eller en artikelside.
                   </span>
@@ -182,7 +182,7 @@ function TileForm({ tile, title }: { tile?: Tile; title: string }) {
               </div>
               <label className="mt-4 grid gap-2 text-sm font-medium text-ink/72">
                 Beskrivelse
-                <textarea className="min-h-24 rounded-md border border-midnight/15 p-3 text-base outline-none transition focus:border-sage-700" defaultValue={tile?.description ?? ""} name="description" />
+                <textarea className="min-h-24 rounded-md border border-midnight/15 p-3 text-base outline-none transition focus:border-sage-700" defaultValue={tile?.description ?? ""} name="description" maxLength={300} />
               </label>
             </section>
 

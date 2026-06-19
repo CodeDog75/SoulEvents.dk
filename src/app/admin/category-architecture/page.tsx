@@ -271,11 +271,11 @@ function BasicForm({
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <label className="grid gap-1 text-sm font-medium text-ink/72">
           Navn
-          <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.name ?? ""} name="name" required />
+          <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.name ?? ""} name="name" required maxLength={80} />
         </label>
         <label className="grid gap-1 text-sm font-medium text-ink/72">
           Webadresse
-          <input className="h-10 rounded-md border border-midnight/15 bg-sage-50 px-3 text-ink/65" defaultValue={item?.slug ?? ""} name="slug" placeholder="dannes automatisk ved oprettelse" readOnly={Boolean(item?.id)} />
+          <input className="h-10 rounded-md border border-midnight/15 bg-sage-50 px-3 text-ink/65" defaultValue={item?.slug ?? ""} name="slug" placeholder="dannes automatisk ved oprettelse" readOnly={Boolean(item?.id)} maxLength={100} />
         </label>
         {showColor && (
           <label className="grid gap-1 text-sm font-medium text-ink/72">
@@ -326,7 +326,7 @@ function BasicForm({
 
       <label className="mt-3 grid gap-1 text-sm font-medium text-ink/72">
         Beskrivelse
-        <textarea className="min-h-20 rounded-md border border-midnight/15 p-3" defaultValue={item?.description ?? ""} name="description" />
+        <textarea className="min-h-20 rounded-md border border-midnight/15 p-3" defaultValue={item?.description ?? ""} name="description" maxLength={300} />
       </label>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -359,12 +359,12 @@ function SubcategoryForm({ item, mainCategories }: { item?: BasicItem; mainCateg
       <input name="id" type="hidden" value={item?.id ?? ""} />
       <h3 className="font-semibold text-midnight">{item ? "Rediger underkategori" : "Opret underkategori"}</h3>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.name ?? ""} name="name" placeholder="Navn" required />
-        <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.slug ?? ""} name="slug" placeholder="slug dannes automatisk" />
+        <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.name ?? ""} name="name" placeholder="Navn" required maxLength={80} />
+        <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.slug ?? ""} name="slug" placeholder="slug dannes automatisk" maxLength={100} />
 
         <input className="h-10 rounded-md border border-midnight/15 px-3" defaultValue={item?.sort_order ?? 0} name="sort_order" type="number" />
       </div>
-      <textarea className="mt-3 min-h-20 w-full rounded-md border border-midnight/15 p-3" defaultValue={item?.description ?? ""} name="description" placeholder="Beskrivelse" />
+      <textarea className="mt-3 min-h-20 w-full rounded-md border border-midnight/15 p-3" defaultValue={item?.description ?? ""} name="description" placeholder="Beskrivelse" maxLength={300} />
       <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-ink/72">
         <input className="size-4 accent-sage-700" defaultChecked={item?.is_active ?? true} name="is_active" type="checkbox" />
         Aktiv

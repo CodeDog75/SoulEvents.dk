@@ -168,6 +168,11 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   let regionId = getOptionalString(formData, "region_id");
   const categoryIds = getAllStrings(formData, "category_ids");
   const tagIds = getAllStrings(formData, "tag_ids");
+  const offersServices = formData.get("offers_services") === "on";
+  const serviceTitleIds = getAllStrings(formData, "service_title_ids");
+  const serviceDescription = getOptionalString(formData, "service_description");
+  const serviceOtherTitle = getOptionalString(formData, "service_other_title");
+  const showInLocalServiceResults = formData.get("show_in_local_service_results") === "on";
   const galleryPaths = formData
     .getAll("gallery_image_paths")
     .slice(0, 3)
@@ -175,6 +180,31 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
 
   if (!fullName) {
     profileRedirect("Dit rigtige navn skal udfyldes.");
+  }
+
+  const lengthChecks: Array<[string | null, number, string]> = [
+    [fullName, 80, "Navn"],
+    [companyName, 100, "Profilnavn"],
+    [shortDescription, 300, "Kort præsentation"],
+    [longDescription, 2000, "Uddybende beskrivelse"],
+    [addressLine, 120, "Adresse"],
+    [postalCode, 20, "Postnummer"],
+    [city, 80, "By"],
+    [websiteUrl, 300, "Website"],
+    [facebookUrl, 300, "Facebook-link"],
+    [instagramUrl, 300, "Instagram-link"],
+    [serviceDescription, 500, "Kort beskrivelse af ydelser"],
+    [serviceOtherTitle, 120, "Anden titel eller uddybning"],
+  ];
+
+  for (const [value, maxLength, label] of lengthChecks) {
+    if (value && value.length > maxLength) {
+      profileRedirect(label + " må højst være " + maxLength + " tegn.");
+    }
+  }
+
+  if (galleryPaths.some((galleryPath) => galleryPath.length > 300)) {
+    profileRedirect("Billedstier må højst være 300 tegn.");
   }
 
   if ((section === "all" || section === "contact") && !companyName) {
@@ -246,7 +276,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   }
 
   const coordinates = section === "all" || section === "location" ? await geocodeDanishAddress({ addressLine, postalCode, city }) : null;
-  const facilitatorUpdates: Record<string, string | number | null> = {};
+  const facilitatorUpdates: Record<string, string | number | boolean | null> = {};
 
   if (section === "all" || section === "contact") {
     facilitatorUpdates.company_name = companyName;
@@ -271,6 +301,13 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
 
   if (section === "all" || section === "images") {
     facilitatorUpdates.profile_image_path = profileImagePath;
+  }
+
+  if (section === "all" || section === "services") {
+    facilitatorUpdates.offers_services = offersServices;
+    facilitatorUpdates.service_description = offersServices ? serviceDescription : null;
+    facilitatorUpdates.service_other_title = offersServices ? serviceOtherTitle : null;
+    facilitatorUpdates.show_in_local_service_results = offersServices && showInLocalServiceResults;
   }
 
   const { data: facilitatorProfile, error: facilitatorError } = Object.keys(facilitatorUpdates).length
@@ -302,6 +339,23 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
 
     if (categoryError) {
       profileRedirect("Kategorierne kunne ikke gemmes.");
+    }
+  }
+
+  if (section === "all" || section === "services") {
+    await supabase.from("facilitator_service_titles").delete().eq("facilitator_id", facilitatorId);
+
+    if (offersServices && serviceTitleIds.length > 0) {
+      const { error: serviceTitleError } = await supabase.from("facilitator_service_titles").insert(
+        serviceTitleIds.map((serviceTitleId) => ({
+          facilitator_id: facilitatorId,
+          service_title_id: serviceTitleId,
+        })),
+      );
+
+      if (serviceTitleError) {
+        profileRedirect("Behandlertitlerne kunne ikke gemmes.");
+      }
     }
   }
 

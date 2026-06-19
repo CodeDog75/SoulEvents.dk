@@ -372,7 +372,7 @@ async function getSearchEvents(selected: {
     )
     .eq("status", "active")
     .eq("facilitator_profiles.status", "approved")
-    .gte("starts_at", startOfToday().toISOString())
+    .gte("starts_at", new Date().toISOString())
     .order("starts_at", { ascending: true });
 
   if (selected.country === "udenfor-danmark") {

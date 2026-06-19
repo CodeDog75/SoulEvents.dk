@@ -81,7 +81,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     .eq("facilitator_id", id)
     .eq("status", "active")
     .eq("facilitator_profiles.status", "approved")
-    .gte("starts_at", startOfToday().toISOString())
+    .gte("starts_at", new Date().toISOString())
     .order("starts_at", { ascending: true });
 
   const profile = first(facilitatorData.profiles);

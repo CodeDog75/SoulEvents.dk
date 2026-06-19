@@ -32,7 +32,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, status, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, facilitator_categories(category_id, categories(name, color_hex)), facilitator_tags(tag_id), facilitator_images(image_path, alt_text, sort_order)",
+      "id, status, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, offers_services, service_description, service_other_title, facilitator_categories(category_id, categories(name, color_hex)), facilitator_tags(tag_id), facilitator_images(image_path, alt_text, sort_order), facilitator_service_titles(service_title_id, service_titles(name, is_active))",
     )
     .eq("profile_id", profile.id)
     .single();
@@ -57,6 +57,14 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     facilitatorProfile?.facilitator_categories
       ?.map((row: CategoryRelation) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
       .filter((category): category is { name: string; color_hex?: string } => Boolean(category)) ?? [];
+  const serviceTitleNames =
+    facilitatorProfile?.offers_services
+      ? facilitatorProfile.facilitator_service_titles
+          ?.map((row: any) => (Array.isArray(row.service_titles) ? row.service_titles[0] : row.service_titles))
+          .filter((title: any) => Boolean(title?.name))
+          .map((title: { name: string }) => title.name) ?? []
+      : [];
+
   const { data: events } = facilitatorProfile
     ? await supabase
         .from("events")
@@ -179,11 +187,14 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                 colorHex: category.color_hex,
                 name: category.name,
               }))}
+              editHref="/facilitator/profile"
               city={facilitatorProfile?.city}
               introText="Dette er en forhåndsvisning af, hvordan deltagere vil se dig på SoulEvents.dk og på dine events."
               moodImages={moodImages}
               profileImageUrl={profileImageUrl}
               profileName={profileName}
+              serviceDescription={facilitatorProfile?.offers_services ? facilitatorProfile.service_description : null}
+              serviceTitles={serviceTitleNames}
               title="Sådan præsenteres du på dine events"
               shortDescription={facilitatorProfile?.short_description}
             />

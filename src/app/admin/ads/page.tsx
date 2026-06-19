@@ -146,10 +146,10 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
             <section className="rounded-md border border-midnight/10 p-4">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-sage-700">Indhold</h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2 text-sm font-medium text-ink/72">Titel/navn<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.title ?? ""} name="title" required /></label>
-                <label className="grid gap-2 text-sm font-medium text-ink/72">Sponsor / partnernavn<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.sponsor_name ?? ""} name="sponsor_name" /></label>
-                <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2">Link ved klik (valgfrit)<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.target_url ?? ""} name="target_url" placeholder="https://... eller /artikler/..." /><span className="text-xs leading-5 text-ink/55">Hvis feltet er tomt, vises reklamen uden klik-link.</span></label>
-                <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2">Alt-tekst til billede<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.alt_text ?? ""} name="alt_text" placeholder="Kort beskrivelse af billedet" /></label>
+                <label className="grid gap-2 text-sm font-medium text-ink/72">Titel/navn<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.title ?? ""} name="title" required maxLength={80} /></label>
+                <label className="grid gap-2 text-sm font-medium text-ink/72">Sponsor / partnernavn<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.sponsor_name ?? ""} name="sponsor_name" maxLength={80} /></label>
+                <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2">Link ved klik (valgfrit)<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.target_url ?? ""} name="target_url" placeholder="https://... eller /artikler/..." maxLength={300} /><span className="text-xs leading-5 text-ink/55">Hvis feltet er tomt, vises reklamen uden klik-link.</span></label>
+                <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2">Alt-tekst til billede<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.alt_text ?? ""} name="alt_text" placeholder="Kort beskrivelse af billedet" maxLength={160} /></label>
               </div>
             </section>
 
@@ -183,7 +183,7 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
             </section>
 
             <section className="rounded-md border border-midnight/10 p-4">
-              <label className="grid gap-2 text-sm font-medium text-ink/72">Intern note til admin<textarea className="min-h-24 rounded-md border border-midnight/15 p-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.admin_note ?? ""} name="admin_note" /></label>
+              <label className="grid gap-2 text-sm font-medium text-ink/72">Intern note til admin<textarea className="min-h-24 rounded-md border border-midnight/15 p-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.admin_note ?? ""} name="admin_note" maxLength={1000} /></label>
             </section>
 
             <button className="inline-flex h-10 w-fit items-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700" type="submit"><Save className="size-4" aria-hidden="true" />Gem reklame</button>

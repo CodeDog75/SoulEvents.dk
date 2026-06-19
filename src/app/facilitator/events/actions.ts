@@ -242,6 +242,36 @@ export async function createEventAction(formData: FormData) {
     eventsRedirect("Ugyldig eventstatus.");
   }
 
+  const lengthChecks: Array<[string | null, number, string]> = [
+    [coverImagePath, 300, "Eventbillede"],
+    [addressLine, 120, "Adresse"],
+    [postalCode, 20, "Postnummer"],
+    [city, 80, "By"],
+    [country, 80, "Land"],
+    [contactName, 80, "Kontaktperson"],
+    [contactEmail, 160, "E-mail"],
+    [contactPhone, 20, "Telefonnummer"],
+    [facebookUrl, 300, "Facebook-link"],
+    [instagramUrl, 300, "Instagram-link"],
+    [onlineDescription, 500, "Online-beskrivelse"],
+    [onlineUrlOrNote, 500, "Online-link eller tekst"],
+    [practicalInformation, 800, "Praktiske oplysninger"],
+  ];
+
+  for (const [value, maxLength, label] of lengthChecks) {
+    if (value && value.length > maxLength) {
+      eventsRedirect(label + " må højst være " + maxLength + " tegn.");
+    }
+  }
+
+  if (imagePaths.some((imagePath) => imagePath.length > 300)) {
+    eventsRedirect("Billedstier må højst være 300 tegn.");
+  }
+
+  if (imageAlts.some((imageAlt) => imageAlt.length > 120)) {
+    eventsRedirect("Billedtekster må højst være 120 tegn.");
+  }
+
   if (!isDraft && (!rawTitle || !slugBase)) {
     eventsRedirect("Titel er påkrævet.");
   }

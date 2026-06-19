@@ -1,7 +1,8 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { CircleUserRound, MapPin, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, CircleUserRound, MapPin, X } from "lucide-react";
 import { useState } from "react";
 
 type PreviewCategory = {
@@ -18,10 +19,13 @@ type MoodImage = {
 type FacilitatorProfilePreviewProps = {
   categories: PreviewCategory[];
   city?: string | null;
+  editHref?: string;
   introText?: string;
   moodImages: MoodImage[];
   profileImageUrl?: string | null;
   profileName: string;
+  serviceDescription?: string | null;
+  serviceTitles?: string[];
   shortDescription?: string | null;
   title?: string;
 };
@@ -31,10 +35,13 @@ const previewTextLimit = 180;
 export function FacilitatorProfilePreview({
   categories,
   city,
+  editHref,
   introText,
   moodImages,
   profileImageUrl,
   profileName,
+  serviceDescription,
+  serviceTitles = [],
   shortDescription,
   title,
 }: FacilitatorProfilePreviewProps) {
@@ -88,6 +95,23 @@ export function FacilitatorProfilePreview({
             ))}
           </div>
         ) : null}
+        {serviceTitles.length > 0 ? (
+          <div className="mt-4 rounded-card border border-[#E5D4F7] bg-white/80 p-3 text-left shadow-soft">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Titler og ydelser</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {serviceTitles.map((serviceTitle) => (
+                <span
+                  className="rounded-full bg-[#EDE4F7] px-3 py-1 text-xs font-semibold text-[#7A4EAB]"
+                  key={serviceTitle}
+                >
+                  {serviceTitle}
+                </span>
+              ))}
+            </div>
+            {serviceDescription ? <p className="mt-3 text-sm leading-6 text-ink/68">{serviceDescription}</p> : null}
+          </div>
+        ) : null}
+
         {visibleDescription ? (
           <div className="mt-4 text-sm leading-6 text-ink/68">
             <p>{visibleDescription}</p>
@@ -124,6 +148,16 @@ export function FacilitatorProfilePreview({
             ))}
           </div>
         </div>
+      ) : null}
+
+      {editHref ? (
+        <Link
+          className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/30 bg-white px-4 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:bg-[#EDE4F7]"
+          href={editHref}
+        >
+          Ret profil
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </Link>
       ) : null}
 
       {activeImage ? (

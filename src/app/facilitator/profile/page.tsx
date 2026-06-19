@@ -24,6 +24,8 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     { data: regions },
     { data: categories },
     { data: categoryRows },
+    { data: serviceTitles },
+    { data: serviceRows },
   ] = await Promise.all([
     supabase.from("facilitator_profiles").select("*").eq("profile_id", profile.id).single(),
     supabase.from("regions").select("id, name").order("sort_order"),
@@ -31,6 +33,12 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     supabase
       .from("facilitator_profiles")
       .select("id, facilitator_categories(category_id), facilitator_images(image_path, alt_text, sort_order)")
+      .eq("profile_id", profile.id)
+      .single(),
+    supabase.from("service_titles").select("id, name, is_active, sort_order").eq("is_active", true).order("sort_order").order("name"),
+    supabase
+      .from("facilitator_profiles")
+      .select("id, facilitator_service_titles(service_title_id, service_titles(id, name, is_active, sort_order))")
       .eq("profile_id", profile.id)
       .single(),
   ]);
@@ -41,6 +49,15 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     categoryRows?.facilitator_images?.sort(
       (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
     ) ?? [];
+  const selectedServiceTitleIds =
+    serviceRows?.facilitator_service_titles?.map((row: { service_title_id: string }) => row.service_title_id) ?? [];
+  const historicalServiceTitles =
+    serviceRows?.facilitator_service_titles
+      ?.map((row: any) => (Array.isArray(row.service_titles) ? row.service_titles[0] : row.service_titles))
+      .filter((title: any) => title && !title.is_active) ?? [];
+  const visibleServiceTitles = [...(serviceTitles ?? []), ...historicalServiceTitles].filter(
+    (title, index, all) => all.findIndex((item) => item.id === title.id) === index,
+  );
 
   if (!facilitatorProfile) {
     return (
@@ -122,6 +139,8 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
           profile={profile}
           regions={regions ?? []}
           selectedCategoryIds={selectedCategoryIds}
+          selectedServiceTitleIds={selectedServiceTitleIds}
+          serviceTitles={visibleServiceTitles}
         />
       </section>
     </main>
