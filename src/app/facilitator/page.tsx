@@ -140,7 +140,7 @@ function DashboardHeader({
             Hej {name || "og velkommen"} 🌿
           </h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-[#6E6475]">
-            Her er dit rolige overblik over dine events, tilmeldinger og din profil på SoulEvents.dk.
+            Her er dit overblik over dine events, tilmeldinger og din profil på SoulEvents.dk.
           </p>
           <div className="mt-4 flex flex-wrap gap-2 text-sm font-semibold">
             <span

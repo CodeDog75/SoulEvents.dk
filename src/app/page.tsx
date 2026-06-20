@@ -862,11 +862,16 @@ async function getHomeFacilitators(queryText: string) {
 
 
 async function getHomepageAds() {
-  if (!env.supabaseUrl) {
+  if (!env.supabaseUrl || !env.supabaseServiceRoleKey) {
     return [];
   }
 
-  const supabase = createAdminClient();
+  let supabase;
+  try {
+    supabase = createAdminClient();
+  } catch {
+    return [];
+  }
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .from("ads")

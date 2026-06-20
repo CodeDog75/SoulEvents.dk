@@ -471,7 +471,7 @@ function EventDescriptionField({ defaultValue = "" }: { defaultValue?: string })
   return (
     <label className="grid gap-2 text-sm font-medium text-ink/72">
       <span>
-        Beskrivelse af event<span className="ml-1 text-[#B56F8A]">*</span>
+        Hvad skal deltagerne opleve?<span className="ml-1 text-[#B56F8A]">*</span>
       </span>
       <textarea
         className="min-h-40 w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:!bg-[#F0E3FF] required:valid:!border-[#B894D6] p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
@@ -479,11 +479,11 @@ function EventDescriptionField({ defaultValue = "" }: { defaultValue?: string })
         defaultValue={defaultValue}
         name="event_description"
         onInput={(event) => setCharacterCount(event.currentTarget.value.length)}
-        placeholder="Vi mødes til en rolig aften med guidet meditation, nærvær og fællesskab. Eventet er åbent for både begyndere og øvede. Medbring gerne en yogamåtte og behageligt tøj."
+        placeholder="Beskriv med dine egne ord, hvad der skal ske, hvem oplevelsen er for, og hvad deltagerne kan forvente."
         required
       />
       <span className="text-xs leading-5 text-ink/52">
-        Fortæl kort, hvad der skal ske, hvem eventet er for, og hvad deltagerne kan forvente. Du kan også nævne, hvis deltagerne skal medbringe noget særligt.
+        Fortæl kort, hvad der skal ske, hvem eventet er for, og hvad deltagerne kan forvente.
       </span>
       <span className={isAtLimit ? "text-xs font-semibold text-[#9A3F3F]" : "text-xs font-semibold text-[#7A4EAB]"}>
         {remainingCharacters} tegn tilbage
@@ -633,19 +633,19 @@ export function EventForm({
   }, [endDate, endTime, startDate, startTime]);
 
   const steps: Step[] = [
-    { icon: <CalendarPlus className="size-4" />, label: "Start", title: "Det starter med en invitation" },
-    { icon: <MapPin className="size-4" />, label: "Sted", title: "Beskriv oplevelsen" },
-    { icon: <HeartHandshake className="size-4" />, label: "Indhold", title: "Gør eventet synligt" },
-    { icon: <Tags className="size-4" />, label: "Kategorier", title: "Praktiske oplysninger" },
-    { icon: <Mail className="size-4" />, label: "Gennemgang", title: "Gennemgå dit event" },
+    { icon: <CalendarPlus className="size-4" />, label: "Invitation", title: "Hvad vil du invitere til?" },
+    { icon: <MapPin className="size-4" />, label: "Sted", title: "Hvor foregår oplevelsen?" },
+    { icon: <HeartHandshake className="size-4" />, label: "Stemning", title: "Hvordan skal oplevelsen føles?" },
+    { icon: <Tags className="size-4" />, label: "Findbarhed", title: "Hvordan skal deltagerne finde dit event?" },
+    { icon: <Mail className="size-4" />, label: "Gennemgang", title: "Klar til at dele dit event?" },
   ];
 
   const stepDescriptions = [
-    "Giv dit event en titel, vælg dato og tidspunkt, og fortæl om oplevelsen foregår fysisk eller online. Resten tager vi sammen, trin for trin.",
-    "Fortæl deltagerne, hvor eventet foregår, eller hvordan de deltager online.",
-    "Beskriv stemningen, hvem eventet er for, og tilføj billeder der gør eventet levende.",
-    "Vælg kategorier, pris og deltagerantal, så de rette mennesker kan finde dit event.",
-    "Se de vigtigste oplysninger samlet, før du gør eventet offentligt.",
+    "Giv eventet et navn, beskriv oplevelsen med dine egne ord, og vælg hvornår I mødes.",
+    "Fortæl om deltagerne møder op fysisk, eller om oplevelsen foregår online.",
+    "Tilføj praktiske oplysninger og vælg ét forsidebillede, der viser stemningen i dit event.",
+    "Vælg brede hovedkategorier og eventuelle tags, så deltagerne lettere kan finde eventet.",
+    "Gennemgå de vigtigste oplysninger, før du gør eventet offentligt.",
   ];
 
 
@@ -1197,7 +1197,7 @@ export function EventForm({
 
       <section className={currentStep === 0 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <div className="grid gap-4 md:grid-cols-2 md:gap-x-5 md:gap-y-4">
-          <TextInput defaultValue={value(draftEvent?.title)} label="Eventtitel" maxLength={80} name="title" placeholder="Fx Fuldmåneceremoni og ro i skoven" required />
+          <TextInput defaultValue={value(draftEvent?.title)} label="Hvad kalder du dit event?" maxLength={80} name="title" placeholder="Giv dit event et navn" required />
           <label className="grid gap-2 text-sm font-medium text-ink/72">
             <span>
               Startdato<span className="ml-1 text-[#B56F8A]">*</span>
@@ -1428,7 +1428,7 @@ export function EventForm({
             <div>
               <p className="font-semibold text-midnight">Forsidebillede</p>
               <p className="mt-1 text-sm leading-6 text-ink/64">
-                Vælg et billede der afspejler stemningen i dit event. Hvis det er nødvendigt, hjælper vi dig med at tilpasse billedet.
+                Upload ét forsidebillede til dit event. Hvis formatet ikke passer, hjælper vi dig med at tilpasse udsnittet.
               </p>
             </div>
           </div>
@@ -1471,7 +1471,7 @@ export function EventForm({
               {hasExistingCoverImage ? "Vælg nyt billede" : "Vælg billede"}
             </span>
             {coverFileName ? <span className="text-xs font-semibold text-[#7A4EAB]">Valgt fil: {coverFileName}</span> : null}
-            <span className="text-xs leading-5 text-ink/52">JPG, PNG, WebP eller GIF under 8 MB. Vi hjælper med at beskære billedet, hvis formatet ikke passer.</span>
+            <span className="text-xs leading-5 text-ink/52">JPG, PNG, WebP eller GIF under 8 MB. Der kan kun være ét forsidebillede, og et nyt billede erstatter det nuværende.</span>
             {coverImageErrorMessage ? (
               <span className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold leading-6 text-red-900">
                 {coverImageErrorMessage}
@@ -1488,9 +1488,9 @@ export function EventForm({
         {mainCategories.length > 0 && (
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Vælg retning</p>
-            <h2 className="mt-1 font-serif text-2xl font-semibold text-midnight">Hvilket univers passer eventet ind i?</h2>
+            <h2 className="mt-1 font-serif text-2xl font-semibold text-midnight">Vælg de brede retninger</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/64">
-              Vælg en eller flere hovedkategorier. Underkategorier kan finjusteres af admin bagefter, så du ikke skal tage stilling til det hele nu.
+              Vælg én eller flere hovedkategorier, som passer til oplevelsen. Underkategorier kan finjusteres af admin bagefter.
             </p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {mainCategories.map((category) => (
@@ -1546,12 +1546,8 @@ export function EventForm({
             </span>
           </label>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <TextInput defaultValue={value(draftEvent?.contact_email ?? facilitator.contactEmail)} label="Kontakt e-mail" name="contact_email" type="email" maxLength={160} />
-          <TextInput defaultValue={value(draftEvent?.contact_phone ?? facilitator.contactPhone)} label="Telefonnummer" name="contact_phone" maxLength={20} />
-        </div>
         <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
-          Kontaktperson og sociale links hentes fra din arrangørprofil, så eventoprettelsen holdes enkel.
+          Kontaktoplysninger og sociale links hentes fra din arrangørprofil, så eventoprettelsen holdes enkel.
         </p>
       </section>
 

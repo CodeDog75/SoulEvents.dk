@@ -15,7 +15,7 @@ import type { EventStatus } from "@/types/database";
 const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "rejected", "sold_out", "cancelled", "completed", "archived"];
 const allowedFormats = ["physical", "online"] as const;
 
-const facilitatorProfileEventSelect = "id, status, company_name, city, postal_code, short_description, facilitator_categories(category_id)";
+const facilitatorProfileEventSelect = "id, status, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, facilitator_categories(category_id), profiles(email, phone)";
 
 async function getAutoApproveEvents(supabase: ReturnType<typeof createAdminClient>, facilitatorId: string) {
   const { data, error } = await supabase
@@ -275,11 +275,14 @@ export async function createEventAction(formData: FormData) {
   const priceCents = getPriceCents(formData);
   const rawCapacity = getInteger(formData, "capacity");
   const capacity = isDraft && rawCapacity <= 0 ? 1 : rawCapacity;
+  const relatedProfile = Array.isArray(facilitatorProfile.profiles)
+    ? facilitatorProfile.profiles[0]
+    : facilitatorProfile.profiles;
   const contactName = facilitatorProfile.company_name || profile.full_name || null;
-  const contactEmail = getOptionalString(formData, "contact_email");
-  const contactPhone = getOptionalString(formData, "contact_phone");
-  const facebookUrl = null;
-  const instagramUrl = null;
+  const contactEmail = facilitatorProfile.public_email || relatedProfile?.email || null;
+  const contactPhone = facilitatorProfile.public_phone || relatedProfile?.phone || null;
+  const facebookUrl = facilitatorProfile.facebook_url || null;
+  const instagramUrl = facilitatorProfile.instagram_url || null;
   const eventFormat = getString(formData, "event_format") || "physical";
 
   const isDanishPhysicalEvent = eventFormat === "physical" && country.trim().toLowerCase() === "danmark";
