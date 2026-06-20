@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
 import { LegalConsentLinks } from "@/components/auth/legal-consent-links";
+import { SignupPhoneInput } from "@/components/auth/signup-phone-input";
 import { signUpFacilitatorAction } from "@/app/auth/actions";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,6 +15,7 @@ type SignUpPageProps = {
 export default async function SignUpPage({ searchParams }: SignUpPageProps) {
   const { message } = await searchParams;
   const existingAccountMessage = message?.toLowerCase().includes("der findes allerede en konto") ?? false;
+  const rateLimitMessage = message?.toLowerCase().includes("for mange mails") ?? false;
   const supabase = await createClient();
   const { data: legalDocuments } = await supabase
     .from("legal_documents")
@@ -92,6 +94,29 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
 
           <AuthMessage message={message} />
 
+          {rateLimitMessage && (
+            <div className="mt-4 rounded-2xl border border-[#F0DEC0] bg-[#FFF6E8] p-4 text-sm text-[#2F2633]/75">
+              <p className="font-semibold text-[#2F2633]">For mange mails på kort tid</p>
+              <p className="mt-1 leading-6">
+                Du kan prøve igen om lidt. Hvis du allerede har oprettet en konto, kan du logge ind eller bruge glemt adgangskode.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#6D439C]"
+                  href="/auth/login"
+                >
+                  Gå til login
+                </Link>
+                <Link
+                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#7A4EAB]/25 bg-white px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#EDE4F7]"
+                  href="/auth/forgot-password"
+                >
+                  Glemt adgangskode?
+                </Link>
+              </div>
+            </div>
+          )}
+
           {existingAccountMessage && (
             <div className="mt-4 rounded-2xl border border-[#EDE4F7] bg-[#FAF6EF] p-4 text-sm text-[#2F2633]/75">
               <p className="font-semibold text-[#2F2633]">Har du allerede en profil?</p>
@@ -160,16 +185,8 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
 
               <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
                 Telefon
-                <input
-                  autoComplete="tel"
-                  inputMode="tel"
-                  className="h-12 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
-                  maxLength={11}
-                  name="phone"
-                  pattern="[0-9 ]*"
-                  placeholder="Kan udfyldes senere"
-                  title="Telefonnummer skal bestå af præcis 8 tal. Mellemrum er tilladt."
-                />
+                <SignupPhoneInput />
+                <span className="text-xs leading-5 text-[#2F2633]/52">Valgfrit. Indtast præcis 8 cifre uden landekode.</span>
               </label>
             </div>
 

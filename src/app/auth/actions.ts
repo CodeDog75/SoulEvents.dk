@@ -263,7 +263,16 @@ export async function signUpFacilitatorAction(formData: FormData) {
   }
 
   if (error) {
-    authRedirect("/auth/signup", `Oprettelse mislykkedes: ${error.message}`);
+    const errorMessage = error.message.toLowerCase();
+
+    if (errorMessage.includes("rate limit")) {
+      authRedirect(
+        "/auth/signup",
+        "Der er sendt for mange mails på kort tid. Vent lidt og prøv igen, eller brug login hvis du allerede har oprettet en konto.",
+      );
+    }
+
+    authRedirect("/auth/signup", "Oprettelsen kunne ikke gennemføres lige nu. Prøv igen om lidt.");
   }
 
   if (!user) {

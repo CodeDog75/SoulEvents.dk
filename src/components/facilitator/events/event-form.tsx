@@ -997,15 +997,55 @@ export function EventForm({
     });
   }
 
-  function goToStep(index: number) {
+  function getStepStatus(index: number): "complete" | "missing" {
+    const form = formRef.current;
+    const data = form ? new FormData(form) : null;
+    const text = (name: string) => String(data?.get(name) ?? "").trim();
+    const selectedCategories = data?.getAll("main_category_ids").map(String) ?? selectedMainCategoryIds;
+    const start = new Date(startDate + "T" + startTime + ":00");
+    const end = new Date(endDate + "T" + endTime + ":00");
+    const hasValidDuration = Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) && end.getTime() > start.getTime();
+
+    if (index === 0) {
+      return text("title").length > 0 && text("event_description").length >= 20 && hasValidDuration ? "complete" : "missing";
+    }
+
+    if (index === 1) {
+      if (eventFormat === "online") {
+        return "complete";
+      }
+
+      return text("address_line").length > 0 && postalCode.length === 4 && city.trim().length > 0 && country.trim().length > 0 ? "complete" : "missing";
+    }
+
+    if (index === 2) {
+      return currentCoverImageUrl ? "complete" : "missing";
+    }
+
+    if (index === 3) {
+      return selectedCategories.length > 0 ? "complete" : "missing";
+    }
+
+    return [0, 1, 2, 3].every((stepIndex) => getStepStatus(stepIndex) === "complete") ? "complete" : "missing";
+  }
+
+  function goToStep(index: number, anchor?: HTMLElement | null) {
     const nextStep = Math.min(Math.max(index, 0), steps.length - 1);
+    const shouldCollapse = currentStep === nextStep;
+    const beforeTop = anchor?.getBoundingClientRect().top ?? null;
 
     if (nextStep === steps.length - 1) {
       showPreview();
     }
 
-    setCurrentStep(nextStep);
-    window.setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    setCurrentStep(shouldCollapse ? -1 : nextStep);
+
+    if (beforeTop !== null && anchor) {
+      window.requestAnimationFrame(() => {
+        const afterTop = anchor.getBoundingClientRect().top;
+        window.scrollBy({ top: afterTop - beforeTop, behavior: "instant" });
+      });
+    }
   }
 
   function readDraft() {
@@ -1154,13 +1194,65 @@ export function EventForm({
     return () => window.clearTimeout(timeout);
   }, [city, country, endDate, endTime, eventFormat, isFree, postalCode, regionId, selectedMainCategoryIds, startDate, startTime]);
 
+  useEffect(() => {
+    const timeout = window.setTimeout(showPreview, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  function StepAccordionHeader({ index }: { index: number }) {
+    const step = steps[index];
+    const isOpen = currentStep === index;
+    const status = getStepStatus(index);
+    const isDone = status === "complete";
+    const statusClass = isDone
+      ? "border-[#C8DCC0] bg-[#F3F7F0] text-[#4E6A48]"
+      : isOpen
+        ? "border-[#7A5D91] bg-[#F4F0F7] text-[#6E5A86] shadow-[0_0_0_3px_rgba(122,93,145,0.10)]"
+        : "border-[#E8E0D2] bg-[#FFFCF7] text-[#6E6475]";
+    const iconClass = isDone
+      ? "border-[#C8DCC0] bg-white text-[#4E6A48]"
+      : isOpen
+        ? "border-[#D8CBE4] bg-white text-[#7A5D91]"
+        : "border-[#E8E0D2] bg-white text-[#6E6475]";
+
+    return (
+      <button
+        aria-expanded={isOpen}
+        className={"flex w-full items-center justify-between gap-3 rounded-[18px] border px-4 py-3 text-left transition hover:-translate-y-0.5 " + statusClass}
+        onClick={(event) => goToStep(index, event.currentTarget)}
+        type="button"
+      >
+        <span className="min-w-0">
+          <span className="block text-[11px] font-semibold uppercase tracking-wide opacity-75">
+            Trin {index + 1}{isDone ? " · OK" : " · Mangler"}
+          </span>
+          <span className="mt-0.5 block truncate text-base font-semibold sm:text-lg">
+            {step.title}
+          </span>
+        </span>
+        <span
+          className={"grid size-8 shrink-0 place-items-center rounded-full border text-sm font-bold leading-none transition " + iconClass}
+          aria-hidden="true"
+        >
+          {isDone ? "✓" : isOpen ? "−" : "+"}
+        </span>
+      </button>
+    );
+  }
+
   return (
     <form
       action={createEventAction}
       className="grid w-full max-w-full gap-5 overflow-x-hidden sm:gap-6"
       noValidate
-      onChange={writeDraft}
-      onInput={writeDraft}
+      onChange={() => {
+        writeDraft();
+        window.setTimeout(showPreview, 0);
+      }}
+      onInput={() => {
+        writeDraft();
+        window.setTimeout(showPreview, 0);
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter" && event.target instanceof HTMLElement && event.target.tagName !== "TEXTAREA") {
           event.preventDefault();
@@ -1170,31 +1262,9 @@ export function EventForm({
     >
       {draftEvent?.id ? <input name="event_id" type="hidden" value={draftEvent.id} /> : null}
       <input name="current_step" type="hidden" value={currentStep} />
-      <section className="w-full max-w-full overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:p-5">
-        <div className="grid gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">
-            🌿 Trin {currentStep + 1} af {steps.length}
-          </p>
-          <div className="grid gap-2">
-            <h3 className="text-2xl font-semibold leading-tight text-midnight sm:text-3xl">
-              {steps[currentStep].title}
-            </h3>
-            <p className="max-w-3xl text-sm leading-6 text-ink/68 sm:text-base">
-              {stepDescriptions[currentStep]}
-            </p>
-          </div>
-        </div>
-        <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-[#EDE4F7]">
-          <div
-            className="h-full rounded-full bg-[#7A4EAB] transition-all duration-300 ease-out"
-            style={{ width: String((currentStep / (steps.length - 1)) * 100) + "%" }}
-          />
-        </div>
-        <p className="mt-2 text-xs font-semibold text-[#7A4EAB] sm:text-sm">
-          {Math.round((currentStep / (steps.length - 1)) * 100)}% gennemført
-        </p>
-      </section>
-
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+        <div className="grid gap-5">
+          <StepAccordionHeader index={0} />
       <section className={currentStep === 0 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <div className="grid gap-4 md:grid-cols-2 md:gap-x-5 md:gap-y-4">
           <TextInput defaultValue={value(draftEvent?.title)} label="Hvad kalder du dit event?" maxLength={80} name="title" placeholder="Giv dit event et navn" required />
@@ -1242,13 +1312,14 @@ export function EventForm({
         <EventDescriptionField defaultValue={value(draftEvent?.long_description || draftEvent?.short_description)} />
       </section>
 
+          <StepAccordionHeader index={1} />
       <section className={currentStep === 1 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <div>
           <p className="text-sm font-semibold text-midnight">Hvordan foregår eventet?</p>
           <p className="mt-1 text-sm leading-6 text-ink/64">
             Vælg fysisk event, hvis deltageren skal møde op på en adresse. Vælg online event, hvis det foregår digitalt.
           </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-2 gap-3">
             {[
               { value: "physical", label: "Fysisk event", help: "Adresse og fremmøde.", icon: MapPin },
               { value: "online", label: "Online event", help: "Via link eller online møderum.", icon: MonitorSmartphone },
@@ -1259,7 +1330,7 @@ export function EventForm({
               return (
                 <label
                   className={
-                    "grid cursor-pointer gap-2 rounded-card p-4 text-sm font-semibold transition shadow-soft " +
+                    "grid min-h-[118px] cursor-pointer gap-2 rounded-card p-3 text-sm font-semibold transition shadow-soft sm:p-4 " +
                     (selected
                       ? "border-2 border-[#7A4EAB] bg-[#F6EFFF] text-midnight"
                       : "border border-midnight/15 bg-white text-midnight hover:border-[#D7C4F0] hover:bg-[#FBF7FF]")
@@ -1401,6 +1472,7 @@ export function EventForm({
           )}
         </Tip>
       </section>
+          <StepAccordionHeader index={2} />
       <section className={currentStep === 2 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <details className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4">
           <summary className="cursor-pointer list-none text-sm font-semibold text-[#7A4EAB] [&::-webkit-details-marker]:hidden">
@@ -1481,6 +1553,7 @@ export function EventForm({
         </div>
       </section>
 
+          <StepAccordionHeader index={3} />
       <section className={currentStep === 3 ? "grid w-full max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-6 sm:p-6" : "hidden"}>
         {draftEvent?.subcategoryIds?.map((subcategoryId) => (
           <input key={subcategoryId} name="subcategory_ids" type="hidden" value={subcategoryId} />
@@ -1506,8 +1579,9 @@ export function EventForm({
         )}
         {tags.length > 0 && (
           <details className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4">
-            <summary className="cursor-pointer list-none text-sm font-semibold text-[#7A4EAB] [&::-webkit-details-marker]:hidden">
-              Tilføj tags, hvis du vil hjælpe deltagerne med at finde eventet
+            <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full bg-[#7A5D91] px-4 py-2 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285] [&::-webkit-details-marker]:hidden">
+              <Tags className="size-4" aria-hidden="true" />
+              Tilføj tags
             </summary>
             <p className="mt-3 text-sm leading-6 text-ink/64">
               Tags er valgfrie ekstra filtre som begynder, gratis, weekend, udendørs eller online.
@@ -1551,6 +1625,7 @@ export function EventForm({
         </p>
       </section>
 
+          <StepAccordionHeader index={4} />
       <section className={currentStep === 4 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Gennemgang</p>
@@ -1623,6 +1698,60 @@ export function EventForm({
           </p>
         )}
       </section>
+
+        </div>
+        <aside className="hidden xl:block">
+          <div className="sticky top-6 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 shadow-soft">
+            <div className="border-b border-[#E5D4F7] bg-[#F4F0F7] px-5 py-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Live preview</p>
+              <h2 className="mt-1 font-serif text-xl font-semibold text-midnight">Sådan kan eventet se ud</h2>
+            </div>
+            {preview?.coverImageUrl ? (
+              <img alt="Preview af eventets forsidebillede" className="h-44 w-full object-cover" src={preview.coverImageUrl} />
+            ) : (
+              <div className="grid h-44 place-items-center bg-[#FAF6EF] px-5 text-center text-sm font-semibold text-ink/45">
+                Forsidebilledet vises her
+              </div>
+            )}
+            <div className="grid gap-4 p-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#B56F8A]">
+                  {preview?.format || (eventFormat === "online" ? "Online event" : "Fysisk event")}
+                </p>
+                <h3 className="mt-2 font-serif text-2xl font-semibold leading-tight text-midnight">
+                  {preview?.title || "Eventtitel"}
+                </h3>
+                <p className="mt-2 line-clamp-4 text-sm leading-6 text-ink/64">
+                  {preview?.description || "Beskrivelsen vises her, mens du udfylder eventet."}
+                </p>
+              </div>
+              <dl className="grid gap-2 text-sm">
+                <div className="rounded-card bg-[#FAF6EF] px-3 py-2">
+                  <dt className="font-semibold text-ink/55">Dato og tid</dt>
+                  <dd className="mt-1 text-midnight">{preview ? preview.date + " · " + preview.time : formatReviewDate(startDate) + " · " + startTime + " - " + endTime}</dd>
+                </div>
+                <div className="rounded-card bg-[#FAF6EF] px-3 py-2">
+                  <dt className="font-semibold text-ink/55">Sted</dt>
+                  <dd className="mt-1 text-midnight">{preview?.location || (eventFormat === "online" ? "Online" : city || "Lokation mangler")}</dd>
+                </div>
+                <div className="rounded-card bg-[#FAF6EF] px-3 py-2">
+                  <dt className="font-semibold text-ink/55">Pris</dt>
+                  <dd className="mt-1 text-midnight">{preview?.price || (isFree ? "Gratis" : priceValue ? priceValue + " kr." : "Pris mangler")}</dd>
+                </div>
+              </dl>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Valgte retninger</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(preview?.categories.length ? preview.categories : []).map((category) => (
+                    <span className="rounded-full bg-[#F4F0F7] px-3 py-1 text-xs font-semibold text-[#6E5A86]" key={category}>{category}</span>
+                  ))}
+                  {!preview?.categories.length ? <span className="text-sm text-ink/45">Ingen valgt endnu</span> : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
 
       {coverCrop ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-midnight/45 px-4 py-6 backdrop-blur-sm">
@@ -1771,7 +1900,7 @@ export function EventForm({
               className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-4 text-sm font-semibold text-white shadow-soft sm:h-11 sm:px-5"
               onClick={(event) => {
                 event.preventDefault();
-                goToStep(currentStep + 1);
+                goToStep(currentStep < 0 ? 0 : currentStep + 1);
               }}
               type="button"
             >
