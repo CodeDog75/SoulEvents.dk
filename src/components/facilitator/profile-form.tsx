@@ -256,8 +256,8 @@ export function ProfileForm({
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm font-medium text-ink/72">
             <span className="flex flex-wrap items-center gap-2">
-              Dit rigtige navn
-              <InfoHelp>Dit rigtige navn bruges internt af SoulEvents og i kommunikationen med dig.</InfoHelp>
+              Privat navn
+              <InfoHelp>Privat navn bruges internt af SoulEvents og i kommunikationen med dig.</InfoHelp>
             </span>
             <input
               className={`h-11 ${fieldClass(fullNameComplete)}`}
@@ -451,7 +451,12 @@ export function ProfileForm({
             <div className="grid size-10 place-items-center rounded-md bg-sage-50 text-sage-700">
               <Link2 className="size-4" aria-hidden="true" />
             </div>
-            <h2 className="text-lg font-semibold text-midnight">SoMe links</h2>
+            <div>
+              <h2 className="text-lg font-semibold text-midnight">Offentlige links</h2>
+              <p className="mt-1 text-sm leading-6 text-ink/64">
+                Links vises pÃ¥ din offentlige profil, hvis du udfylder dem.
+              </p>
+            </div>
           </div>
         </div>
 

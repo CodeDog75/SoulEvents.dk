@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "crypto";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -38,6 +39,7 @@ export async function subscribeToFacilitatorReminderAction(facilitatorId: string
         facilitator_id: facilitatorId,
         email,
         status: "active",
+        unsubscribe_token: randomUUID(),
         unsubscribed_at: null,
       },
       { onConflict: "facilitator_id,email" },

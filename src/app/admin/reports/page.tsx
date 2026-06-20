@@ -68,6 +68,31 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
         <AuthMessage message={message} />
+
+        <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+          <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Statistikeksport</p>
+              <h2 className="mt-1 text-xl font-semibold text-midnight">Eksportér data til Excel</h2>
+              <p className="mt-2 text-sm leading-6 text-ink/64">
+                Hent arrangørdata, kontaktoplysninger, events, tilmeldinger, kategorier, priser og profilvisninger til nyhedsbreve, status og dokumentation af SoulEvents' værdi.
+              </p>
+            </div>
+            <form action="/admin/reports/export" className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <label className="grid gap-1 text-sm font-semibold text-midnight">
+                Fra dato
+                <input className="h-11 rounded-md border border-midnight/15 px-3 text-sm outline-none focus:border-[#7A5D91]" name="from" type="date" />
+              </label>
+              <label className="grid gap-1 text-sm font-semibold text-midnight">
+                Til dato
+                <input className="h-11 rounded-md border border-midnight/15 px-3 text-sm outline-none focus:border-[#7A5D91]" name="to" type="date" />
+              </label>
+              <button className="h-11 rounded-md bg-[#7A5D91] px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285]" type="submit">
+                Eksportér statistik
+              </button>
+            </form>
+          </div>
+        </section>
         <ReportForm facilitators={(facilitators ?? []) as never} />
         <InvoiceDraftList invoices={(invoices ?? []) as never} />
       </section>

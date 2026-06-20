@@ -230,6 +230,15 @@ export async function signUpFacilitatorAction(formData: FormData) {
   if (!acceptedTerms) {
     authRedirect("/auth/signup", "Du skal acceptere betingelserne for at fortsætte.");
   }
+  const existingUser = await getAuthUserByEmail(email);
+
+  if (existingUser) {
+    authRedirect(
+      "/auth/signup",
+      "Der findes allerede en konto med denne e-mail. Log ind i stedet, eller brug Glemt adgangskode, hvis du ikke kan huske din adgangskode.",
+    );
+  }
+
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
@@ -249,7 +258,7 @@ export async function signUpFacilitatorAction(formData: FormData) {
   if (error?.message.toLowerCase().includes("already registered")) {
     authRedirect(
       "/auth/signup",
-      "Der findes allerede en konto med den e-mail. Log ind i stedet, eller slet brugeren i Supabase Auth før du opretter igen.",
+      "Der findes allerede en konto med denne e-mail. Log ind i stedet, eller brug Glemt adgangskode, hvis du ikke kan huske din adgangskode.",
     );
   }
 

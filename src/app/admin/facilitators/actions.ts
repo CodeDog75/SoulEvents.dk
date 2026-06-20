@@ -28,7 +28,12 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
     adminRedirect("Ugyldig arrangørhandling.");
   }
 
-  const supabase = createAdminClient();
+  
+  if (status === "pending") {
+    adminRedirect("En godkendt eller deaktiveret arrangør kan ikke sættes tilbage til afventer. Brug deaktiver, hvis profilen ikke skal være synlig.");
+  }
+
+const supabase = createAdminClient();
   const { error } = await supabase
     .from("facilitator_profiles")
     .update({ status })
@@ -53,7 +58,7 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
 
 
 export async function updateAdminFacilitatorProfileAction(formData: FormData) {
-  await requireRole("admin");
+  const adminProfile = await requireRole("admin");
 
   const facilitatorId = getString(formData, "facilitator_id");
   const profileId = getString(formData, "profile_id");
@@ -73,6 +78,9 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   const city = getOptionalString(formData, "city");
   const regionId = getOptionalString(formData, "region_id");
   const isFeatured = formData.get("is_featured") === "on";
+  const isActiveHost = formData.get("is_active_host") === "on";
+  const isExperiencedHost = formData.get("is_experienced_host") === "on";
+  const autoApproveEvents = formData.get("auto_approve_events") === "on";
   const featuredSortOrder = Number(getOptionalString(formData, "featured_sort_order") ?? 0);
   const categoryIds = getAllStrings(formData, "category_ids");
   const tagIds = Array.from(new Set(getAllStrings(formData, "tag_ids")));
@@ -98,6 +106,13 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   }
 
   const supabase = createAdminClient();
+  const { data: previousFacilitator } = await supabase
+    .from("facilitator_profiles")
+    .select("auto_approve_events")
+    .eq("id", facilitatorId)
+    .maybeSingle();
+  const previousAutoApprove = Boolean(previousFacilitator?.auto_approve_events);
+
   const { error: profileError } = await supabase
     .from("profiles")
     .update({
@@ -127,12 +142,25 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
       city,
       region_id: regionId,
       is_featured: isFeatured,
+      is_active_host: isActiveHost,
+      is_experienced_host: isExperiencedHost,
+      auto_approve_events: autoApproveEvents,
       featured_sort_order: Number.isFinite(featuredSortOrder) ? featuredSortOrder : 0,
     })
     .eq("id", facilitatorId);
 
   if (facilitatorError) {
     adminFacilitatorEditRedirect(facilitatorId, "Arrangørprofilen kunne ikke gemmes.");
+  }
+
+  if (previousAutoApprove !== autoApproveEvents) {
+    await supabase.from("admin_audit_log").insert({
+      actor_profile_id: adminProfile.id,
+      facilitator_id: facilitatorId,
+      action: "auto_approve_events_changed",
+      old_value: String(previousAutoApprove),
+      new_value: String(autoApproveEvents),
+    });
   }
 
   await supabase.from("facilitator_categories").delete().eq("facilitator_id", facilitatorId);

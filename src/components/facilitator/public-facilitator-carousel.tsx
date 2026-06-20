@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Search, Sparkles, UserRound } from "lucide-react";
+import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
 
 type FacilitatorCard = {
   id: string;
@@ -8,6 +9,8 @@ type FacilitatorCard = {
   tagline: string;
   city: string | null;
   categories: Array<{ name: string; color_hex: string | null }>;
+  isActiveHost?: boolean;
+  isExperiencedHost?: boolean;
 };
 
 type PublicFacilitatorCarouselProps = {
@@ -64,7 +67,12 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
                 href={"/facilitators/" + facilitator.id}
                 key={facilitator.id}
               >
-                <div className="aspect-[4/3] bg-sage-50">
+                <div className="relative aspect-[4/3] bg-sage-50">
+                  {facilitator.isExperiencedHost ? (
+                    <OrganizerImageBadge type="experienced" />
+                  ) : facilitator.isActiveHost ? (
+                    <OrganizerImageBadge type="active" />
+                  ) : null}
                   {facilitator.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img alt={facilitator.name} className="h-full w-full object-cover" src={facilitator.imageUrl} />

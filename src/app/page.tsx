@@ -46,6 +46,19 @@ const categories = [
   { name: "Yoga", value: "Yoga", icon: SunMedium, href: "/?category_label=Yoga#events" },
 ];
 
+type LocalServiceProvider = {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  serviceTitles: string[];
+  city: string | null;
+  area: string | null;
+  description: string;
+  latitude: number | null;
+  longitude: number | null;
+  distanceKm?: number | null;
+};
+
 type HomeProps = {
   searchParams?: Promise<{
     contact?: string;
@@ -543,6 +556,174 @@ async function getHomeThemes() {
   }));
 }
 
+function localServiceTextMatchesCategory(provider: any, categoryLabel: string) {
+  if (!categoryLabel) return true;
+  const needle = categoryLabel.toLowerCase();
+  const serviceTitles = (provider.facilitator_service_titles ?? [])
+    .map((row: any) => {
+      const title = Array.isArray(row.service_titles) ? row.service_titles[0] : row.service_titles;
+      return title?.name ?? "";
+    })
+    .join(" ");
+  const categories = (provider.facilitator_categories ?? [])
+    .map((row: any) => {
+      const category = Array.isArray(row.categories) ? row.categories[0] : row.categories;
+      return category?.name ?? "";
+    })
+    .join(" ");
+  const tags = (provider.facilitator_tags ?? [])
+    .map((row: any) => {
+      const tag = Array.isArray(row.tags) ? row.tags[0] : row.tags;
+      return tag?.name ?? "";
+    })
+    .join(" ");
+  const haystack = [
+    provider.company_name,
+    provider.short_description,
+    provider.service_description,
+    provider.service_other_title,
+    serviceTitles,
+    categories,
+    tags,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(needle);
+}
+
+async function getLocalServiceProviders(selected: {
+  area: string;
+  categoryLabel: string;
+  distance: string;
+  latitude: string;
+  longitude: string;
+}) {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const { data: providers } = await supabase
+    .from("facilitator_profiles")
+    .select(
+      "id, company_name, profile_image_path, short_description, service_description, service_other_title, city, country, latitude, longitude, offers_services, show_in_local_service_results, profiles(full_name), regions(name, slug), facilitator_categories(categories(name)), facilitator_tags(tags(name)), facilitator_service_titles(service_titles(name, is_active))",
+    )
+    .eq("status", "approved")
+    .eq("offers_services", true)
+    .eq("show_in_local_service_results", true)
+    .not("latitude", "is", null)
+    .not("longitude", "is", null)
+    .limit(24);
+
+  const selectedArea = getAreaOption(selected.area);
+  const userLatitude = parseCoordinate(selected.latitude);
+  const userLongitude = parseCoordinate(selected.longitude);
+  const selectedDistance = selected.distance === "all" ? "all" : Number(selected.distance || "50");
+  const userLocation =
+    userLatitude !== null && userLongitude !== null ? { latitude: userLatitude, longitude: userLongitude } : null;
+
+  return (providers ?? [])
+    .filter((provider: any) => {
+      const region = Array.isArray(provider.regions) ? provider.regions[0] : provider.regions;
+      const areaMatches = !selectedArea || (region?.slug && selectedArea.slugs.includes(region.slug));
+      if (!areaMatches) return false;
+      if (!localServiceTextMatchesCategory(provider, selected.categoryLabel)) return false;
+
+      if (userLocation && typeof selectedDistance === "number" && [10, 25, 50, 100].includes(selectedDistance)) {
+        const distance = distanceInKm(userLocation, { latitude: provider.latitude, longitude: provider.longitude });
+        return distance <= selectedDistance;
+      }
+
+      return true;
+    })
+    .map((provider: any) => {
+      const profile = Array.isArray(provider.profiles) ? provider.profiles[0] : provider.profiles;
+      const region = Array.isArray(provider.regions) ? provider.regions[0] : provider.regions;
+      const serviceTitles = (provider.facilitator_service_titles ?? [])
+        .map((row: any) => {
+          const title = Array.isArray(row.service_titles) ? row.service_titles[0] : row.service_titles;
+          return title?.name ?? "";
+        })
+        .filter(Boolean)
+        .slice(0, 3);
+      const distanceKm =
+        userLocation && typeof provider.latitude === "number" && typeof provider.longitude === "number"
+          ? distanceInKm(userLocation, { latitude: provider.latitude, longitude: provider.longitude })
+          : null;
+
+      return {
+        id: provider.id,
+        name: provider.company_name || profile?.full_name || "Arrangør",
+        imageUrl: provider.profile_image_path
+          ? supabase.storage.from("media").getPublicUrl(provider.profile_image_path).data.publicUrl
+          : null,
+        serviceTitles,
+        city: provider.city || null,
+        area: region?.name || provider.country || null,
+        description: provider.service_description || provider.short_description || "",
+        latitude: provider.latitude,
+        longitude: provider.longitude,
+        distanceKm,
+      };
+    })
+    .sort((a: LocalServiceProvider, b: LocalServiceProvider) => {
+      if (typeof a.distanceKm === "number" && typeof b.distanceKm === "number") return a.distanceKm - b.distanceKm;
+      return a.name.localeCompare(b.name, "da");
+    });
+}
+
+function LocalServiceProviderSection({ providers }: { providers: LocalServiceProvider[] }) {
+  if (providers.length === 0) return null;
+
+  return (
+    <section className="mt-10 rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-5 shadow-soft sm:p-6">
+      <div className="max-w-2xl">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Også i området</p>
+        <h3 className="mt-2 text-2xl font-medium text-[#2F2633]">Lokale tilbud og sessioner</h3>
+        <p className="mt-2 text-sm leading-6 text-[#2F2633]/70">
+          Find arrangører, behandlere og undervisere med faste tilbud nær dig.
+        </p>
+      </div>
+      <div className="mt-5 grid gap-4 md:grid-cols-3">
+        {providers.slice(0, 3).map((provider) => (
+          <Link
+            className="group rounded-card border border-white bg-white p-4 shadow-soft transition hover:-translate-y-0.5 hover:border-[#D7C4F0]"
+            href={"/facilitators/" + provider.id}
+            key={provider.id}
+          >
+            <div className="flex items-start gap-3">
+              {provider.imageUrl ? (
+                <img alt="" className="size-14 rounded-full object-cover" src={provider.imageUrl} />
+              ) : (
+                <span className="flex size-14 items-center justify-center rounded-full bg-[#EDE4F7] text-lg font-semibold text-[#7A4EAB]">
+                  {provider.name.slice(0, 1)}
+                </span>
+              )}
+              <div className="min-w-0">
+                <h4 className="text-base font-semibold text-[#2F2633]">{provider.name}</h4>
+                <p className="mt-1 text-xs text-[#2F2633]/58">{[provider.city, provider.area].filter(Boolean).join(", ")}</p>
+              </div>
+            </div>
+            {provider.serviceTitles.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {provider.serviceTitles.map((title) => (
+                  <span className="rounded-full bg-[#EDE4F7] px-3 py-1 text-xs font-semibold text-[#7A4EAB]" key={title}>
+                    {title}
+                  </span>
+                ))}
+              </div>
+            )}
+            {provider.description && <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#2F2633]/70">{provider.description}</p>}
+            <span className="mt-4 inline-flex text-sm font-semibold text-[#7A4EAB] transition group-hover:text-[#2F2633]">Se profil</span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function mapFacilitatorCard(facilitator: any, supabase: Awaited<ReturnType<typeof createClient>>) {
   const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
   const categories =
@@ -560,6 +741,8 @@ function mapFacilitatorCard(facilitator: any, supabase: Awaited<ReturnType<typeo
     tagline: facilitator.short_description || "",
     primaryCategory: categories[0]?.name ?? null,
     isOnline: Boolean(facilitator.is_online),
+    isActiveHost: Boolean(facilitator.is_active_host),
+    isExperiencedHost: Boolean(facilitator.is_experienced_host),
   };
 }
 
@@ -571,7 +754,7 @@ async function getFeaturedHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, company_name, profile_image_path, short_description, city, is_online, profiles(full_name), facilitator_categories(categories(name, color_hex))")
+    .select("id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles(full_name), facilitator_categories(categories(name, color_hex))")
     .eq("status", "approved")
     .eq("is_featured", true)
     .order("featured_sort_order", { ascending: true })
@@ -593,7 +776,7 @@ async function getNewHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, company_name, profile_image_path, short_description, city, is_online, profiles(full_name), facilitator_categories(categories(name, color_hex))")
+    .select("id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles(full_name), facilitator_categories(categories(name, color_hex))")
     .eq("status", "approved")
     .order("created_at", { ascending: false })
     .limit(8);
@@ -614,7 +797,7 @@ async function getHomeFacilitators(queryText: string) {
   const { data: facilitators } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, is_online_facilitator, website_url, facebook_url, instagram_url, profiles(full_name), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_tags(tags(name))",
+      "id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, is_online_facilitator, is_active_host, is_experienced_host, website_url, facebook_url, instagram_url, profiles(full_name), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_tags(tags(name))",
     )
     .eq("status", "approved");
 
@@ -668,6 +851,8 @@ async function getHomeFacilitators(queryText: string) {
         : null,
       tagline: facilitator.short_description || "",
       city: facilitator.city || region?.name || facilitator.country || null,
+      isActiveHost: Boolean(facilitator.is_active_host),
+    isExperiencedHost: Boolean(facilitator.is_experienced_host),
       categories,
     };
   });
@@ -787,6 +972,7 @@ export default async function Home({ searchParams }: HomeProps) {
   const categoryEventCounts = getCategoryEventCounts(categoryAvailabilityEvents);
   const experienceGroups = await getExperienceGroups();
   const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
+  const localServiceProviders = await getLocalServiceProviders(selected);
   const fairUpcomingEvents = selectFairHomepageEvents(upcomingEvents, 6);
   const mapSourceEvents = uniqueEventsById(mapOverviewEvents);
   const listEvents = hasSearch ? searchEvents : fairUpcomingEvents;
@@ -902,6 +1088,9 @@ export default async function Home({ searchParams }: HomeProps) {
               <a className="transition hover:text-[#7A4EAB]" href="/facilitators">
                 Arrangører
               </a>
+              <a className="transition hover:text-[#7A4EAB]" href="/inspiration">
+                Inspiration
+              </a>
               <a className="transition hover:text-[#7A4EAB]" href="#categories">
                 Kategorier
               </a>
@@ -1002,7 +1191,10 @@ export default async function Home({ searchParams }: HomeProps) {
               </div>
 
               {searchEvents.length > 0 ? (
-                <PublicEventList events={searchEvents as never} />
+                <>
+                  <PublicEventList events={searchEvents as never} />
+                  <LocalServiceProviderSection providers={localServiceProviders} />
+                </>
               ) : (
                 <div className="grid gap-8">
                   <section className="rounded-card bg-[#FAF6EF] p-8 text-center shadow-soft">
@@ -1050,7 +1242,7 @@ export default async function Home({ searchParams }: HomeProps) {
               Brug kortet som et roligt overblik, når du vil se, hvor oplevelserne finder sted.
             </p>
           </div>
-          <EventMap events={mapEvents} mapboxStyleUrl={env.mapboxStyleUrl} mapboxToken={env.mapboxToken} />
+          <EventMap events={mapEvents} mapboxStyleUrl={env.mapboxStyleUrl} mapboxToken={env.mapboxToken} serviceProviders={localServiceProviders} />
         </div>
       </section>
 

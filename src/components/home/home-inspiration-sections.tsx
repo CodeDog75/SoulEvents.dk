@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { UserRound } from "lucide-react";
+import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
 
 export type HomeFacilitatorCard = {
   id: string;
@@ -9,6 +10,8 @@ export type HomeFacilitatorCard = {
   tagline: string;
   primaryCategory: string | null;
   isOnline?: boolean;
+  isActiveHost?: boolean;
+  isExperiencedHost?: boolean;
 };
 
 function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) {
@@ -17,7 +20,12 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
       className="group block overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift"
       href={"/facilitators/" + facilitator.id}
     >
-      <div className="aspect-[4/3] bg-sage-50">
+      <div className="relative aspect-[4/3] bg-sage-50">
+        {facilitator.isExperiencedHost ? (
+        <OrganizerImageBadge type="experienced" />
+      ) : facilitator.isActiveHost ? (
+        <OrganizerImageBadge type="active" />
+      ) : null}
         {facilitator.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img alt={facilitator.name} className="h-full w-full object-cover" src={facilitator.imageUrl} />

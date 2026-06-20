@@ -20,6 +20,45 @@ const statuses: Array<{ label: string; value: FacilitatorStatus }> = [
   { label: "Deaktiveret", value: "disabled" },
 ];
 
+function statusOptionsFor(currentStatus: FacilitatorStatus) {
+  if (currentStatus === "pending") {
+    return statuses;
+  }
+
+  return statuses.filter((status) => status.value !== "pending");
+}
+
+
+function AdminReminderEmailsSection({ subscribers }: { subscribers: Array<{ email: string | null; status: string | null; created_at: string | null }> }) {
+  const activeSubscribers = subscribers.filter((subscriber) => subscriber.status === "active");
+
+  return (
+    <section className="mt-6 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-midnight">Påmindelses-mails</h2>
+          <p className="mt-1 text-sm text-ink/64">Kun admin kan se e-mailadresser. Arrangøren ser kun det samlede antal.</p>
+        </div>
+        <span className="rounded-full bg-[#EDE4F7] px-3 py-1 text-sm font-semibold text-[#7A4EAB]">
+          {activeSubscribers.length} aktive
+        </span>
+      </div>
+      {subscribers.length === 0 ? (
+        <p className="mt-4 rounded-md bg-[#FAF6EF] px-4 py-3 text-sm text-ink/64">Ingen påmindelses-mails endnu.</p>
+      ) : (
+        <div className="mt-4 overflow-hidden rounded-md border border-midnight/10">
+          {subscribers.map((subscriber) => (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-midnight/10 px-4 py-3 text-sm last:border-b-0" key={(subscriber.email ?? "") + (subscriber.created_at ?? "")}>
+              <span className="font-semibold text-midnight">{subscriber.email}</span>
+              <span className="rounded-full bg-[#F6F1E7] px-3 py-1 text-xs font-semibold text-ink/60">{subscriber.status ?? "ukendt"}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -31,7 +70,7 @@ function textValue(value: unknown) {
 export default async function AdminEditFacilitatorPage({ params, searchParams }: PageProps) {
   const [{ id }, { message }] = await Promise.all([params, searchParams, requireRole("admin")]);
   const supabase = await createClient();
-  const [{ data: facilitator }, { data: regions }, { data: categories }, { data: tags }] = await Promise.all([
+  const [{ data: facilitator }, { data: regions }, { data: categories }, { data: tags }, { data: reminderSubscribers }] = await Promise.all([
     supabase
       .from("facilitator_profiles")
       .select(
@@ -42,6 +81,11 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
     supabase.from("regions").select("id, name").order("sort_order"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
     supabase.from("tags").select("id, name").eq("is_active", true).order("sort_order"),
+    supabase
+      .from("facilitator_event_reminders")
+      .select("email, status, created_at")
+      .eq("facilitator_id", id)
+      .order("created_at", { ascending: false }),
   ]);
 
   if (!facilitator) {
@@ -62,6 +106,33 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
     (facilitator.facilitator_categories ?? []).map((row: { category_id: string }) => row.category_id),
   );
   const selectedTagIds = new Set<string>((facilitator.facilitator_tags ?? []).map((row: { tag_id: string }) => row.tag_id));
+
+  const { data: completedBadgeEvents } = await supabase
+    .from("events")
+    .select("id")
+    .eq("facilitator_id", id)
+    .eq("status", "completed");
+  const completedBadgeEventIds = (completedBadgeEvents ?? []).map((event) => event.id).filter(Boolean);
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const { count: activeBadgeEvents } = await supabase
+    .from("events")
+    .select("id", { count: "exact", head: true })
+    .eq("facilitator_id", id)
+    .eq("status", "active")
+    .gte("created_at", ninetyDaysAgo.toISOString());
+  const canReviewActiveBadge = (activeBadgeEvents ?? 0) >= 3 && !facilitator.is_active_host;
+  const { data: badgeBookings } =
+    completedBadgeEventIds.length > 0
+      ? await supabase
+          .from("bookings")
+          .select("event_id")
+          .in("event_id", completedBadgeEventIds)
+          .in("status", ["pending", "confirmed", "completed", "invoiced", "paid"])
+      : { data: [] as Array<{ event_id: string | null }> };
+  const eventIdsWithBookings = new Set((badgeBookings ?? []).map((booking) => booking.event_id).filter(Boolean));
+  const experiencedEligibleCount = completedBadgeEventIds.filter((eventId) => eventIdsWithBookings.has(eventId)).length;
+  const canReviewExperiencedBadge = experiencedEligibleCount >= 5 && !facilitator.is_experienced_host;
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -110,7 +181,7 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
                   defaultValue={facilitator.status}
                   name="status"
                 >
-                  {statuses.map((status) => (
+                  {statusOptionsFor(facilitator.status as FacilitatorStatus).map((status) => (
                     <option key={status.value} value={status.value}>
                       {status.label}
                     </option>
@@ -120,6 +191,23 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
               <label className="flex h-11 items-center gap-3 self-end rounded-md border border-midnight/10 px-3 text-sm font-semibold text-midnight">
                 <input className="size-4 accent-sage-700" defaultChecked={Boolean(facilitator.is_featured)} name="is_featured" type="checkbox" />
                 Fremhævet arrangør
+              </label>
+              <label className="flex h-11 items-center gap-3 self-end rounded-md border border-[#5F7A55]/25 bg-[#F3F7F0] px-3 text-sm font-semibold text-midnight">
+                <input className="size-4 accent-[#5F7A55]" defaultChecked={Boolean(facilitator.is_active_host)} name="is_active_host" type="checkbox" />
+                Aktiv Arrangør
+              </label>
+              <label className="flex h-11 items-center gap-3 self-end rounded-md border border-[#7A5D91]/25 bg-[#F6EFFF] px-3 text-sm font-semibold text-midnight">
+                <input className="size-4 accent-[#7A5D91]" defaultChecked={Boolean(facilitator.is_experienced_host)} name="is_experienced_host" type="checkbox" />
+                Erfaren Arrangør
+              </label>
+              <label className="flex min-h-11 items-center gap-3 self-end rounded-md border border-[#D8CBE4] bg-[#F4F0F7] px-3 py-2 text-sm font-semibold text-midnight">
+                <input className="size-4 accent-[#7A5D91]" defaultChecked={Boolean(facilitator.auto_approve_events)} name="auto_approve_events" type="checkbox" />
+                <span>
+                  Automatisk godkendelse af events
+                  <span className="block text-xs font-normal leading-5 text-ink/55">
+                    Nye events fra denne arrangør publiceres uden manuel godkendelse.
+                  </span>
+                </span>
               </label>
               <label className="grid gap-2 text-sm font-semibold text-ink/72">
                 Sortering
@@ -131,6 +219,36 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
                 />
               </label>
             </div>
+            <div className="mt-5 grid gap-3 rounded-[18px] border border-[#D8CBE4] bg-[#F4F0F7] px-5 py-4 text-sm leading-6 text-[#4D4458]">
+              <div>
+                <p className="font-bold text-[#7A5D91]">Hvad betyder synlighedsvalgene?</p>
+                <p className="mt-1">
+                  <strong>Fremhævet arrangør</strong> er redaktionel synlighed. Brug den, når en arrangør skal vises særligt på forsiden, i kampagner eller udvalgte sektioner. Det er ikke et kvalitetsbadge.
+                </p>
+              </div>
+              <p>
+                <strong>Aktiv Arrangør</strong> viser løbende aktivitet på platformen. <strong>Erfaren Arrangør</strong> er et roligt erfaringsbadge, der bruges efter vurdering af gennemførte events og tilmeldinger via SoulEvents.
+              </p>
+              <p>
+                <strong>Automatisk godkendelse</strong> betyder, at nye events fra arrangøren kan publiceres uden manuel moderation. Admin kan stadig redigere, afpublicere eller afvise events bagefter.
+              </p>
+            </div>
+            {canReviewActiveBadge && (
+              <div className="mt-5 rounded-[18px] border border-[#D7E4D1] bg-[#F3F7F0] px-5 py-4 text-sm text-[#4D6048]">
+                <p className="font-bold text-[#5F7A55]">Klar til vurdering</p>
+                <p className="mt-2 leading-6">
+                  Denne arrangør har oprettet mindst 3 kommende eller offentliggjorte events på SoulEvents inden for de seneste 90 dage og kan vurderes til badget "Aktiv Arrangør". Badget aktiveres ikke automatisk.
+                </p>
+              </div>
+            )}
+            {canReviewExperiencedBadge && (
+              <div className="mt-5 rounded-[18px] border border-[#D8CBE4] bg-[#F4F0F7] px-5 py-4 text-sm text-[#4D4458]">
+                <p className="font-bold text-[#7A5D91]">Klar til vurdering</p>
+                <p className="mt-2 leading-6">
+                  Denne arrangør har opnået 5 gennemførte events med minimum 1 tilmelding pr. event via SoulEvents og kan vurderes til badget "Erfaren Arrangør". Badget aktiveres ikke automatisk.
+                </p>
+              </div>
+            )}
           </section>
 
           <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
@@ -220,6 +338,7 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
               />
             </div>
           </section>
+          <AdminReminderEmailsSection subscribers={(reminderSubscribers ?? []).map((subscriber) => ({ email: subscriber.email, status: subscriber.status, created_at: subscriber.created_at }))} />
 
           <div className="flex justify-end">
             <button className="inline-flex h-11 items-center gap-2 rounded-md bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700" type="submit">

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, CircleUserRound, ExternalLink, Mail, MapPinned, Phone, Ticket } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
+import { OrganizerBadges } from "@/components/badges/organizer-badges";
 import { BookingForm } from "@/components/events/detail/booking-form";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
 import { createClient } from "@/lib/supabase/server";
@@ -99,6 +100,8 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         website_url,
         facebook_url,
         instagram_url,
+        is_active_host,
+        is_experienced_host,
         profiles(full_name)
       ),
       regions(name),
@@ -229,7 +232,10 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                 </div>
               )}
               <div>
-                <Link className="font-semibold text-sage-700 transition hover:text-rose" href={"/facilitators/" + facilitatorProfile.id}>{facilitatorName}</Link>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link className="font-semibold text-sage-700 transition hover:text-rose" href={"/facilitators/" + facilitatorProfile.id}>{facilitatorName}</Link>
+                  <OrganizerBadges badges={[facilitatorProfile?.is_experienced_host ? "experienced" : null, facilitatorProfile?.is_active_host ? "active" : null].filter(Boolean) as never} />
+                </div>
                 <p className="mt-2 text-sm leading-6 text-ink/66">
                   {facilitatorProfile?.short_description || "Arrangørens profiltekst kommer snart."}
                 </p>

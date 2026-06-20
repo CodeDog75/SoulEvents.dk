@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { OrganizerBadges } from "@/components/badges/organizer-badges";
 
 type CategoryRow = {
   categories?: { name?: string | null; color_hex?: string | null } | Array<{ name?: string | null; color_hex?: string | null }> | null;
@@ -12,6 +13,8 @@ type FacilitatorResult = {
   website_url?: string | null;
   facebook_url?: string | null;
   instagram_url?: string | null;
+  is_active_host?: boolean | null;
+  is_experienced_host?: boolean | null;
   profiles?: { full_name?: string | null } | Array<{ full_name?: string | null }> | null;
   regions?: { name?: string | null } | Array<{ name?: string | null }> | null;
   facilitator_categories?: CategoryRow[] | null;
@@ -61,6 +64,9 @@ export function PublicFacilitatorResults({ facilitators }: { facilitators: Facil
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-terracotta">Arrangør</p>
                 <h3 className="mt-2 text-2xl font-medium text-olive">{name}</h3>
+                <div className="mt-2">
+                  <OrganizerBadges badges={[facilitator.is_experienced_host ? "experienced" : null, facilitator.is_active_host ? "active" : null].filter(Boolean) as never} />
+                </div>
                 {(facilitator.city || region?.name) && (
                   <p className="mt-1 text-sm text-ink/60">
                     {[facilitator.city, region?.name].filter(Boolean).join(", ")}

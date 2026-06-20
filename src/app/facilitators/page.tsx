@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, Filter, Search, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -62,7 +63,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
     supabase
       .from("facilitator_profiles")
       .select(
-        "id, company_name, profile_image_path, short_description, city, is_online_facilitator, profiles(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))",
+        "id, company_name, profile_image_path, short_description, city, is_online_facilitator, is_active_host, is_experienced_host, profiles(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))",
       )
       .eq("status", "approved"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
@@ -197,7 +198,12 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
 
             return (
               <Link className="group overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift" href={"/facilitators/" + facilitator.id} key={facilitator.id}>
-                <div className="aspect-[4/3] bg-sage-50">
+                <div className="relative aspect-[4/3] bg-sage-50">
+                  {facilitator.is_experienced_host ? (
+                    <OrganizerImageBadge type="experienced" />
+                  ) : facilitator.is_active_host ? (
+                    <OrganizerImageBadge type="active" />
+                  ) : null}
                   {imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img alt={name} className="h-full w-full object-cover" src={imageUrl} />

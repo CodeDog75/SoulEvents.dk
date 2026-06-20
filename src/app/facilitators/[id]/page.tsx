@@ -3,10 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, Mail, MapPinned, Phone, Sparkles, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { ActiveHostInfo, ExperiencedHostInfo, OrganizerImageBadge } from "@/components/badges/organizer-badges";
 import { PublicEventList } from "@/components/events/public-event-list";
 import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitator-button";
 import { subscribeToFacilitatorReminderAction } from "./actions";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +63,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   const { data: facilitator } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
+      "id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
     )
     .eq("id", id)
     .eq("status", "approved")
@@ -72,6 +74,10 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   if (!facilitatorData) {
     notFound();
   }
+
+  await createAdminClient()
+    .from("facilitator_profile_views")
+    .insert({ facilitator_id: id });
 
   const { data: events } = await supabase
     .from("events")
@@ -133,7 +139,12 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
         <div className="grid gap-6">
           <section className="overflow-hidden rounded-card bg-white shadow-soft">
             <div className="grid gap-8 p-8 sm:p-10 md:grid-cols-[260px_1fr] md:items-center">
-              <div className="aspect-square overflow-hidden rounded-card bg-sage-50">
+              <div className="relative aspect-square overflow-hidden rounded-card bg-sage-50">
+                {facilitatorData.is_experienced_host ? (
+                  <OrganizerImageBadge type="experienced" />
+                ) : facilitatorData.is_active_host ? (
+                  <OrganizerImageBadge type="active" />
+                ) : null}
                 {imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img alt={name} className="h-full w-full object-cover" src={imageUrl} />
@@ -159,6 +170,12 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
                 <p className="mt-4 max-w-3xl text-base leading-7 text-ink/72">
                   {facilitatorData.short_description || "Arrangørens korte præsentation kommer snart."}
                 </p>
+                {(facilitatorData.is_experienced_host || facilitatorData.is_active_host) && (
+                  <div className="mt-5 grid max-w-3xl gap-3">
+                    {facilitatorData.is_experienced_host && <ExperiencedHostInfo />}
+                    {facilitatorData.is_active_host && <ActiveHostInfo />}
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -234,9 +251,9 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
 
           <ShareFacilitatorButton facilitatorId={facilitatorData.id} facilitatorName={name} />
 
-          <section className="rounded-card border border-lavender/70 bg-lavender/20 p-6 shadow-soft">
+          <section className="rounded-card border border-[#E5D4F7] bg-[#F6EFFF] p-6 shadow-soft">
             <h2 className="text-3xl font-medium text-olive">Tilmeld påmindelse</h2>
-            <p className="mt-3 text-sm leading-6 text-ink/66">
+            <p className="mt-3 text-sm leading-6 text-ink/72">
               Få besked på e-mail, når denne arrangør opretter et nyt event.
             </p>
             {reminderMessage && (
@@ -249,14 +266,14 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
                 E-mail til påmindelse
               </label>
               <input
-                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base outline-none transition focus:border-purple"
+                className="h-12 rounded-input border border-[#D8C7EE] bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#EDE4F7]"
                 id="reminder-email"
                 name="email"
                 placeholder="din@email.dk"
                 required
                 type="email"
               />
-              <button className="inline-flex h-12 items-center justify-center rounded-button bg-purple px-6 text-sm font-semibold text-white shadow-soft" type="submit">
+              <button className="inline-flex h-12 items-center justify-center rounded-button bg-[#7A4EAB] px-6 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#684093] hover:shadow-lift" type="submit">
                 Tilmeld påmindelse
               </button>
             </form>

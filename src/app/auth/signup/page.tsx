@@ -13,6 +13,7 @@ type SignUpPageProps = {
 
 export default async function SignUpPage({ searchParams }: SignUpPageProps) {
   const { message } = await searchParams;
+  const existingAccountMessage = message?.toLowerCase().includes("der findes allerede en konto") ?? false;
   const supabase = await createClient();
   const { data: legalDocuments } = await supabase
     .from("legal_documents")
@@ -54,7 +55,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           <section className="mt-5 rounded-[1.25rem] border border-[#D8A7B1]/35 bg-[#D8A7B1]/14 p-5">
             <h2 className="text-lg font-semibold text-[#2F2633]">💜 Gratis og uden binding</h2>
             <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
-              Det er gratis at oprette en arrangørprofil på SoulEvents.dk, og det er gratis at oprette events. Du har altid fuld kontrol over dine oplysninger og kan redigere eller slette din profil og dine events, når du ønsker det.
+              Det er gratis at oprette en arrangørprofil på SoulEvents.dk, og det er gratis at oprette events. Du har altid fuld kontrol over dine oplysninger og kan redigere dine oplysninger eller sætte din profil på pause, når du ønsker det.
             </p>
           </section>
 
@@ -75,8 +76,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           <section className="mt-5 rounded-[1.25rem] border border-[#A8BFA3]/35 bg-[#A8BFA3]/14 p-5">
             <h2 className="text-lg font-semibold text-[#2F2633]">Hvem er SoulEvents for?</h2>
             <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
-              SoulEvents er for dig, der afholder aktiviteter inden for eksempelvis yoga, meditation, saunagus, healing,
-              breathwork, ceremonier, retreats, personlig udvikling og andre fællesskaber med fokus på krop, sind og sjæl.
+              SoulEvents er for dig, der inviterer mennesker ind i fællesskaber, oplevelser og udviklingsrum. Her finder du plads til alt fra yoga, meditation og saunagus til healing, ceremonier, retreats, musik, naturoplevelser og andre aktiviteter, der skaber nærvær, balance og forbindelse.
             </p>
           </section>
         </aside>
@@ -91,6 +91,29 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           </div>
 
           <AuthMessage message={message} />
+
+          {existingAccountMessage && (
+            <div className="mt-4 rounded-2xl border border-[#EDE4F7] bg-[#FAF6EF] p-4 text-sm text-[#2F2633]/75">
+              <p className="font-semibold text-[#2F2633]">Har du allerede en profil?</p>
+              <p className="mt-1 leading-6">
+                Log ind med din e-mail, eller få tilsendt et link til ny adgangskode, hvis du ikke kan huske den.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#6D439C]"
+                  href="/auth/login"
+                >
+                  Gå til login
+                </Link>
+                <Link
+                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#7A4EAB]/25 bg-white px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#EDE4F7]"
+                  href="/auth/forgot-password"
+                >
+                  Glemt adgangskode?
+                </Link>
+              </div>
+            </div>
+          )}
 
           <form
             action={signUpFacilitatorAction}

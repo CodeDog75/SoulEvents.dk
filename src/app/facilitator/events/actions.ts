@@ -163,7 +163,7 @@ export async function createEventAction(formData: FormData) {
 
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
-    .select("id, status, company_name, city, postal_code, short_description, facilitator_categories(category_id)")
+    .select("id, status, auto_approve_events, company_name, city, postal_code, short_description, facilitator_categories(category_id)")
     .eq("profile_id", profile.id)
     .single();
 
@@ -187,9 +187,12 @@ export async function createEventAction(formData: FormData) {
     eventsRedirect("Færdiggør din profil, før du opretter events.");
   }
 
-  const status = getString(formData, "status") as EventStatus;
+  const requestedStatus = getString(formData, "status") as EventStatus;
+  const status =
+    requestedStatus === "pending_review" && facilitatorProfile.auto_approve_events ? "active" : requestedStatus;
   const existingEventId = getOptionalString(formData, "event_id");
   const isDraft = status === "draft";
+  const wasAutoApproved = requestedStatus === "pending_review" && status === "active";
   const rawTitle = getString(formData, "title");
   const title = rawTitle || (isDraft ? "Kladde uden titel" : "");
   const slugBase = createSlug(title || "kladde");
@@ -389,6 +392,18 @@ export async function createEventAction(formData: FormData) {
       redirect("/facilitator/events?draft=" + existingEventId + "&message=" + encodeURIComponent("Kladde er opdateret."));
     }
 
+    if (wasAutoApproved) {
+      await supabase.from("admin_audit_log").insert({
+        actor_profile_id: profile.id,
+        facilitator_id: facilitatorProfile.id,
+        event_id: existingEventId,
+        action: "event_auto_approved",
+        new_value: "active",
+        reason: "auto_approve_events",
+      });
+      eventsRedirect("Eventet er opdateret og automatisk publiceret.");
+    }
+
     eventsRedirect("Eventet er sendt til godkendelse.");
   }
 
@@ -496,6 +511,18 @@ export async function createEventAction(formData: FormData) {
 
   if (isDraft) {
     redirect("/facilitator/events?draft=" + event.id + "&message=" + encodeURIComponent("Kladde er gemt."));
+  }
+
+  if (wasAutoApproved) {
+    await supabase.from("admin_audit_log").insert({
+      actor_profile_id: profile.id,
+      facilitator_id: facilitatorProfile.id,
+      event_id: event.id,
+      action: "event_auto_approved",
+      new_value: "active",
+      reason: "auto_approve_events",
+    });
+    eventsRedirect("Eventet er oprettet og automatisk publiceret.");
   }
 
   eventsRedirect("Eventet er oprettet.");

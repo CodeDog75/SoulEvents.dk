@@ -27,6 +27,11 @@ function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function unsubscribeUrl(token: string) {
+  const appUrl = env.appUrl || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3001";
+  return appUrl.replace(/\/$/, "") + "/reminders/unsubscribe?token=" + encodeURIComponent(token);
+}
+
 function eventUrl(eventId: string) {
   const appUrl = env.appUrl || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3001";
   return appUrl.replace(/\/$/, "") + "/events/" + eventId;
@@ -38,7 +43,7 @@ function facilitatorName(event: ReminderEvent) {
   return facilitator?.company_name || profile?.full_name || "Arrangøren";
 }
 
-function buildHtml(input: { event: ReminderEvent; name: string; url: string }) {
+function buildHtml(input: { event: ReminderEvent; name: string; url: string; unsubscribeUrl: string }) {
   const place = input.event.event_format === "online" ? "Online" : input.event.city || "Se lokation på eventsiden";
   return [
     '<div style="font-family: Arial, sans-serif; color: #2F2633; line-height: 1.55;">',
@@ -52,12 +57,13 @@ function buildHtml(input: { event: ReminderEvent; name: string; url: string }) {
     '<p style="margin: 0 0 14px;"><strong>Pris:</strong> ' + escapeHtml(formatMoney(input.event.price_cents ?? 0)) + '</p>',
     input.event.short_description ? '<p style="margin: 0 0 16px;">' + escapeHtml(input.event.short_description) + '</p>' : '',
     '<a href="' + escapeHtml(input.url) + '" style="display: inline-block; background: #7A4EAB; color: #ffffff; padding: 11px 18px; border-radius: 999px; text-decoration: none; font-weight: 700;">Se event</a>',
+    '<p style="margin: 18px 0 0; font-size: 12px; color: #6f6a73;">Vil du ikke længere have påmindelser fra denne arrangør? <a href="' + escapeHtml(input.unsubscribeUrl) + '" style="color: #7A4EAB;">Afmeld her</a>.</p>',
     '</div>',
     '</div>',
   ].join("");
 }
 
-function buildText(input: { event: ReminderEvent; name: string; url: string }) {
+function buildText(input: { event: ReminderEvent; name: string; url: string; unsubscribeUrl: string }) {
   const place = input.event.event_format === "online" ? "Online" : input.event.city || "Se lokation på eventsiden";
   return [
     input.name + " har oprettet et nyt event",
@@ -72,6 +78,8 @@ function buildText(input: { event: ReminderEvent; name: string; url: string }) {
     input.event.short_description || "",
     "",
     "Se event: " + input.url,
+    "",
+    "Afmeld påmindelser fra denne arrangør: " + input.unsubscribeUrl,
   ].join("\n");
 }
 
@@ -94,7 +102,7 @@ export async function notifyFacilitatorEventReminderSubscribers(eventId: string)
 
   const { data: reminders } = await admin
     .from("facilitator_event_reminders")
-    .select("id, email")
+    .select("id, email, unsubscribe_token")
     .eq("facilitator_id", event.facilitator_id)
     .eq("status", "active");
 
@@ -122,8 +130,8 @@ export async function notifyFacilitatorEventReminderSubscribers(eventId: string)
       type: "facilitator_new_event_reminder",
       to: reminder.email,
       subject: name + " har oprettet et nyt event på SoulEvents.dk",
-      html: buildHtml({ event: typedEvent, name, url }),
-      text: buildText({ event: typedEvent, name, url }),
+      html: buildHtml({ event: typedEvent, name, url, unsubscribeUrl: unsubscribeUrl(reminder.unsubscribe_token) }),
+      text: buildText({ event: typedEvent, name, url, unsubscribeUrl: unsubscribeUrl(reminder.unsubscribe_token) }),
       eventId: typedEvent.id,
     });
 

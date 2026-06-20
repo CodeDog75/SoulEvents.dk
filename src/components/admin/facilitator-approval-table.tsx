@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, Clock3, ExternalLink, Pencil, Slash, UserRoundCheck } from "lucide-react";
+import { Check, ExternalLink, Pencil, Slash, UserRoundCheck } from "lucide-react";
 import { updateFacilitatorStatusAction } from "@/app/admin/facilitators/actions";
 import type { FacilitatorStatus } from "@/types/database";
 
@@ -20,6 +20,9 @@ type FacilitatorRow = {
   regions: {
     name: string;
   } | null;
+  auto_approve_events?: boolean | null;
+  is_active_host?: boolean | null;
+  is_experienced_host?: boolean | null;
   facilitator_categories?: Array<{
     categories: {
       name: string;
@@ -130,6 +133,21 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
                       {category}
                     </span>
                   ))}
+                  {facilitator.auto_approve_events && (
+                    <span className="rounded-md bg-[#F4F0F7] px-2.5 py-1 text-[#6E5A86]">
+                      Auto-godkendelse aktiv
+                    </span>
+                  )}
+                  {facilitator.is_experienced_host && (
+                    <span className="rounded-md bg-[#F4F0F7] px-2.5 py-1 text-[#6E5A86]">
+                      Erfaren Arrangør
+                    </span>
+                  )}
+                  {facilitator.is_active_host && (
+                    <span className="rounded-md bg-[#F3F7F0] px-2.5 py-1 text-[#5F7A55]">
+                      Aktiv Arrangør
+                    </span>
+                  )}
                   {facilitator.website_url && (
                     <a
                       className="inline-flex items-center gap-1 rounded-md bg-midnight/5 px-2.5 py-1 hover:text-terracotta"
@@ -157,13 +175,7 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
                     <Check className="size-4" aria-hidden="true" />
                     Godkend
                   </StatusButton>
-                )}
-                {facilitator.status !== "pending" && (
-                  <StatusButton facilitatorId={facilitator.id} status="pending">
-                    <Clock3 className="size-4" aria-hidden="true" />
-                    Afventer
-                  </StatusButton>
-                )}
+                )}
                 {facilitator.status !== "disabled" && (
                   <StatusButton facilitatorId={facilitator.id} status="disabled">
                     <Slash className="size-4" aria-hidden="true" />
