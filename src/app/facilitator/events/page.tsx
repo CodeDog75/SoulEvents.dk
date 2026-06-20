@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, CalendarPlus } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarPlus, CheckCircle2 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { EventForm } from "@/components/facilitator/events/event-form";
 import { requireRole } from "@/lib/auth/roles";
@@ -7,15 +7,28 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+
+function isEventImageMessage(message?: string) {
+  if (!message) {
+    return false;
+  }
+
+  const normalized = message.toLowerCase();
+  return normalized.includes("billedet") || normalized.includes("eventbillede") || normalized.includes("forsidebillede");
+}
+
 type FacilitatorEventsPageProps = {
   searchParams: Promise<{
     draft?: string;
+    event?: string;
     message?: string;
+    step?: string;
+    receipt?: "published" | "review";
   }>;
 };
 
 export default async function FacilitatorEventsPage({ searchParams }: FacilitatorEventsPageProps) {
-  const [{ draft, message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const [{ draft, event, message, step, receipt }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
   const supabase = await createClient();
 
   const [
@@ -35,7 +48,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
       .single(),
     supabase.from("regions").select("id, name").order("sort_order"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
-    supabase.from("main_categories").select("id, name").eq("is_active", true).order("sort_order"),
+    supabase.from("main_categories").select("id, name, color_hex, image_path").eq("is_active", true).order("sort_order"),
     supabase
       .from("subcategories")
       .select("id, name, subcategory_main_categories(main_category_id)")
@@ -59,6 +72,8 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
   const contactProfile = Array.isArray(facilitatorProfile?.profiles)
     ? facilitatorProfile?.profiles[0]
     : facilitatorProfile?.profiles;
+  const initialStep = Math.min(Math.max(Number(step ?? "0") || 0, 0), 4);
+  const draftMessage = message && message.toLowerCase().includes("kladde") ? message : undefined;
   const profileReady =
     Boolean(profile.full_name) &&
     Boolean(facilitatorProfile?.company_name) &&
@@ -91,7 +106,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
       </header>
 
       <section className="mx-auto grid w-full max-w-6xl gap-5 overflow-x-hidden px-4 py-5 sm:gap-6 sm:px-6 sm:py-8 lg:px-8">
-        <AuthMessage message={message} />
+        <AuthMessage message={isEventImageMessage(message) || draftMessage ? undefined : message} />
 
         {!profileReady ? (
           <section className="rounded-md border border-terracotta/25 bg-terracotta/10 p-5">
@@ -120,15 +135,45 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
           </section>
         ) : null}
 
-        {facilitatorProfile && profileReady && (
+        {receipt ? (
+          <section className="rounded-card border border-[#D8CBE4] bg-white p-6 shadow-soft sm:p-8">
+            <div className="flex max-w-3xl flex-col gap-5">
+              <span className="grid size-12 place-items-center rounded-full bg-[#F4F0F7] text-[#7A5D91]">
+                <CheckCircle2 className="size-6" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Kvittering</p>
+                <h2 className="mt-2 font-serif text-3xl font-semibold text-midnight">
+                  {receipt === "published" ? "Dit event er nu offentliggjort 🌿" : "Dit event er sendt til godkendelse 🌿"}
+                </h2>
+                <p className="mt-3 max-w-2xl text-base leading-7 text-ink/70">
+                  {receipt === "published"
+                    ? "Dit event er synligt på SoulEvents og kan nu findes af andre deltagere."
+                    : "Tak fordi du deler din oplevelse på SoulEvents. Vi gennemgår dit event hurtigst muligt. Når det er godkendt, bliver det synligt for andre brugere på platformen."}
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                {receipt === "published" && event ? (
+                  <Link className="inline-flex h-11 items-center justify-center rounded-button bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft" href={"/events/" + event}>
+                    Se event
+                  </Link>
+                ) : null}
+                <Link className="inline-flex h-11 items-center justify-center rounded-button border border-[#D8CBE4] bg-[#F4F0F7] px-5 text-sm font-semibold text-[#6E5A86]" href="/facilitator">
+                  Tilbage til mine events
+                </Link>
+              </div>
+            </div>
+          </section>
+        ) : facilitatorProfile && profileReady && (
           <EventForm
+            initialStep={initialStep}
+            message={draftMessage}
             draftEvent={
               selectedDraft
                 ? {
                     ...selectedDraft,
+                    coverImageUrl: selectedDraft.cover_image_path ? supabase.storage.from("media").getPublicUrl(selectedDraft.cover_image_path).data.publicUrl : null,
                     categoryIds: selectedDraft.event_categories?.map((row: any) => row.category_id) ?? [],
-                    imageAlts: selectedDraft.event_images?.map((row: any) => row.alt_text ?? "") ?? [],
-                    imagePaths: selectedDraft.event_images?.map((row: any) => row.image_path) ?? [],
                     mainCategoryIds: selectedDraft.event_main_categories?.map((row: any) => row.main_category_id) ?? [],
                     subcategoryIds: selectedDraft.event_subcategories?.map((row: any) => row.subcategory_id) ?? [],
                     tagIds: selectedDraft.event_tags?.map((row: any) => row.tag_id) ?? [],
@@ -136,7 +181,12 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
                 : null
             }
             categories={categories ?? []}
-            mainCategories={mainCategories ?? []}
+            mainCategories={(mainCategories ?? []).map((category: any) => ({
+              id: category.id,
+              name: category.name,
+              colorHex: category.color_hex,
+              imageUrl: category.image_path ? supabase.storage.from("media").getPublicUrl(category.image_path).data.publicUrl : null,
+            }))}
             subcategories={(subcategories ?? []).map((subcategory: any) => ({ id: subcategory.id, name: subcategory.name, mainCategoryIds: (subcategory.subcategory_main_categories ?? []).map((row: any) => row.main_category_id) }))}
             tags={tags ?? []}
             facilitator={{

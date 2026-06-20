@@ -8,11 +8,28 @@ import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-da
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
 import { createSlug } from "@/lib/slug";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { EventStatus } from "@/types/database";
 
 const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "rejected", "sold_out", "cancelled", "completed", "archived"];
 const allowedFormats = ["physical", "online"] as const;
+
+const facilitatorProfileEventSelect = "id, status, company_name, city, postal_code, short_description, facilitator_categories(category_id)";
+
+async function getAutoApproveEvents(supabase: ReturnType<typeof createAdminClient>, facilitatorId: string) {
+  const { data, error } = await supabase
+    .from("facilitator_profiles")
+    .select("auto_approve_events")
+    .eq("id", facilitatorId)
+    .maybeSingle();
+
+  if (error) {
+    return false;
+  }
+
+  return Boolean(data?.auto_approve_events);
+}
 
 function eventsRedirect(message: string): never {
   redirect(`/facilitator/events?message=${encodeURIComponent(message)}`);
@@ -30,12 +47,49 @@ function getPriceCents(formData: FormData) {
     return 0;
   }
 
-  const numberValue = Number(raw.replace(",", "."));
-  if (!Number.isFinite(numberValue) || numberValue < 0) {
-    eventsRedirect("Pris skal være 0 eller højere.");
+  if (!/^\d{1,5}$/.test(raw)) {
+    eventsRedirect("Pris skal være et tal på højst 5 cifre.");
   }
 
-  return Math.round(numberValue * 100);
+  return Number(raw) * 100;
+}
+
+async function uploadEventCoverImage(formData: FormData, currentImagePath: string | null) {
+  const file = formData.get("event_cover_file");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return currentImagePath;
+  }
+
+  const allowedTypes = new Map([
+    ["image/jpeg", "jpg"],
+    ["image/png", "png"],
+    ["image/webp", "webp"],
+    ["image/gif", "gif"],
+  ]);
+  const extension = allowedTypes.get(file.type);
+
+  if (!extension) {
+    eventsRedirect("Billedet skal være JPG, PNG, WebP eller GIF.");
+  }
+
+  if (file.size > 8 * 1024 * 1024) {
+    eventsRedirect("Billedet må højst være 8 MB.");
+  }
+
+  const imagePath = "events/cover/" + crypto.randomUUID() + "." + extension;
+  const adminClient = createAdminClient();
+  const { error } = await adminClient.storage.from("media").upload(imagePath, file, {
+    cacheControl: "3600",
+    contentType: file.type,
+    upsert: false,
+  });
+
+  if (error) {
+    eventsRedirect("Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
+  }
+
+  return imagePath;
 }
 
 function toDateTime(date: string, time: string) {
@@ -46,21 +100,11 @@ function toDateTime(date: string, time: string) {
   return new Date(`${date}T${time}:00`).toISOString();
 }
 
-function normalizeImageRows(paths: string[], alts: string[]) {
-  return paths.slice(0, 3).map((imagePath, index) => ({
-    image_path: imagePath,
-    alt_text: alts[index] || null,
-    sort_order: index + 1,
-  }));
-}
-
 async function replaceEventRelations(
   supabase: any,
   eventId: string,
   input: {
     categoryIds: string[];
-    imageAlts: string[];
-    imagePaths: string[];
     mainCategoryIds: string[];
     subcategoryIds: string[];
     tagIds: string[];
@@ -71,7 +115,6 @@ async function replaceEventRelations(
     supabase.from("event_main_categories").delete().eq("event_id", eventId),
     supabase.from("event_subcategories").delete().eq("event_id", eventId),
     supabase.from("event_tags").delete().eq("event_id", eventId),
-    supabase.from("event_images").delete().eq("event_id", eventId),
   ]);
 
   if (input.mainCategoryIds.length > 0) {
@@ -106,17 +149,6 @@ async function replaceEventRelations(
       input.categoryIds.map((categoryId) => ({
         event_id: eventId,
         category_id: categoryId,
-      })),
-    );
-  }
-
-  const imageRows = normalizeImageRows(input.imagePaths, input.imageAlts);
-
-  if (imageRows.length > 0) {
-    await supabase.from("event_images").insert(
-      imageRows.map((row) => ({
-        event_id: eventId,
-        ...row,
       })),
     );
   }
@@ -159,22 +191,59 @@ function isProfileReady(input: {
 
 export async function createEventAction(formData: FormData) {
   const profile = await requireRole("facilitator");
-  const supabase = await createClient();
-
-  const { data: facilitatorProfile } = await supabase
+  const supabase = createAdminClient();
+  let { data: facilitatorProfile, error: facilitatorLookupError } = await supabase
     .from("facilitator_profiles")
-    .select("id, status, auto_approve_events, company_name, city, postal_code, short_description, facilitator_categories(category_id)")
+    .select(facilitatorProfileEventSelect)
     .eq("profile_id", profile.id)
-    .single();
+    .maybeSingle();
+
+  if (facilitatorLookupError) {
+    eventsRedirect("Arrangørprofilen kunne ikke hentes. Tjek at Supabase-migrationerne er kørt.");
+  }
 
   if (!facilitatorProfile) {
-    eventsRedirect("Arrangørprofilen mangler.");
+    const { data: repairedProfile, error: repairError } = await supabase
+      .from("facilitator_profiles")
+      .insert({ profile_id: profile.id, status: "pending" })
+      .select(facilitatorProfileEventSelect)
+      .single();
+
+    if (repairError || !repairedProfile) {
+      const { data: refetchedProfile } = await supabase
+        .from("facilitator_profiles")
+        .select(facilitatorProfileEventSelect)
+        .eq("profile_id", profile.id)
+        .maybeSingle();
+
+      if (!refetchedProfile) {
+        eventsRedirect(
+          "Arrangørprofilen kunne ikke gøres klar. Prøv at logge ud og ind igen." +
+            (repairError?.message ? " Teknisk besked: " + repairError.message : "")
+        );
+      }
+
+      facilitatorProfile = refetchedProfile;
+    } else {
+      facilitatorProfile = repairedProfile;
+    }
   }
+
+  const requestedStatus = getString(formData, "status") as EventStatus;
+  const autoApproveEvents = await getAutoApproveEvents(supabase, facilitatorProfile.id);
+  const status =
+    requestedStatus === "pending_review" && autoApproveEvents ? "active" : requestedStatus;
+  const existingEventId = getOptionalString(formData, "event_id");
+  const currentStep = getString(formData, "current_step") || "0";
+  const safeStep = ["0", "1", "2", "3", "4"].includes(currentStep) ? currentStep : "0";
+  const isDraft = status === "draft";
+  const wasAutoApproved = requestedStatus === "pending_review" && status === "active";
 
   const facilitatorCategoryIds =
     facilitatorProfile.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [];
 
   if (
+    !isDraft &&
     !isProfileReady({
       categoryIds: facilitatorCategoryIds,
       city: facilitatorProfile.city,
@@ -184,15 +253,8 @@ export async function createEventAction(formData: FormData) {
       shortDescription: facilitatorProfile.short_description,
     })
   ) {
-    eventsRedirect("Færdiggør din profil, før du opretter events.");
+    eventsRedirect("Færdiggør din profil, før du sender eventet til godkendelse.");
   }
-
-  const requestedStatus = getString(formData, "status") as EventStatus;
-  const status =
-    requestedStatus === "pending_review" && facilitatorProfile.auto_approve_events ? "active" : requestedStatus;
-  const existingEventId = getOptionalString(formData, "event_id");
-  const isDraft = status === "draft";
-  const wasAutoApproved = requestedStatus === "pending_review" && status === "active";
   const rawTitle = getString(formData, "title");
   const title = rawTitle || (isDraft ? "Kladde uden titel" : "");
   const slugBase = createSlug(title || "kladde");
@@ -202,7 +264,7 @@ export async function createEventAction(formData: FormData) {
     getString(formData, "short_description");
   const shortDescription = eventDescription.slice(0, 220);
   const longDescription = eventDescription;
-  const coverImagePath = getOptionalString(formData, "cover_image_path");
+  const coverImagePath = await uploadEventCoverImage(formData, getOptionalString(formData, "current_cover_image_path"));
   const startsAt = toDateTime(getString(formData, "start_date"), getString(formData, "start_time"));
   const endsAt = toDateTime(getString(formData, "end_date"), getString(formData, "end_time"));
   const addressLine = getOptionalString(formData, "address_line");
@@ -213,11 +275,11 @@ export async function createEventAction(formData: FormData) {
   const priceCents = getPriceCents(formData);
   const rawCapacity = getInteger(formData, "capacity");
   const capacity = isDraft && rawCapacity <= 0 ? 1 : rawCapacity;
-  const contactName = getOptionalString(formData, "contact_name");
+  const contactName = facilitatorProfile.company_name || profile.full_name || null;
   const contactEmail = getOptionalString(formData, "contact_email");
   const contactPhone = getOptionalString(formData, "contact_phone");
-  const facebookUrl = getOptionalString(formData, "facebook_url");
-  const instagramUrl = getOptionalString(formData, "instagram_url");
+  const facebookUrl = null;
+  const instagramUrl = null;
   const eventFormat = getString(formData, "event_format") || "physical";
 
   const isDanishPhysicalEvent = eventFormat === "physical" && country.trim().toLowerCase() === "danmark";
@@ -238,9 +300,6 @@ export async function createEventAction(formData: FormData) {
   if (!allowedFormats.includes(eventFormat as "physical" | "online")) {
     eventsRedirect("Vælg om eventet er fysisk eller online.");
   }
-  const imagePaths = getAllStrings(formData, "event_image_paths");
-  const imageAlts = getAllStrings(formData, "event_alt_texts");
-
   if (!allowedStatuses.includes(status)) {
     eventsRedirect("Ugyldig eventstatus.");
   }
@@ -267,13 +326,6 @@ export async function createEventAction(formData: FormData) {
     }
   }
 
-  if (imagePaths.some((imagePath) => imagePath.length > 300)) {
-    eventsRedirect("Billedstier må højst være 300 tegn.");
-  }
-
-  if (imageAlts.some((imageAlt) => imageAlt.length > 120)) {
-    eventsRedirect("Billedtekster må højst være 120 tegn.");
-  }
 
   if (!isDraft && (!rawTitle || !slugBase)) {
     eventsRedirect("Titel er påkrævet.");
@@ -378,8 +430,6 @@ export async function createEventAction(formData: FormData) {
 
     await replaceEventRelations(supabase, existingEventId, {
       categoryIds,
-      imageAlts,
-      imagePaths,
       mainCategoryIds,
       subcategoryIds,
       tagIds,
@@ -389,7 +439,7 @@ export async function createEventAction(formData: FormData) {
     revalidatePath("/facilitator/events");
 
     if (isDraft) {
-      redirect("/facilitator/events?draft=" + existingEventId + "&message=" + encodeURIComponent("Kladde er opdateret."));
+      redirect("/facilitator/events?draft=" + existingEventId + "&step=" + safeStep + "&message=" + encodeURIComponent("Kladde er opdateret og gemt."));
     }
 
     if (wasAutoApproved) {
@@ -401,10 +451,10 @@ export async function createEventAction(formData: FormData) {
         new_value: "active",
         reason: "auto_approve_events",
       });
-      eventsRedirect("Eventet er opdateret og automatisk publiceret.");
+      redirect("/facilitator/events?receipt=published&event=" + existingEventId);
     }
 
-    eventsRedirect("Eventet er sendt til godkendelse.");
+    redirect("/facilitator/events?receipt=review");
   }
 
   const { data: event, error: eventError } = await supabase
@@ -491,26 +541,11 @@ export async function createEventAction(formData: FormData) {
     }
   }
 
-  const imageRows = normalizeImageRows(imagePaths, imageAlts);
-
-  if (imageRows.length > 0) {
-    const { error: imageError } = await supabase.from("event_images").insert(
-      imageRows.map((row) => ({
-        event_id: event.id,
-        ...row,
-      })),
-    );
-
-    if (imageError) {
-      eventsRedirect("Eventet blev oprettet, men billederne kunne ikke gemmes.");
-    }
-  }
-
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/events");
 
   if (isDraft) {
-    redirect("/facilitator/events?draft=" + event.id + "&message=" + encodeURIComponent("Kladde er gemt."));
+    redirect("/facilitator/events?draft=" + event.id + "&step=" + safeStep + "&message=" + encodeURIComponent("Kladde er gemt."));
   }
 
   if (wasAutoApproved) {
@@ -522,10 +557,10 @@ export async function createEventAction(formData: FormData) {
       new_value: "active",
       reason: "auto_approve_events",
     });
-    eventsRedirect("Eventet er oprettet og automatisk publiceret.");
+    redirect("/facilitator/events?receipt=published&event=" + event.id);
   }
 
-  eventsRedirect("Eventet er oprettet.");
+  redirect("/facilitator/events?receipt=review");
 }
 
 export async function updateEventStatusAction(formData: FormData) {
@@ -537,7 +572,7 @@ export async function updateEventStatusAction(formData: FormData) {
     eventsRedirect("Ugyldig eventhandling.");
   }
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data: facilitatorProfiles } = await supabase
     .from("facilitator_profiles")
     .select("id, company_name, city, postal_code, short_description, facilitator_categories(category_id)")
@@ -588,7 +623,7 @@ export async function copyEventAsDraftAction(formData: FormData) {
     eventsRedirect("Eventet kunne ikke kopieres.");
   }
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
     .select("id")
@@ -601,7 +636,7 @@ export async function copyEventAsDraftAction(formData: FormData) {
 
   const { data: sourceEvent, error: sourceError } = await supabase
     .from("events")
-    .select("*, event_categories(category_id), event_main_categories(main_category_id), event_subcategories(subcategory_id), event_tags(tag_id), event_images(image_path, alt_text, sort_order)")
+    .select("*, event_categories(category_id), event_main_categories(main_category_id), event_subcategories(subcategory_id), event_tags(tag_id)")
     .eq("id", sourceEventId)
     .eq("facilitator_id", facilitatorProfile.id)
     .maybeSingle();
@@ -652,8 +687,6 @@ export async function copyEventAsDraftAction(formData: FormData) {
 
   await replaceEventRelations(supabase, copiedEvent.id, {
     categoryIds: sourceEvent.event_categories?.map((row: { category_id: string }) => row.category_id) ?? [],
-    imageAlts: sourceEvent.event_images?.map((row: { alt_text: string | null }) => row.alt_text ?? "") ?? [],
-    imagePaths: sourceEvent.event_images?.map((row: { image_path: string }) => row.image_path) ?? [],
     mainCategoryIds: sourceEvent.event_main_categories?.map((row: { main_category_id: string }) => row.main_category_id) ?? [],
     subcategoryIds: sourceEvent.event_subcategories?.map((row: { subcategory_id: string }) => row.subcategory_id) ?? [],
     tagIds: sourceEvent.event_tags?.map((row: { tag_id: string }) => row.tag_id) ?? [],
@@ -673,7 +706,7 @@ export async function deleteDraftEventAction(formData: FormData) {
     eventsRedirect("Kladde kunne ikke slettes.");
   }
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data: facilitatorProfiles } = await supabase
     .from("facilitator_profiles")
     .select("id")

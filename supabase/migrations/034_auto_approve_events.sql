@@ -42,3 +42,17 @@ with check (
       and profiles.role = 'admin'
   )
 );
+
+drop policy if exists "Facilitators can insert event auto approval audit log" on public.admin_audit_log;
+create policy "Facilitators can insert event auto approval audit log"
+on public.admin_audit_log for insert
+with check (
+  action = 'event_auto_approved'
+  and actor_profile_id = auth.uid()
+  and exists (
+    select 1
+    from public.facilitator_profiles
+    where facilitator_profiles.id = admin_audit_log.facilitator_id
+      and facilitator_profiles.profile_id = auth.uid()
+  )
+);

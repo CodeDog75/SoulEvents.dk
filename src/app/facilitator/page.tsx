@@ -15,6 +15,7 @@ import {
   MessageCircle,
   PauseCircle,
   PencilLine,
+  RotateCcw,
   Settings,
   Sparkles,
   Ticket,
@@ -320,7 +321,13 @@ function EventCard({ event }: { event: any }) {
             </button>
           </form>
         ) : null}
-        {event.status !== "cancelled" && event.status !== "draft" ? (
+        {event.status === "pending_review" ? (
+          <StatusAction eventId={event.id} status="draft">
+            <RotateCcw className="size-4" aria-hidden="true" />
+            Fortryd indsendelse
+          </StatusAction>
+        ) : null}
+        {event.status !== "cancelled" && event.status !== "draft" && event.status !== "pending_review" ? (
           <StatusAction eventId={event.id} status="cancelled">
             <PauseCircle className="size-4" aria-hidden="true" />
             Aflys

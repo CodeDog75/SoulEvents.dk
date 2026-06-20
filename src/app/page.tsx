@@ -1119,12 +1119,6 @@ export default async function Home({ searchParams }: HomeProps) {
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#2F2633]/76 sm:mt-6 sm:text-xl sm:leading-8">
               SoulEvents samler mennesker, arrangører og fællesskaber fra hele Danmark. Her kan du opdage spirituelle aktiviteter og fællesskaber, der skaber ro, nærvær, personlig udvikling og meningsfulde møder med andre.
             </p>
-            <p className="mt-5 text-sm font-semibold text-[#2F2633]/70 sm:mt-6">
-              Er du arrangør?{" "}
-              <Link className="text-[#7A4EAB] underline decoration-[#7A4EAB]/25 underline-offset-4 transition hover:text-[#6D439C]" href="/auth/signup">
-                Opret dit event gratis →
-              </Link>
-            </p>
           </div>
 
           <div className="max-w-5xl pt-2 sm:pt-0" id="find-events">

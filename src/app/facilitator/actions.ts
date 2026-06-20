@@ -61,7 +61,7 @@ export async function requestFacilitatorProfileClosureAction(formData: FormData)
   const reason = getText(formData, "reason");
 
   if (!confirmed) {
-    go("Bekræft venligst, at du ønsker at lukke din arrangørprofil.");
+    go("Bekræft venligst, at du ønsker at sætte din arrangørprofil på pause.");
   }
 
   if (reason.length > 500) {
@@ -75,7 +75,7 @@ export async function requestFacilitatorProfileClosureAction(formData: FormData)
     facilitator_id: facilitator.id,
     profile_id: profile.id,
     type: "closure_request",
-    subject: "Anmodning om lukning af arrangørprofil",
+    subject: "Anmodning om at sætte arrangørprofil på pause",
     message,
   });
 
@@ -87,5 +87,5 @@ export async function requestFacilitatorProfileClosureAction(formData: FormData)
 
   revalidatePath("/facilitator");
   revalidatePath("/admin");
-  go("Din arrangørprofil er skjult, og admin har fået besked om din anmodning.");
+  go("Din arrangørprofil er sat på pause, og admin har fået besked om din anmodning.");
 }

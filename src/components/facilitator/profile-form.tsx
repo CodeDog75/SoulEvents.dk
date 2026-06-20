@@ -454,7 +454,7 @@ export function ProfileForm({
             <div>
               <h2 className="text-lg font-semibold text-midnight">Offentlige links</h2>
               <p className="mt-1 text-sm leading-6 text-ink/64">
-                Links vises pÃ¥ din offentlige profil, hvis du udfylder dem.
+                Links vises på din offentlige profil, hvis du udfylder dem.
               </p>
             </div>
           </div>
