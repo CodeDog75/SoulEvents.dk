@@ -113,8 +113,8 @@ function value(input: string | number | null | undefined) {
 
 function fieldStateClass(value: string, options: { auto?: boolean; error?: boolean } = {}) {
   if (options.error) return "border-[#D97A7A] bg-[#FFF3F3]";
-  if (value.trim()) return "border-[#D7C4F0] bg-[#F8F3FF]";
-  if (options.auto) return "border-[#D7C4F0] bg-[#F8F3FF]";
+  if (value.trim()) return "border-[#CFE3C8] bg-[#F6FBF3]";
+  if (options.auto) return "border-[#CFE3C8] bg-[#F6FBF3]";
   return "border-midnight/15 bg-white";
 }
 
@@ -153,7 +153,7 @@ function MainCategoryCard({
         "group relative min-h-[148px] cursor-pointer overflow-hidden rounded-[24px] transition duration-200 hover:-translate-y-0.5 hover:shadow-lg " +
         (checked
           ? "-translate-y-0.5 border-[3px] border-[#7A5D91] opacity-100 shadow-[0_0_0_4px_rgba(122,93,145,0.15)]"
-          : "border border-transparent opacity-65 shadow-soft")
+          : "border border-transparent opacity-100 shadow-soft")
       }
       style={{ background: categoryBackground }}
     >
@@ -165,7 +165,6 @@ function MainCategoryCard({
         type="checkbox"
         value={category.id}
       />
-      {!checked ? <span className="pointer-events-none absolute inset-0 bg-[#F4F0F7]/45" /> : null}
       {checked ? (
         <span className="absolute right-4 top-4 z-10 grid size-9 place-items-center rounded-full bg-[#7A5D91] text-base font-bold text-white shadow-soft">
           {"✓"}
@@ -407,7 +406,7 @@ function TextInput({
         {required ? <span className="ml-1 text-[#B56F8A]">*</span> : null}
       </span>
       <input
-        className="h-12 w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:bg-[#F8F3FF] required:valid:border-[#D7C4F0] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
+        className="h-12 w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:bg-[#F6FBF3] required:valid:border-[#CFE3C8] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
         defaultValue={defaultValue}
         maxLength={maxLength}
         name={name}
@@ -445,6 +444,10 @@ function TextArea({
   help?: string;
   maxLength?: number;
 }) {
+  const [characterCount, setCharacterCount] = useState(defaultValue?.length ?? 0);
+  const remainingCharacters = typeof maxLength === "number" ? maxLength - characterCount : null;
+  const isAtLimit = remainingCharacters !== null && remainingCharacters <= 0;
+
   return (
     <label className="grid gap-2 text-sm font-medium text-ink/72">
       <span>
@@ -452,13 +455,19 @@ function TextArea({
         {required ? <span className="ml-1 text-[#B56F8A]">*</span> : null}
       </span>
       <textarea
-        className={minHeight + " w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:bg-[#F8F3FF] required:valid:border-[#D7C4F0] p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"}
+        className={minHeight + " w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:bg-[#F6FBF3] required:valid:border-[#CFE3C8] p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"}
         defaultValue={defaultValue}
         maxLength={maxLength}
         name={name}
+        onInput={(event) => setCharacterCount(event.currentTarget.value.length)}
         placeholder={placeholder}
       />
       {help ? <span className="text-xs leading-5 text-ink/52">{help}</span> : null}
+      {typeof maxLength === "number" ? (
+        <span className={isAtLimit ? "text-xs font-semibold text-[#9A3F3F]" : "text-xs font-semibold text-[#7A4EAB]"}>
+          {characterCount} / {maxLength} tegn
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -474,7 +483,7 @@ function EventDescriptionField({ defaultValue = "" }: { defaultValue?: string })
         Hvad skal deltagerne opleve?<span className="ml-1 text-[#B56F8A]">*</span>
       </span>
       <textarea
-        className="min-h-40 w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:!bg-[#F0E3FF] required:valid:!border-[#B894D6] p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
+        className="min-h-40 w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:!bg-[#F6FBF3] required:valid:!border-[#CFE3C8] p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
         maxLength={maxEventDescriptionLength}
         defaultValue={defaultValue}
         name="event_description"
@@ -562,12 +571,17 @@ export function EventForm({
   const [endDate, setEndDate] = useState(draftEndDate);
   const [startTime, setStartTime] = useState(draftStartTime);
   const [endTime, setEndTime] = useState(draftEndTime);
+  const [showEndDateTime, setShowEndDateTime] = useState(Boolean(draftEvent?.ends_at && (draftEndDate !== draftStartDate || draftEndTime !== draftStartTime)));
   const [postalCode, setPostalCode] = useState(value(draftEvent?.postal_code ?? facilitator.postalCode));
   const [city, setCity] = useState(value(draftEvent?.city ?? facilitator.city));
   const [country, setCountry] = useState(value(draftEvent?.country ?? "Danmark") || "Danmark");
   const [regionId, setRegionId] = useState(value(draftEvent?.region_id ?? facilitator.regionId));
   const [postalCodeMessage, setPostalCodeMessage] = useState("");
   const [eventFormat, setEventFormat] = useState<"physical" | "online">(draftEvent?.event_format === "online" ? "online" : "physical");
+  const [hasChosenEventFormat, setHasChosenEventFormat] = useState(Boolean(draftEvent?.event_format));
+  const [priceMode, setPriceMode] = useState<"" | "free" | "paid">(
+    draftEvent ? ((draftEvent.price_cents ?? 0) > 0 ? "paid" : "free") : "",
+  );
   const [isFree, setIsFree] = useState((draftEvent?.price_cents ?? 0) === 0);
   const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState<string[]>(draftEvent?.mainCategoryIds ?? []);
   const initialPriceValue = String((draftEvent?.price_cents ?? 0) / 100);
@@ -591,8 +605,8 @@ export function EventForm({
   const [coverFileName, setCoverFileName] = useState("");
   const [coverPreviewUrl, setCoverPreviewUrl] = useState("");
   const [coverCrop, setCoverCrop] = useState<CoverCropState | null>(null);
-  const showAddress = eventFormat === "physical";
-  const showOnline = eventFormat === "online";
+  const showAddress = hasChosenEventFormat && eventFormat === "physical";
+  const showOnline = hasChosenEventFormat && eventFormat === "online";
   const isDanishPhysicalEvent = showAddress && country.trim().toLowerCase() === "danmark";
   const selectedRegionName = regions.find((region) => region.id === regionId)?.name ?? "";
   const currentCoverImageUrl = coverPreviewUrl || draftEvent?.coverImageUrl || "";
@@ -605,7 +619,8 @@ export function EventForm({
 
   const durationLabel = useMemo(() => {
     const start = new Date(startDate + "T" + startTime + ":00");
-    const end = new Date(endDate + "T" + endTime + ":00");
+    const effectiveEndDate = showEndDateTime ? endDate : startDate;
+    const end = new Date(effectiveEndDate + "T" + endTime + ":00");
     const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000);
 
     if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
@@ -630,22 +645,20 @@ export function EventForm({
     }
 
     return "Varighed: " + parts.join(" og ");
-  }, [endDate, endTime, startDate, startTime]);
+  }, [endDate, endTime, showEndDateTime, startDate, startTime]);
 
   const steps: Step[] = [
     { icon: <CalendarPlus className="size-4" />, label: "Invitation", title: "Hvad vil du invitere til?" },
     { icon: <MapPin className="size-4" />, label: "Sted", title: "Hvor foregår oplevelsen?" },
-    { icon: <HeartHandshake className="size-4" />, label: "Stemning", title: "Hvordan skal oplevelsen føles?" },
-    { icon: <Tags className="size-4" />, label: "Findbarhed", title: "Hvordan skal deltagerne finde dit event?" },
-    { icon: <Mail className="size-4" />, label: "Gennemgang", title: "Klar til at dele dit event?" },
+    { icon: <Ticket className="size-4" />, label: "Pris", title: "Pris & antal deltagere" },
+    { icon: <Tags className="size-4" />, label: "Findbarhed", title: "Vælg eventets kategori" },
   ];
 
   const stepDescriptions = [
-    "Giv eventet et navn, beskriv oplevelsen med dine egne ord, og vælg hvornår I mødes.",
-    "Fortæl om deltagerne møder op fysisk, eller om oplevelsen foregår online.",
-    "Tilføj praktiske oplysninger og vælg ét forsidebillede, der viser stemningen i dit event.",
-    "Vælg brede hovedkategorier og eventuelle tags, så deltagerne lettere kan finde eventet.",
-    "Gennemgå de vigtigste oplysninger, før du gør eventet offentligt.",
+    "Giv eventet et navn, beskriv oplevelsen og vælg tidspunkt.",
+    "Vælg om eventet foregår fysisk eller online.",
+    "Tilføj pris, antal deltagere og eventuelle praktiske oplysninger.",
+    "Vælg brede hovedkategorier og eventuelle tags.",
   ];
 
 
@@ -869,6 +882,7 @@ export function EventForm({
     const numericValue = Number(normalizedValue || "0");
 
     if (Number.isFinite(numericValue) && numericValue > 0) {
+      setPriceMode("paid");
       setIsFree(false);
     }
   }
@@ -877,6 +891,7 @@ export function EventForm({
     setIsFree(checked);
 
     if (checked) {
+      setPriceMode("free");
       setPriceValue("0");
     }
   }
@@ -985,7 +1000,7 @@ export function EventForm({
     setPreview({
       title,
       description,
-      format: eventFormat === "online" ? "Online event" : "Fysisk event",
+      format: eventFormat === "online" ? "Virtuelt event" : "Personligt event",
       price: isFree || numericPrice <= 0 ? "Gratis" : priceValue + " kr.",
       date: startDateValue === endDateValue ? formatReviewDate(startDateValue) : formatReviewDate(startDateValue) + " - " + formatReviewDate(endDateValue),
       time: startTimeValue && endTimeValue ? startTimeValue + " - " + endTimeValue : "Tidspunkt mangler",
@@ -1000,26 +1015,30 @@ export function EventForm({
   function getStepStatus(index: number): "complete" | "missing" {
     const form = formRef.current;
     const data = form ? new FormData(form) : null;
-    const text = (name: string) => String(data?.get(name) ?? "").trim();
-    const selectedCategories = data?.getAll("main_category_ids").map(String) ?? selectedMainCategoryIds;
+    const text = (name: string) => String(data?.get(name) || "").trim();
+    const selectedCategories = data?.getAll("main_category_ids").map(String).filter(Boolean) ?? [];
+    const priceValue = text("price");
     const start = new Date(startDate + "T" + startTime + ":00");
     const end = new Date(endDate + "T" + endTime + ":00");
     const hasValidDuration = Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) && end.getTime() > start.getTime();
+    const capacityValue = Number(text("capacity") || 0);
+    const hasValidPrice = /^\d{1,5}$/.test(priceValue || "0");
 
     if (index === 0) {
       return text("title").length > 0 && text("event_description").length >= 20 && hasValidDuration ? "complete" : "missing";
     }
 
     if (index === 1) {
-      if (eventFormat === "online") {
-        return "complete";
-      }
-
+      if (!hasChosenEventFormat) return "missing";
+      if (eventFormat === "online") return text("online_url_or_note").length > 0 || text("online_description").length > 0 ? "complete" : "missing";
       return text("address_line").length > 0 && postalCode.length === 4 && city.trim().length > 0 && country.trim().length > 0 ? "complete" : "missing";
     }
 
     if (index === 2) {
-      return currentCoverImageUrl ? "complete" : "missing";
+      const numericPrice = Number(priceValue || 0);
+      if (priceMode !== "free" && priceMode !== "paid") return "missing";
+      if (priceMode === "paid" && (!hasValidPrice || numericPrice <= 0)) return "missing";
+      return capacityValue > 0 ? "complete" : "missing";
     }
 
     if (index === 3) {
@@ -1027,6 +1046,24 @@ export function EventForm({
     }
 
     return [0, 1, 2, 3].every((stepIndex) => getStepStatus(stepIndex) === "complete") ? "complete" : "missing";
+  }
+
+  function getMissingInvitationItems() {
+    const form = formRef.current;
+    const data = form ? new FormData(form) : null;
+    const text = (name: string) => String(data?.get(name) || "").trim();
+    const selectedCategories = data?.getAll("main_category_ids").map(String).filter(Boolean) ?? [];
+    const missing = [];
+
+    if (text("title").length === 0) missing.push("Titel");
+    if (text("event_description").length < 20) missing.push("Beskrivelse");
+    if (getStepStatus(1) !== "complete") missing.push("Lokation eller onlinevalg");
+    if (priceMode !== "free" && priceMode !== "paid") missing.push("Pris eller gratis");
+    if (getStepStatus(2) !== "complete") missing.push("Pris og antal deltagere");
+    if (selectedCategories.length === 0) missing.push("Kategori");
+    if (!currentCoverImageUrl) missing.push("Billede");
+
+    return Array.from(new Set(missing));
   }
 
   function goToStep(index: number, anchor?: HTMLElement | null) {
@@ -1098,6 +1135,8 @@ export function EventForm({
           endDate,
           endTime,
           eventFormat,
+          hasChosenEventFormat,
+          priceMode,
           isFree,
 
           postalCode,
@@ -1129,6 +1168,8 @@ export function EventForm({
     setCountry(draft.state?.country ?? "Danmark");
     setRegionId(draft.state?.regionId ?? "");
     setEventFormat(draft.state?.eventFormat === "online" ? "online" : "physical");
+    setHasChosenEventFormat(Boolean(draft.state?.hasChosenEventFormat));
+    setPriceMode(draft.state?.priceMode === "paid" || draft.state?.priceMode === "free" ? draft.state.priceMode : "");
     setIsFree(Boolean(draft.state?.isFree));
     setSelectedMainCategoryIds(Array.isArray(draft.state?.selectedMainCategoryIds) ? draft.state.selectedMainCategoryIds : []);
 
@@ -1173,7 +1214,7 @@ export function EventForm({
 
     if (imageMessage) {
       setCoverImageErrorMessage(imageMessage);
-      setCurrentStep(2);
+      setCurrentStep(0);
     }
 
     if (normalizedMessage.includes("oprettet") || normalizedMessage.includes("gemt")) {
@@ -1192,7 +1233,7 @@ export function EventForm({
   useEffect(() => {
     const timeout = window.setTimeout(writeDraft, 350);
     return () => window.clearTimeout(timeout);
-  }, [city, country, endDate, endTime, eventFormat, isFree, postalCode, regionId, selectedMainCategoryIds, startDate, startTime]);
+  }, [city, country, endDate, endTime, eventFormat, hasChosenEventFormat, priceMode, isFree, postalCode, regionId, selectedMainCategoryIds, startDate, startTime]);
 
   useEffect(() => {
     const timeout = window.setTimeout(showPreview, 0);
@@ -1209,36 +1250,100 @@ export function EventForm({
       : isOpen
         ? "border-[#7A5D91] bg-[#F4F0F7] text-[#6E5A86] shadow-[0_0_0_3px_rgba(122,93,145,0.10)]"
         : "border-[#E8E0D2] bg-[#FFFCF7] text-[#6E6475]";
-    const iconClass = isDone
-      ? "border-[#C8DCC0] bg-white text-[#4E6A48]"
-      : isOpen
-        ? "border-[#D8CBE4] bg-white text-[#7A5D91]"
-        : "border-[#E8E0D2] bg-white text-[#6E6475]";
+    const badgeClass = isDone
+      ? "border-[#CFE3C8] bg-[#EAF4E6] text-[#4F6F48]"
+      : "border-[#D8CBE4] bg-[#F4F0F7] text-[#7A5D91]";
+    const decisionSelectClass =
+      "h-10 w-full cursor-pointer appearance-none rounded-full border border-[#D8CBE4] bg-white bg-[linear-gradient(45deg,transparent_50%,#7A5D91_50%),linear-gradient(135deg,#7A5D91_50%,transparent_50%)] bg-[length:7px_7px,7px_7px] bg-[position:calc(100%-20px)_52%,calc(100%-14px)_52%] bg-no-repeat px-4 pr-10 text-sm font-semibold text-[#2F2437] outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] sm:w-[245px]";
 
     return (
-      <button
-        aria-expanded={isOpen}
-        className={"flex w-full items-center justify-between gap-3 rounded-[18px] border px-4 py-3 text-left transition hover:-translate-y-0.5 " + statusClass}
-        onClick={(event) => goToStep(index, event.currentTarget)}
-        type="button"
-      >
-        <span className="min-w-0">
+      <div className={"flex w-full flex-col gap-3 rounded-[18px] border px-4 py-3 transition sm:flex-row sm:items-center " + statusClass}>
+        <button
+          aria-expanded={isOpen}
+          className="min-w-0 flex-1 text-left"
+          onClick={(event) => goToStep(index, event.currentTarget)}
+          type="button"
+        >
           <span className="block text-[11px] font-semibold uppercase tracking-wide opacity-75">
-            Trin {index + 1}{isDone ? " · OK" : " · Mangler"}
+            Trin {index + 1}
           </span>
           <span className="mt-0.5 block truncate text-base font-semibold sm:text-lg">
             {step.title}
           </span>
-        </span>
-        <span
-          className={"grid size-8 shrink-0 place-items-center rounded-full border text-sm font-bold leading-none transition " + iconClass}
-          aria-hidden="true"
-        >
-          {isDone ? "✓" : isOpen ? "−" : "+"}
-        </span>
-      </button>
+        </button>
+
+        {index === 1 ? (
+          <label className="sr-only" htmlFor="event-format-header-select">
+            Hvordan deltager man?
+          </label>
+        ) : null}
+        {index === 1 ? (
+          <select
+            className={decisionSelectClass}
+            id="event-format-header-select"
+            name="event_format"
+            onChange={(event) => {
+              const nextFormat = event.target.value as "physical" | "online";
+              if (nextFormat === "physical" || nextFormat === "online") {
+                setEventFormat(nextFormat);
+                setHasChosenEventFormat(true);
+                setCurrentStep(1);
+              } else {
+                setHasChosenEventFormat(false);
+              }
+              window.setTimeout(showPreview, 0);
+            }}
+            value={hasChosenEventFormat ? eventFormat : ""}
+          >
+            <option value="" disabled hidden>Er eventet personligt eller virtuelt?</option>
+            <option value="physical">Personligt event</option>
+            <option value="online">Virtuelt event</option>
+          </select>
+        ) : null}
+
+        {index === 2 ? (
+          <label className="sr-only" htmlFor="event-price-header-select">
+            Hvad koster det at deltage?
+          </label>
+        ) : null}
+        {index === 2 ? (
+          <select
+            className={decisionSelectClass}
+            id="event-price-header-select"
+            onChange={(event) => {
+              const nextMode = event.target.value as "" | "free" | "paid";
+              setPriceMode(nextMode);
+              setCurrentStep(2);
+              if (nextMode === "free") {
+                setIsFree(true);
+                setPriceValue("0");
+              }
+              if (nextMode === "paid") {
+                setIsFree(false);
+                if (priceValue === "0") setPriceValue("");
+              }
+              window.setTimeout(showPreview, 0);
+            }}
+            value={priceMode}
+          >
+            <option value="" disabled hidden>Vælg gratis eller betaling</option>
+            <option value="free">Gratis event</option>
+            <option value="paid">Betaling</option>
+          </select>
+        ) : null}
+
+        {index !== 1 && index !== 2 ? (
+          <span className={"inline-flex h-8 shrink-0 items-center justify-center rounded-full border px-3 text-xs font-semibold uppercase tracking-wide " + badgeClass}>
+            {isDone ? "Klar" : "Afventer"}
+          </span>
+        ) : null}
+
+      </div>
     );
   }
+
+  const missingInvitationItems = getMissingInvitationItems();
+  const canPublish = missingInvitationItems.length === 0;
 
   return (
     <form
@@ -1262,18 +1367,22 @@ export function EventForm({
     >
       {draftEvent?.id ? <input name="event_id" type="hidden" value={draftEvent.id} /> : null}
       <input name="current_step" type="hidden" value={currentStep} />
+      <input name="current_cover_image_path" type="hidden" value={value(draftEvent?.cover_image_path)} />
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
         <div className="grid gap-5">
           <StepAccordionHeader index={0} />
       <section className={currentStep === 0 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <div className="grid gap-4 md:grid-cols-2 md:gap-x-5 md:gap-y-4">
-          <TextInput defaultValue={value(draftEvent?.title)} label="Hvad kalder du dit event?" maxLength={80} name="title" placeholder="Giv dit event et navn" required />
+          <div className="md:col-span-2">
+            <TextInput defaultValue={value(draftEvent?.title)} label="Hvad kalder du dit event?" maxLength={80} name="title" placeholder="Giv dit event et navn" required />
+          </div>
+
           <label className="grid gap-2 text-sm font-medium text-ink/72">
             <span>
               Startdato<span className="ml-1 text-[#B56F8A]">*</span>
             </span>
             <input
-              className="h-12 w-full min-w-0 cursor-pointer rounded-card border border-midnight/15 bg-white required:valid:bg-[#F8F3FF] required:valid:border-[#D7C4F0] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
+              className="h-12 w-full min-w-0 cursor-pointer rounded-card border border-midnight/15 bg-white required:valid:bg-[#F6FBF3] required:valid:border-[#CFE3C8] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
               name="start_date"
               onClick={(event) => openNativePicker(event.currentTarget)}
               onChange={(event) => updateStartDate(event.target.value)}
@@ -1281,28 +1390,47 @@ export function EventForm({
               value={startDate}
             />
           </label>
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span>
-              Slutdato<span className="ml-1 text-[#B56F8A]">*</span>
-            </span>
-            <input
-              className="h-12 w-full min-w-0 cursor-pointer rounded-card border border-midnight/15 bg-white required:valid:bg-[#F8F3FF] required:valid:border-[#D7C4F0] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
-              min={startDate}
-              name="end_date"
-              onClick={(event) => openNativePicker(event.currentTarget)}
-              onChange={(event) => setEndDate(event.target.value)}
-              type="date"
-              value={endDate}
-            />
-          </label>
+
           <TimeSelect defaultValue="19:00" label="Starttidspunkt" name="start_time" onChange={setStartTime} required value={startTime} />
+
+          {!showEndDateTime ? <input name="end_date" type="hidden" value={startDate} /> : null}
+
+          {showEndDateTime ? (
+            <label className="grid gap-2 text-sm font-medium text-ink/72">
+              <span>
+                Slutdato<span className="ml-1 text-[#B56F8A]">*</span>
+              </span>
+              <input
+                className="h-12 w-full min-w-0 cursor-pointer rounded-card border border-midnight/15 bg-white required:valid:bg-[#F6FBF3] required:valid:border-[#CFE3C8] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
+                min={startDate}
+                name="end_date"
+                onClick={(event) => openNativePicker(event.currentTarget)}
+                onChange={(event) => setEndDate(event.target.value)}
+                type="date"
+                value={endDate}
+              />
+            </label>
+          ) : (
+            <button
+              className="self-end inline-flex h-12 w-fit items-center gap-2 rounded-full border border-[#D8CBE4] bg-[#FAF6EF] px-4 text-sm font-semibold text-[#7A5D91] transition hover:border-[#7A5D91] hover:bg-[#F4F0F7]"
+              onClick={() => {
+                setEndDate(startDate);
+                setShowEndDateTime(true);
+              }}
+              type="button"
+            >
+              + Slutdato og tidspunkt
+            </button>
+          )}
+
           <TimeSelect defaultValue="21:00" label="Sluttidspunkt" name="end_time" onChange={setEndTime} required value={endTime} />
+
           {durationLabel && (
             <div
               className={
-                durationLabel.startsWith("Vælg")
+                durationLabel.startsWith("Vælg") || durationLabel.startsWith("VÃ¦lg") || durationLabel.startsWith("VÃƒÂ¦lg")
                   ? "rounded-card border border-[#E6B8B8] bg-[#FBEAEA] px-4 py-3 text-sm font-semibold text-[#9A3F3F] md:col-span-2"
-                  : "rounded-card border border-[#E5D4F7] bg-[#F6EFFF] px-4 py-3 text-sm font-semibold text-[#7A4EAB] md:col-span-2"
+                  : "rounded-card border border-[#E8E0D2] bg-[#FAF6EF] px-4 py-3 text-sm font-semibold text-[#6E6475] md:col-span-2"
               }
             >
               {durationLabel}
@@ -1311,74 +1439,16 @@ export function EventForm({
         </div>
         <EventDescriptionField defaultValue={value(draftEvent?.long_description || draftEvent?.short_description)} />
       </section>
-
-          <StepAccordionHeader index={1} />
+<StepAccordionHeader index={1} />
       <section className={currentStep === 1 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
-        <div>
-          <p className="text-sm font-semibold text-midnight">Hvordan foregår eventet?</p>
-          <p className="mt-1 text-sm leading-6 text-ink/64">
-            Vælg fysisk event, hvis deltageren skal møde op på en adresse. Vælg online event, hvis det foregår digitalt.
+        {!hasChosenEventFormat ? (
+          <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
+            Vælg først fysisk eller online i trinlinjen ovenfor.
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            {[
-              { value: "physical", label: "Fysisk event", help: "Adresse og fremmøde.", icon: MapPin },
-              { value: "online", label: "Online event", help: "Via link eller online møderum.", icon: MonitorSmartphone },
-            ].map((option) => {
-              const selected = eventFormat === option.value;
-              const Icon = option.icon;
-
-              return (
-                <label
-                  className={
-                    "grid min-h-[118px] cursor-pointer gap-2 rounded-card p-3 text-sm font-semibold transition shadow-soft sm:p-4 " +
-                    (selected
-                      ? "border-2 border-[#7A4EAB] bg-[#F6EFFF] text-midnight"
-                      : "border border-midnight/15 bg-white text-midnight hover:border-[#D7C4F0] hover:bg-[#FBF7FF]")
-                  }
-                  key={option.value}
-                >
-                  <span className="flex items-center gap-3">
-                    <input
-                      checked={selected}
-                      className="size-4 accent-[#7A4EAB]"
-                      name="event_format"
-                      onChange={() => setEventFormat(option.value as "physical" | "online")}
-                      type="radio"
-                      value={option.value}
-                    />
-                    <span
-                      className={
-                        "grid size-10 place-items-center rounded-full " +
-                        (selected ? "bg-[#EDE4F7] text-[#7A4EAB]" : "bg-stone-100 text-ink/45")
-                      }
-                    >
-                      <Icon className="size-5" aria-hidden="true" />
-                    </span>
-                    <span>{option.label}</span>
-                  </span>
-                  <span className="text-xs font-normal leading-5 text-ink/55">{option.help}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
+        ) : null}
         {showAddress ? (
           <div className="grid gap-4 md:grid-cols-2">
             <TextInput defaultValue={value(draftEvent?.address_line ?? facilitator.addressLine)} label="Adresse" name="address_line" required maxLength={120} />
-
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
-              <span>
-                Land<span className="ml-1 text-[#B56F8A]">*</span>
-              </span>
-              <input
-                className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(country)}
-                name="country"
-                onChange={(event) => setCountry(event.target.value)}
-                required
-                value={country}
-              />
-              <span className="text-xs leading-5 text-ink/52">Skriv Danmark for danske events. Ved udenlandske retreats kan du skrive landet her.</span>
-            </label>
 
             <label className="grid gap-2 text-sm font-medium text-ink/72">
               <span>
@@ -1414,6 +1484,20 @@ export function EventForm({
                 value={city}
               />
               {postalCodeMessage && isDanishPhysicalEvent ? <span className="text-xs leading-5 text-[#7A4EAB]">{postalCodeMessage}</span> : null}
+            </label>
+
+            <label className="grid gap-2 text-sm font-medium text-ink/72">
+              <span>
+                Land<span className="ml-1 text-[#B56F8A]">*</span>
+              </span>
+              <input
+                className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(country)}
+                name="country"
+                onChange={(event) => setCountry(event.target.value)}
+                required
+                value={country}
+              />
+              <span className="text-xs leading-5 text-ink/52">Skriv Danmark for danske events. Ved udenlandske retreats kan du skrive landet her.</span>
             </label>
 
             {isDanishPhysicalEvent ? (
@@ -1473,7 +1557,49 @@ export function EventForm({
         </Tip>
       </section>
           <StepAccordionHeader index={2} />
-      <section className={currentStep === 2 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
+      
+
+      
+<section className={currentStep === 2 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
+        {priceMode === "" ? (
+          <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
+            Vælg først gratis eller betaling i trinlinjen ovenfor.
+          </p>
+        ) : null}
+        <div className="grid gap-4 md:grid-cols-2 md:items-start">
+          {priceMode === "paid" ? (
+            <label className="grid gap-2 text-sm font-medium text-ink/72">
+              <span>Pris i kr.</span>
+              <input
+                className="h-12 w-full min-w-0 rounded-card border border-midnight/15 bg-white px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA]"
+                inputMode="numeric"
+                maxLength={5}
+                name="price"
+                onChange={(event) => handlePriceChange(event.currentTarget.value)}
+                pattern="[0-9]*"
+                type="text"
+                value={priceValue}
+              />
+              <span className="text-xs leading-5 text-ink/52">Pris inklusive moms.</span>
+            </label>
+          ) : (
+            <input name="price" type="hidden" value="0" />
+          )}
+
+          {priceMode === "free" ? (
+            <div className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm font-semibold text-[#6E5A86]">
+              Eventet er gratis for deltagere.
+            </div>
+          ) : null}
+
+          <TextInput defaultValue={String(draftEvent?.capacity ?? 12)} label="Maks. antal deltagere" name="capacity" type="number" />
+        </div>
+        <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
+          Kontaktoplysninger og sociale links hentes fra din arrangørprofil, så eventoprettelsen holdes enkel.
+        </p>
+      </section>
+
+<section className={currentStep === 2 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <details className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4">
           <summary className="cursor-pointer list-none text-sm font-semibold text-[#7A4EAB] [&::-webkit-details-marker]:hidden">
             Tilføj praktiske oplysninger
@@ -1490,68 +1616,6 @@ export function EventForm({
         </details>
       </section>
 
-      <section className={currentStep === 2 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
-        <input name="current_cover_image_path" type="hidden" value={value(draftEvent?.cover_image_path)} />
-        <div className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4 sm:p-5">
-          <div className="flex items-start gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-[#7A4EAB] shadow-sm">
-              <ImagePlus className="size-5" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="font-semibold text-midnight">Forsidebillede</p>
-              <p className="mt-1 text-sm leading-6 text-ink/64">
-                Upload ét forsidebillede til dit event. Hvis formatet ikke passer, hjælper vi dig med at tilpasse udsnittet.
-              </p>
-            </div>
-          </div>
-          {currentCoverImageUrl ? (
-            <div className="mt-4 overflow-hidden rounded-card border border-[#D8CBE4] bg-white">
-              <img
-                alt="Uploadet forsidebillede til eventet"
-                className="h-52 w-full object-cover sm:h-64"
-                src={currentCoverImageUrl}
-              />
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#D8CBE4] px-4 py-3">
-                <p className="text-xs leading-5 text-ink/56">Du kan justere udsnittet, hvis billedet ikke sidder helt rigtigt.</p>
-                <button
-                  className="inline-flex h-10 items-center justify-center rounded-button border border-[#D8CBE4] bg-[#F4F0F7] px-4 text-sm font-semibold text-[#6E5A86] transition hover:bg-[#EFE8F5]"
-                  onClick={reopenCoverCropTool}
-                  type="button"
-                >
-                  Tilpas billede igen
-                </button>
-              </div>
-            </div>
-          ) : null}
-          {hasExistingCoverImage ? (
-            <div className="mt-4 rounded-card border border-[#D8CBE4] bg-[#F4F0F7] px-4 py-3 text-sm leading-6 text-[#4D4458]">
-              <p className="font-semibold text-[#6E5A86]">Der er allerede valgt et forsidebillede til dette event.</p>
-              <p>Hvis du vælger et nyt billede, erstattes det nuværende billede.</p>
-            </div>
-          ) : null}
-          <label className="mt-4 grid gap-2 text-sm font-medium text-ink/72">
-            <span>{hasExistingCoverImage ? "Udskift billede" : "Vælg billede"}</span>
-            <input
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="sr-only"
-              name="event_cover_file"
-              onChange={handleCoverFileChange}
-              ref={coverFileInputRef}
-              type="file"
-            />
-            <span className="inline-flex h-11 w-fit cursor-pointer items-center justify-center rounded-button bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285]">
-              {hasExistingCoverImage ? "Vælg nyt billede" : "Vælg billede"}
-            </span>
-            {coverFileName ? <span className="text-xs font-semibold text-[#7A4EAB]">Valgt fil: {coverFileName}</span> : null}
-            <span className="text-xs leading-5 text-ink/52">JPG, PNG, WebP eller GIF under 8 MB. Der kan kun være ét forsidebillede, og et nyt billede erstatter det nuværende.</span>
-            {coverImageErrorMessage ? (
-              <span className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold leading-6 text-red-900">
-                {coverImageErrorMessage}
-              </span>
-            ) : null}
-          </label>
-        </div>
-      </section>
 
           <StepAccordionHeader index={3} />
       <section className={currentStep === 3 ? "grid w-full max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-6 sm:p-6" : "hidden"}>
@@ -1560,12 +1624,7 @@ export function EventForm({
         ))}
         {mainCategories.length > 0 && (
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Vælg retning</p>
-            <h2 className="mt-1 font-serif text-2xl font-semibold text-midnight">Vælg de brede retninger</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/64">
-              Vælg én eller flere hovedkategorier, som passer til oplevelsen. Underkategorier kan finjusteres af admin bagefter.
-            </p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {mainCategories.map((category) => (
                 <MainCategoryCard
                   category={category}
@@ -1581,7 +1640,7 @@ export function EventForm({
           <details className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4">
             <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full bg-[#7A5D91] px-4 py-2 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285] [&::-webkit-details-marker]:hidden">
               <Tags className="size-4" aria-hidden="true" />
-              Tilføj tags
+              Tilføj tags (valgfrit)
             </summary>
             <p className="mt-3 text-sm leading-6 text-ink/64">
               Tags er valgfrie ekstra filtre som begynder, gratis, weekend, udendørs eller online.
@@ -1594,129 +1653,40 @@ export function EventForm({
           </details>
         )}
       </section>
-
-      <section className={currentStep === 3 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
-        <div className="grid gap-4 md:grid-cols-3 md:items-start">
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span>Pris i kr.</span>
-            <input
-              className="h-12 w-full min-w-0 rounded-card border border-midnight/15 bg-white px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA]"
-              inputMode="numeric"
-              maxLength={5}
-              name="price"
-              onChange={(event) => handlePriceChange(event.currentTarget.value)}
-              pattern="[0-9]*"
-              type="text"
-              value={priceValue}
-            />
-            <span className="text-xs leading-5 text-ink/52">Pris inklusive moms. Skriv 0 hvis eventet er gratis.</span>
-          </label>
-          <TextInput defaultValue={String(draftEvent?.capacity ?? 12)} label="Maks. antal deltagere" name="capacity" type="number" />
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span className="hidden md:block">&nbsp;</span>
-            <span className="flex h-12 items-center gap-3 rounded-card border border-[#E5D4F7] bg-[#FAF6EF] px-4 text-sm font-semibold text-midnight">
-              <input checked={isFree} className="size-4 accent-[#7A4EAB]" onChange={(event) => handleFreeChange(event.target.checked)} type="checkbox" />
-              Gratis event
-            </span>
-          </label>
-        </div>
-        <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
-          Kontaktoplysninger og sociale links hentes fra din arrangørprofil, så eventoprettelsen holdes enkel.
-        </p>
-      </section>
-
-          <StepAccordionHeader index={4} />
-      <section className={currentStep === 4 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Gennemgang</p>
-          <h2 className="mt-1 font-serif text-2xl font-semibold text-midnight">Gennemgå dit event</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/64">
-            Tjek de vigtigste oplysninger, før du gør eventet offentligt. Du kan altid gå tilbage og rette.
-          </p>
-        </div>
-        {preview ? (
-          <article className="overflow-hidden rounded-card border border-[#E5D4F7] bg-[#FAF6EF]">
-            {preview.coverImageUrl ? (
-              <img alt="Forsidebillede til eventet" className="h-56 w-full object-cover sm:h-72" src={preview.coverImageUrl} />
-            ) : (
-              <div className="grid h-40 place-items-center bg-white text-sm font-semibold text-ink/52">
-                Intet forsidebillede valgt endnu
-              </div>
-            )}
-            <div className="grid gap-5 p-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#B56F8A]">{preview.format}</p>
-                <h3 className="mt-2 font-serif text-3xl font-semibold text-midnight">{preview.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-ink/70">{preview.description || "Beskrivelse mangler."}</p>
-              </div>
-              <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded-card bg-white p-3">
-                  <dt className="font-semibold text-ink/55">Dato</dt>
-                  <dd className="mt-1 text-midnight">{preview.date}</dd>
-                </div>
-                <div className="rounded-card bg-white p-3">
-                  <dt className="font-semibold text-ink/55">Tidspunkt</dt>
-                  <dd className="mt-1 text-midnight">{preview.time}</dd>
-                </div>
-                <div className="rounded-card bg-white p-3">
-                  <dt className="font-semibold text-ink/55">Pris</dt>
-                  <dd className="mt-1 text-midnight">{preview.price}</dd>
-                </div>
-                <div className="rounded-card bg-white p-3">
-                  <dt className="font-semibold text-ink/55">Deltagere</dt>
-                  <dd className="mt-1 text-midnight">{preview.capacity} pladser</dd>
-                </div>
-                <div className="rounded-card bg-white p-3 sm:col-span-2">
-                  <dt className="font-semibold text-ink/55">Sted / online</dt>
-                  <dd className="mt-1 text-midnight">{preview.location}</dd>
-                </div>
-              </dl>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Kategorier</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {preview.categories.length > 0 ? preview.categories.map((category) => (
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#6E5A86]" key={category}>{category}</span>
-                    )) : <span className="text-sm text-ink/55">Ingen kategori valgt endnu</span>}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Tags</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {preview.tags.length > 0 ? preview.tags.map((tag) => (
-                      <span className="rounded-full bg-[#7A5D91] px-3 py-1 text-xs font-semibold text-white" key={tag}>✓ {tag}</span>
-                    )) : <span className="text-sm text-ink/55">Ingen tags valgt</span>}
-                  </div>
-                </div>
-              </div>
-              <p className="rounded-card border border-[#D8CBE4] bg-white px-4 py-3 text-sm leading-6 text-ink/64">{statusHelp}</p>
-            </div>
-          </article>
-        ) : (
-          <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
-            Gå til dette trin igen, hvis gennemgangen ikke er opdateret.
-          </p>
-        )}
-      </section>
-
-        </div>
-        <aside className="hidden xl:block">
+</div>
+        <aside className="xl:block">
           <div className="sticky top-6 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 shadow-soft">
             <div className="border-b border-[#E5D4F7] bg-[#F4F0F7] px-5 py-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Live preview</p>
-              <h2 className="mt-1 font-serif text-xl font-semibold text-midnight">Sådan kan eventet se ud</h2>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Din invitation</p>
+              <h2 className="mt-1 font-serif text-xl font-semibold text-midnight">Sådan ser din invitation ud</h2>
             </div>
-            {preview?.coverImageUrl ? (
-              <img alt="Preview af eventets forsidebillede" className="h-44 w-full object-cover" src={preview.coverImageUrl} />
-            ) : (
-              <div className="grid h-44 place-items-center bg-[#FAF6EF] px-5 text-center text-sm font-semibold text-ink/45">
-                Forsidebilledet vises her
-              </div>
-            )}
+            <div className="relative h-44 overflow-hidden bg-[radial-gradient(circle_at_20%_20%,#F4F0F7_0%,transparent_34%),radial-gradient(circle_at_85%_15%,#DDE8D7_0%,transparent_32%),linear-gradient(135deg,#FAF6EF_0%,#F8F3FA_48%,#EEE7DA_100%)]">
+              {preview?.coverImageUrl ? (
+                <img alt="Preview af eventets forsidebillede" className="h-full w-full object-cover" src={preview.coverImageUrl} />
+              ) : null}
+              <label className="absolute inset-0 grid cursor-pointer place-items-center bg-midnight/5 transition hover:bg-midnight/10">
+                <input
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
+                  className="sr-only"
+                  name="event_cover_file"
+                  onChange={handleCoverFileChange}
+                  ref={coverFileInputRef}
+                  type="file"
+                />
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-[#7A5D91] shadow-soft">
+                  <ImagePlus className="size-4" aria-hidden="true" />
+                  {preview?.coverImageUrl ? "Udskift billede" : "Vælg billede"}
+                </span>
+              </label>
+            </div>
+            {coverFileName ? <p className="border-b border-[#E5D4F7] px-5 py-2 text-xs font-semibold text-[#7A4EAB]">Valgt fil: {coverFileName}</p> : null}
+            {coverImageErrorMessage ? (
+              <p className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold leading-6 text-red-900">{coverImageErrorMessage}</p>
+            ) : null}
             <div className="grid gap-4 p-5">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#B56F8A]">
-                  {preview?.format || (eventFormat === "online" ? "Online event" : "Fysisk event")}
+                  {preview?.format || (eventFormat === "online" ? "Virtuelt event" : "Personligt event")}
                 </p>
                 <h3 className="mt-2 font-serif text-2xl font-semibold leading-tight text-midnight">
                   {preview?.title || "Eventtitel"}
@@ -1748,6 +1718,49 @@ export function EventForm({
                   {!preview?.categories.length ? <span className="text-sm text-ink/45">Ingen valgt endnu</span> : null}
                 </div>
               </div>
+            </div>
+            <div className="grid gap-2 border-t border-[#E5D4F7] bg-[#FAF6EF] p-4">
+              <div
+                className={
+                  "rounded-card border px-4 py-3 text-sm leading-6 " +
+                  (canPublish
+                    ? "border-[#CFE3C8] bg-[#F3F7F0] text-[#4F6F48]"
+                    : "border-[#D8CBE4] bg-[#F4F0F7] text-[#6E5A86]")
+                }
+              >
+                <p className="font-semibold">
+                  {canPublish ? "Din invitation er klar" : "Din invitation er næsten klar"}
+                </p>
+                {canPublish ? (
+                  <p>Du kan nu gøre eventet synligt på SoulEvents.</p>
+                ) : (
+                  <p>Udfyld først: {missingInvitationItems.join(", ")}.</p>
+                )}
+              </div>
+              <button
+                className={
+                  "inline-flex h-11 items-center justify-center gap-2 rounded-button px-5 text-sm font-semibold shadow-soft transition " +
+                  (canPublish
+                    ? "bg-[#7A5D91] text-white hover:bg-[#6E5285]"
+                    : "cursor-not-allowed bg-[#D8CBE4] text-white shadow-none")
+                }
+                disabled={!canPublish}
+                name="status"
+                type="submit"
+                value="pending_review"
+              >
+                {canPublish ? "Gør event offentlig" : "Fuldfør eventet for at gøre det offentligt"}
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </button>
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/30 bg-white px-5 text-sm font-semibold text-[#7A4EAB]"
+                name="status"
+                type="submit"
+                value="draft"
+              >
+                <Save className="size-4" aria-hidden="true" />
+                Gem kladde
+              </button>
             </div>
           </div>
         </aside>
@@ -1864,61 +1877,34 @@ export function EventForm({
         </div>
       ) : null}
 
-      <div className="sticky bottom-2 z-30 w-full max-w-full rounded-card border border-[#E5D4F7] bg-white/95 p-2 shadow-lift backdrop-blur sm:bottom-3 sm:p-3">
+      <div className="sticky bottom-2 z-30 grid w-full max-w-full grid-cols-2 gap-2 rounded-card border border-[#E5D4F7] bg-white/95 p-2 shadow-lift backdrop-blur xl:hidden">
         {message ? (
-          <p className="mb-2 rounded-md border border-[#C7D7BF] bg-[#F3F7F0] px-3 py-2 text-sm font-semibold text-[#4E6A45]">
+          <p className="col-span-2 rounded-md border border-[#C7D7BF] bg-[#F3F7F0] px-3 py-2 text-sm font-semibold text-[#4E6A45]">
             {message}
           </p>
         ) : null}
-        <div className="flex items-center justify-between gap-2 sm:gap-3">
-          <button
-            className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-button border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight sm:h-11 sm:px-4"
-            onClick={() => {
-              if (currentStep === 0) {
-                window.location.href = "/facilitator";
-                return;
-              }
-
-              goToStep(currentStep - 1);
-            }}
-            type="button"
-          >
-            <ArrowLeft className="size-4" aria-hidden="true" />
-            {currentStep === 0 ? "Arrangørforside" : "Tilbage"}
-          </button>
-          <button
-            className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/30 bg-[#F6EFFF] px-3 text-sm font-semibold text-[#7A4EAB] shadow-soft sm:h-11 sm:px-4"
-            name="status"
-            type="submit"
-            value="draft"
-          >
-            <Save className="size-4" aria-hidden="true" />
-            Gem kladde
-          </button>
-          {currentStep < steps.length - 1 ? (
-            <button
-              className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-4 text-sm font-semibold text-white shadow-soft sm:h-11 sm:px-5"
-              onClick={(event) => {
-                event.preventDefault();
-                goToStep(currentStep < 0 ? 0 : currentStep + 1);
-              }}
-              type="button"
-            >
-              Næste
-              <ArrowRight className="size-4" aria-hidden="true" />
-            </button>
-          ) : (
-            <button
-              className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-4 text-sm font-semibold text-white shadow-soft sm:h-11 sm:px-5"
-              name="status"
-              type="submit"
-              value="pending_review"
-            >
-              Gør event offentlig
-              <ArrowRight className="size-4" aria-hidden="true" />
-            </button>
-          )}
-        </div>
+        <button
+          className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/30 bg-white px-3 text-sm font-semibold text-[#7A4EAB]"
+          name="status"
+          type="submit"
+          value="draft"
+        >
+          <Save className="size-4" aria-hidden="true" />
+          Gem kladde
+        </button>
+        <button
+          className={
+            "inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-button px-3 text-sm font-semibold shadow-soft " +
+            (canPublish ? "bg-[#7A4EAB] text-white" : "cursor-not-allowed bg-[#D8CBE4] text-white shadow-none")
+          }
+          disabled={!canPublish}
+          name="status"
+          type="submit"
+          value="pending_review"
+        >
+          {canPublish ? "Gør offentlig" : "Udfyld først"}
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </button>
       </div>
     </form>
   );

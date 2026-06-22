@@ -54,7 +54,7 @@ export function FacilitatorProfilePreview({
       : shortDescription;
 
   return (
-    <aside className="w-full rounded-card border border-sage-700/15 bg-sage-50 p-5 sm:max-w-sm">
+    <aside className="w-full rounded-card border border-sage-700/15 bg-sage-50 p-5">
       {title || introText ? (
         <div className="mb-5">
           {title ? <h3 className="font-semibold text-midnight">{title}</h3> : null}
@@ -65,16 +65,16 @@ export function FacilitatorProfilePreview({
       {profileImageUrl ? (
         <img
           alt={`Profilbillede for ${profileName}`}
-          className="mx-auto size-[200px] rounded-full border-4 border-rose object-cover shadow-soft"
+          className="size-[160px] rounded-full border-4 border-rose object-cover shadow-soft lg:mx-auto sm:size-[200px]"
           src={profileImageUrl}
         />
       ) : (
-        <div className="mx-auto grid size-[200px] place-items-center rounded-full border-4 border-rose bg-white text-sage-700 shadow-soft">
+        <div className="grid size-[160px] place-items-center rounded-full border-4 border-rose bg-white text-sage-700 shadow-soft lg:mx-auto sm:size-[200px]">
           <CircleUserRound className="size-20" aria-hidden="true" />
         </div>
       )}
 
-      <div className="mt-4 text-center">
+      <div className="mt-4 text-left lg:text-center">
         <h3 className="text-xl font-semibold text-midnight">{profileName}</h3>
         {city ? (
           <p className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-ink/65">
@@ -83,7 +83,7 @@ export function FacilitatorProfilePreview({
           </p>
         ) : null}
         {categories.length > 0 ? (
-          <div className="mt-3 flex flex-wrap justify-center gap-2">
+          <div className="mt-3 flex flex-wrap justify-start gap-2 lg:justify-center">
             {categories.map((category) => (
               <span
                 className="rounded-full px-3 py-1 text-xs font-semibold text-white"
@@ -113,7 +113,7 @@ export function FacilitatorProfilePreview({
         ) : null}
 
         {visibleDescription ? (
-          <div className="mt-4 text-sm leading-6 text-ink/68">
+          <div className="mt-4 text-left text-sm leading-6 text-ink/68 lg:text-center">
             <p>{visibleDescription}</p>
             {hasLongDescription ? (
               <button

@@ -61,7 +61,7 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusStyles: Record<string, string> = {
-  draft: "bg-[#F4F0F7] text-[#6E5A86]",
+  draft: "bg-[#E9E6E1] text-[#6A6258]",
   pending_review: "bg-[#FFF7E8] text-[#8A6A2E]",
   active: "bg-[#DDE8D7] text-[#4E6A45]",
   rejected: "bg-red-50 text-red-800",
@@ -170,11 +170,13 @@ function StatsCard({
   label,
   value,
   tone,
+  href,
 }: {
   icon: React.ElementType;
   label: string;
   value: number;
   tone: "lavender" | "sage" | "cream" | "rose";
+  href: string;
 }) {
   const tones = {
     lavender: "bg-[#F4F0F7] text-[#6E5A86]",
@@ -184,13 +186,19 @@ function StatsCard({
   };
 
   return (
-    <article className="rounded-[22px] border border-[#E5DDEA] bg-white p-5 shadow-soft">
-      <div className={"grid size-11 place-items-center rounded-full " + tones[tone]}>
+    <Link
+      className="group flex min-h-0 items-center gap-4 rounded-[18px] border border-[#E5DDEA] bg-white px-4 py-3 shadow-soft transition hover:-translate-y-0.5 hover:border-[#D8CBE4] hover:shadow-lg sm:rounded-[22px] sm:px-5 sm:py-4"
+      href={href}
+    >
+      <span className={"grid size-10 shrink-0 place-items-center rounded-full sm:size-11 " + tones[tone]}>
         <Icon className="size-5" aria-hidden="true" />
-      </div>
-      <p className="mt-5 text-3xl font-semibold text-[#2F2437]">{value}</p>
-      <p className="mt-1 text-sm font-medium text-[#6E6475]">{label}</p>
-    </article>
+      </span>
+      <span className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className="text-2xl font-semibold leading-none text-[#2F2437] sm:text-3xl">{value}</span>
+        <span className="truncate text-sm font-semibold text-[#6E6475] sm:text-base">{label}</span>
+      </span>
+      <ArrowRight className="size-4 shrink-0 text-[#A08BB4] transition group-hover:translate-x-0.5 group-hover:text-[#7A5D91]" aria-hidden="true" />
+    </Link>
   );
 }
 
@@ -250,7 +258,7 @@ function EventCard({ event }: { event: any }) {
   const isActive = event.status === "active" || event.status === "sold_out";
 
   return (
-    <article className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft">
+    <article className={"rounded-[24px] border p-5 shadow-soft " + (isDraft ? "border-[#D8D2CA] bg-[#F1EEE9]" : "border-[#E5DDEA] bg-white")}>
       <div className="flex flex-wrap items-center gap-2">
         <span className={"rounded-full px-3 py-1 text-xs font-semibold " + statusClass(event.status)}>{statusLabel(event.status)}</span>
         {event.event_reference_id ? <span className="rounded-full bg-[#FAF7F2] px-3 py-1 text-xs font-semibold text-[#6E6475]">Ref. {event.event_reference_id}</span> : null}
@@ -338,9 +346,9 @@ function EventCard({ event }: { event: any }) {
   );
 }
 
-function EventSection({ title, text, events }: { title: string; text: string; events: any[] }) {
+function EventSection({ title, text, events, id }: { title: string; text: string; events: any[]; id?: string }) {
   return (
-    <section>
+    <section id={id}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-[#2F2437]">{title}</h2>
@@ -395,17 +403,7 @@ function MilestoneCard({
   );
 }
 
-function InsightCard({
-  events,
-  bookingCount,
-}: {
-  events: any[];
-  bookingCount: number;
-}) {
-  const statusCounts = events.reduce<Record<string, number>>((acc, event) => {
-    acc[event.status] = (acc[event.status] ?? 0) + 1;
-    return acc;
-  }, {});
+function InsightCard({ events }: { events: any[] }) {
   const categoryCounts = events.reduce<Record<string, number>>((acc, event) => {
     for (const row of event.event_categories ?? []) {
       const name = first(row.categories)?.name;
@@ -417,24 +415,14 @@ function InsightCard({
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4);
 
+  if (topCategories.length === 0) {
+    return null;
+  }
+
   return (
     <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
       <h2 className="text-xl font-semibold text-[#2F2437]">Indblik</h2>
-      <p className="mt-1 text-sm text-[#6E6475]">Et enkelt overblik uden pres.</p>
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-[18px] bg-[#FAF7F2] p-4">
-          <p className="text-2xl font-semibold text-[#2F2437]">{bookingCount}</p>
-          <p className="mt-1 text-xs font-semibold text-[#6E6475]">tilmeldinger i alt</p>
-        </div>
-        <div className="rounded-[18px] bg-[#F4F0F7] p-4">
-          <p className="text-2xl font-semibold text-[#2F2437]">{statusCounts.active ?? 0}</p>
-          <p className="mt-1 text-xs font-semibold text-[#6E6475]">aktive events</p>
-        </div>
-        <div className="rounded-[18px] bg-[#DDE8D7] p-4">
-          <p className="text-2xl font-semibold text-[#2F2437]">{statusCounts.completed ?? 0}</p>
-          <p className="mt-1 text-xs font-semibold text-[#6E6475]">afholdte events</p>
-        </div>
-      </div>
+      <p className="mt-1 text-sm text-[#6E6475]">Små mønstre og kategorier, når der er nok data.</p>
       {topCategories.length > 0 ? (
         <div className="mt-5">
           <p className="text-sm font-semibold text-[#2F2437]">Mest brugte kategorier</p>
@@ -453,14 +441,15 @@ function InsightCard({
 
 function SettingsPanel({ adminMessages }: { adminMessages: any[] }) {
   return (
-    <details className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
-      <summary className="flex cursor-pointer list-none items-center gap-3 text-xl font-semibold text-[#2F2437]">
-        <span className="grid size-10 place-items-center rounded-full bg-[#F4F0F7] text-[#7A5D91]">
-          <Settings className="size-5" aria-hidden="true" />
+    <details className="rounded-[18px] border border-[#E5DDEA] bg-white/70 shadow-soft">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#6E6475] transition hover:text-[#7A5D91]">
+        <span className="inline-flex items-center gap-2">
+          <Settings className="size-4 text-[#7A5D91]" aria-hidden="true" />
+          Indstillinger og kontakt
         </span>
-        Indstillinger
+        <span className="text-lg leading-none text-[#A08BB4]">⌄</span>
       </summary>
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 border-t border-[#E5DDEA] p-4 lg:grid-cols-2">
         <form action={sendFacilitatorAdminMessageAction} className="rounded-[20px] border border-[#E5DDEA] bg-[#FAF7F2] p-5">
           <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Kontakt</p>
           <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Skriv til admin</h2>
@@ -594,7 +583,6 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const eventRows = (events ?? []) as any[];
   const activeEvents = eventRows.filter((event) => ["active", "sold_out", "pending_review"].includes(event.status) && new Date(event.starts_at) >= now);
   const completedEvents = eventRows.filter((event) => event.status === "completed" || new Date(event.starts_at) < now);
-  const upcomingEvents = eventRows.filter((event) => new Date(event.starts_at) >= now && !["cancelled", "archived", "rejected"].includes(event.status));
   const draftEvents = eventRows.filter((event) => event.status === "draft");
   const activityItems = [
     ...((recentBookings ?? []) as any[]).map((booking) => {
@@ -631,20 +619,20 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
 
           <DashboardHeader name={profile.full_name} profileStatus={status} hostReferenceId={hostReferenceId} />
 
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatsCard icon={CalendarCheck2} label="Aktive events" value={activeEvents.length} tone="lavender" />
-            <StatsCard icon={CalendarDays} label="Kommende events" value={upcomingEvents.length} tone="sage" />
-            <StatsCard icon={Clock3} label="Afholdte events" value={completedEvents.length} tone="cream" />
-            <StatsCard icon={Ticket} label="Tilmeldinger" value={bookingCount ?? 0} tone="rose" />
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatsCard href="#aktive-events" icon={CalendarCheck2} label="Aktive events" value={activeEvents.length} tone="lavender" />
+            <StatsCard href="#kladder" icon={CalendarDays} label="Kladder" value={draftEvents.length} tone="sage" />
+            <StatsCard href="#tidligere-events" icon={Clock3} label="Afholdte events" value={completedEvents.length} tone="cream" />
+            <StatsCard href="/facilitator/bookings" icon={Ticket} label="Tilmeldinger" value={bookingCount ?? 0} tone="rose" />
           </section>
 
           <ActivityFeed items={activityItems} />
 
           {draftEvents.length > 0 ? (
-            <EventSection title="Kladder" text="Events du kan åbne og gøre færdige i dit eget tempo." events={draftEvents} />
+            <EventSection id="kladder" title="Kladder" text="Events du kan åbne og gøre færdige i dit eget tempo." events={draftEvents} />
           ) : null}
 
-          <EventSection title="Dine aktive events" text="Kommende events og events, der er ved at blive gjort klar." events={activeEvents} />
+          <EventSection id="aktive-events" title="Dine aktive events" text="Kommende events og events, der er ved at blive gjort klar." events={activeEvents} />
 
           <MilestoneCard
             activeEventCount={activeEvents.length}
@@ -652,14 +640,14 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             reminderSubscriberCount={reminderSubscriberCount ?? 0}
           />
 
-          <InsightCard events={eventRows} bookingCount={bookingCount ?? 0} />
+          <InsightCard events={eventRows} />
 
-          <EventSection title="Tidligere events" text="En rolig historik over events, du allerede har afholdt." events={completedEvents.slice(0, 6)} />
+          <EventSection id="tidligere-events" title="Tidligere events" text="En rolig historik over events, du allerede har afholdt." events={completedEvents.slice(0, 6)} />
 
           <SettingsPanel adminMessages={(adminMessages ?? []) as any[]} />
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+        <aside className="w-full space-y-4 lg:sticky lg:top-6 lg:self-start">
           <FacilitatorProfilePreview
             categories={categoryNames.map((category) => ({
               colorHex: category.color_hex,
