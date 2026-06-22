@@ -46,7 +46,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
       )
       .eq("profile_id", profile.id)
       .single(),
-    supabase.from("regions").select("id, name").order("sort_order"),
+    supabase.from("regions").select("id, name, slug").order("sort_order"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
     supabase.from("main_categories").select("id, name, color_hex, image_path").eq("is_active", true).order("sort_order"),
     supabase

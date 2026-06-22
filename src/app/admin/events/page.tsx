@@ -48,6 +48,11 @@ function normalizeStatus(status?: string) {
   return statuses.some((item) => item.value === status) ? (status as "all" | EventStatus) : "pending_review";
 }
 
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Tidspunkt mangler";
+  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
 function EventStatusButton({ eventId, status, children }: { eventId: string; status: EventStatus; children: React.ReactNode }) {
   return (
     <form action={updateAdminEventStatusAction}>
@@ -71,7 +76,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
 
   let query = supabase
     .from("events")
-    .select("id, title, status, starts_at, created_at, city, event_format, facilitator_profiles(company_name, profiles(full_name, email)), regions(name), event_categories(categories(name))")
+    .select("id, title, status, starts_at, created_at, updated_at, city, event_format, facilitator_profiles(company_name, profiles(full_name, email)), regions(name), event_categories(categories(name))")
     .order("created_at", { ascending: false })
     .limit(80);
 
@@ -178,7 +183,10 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                           {statusLabels[event.status] ?? event.status}
                         </span>
                         <span className="text-xs text-ink/52">
-                          Oprettet {new Intl.DateTimeFormat("da-DK").format(new Date(event.created_at))}
+                          Oprettet {formatDateTime(event.created_at)}
+                        </span>
+                        <span className="text-xs text-ink/52">
+                          Senest ændret {formatDateTime(event.updated_at)}
                         </span>
                       </div>
 
@@ -187,7 +195,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                         {facilitator?.company_name || profile?.full_name || "Arrangør"} · {profile?.email || "Ingen e-mail"}
                       </p>
                       <p className="mt-2 text-sm text-ink/72">
-                        {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.starts_at))}
+                        Eventdato: {formatDateTime(event.starts_at)}
                         {event.city ? " · " + event.city : ""}
                         {event.event_format ? " · " + event.event_format : ""}
                       </p>

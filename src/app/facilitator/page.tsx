@@ -79,6 +79,11 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Tidspunkt mangler";
+  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
 function formatDay(value: string) {
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium" }).format(new Date(value));
 }
@@ -187,15 +192,15 @@ function StatsCard({
 
   return (
     <Link
-      className="group flex min-h-0 items-center gap-4 rounded-[18px] border border-[#E5DDEA] bg-white px-4 py-3 shadow-soft transition hover:-translate-y-0.5 hover:border-[#D8CBE4] hover:shadow-lg sm:rounded-[22px] sm:px-5 sm:py-4"
+      className="group flex min-h-[88px] items-center gap-4 rounded-[18px] border border-[#E5DDEA] bg-white px-4 py-3 shadow-soft transition hover:-translate-y-0.5 hover:border-[#D8CBE4] hover:shadow-lg sm:rounded-[22px] sm:px-5 sm:py-4"
       href={href}
     >
       <span className={"grid size-10 shrink-0 place-items-center rounded-full sm:size-11 " + tones[tone]}>
         <Icon className="size-5" aria-hidden="true" />
       </span>
-      <span className="flex min-w-0 flex-1 items-baseline gap-2">
+      <span className="flex min-w-0 flex-1 items-baseline gap-3">
         <span className="text-2xl font-semibold leading-none text-[#2F2437] sm:text-3xl">{value}</span>
-        <span className="truncate text-sm font-semibold text-[#6E6475] sm:text-base">{label}</span>
+        <span className="text-sm font-semibold leading-tight text-[#6E6475] sm:text-base">{label}</span>
       </span>
       <ArrowRight className="size-4 shrink-0 text-[#A08BB4] transition group-hover:translate-x-0.5 group-hover:text-[#7A5D91]" aria-hidden="true" />
     </Link>
@@ -256,6 +261,16 @@ function EventCard({ event }: { event: any }) {
   const location = event.event_format === "online" ? "Online" : event.city || "Lokation kommer";
   const isDraft = event.status === "draft";
   const isActive = event.status === "active" || event.status === "sold_out";
+  const statusUpdatedLabel =
+    event.status === "draft"
+      ? "Kladde opdateret"
+      : event.status === "active"
+        ? "Aktiveret/senest opdateret"
+        : event.status === "pending_review"
+          ? "Sendt til godkendelse/senest opdateret"
+          : event.status === "cancelled"
+            ? "Deaktiveret/aflyst"
+            : "Status opdateret";
 
   return (
     <article className={"rounded-[24px] border p-5 shadow-soft " + (isDraft ? "border-[#D8D2CA] bg-[#F1EEE9]" : "border-[#E5DDEA] bg-white")}>
@@ -276,6 +291,10 @@ function EventCard({ event }: { event: any }) {
         <p className="inline-flex items-center gap-2">
           <Ticket className="size-4 text-[#7A5D91]" aria-hidden="true" />
           {bookingCount} tilmeldinger
+        </p>
+        <p className="inline-flex items-center gap-2">
+          <Clock3 className="size-4 text-[#7A5D91]" aria-hidden="true" />
+          {statusUpdatedLabel}: {formatDateTime(event.updated_at)}
         </p>
       </div>
       {categories.length > 0 ? (
@@ -439,20 +458,59 @@ function InsightCard({ events }: { events: any[] }) {
   );
 }
 
+function MessageStatusLabel({ status }: { status: string }) {
+  const labels: Record<string, string> = {
+    handled: "Behandlet",
+    read: "Læst",
+    unread: "Afventer svar",
+  };
+
+  return labels[status] ?? status;
+}
+
+function AdminMessageCta({ count }: { count: number }) {
+  if (count === 0) {
+    return null;
+  }
+
+  return (
+    <a
+      className="flex items-center justify-between gap-4 rounded-[24px] border border-[#D8CBE4] bg-white p-5 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lg"
+      href="#beskeder-admin"
+    >
+      <span className="flex min-w-0 items-center gap-4">
+        <span className="relative grid size-12 shrink-0 place-items-center rounded-full bg-[#F4F0F7] text-[#7A5D91]">
+          <Bell className="size-5" aria-hidden="true" />
+          <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-[#B56F8A] text-[11px] font-bold text-white">
+            {count}
+          </span>
+        </span>
+        <span className="min-w-0">
+          <span className="block font-semibold text-[#2F2437]">Beskeder med SoulEvents administration</span>
+          <span className="mt-1 block text-sm leading-5 text-[#6E6475]">
+            Se dialogen og dine seneste beskeder.
+          </span>
+        </span>
+      </span>
+      <ArrowRight className="size-5 shrink-0 text-[#A08BB4]" aria-hidden="true" />
+    </a>
+  );
+}
+
 function SettingsPanel({ adminMessages }: { adminMessages: any[] }) {
   return (
-    <details className="rounded-[18px] border border-[#E5DDEA] bg-white/70 shadow-soft">
+    <details className="rounded-[18px] border border-[#E5DDEA] bg-white/70 shadow-soft" id="beskeder-admin" open>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#6E6475] transition hover:text-[#7A5D91]">
         <span className="inline-flex items-center gap-2">
           <Settings className="size-4 text-[#7A5D91]" aria-hidden="true" />
-          Indstillinger og kontakt
+          Din kontakt med SoulEvents
         </span>
         <span className="text-lg leading-none text-[#A08BB4]">⌄</span>
       </summary>
       <div className="grid gap-4 border-t border-[#E5DDEA] p-4 lg:grid-cols-2">
         <form action={sendFacilitatorAdminMessageAction} className="rounded-[20px] border border-[#E5DDEA] bg-[#FAF7F2] p-5">
           <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Kontakt</p>
-          <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Skriv til admin</h2>
+          <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Skriv til SoulEvents administration</h2>
           <p className="mt-2 text-sm leading-6 text-[#6E6475]">Send en kort besked direkte til SoulEvents.dk. Maks. 500 tegn.</p>
           <label className="mt-4 grid gap-2 text-sm font-semibold text-[#2F2437]">
             Emne
@@ -490,14 +548,19 @@ function SettingsPanel({ adminMessages }: { adminMessages: any[] }) {
 
       {adminMessages.length > 0 ? (
         <section className="mt-5 rounded-[20px] bg-[#F4F0F7] p-5">
-          <h2 className="font-semibold text-[#2F2437]">Dine seneste beskeder til admin</h2>
+          <h2 className="font-semibold text-[#2F2437]">Dine seneste beskeder med SoulEvents administration</h2>
           <div className="mt-4 grid gap-3">
             {adminMessages.map((item) => (
               <article className="rounded-[16px] bg-white p-4 text-sm" key={item.id}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-semibold text-[#2F2437]">{item.subject}</p>
-                  <span className="rounded-full bg-[#FAF7F2] px-3 py-1 text-xs font-semibold text-[#6E6475]">{item.status}</span>
+                  <span className="rounded-full bg-[#FAF7F2] px-3 py-1 text-xs font-semibold text-[#6E6475]">
+                    <MessageStatusLabel status={item.status} />
+                  </span>
                 </div>
+                <p className="mt-1 text-xs font-semibold text-[#8B7F93]">
+                  Sendt {formatDateTime(item.created_at)}
+                </p>
                 <p className="mt-2 leading-6 text-[#6E6475]">{item.message}</p>
               </article>
             ))}
@@ -542,7 +605,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
       ? await Promise.all([
           supabase
             .from("events")
-            .select("id, title, status, starts_at, city, event_format, price_cents, capacity, event_reference_id, event_categories(categories(name)), bookings(id)")
+            .select("id, title, status, starts_at, created_at, updated_at, city, event_format, price_cents, capacity, event_reference_id, event_categories(categories(name)), bookings(id)")
             .eq("facilitator_id", facilitatorProfile.id)
             .order("starts_at", { ascending: false }),
           supabase
@@ -619,12 +682,14 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
 
           <DashboardHeader name={profile.full_name} profileStatus={status} hostReferenceId={hostReferenceId} />
 
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-3 sm:grid-cols-2">
             <StatsCard href="#aktive-events" icon={CalendarCheck2} label="Aktive events" value={activeEvents.length} tone="lavender" />
             <StatsCard href="#kladder" icon={CalendarDays} label="Kladder" value={draftEvents.length} tone="sage" />
             <StatsCard href="#tidligere-events" icon={Clock3} label="Afholdte events" value={completedEvents.length} tone="cream" />
             <StatsCard href="/facilitator/bookings" icon={Ticket} label="Tilmeldinger" value={bookingCount ?? 0} tone="rose" />
           </section>
+
+          <AdminMessageCta count={(adminMessages ?? []).length} />
 
           <ActivityFeed items={activityItems} />
 
@@ -644,7 +709,6 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
 
           <EventSection id="tidligere-events" title="Tidligere events" text="En rolig historik over events, du allerede har afholdt." events={completedEvents.slice(0, 6)} />
 
-          <SettingsPanel adminMessages={(adminMessages ?? []) as any[]} />
         </div>
 
         <aside className="w-full space-y-4 lg:sticky lg:top-6 lg:self-start">
@@ -677,6 +741,10 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             </p>
           </section>
         </aside>
+
+        <section className="lg:col-span-2">
+          <SettingsPanel adminMessages={(adminMessages ?? []) as any[]} />
+        </section>
       </section>
     </main>
   );

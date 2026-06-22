@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
 import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
+import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
@@ -14,6 +15,7 @@ import type { EventStatus } from "@/types/database";
 
 const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "rejected", "sold_out", "cancelled", "completed", "archived"];
 const allowedFormats = ["physical", "online"] as const;
+const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 
 const facilitatorProfileEventSelect = "id, status, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, facilitator_categories(category_id), profiles(email, phone)";
 
@@ -52,6 +54,19 @@ function getPriceCents(formData: FormData) {
   }
 
   return Number(raw) * 100;
+}
+
+function isValidUrl(value: string) {
+  if (value.trim() === onlineLinkLaterText) {
+    return true;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
 }
 
 async function uploadEventCoverImage(formData: FormData, currentImagePath: string | null) {
@@ -255,6 +270,31 @@ export async function createEventAction(formData: FormData) {
   ) {
     eventsRedirect("Færdiggør din profil, før du sender eventet til godkendelse.");
   }
+
+  if (!allowedStatuses.includes(status)) {
+    eventsRedirect("Ugyldig eventstatus.");
+  }
+
+  if (!existingEventId) {
+    const limitStatus = await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id);
+
+    if (isDraft && limitStatus.draftCount >= limitStatus.maxDraftEvents) {
+      eventsRedirect(draftLimitMessage(limitStatus.maxDraftEvents));
+    }
+
+    if (status === "active" && limitStatus.activeCount >= limitStatus.maxActiveEvents) {
+      eventsRedirect(activeLimitMessage(limitStatus.maxActiveEvents));
+    }
+  } else if (status === "active") {
+    const limitStatus = await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id, {
+      excludeEventId: existingEventId,
+    });
+
+    if (limitStatus.activeCount >= limitStatus.maxActiveEvents) {
+      eventsRedirect(activeLimitMessage(limitStatus.maxActiveEvents));
+    }
+  }
+
   const rawTitle = getString(formData, "title");
   const title = rawTitle || (isDraft ? "Kladde uden titel" : "");
   const slugBase = createSlug(title || "kladde");
@@ -302,9 +342,6 @@ export async function createEventAction(formData: FormData) {
 
   if (!allowedFormats.includes(eventFormat as "physical" | "online")) {
     eventsRedirect("Vælg om eventet er fysisk eller online.");
-  }
-  if (!allowedStatuses.includes(status)) {
-    eventsRedirect("Ugyldig eventstatus.");
   }
 
   const lengthChecks: Array<[string | null, number, string]> = [
@@ -354,12 +391,20 @@ export async function createEventAction(formData: FormData) {
     eventsRedirect("Kapacitet skal være mindst 1.");
   }
 
+  if (capacity > 500) {
+    eventsRedirect("Maks. antal deltagere er 500.");
+  }
+
   if (!isDraft && eventFormat === "physical" && (!addressLine || !postalCode || !city || !country)) {
     eventsRedirect("Adresse, postnummer, by og land skal udfyldes for fysiske events.");
   }
 
   if (!isDraft && eventFormat === "online" && !onlineUrlOrNote) {
-    eventsRedirect("Tilføj et online-link eller skriv, at link sendes efter tilmelding.");
+    eventsRedirect("Tilføj et gyldigt online-link.");
+  }
+
+  if (!isDraft && eventFormat === "online" && onlineUrlOrNote && !isValidUrl(onlineUrlOrNote)) {
+    eventsRedirect("Online-link skal være et gyldigt link, fx https://zoom.us/...");
   }
 
   if (isDanishPhysicalEvent && !regionId) {
@@ -598,6 +643,17 @@ export async function updateEventStatusAction(formData: FormData) {
     eventsRedirect("Færdiggør din profil, før du offentliggør events.");
   }
 
+  if (status === "active") {
+    const facilitatorId = facilitatorProfiles?.[0]?.id ?? "";
+    const limitStatus = facilitatorId
+      ? await getFacilitatorEventLimitStatus(supabase, facilitatorId, { excludeEventId: eventId })
+      : null;
+
+    if (limitStatus && limitStatus.activeCount >= limitStatus.maxActiveEvents) {
+      eventsRedirect(activeLimitMessage(limitStatus.maxActiveEvents));
+    }
+  }
+
   const { error } = await supabase
     .from("events")
     .update({ status })
@@ -635,6 +691,12 @@ export async function copyEventAsDraftAction(formData: FormData) {
 
   if (!facilitatorProfile) {
     eventsRedirect("Arrangørprofilen mangler.");
+  }
+
+  const limitStatus = await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id);
+
+  if (limitStatus.draftCount >= limitStatus.maxDraftEvents) {
+    eventsRedirect(draftLimitMessage(limitStatus.maxDraftEvents));
   }
 
   const { data: sourceEvent, error: sourceError } = await supabase

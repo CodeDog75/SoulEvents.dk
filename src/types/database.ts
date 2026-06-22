@@ -172,6 +172,16 @@ export type Database = {
         Update: Update<Database["public"]["Tables"]["legal_documents"]["Row"]>;
         Relationships: [];
       };
+      site_settings: {
+        Row: Row<{
+          key: string;
+          value: string | null;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["site_settings"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["site_settings"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: {
       event_capacity_view: {

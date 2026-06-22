@@ -13,9 +13,9 @@ import {
   Mail,
   MapPin,
   MonitorSmartphone,
+  Plus,
   Save,
   Send,
-  Sparkles,
   Tags,
   Ticket,
 } from "lucide-react";
@@ -25,6 +25,7 @@ import { createEventAction } from "@/app/facilitator/events/actions";
 type Region = {
   id: string;
   name: string;
+  slug?: string | null;
 };
 
 type Category = {
@@ -212,6 +213,7 @@ function openNativePicker(input: HTMLInputElement) {
 
 const eventDraftStorageKey = "soulevents:event-form-draft:v1";
 const maxEventDescriptionLength = 2000;
+const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 
 
 function getEventImageMessage(message: string) {
@@ -254,9 +256,10 @@ function TimeSelect({
       </span>
       <div className="relative">
         <select
-          className="h-12 w-full min-w-0 cursor-pointer appearance-none rounded-card border border-midnight/15 bg-white required:valid:bg-[#F8F3FF] required:valid:border-[#D7C4F0] py-0 pl-4 pr-12 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
+          className={"h-12 w-full min-w-0 cursor-pointer appearance-none rounded-card border py-0 pl-4 pr-12 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(selectedValue ?? defaultValue)}
           name={name}
           onChange={(event) => onChange?.(event.target.value)}
+          required={required}
           value={selectedValue ?? defaultValue}
         >
           {quarterHourOptions.map((time) => (
@@ -313,19 +316,6 @@ const postalCodeCities: Record<string, string> = {
   "9400": "Nørresundby",
 };
 
-function normalizeRegionName(input: string) {
-  return input
-    .toLowerCase()
-    .replaceAll("æ", "ae")
-    .replaceAll("ø", "oe")
-    .replaceAll("å", "aa")
-    .replaceAll("æ", "ae")
-    .replaceAll("ø", "oe")
-    .replaceAll("å", "aa")
-    .replaceAll("Å", "aa")
-    .replace(/[^a-z0-9]/g, "");
-}
-
 function regionSlugFromPostalCode(postalCode: string) {
   const numberValue = Number(postalCode);
 
@@ -376,6 +366,19 @@ function regionSlugFromPostalCode(postalCode: string) {
   return "";
 }
 
+function isValidHttpUrl(input: string) {
+  if (input.trim() === onlineLinkLaterText) {
+    return true;
+  }
+
+  try {
+    const url = new URL(input);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 function TextInput({
   label,
   name,
@@ -385,7 +388,11 @@ function TextInput({
   placeholder,
   help,
   maxLength,
+  max,
+  min,
   step,
+  autoFocus,
+  highlightWhenEmpty,
 }: {
   label: string;
   name: string;
@@ -395,9 +402,18 @@ function TextInput({
   placeholder?: string;
   help?: string;
   maxLength?: number;
+  max?: number;
+  min?: number;
   step?: string;
+  autoFocus?: boolean;
+  highlightWhenEmpty?: boolean;
 }) {
   const [inputCharacterCount, setInputCharacterCount] = useState(defaultValue?.length ?? 0);
+  const [inputValue, setInputValue] = useState(defaultValue ?? "");
+  const emptyHighlightClass =
+    highlightWhenEmpty && !inputValue.trim()
+      ? "border-[#D89A94] bg-[#FFF8F6] shadow-[0_0_0_4px_rgba(216,154,148,0.18)]"
+      : fieldStateClass(inputValue);
 
   return (
     <label className="grid gap-2 text-sm font-medium text-ink/72">
@@ -406,12 +422,19 @@ function TextInput({
         {required ? <span className="ml-1 text-[#B56F8A]">*</span> : null}
       </span>
       <input
-        className="h-12 w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:bg-[#F6FBF3] required:valid:border-[#CFE3C8] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
+        autoFocus={autoFocus}
+        className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + emptyHighlightClass}
         defaultValue={defaultValue}
+        max={max}
         maxLength={maxLength}
+        min={min}
         name={name}
-        onInput={(event) => setInputCharacterCount(event.currentTarget.value.length)}
+        onInput={(event) => {
+          setInputCharacterCount(event.currentTarget.value.length);
+          setInputValue(event.currentTarget.value);
+        }}
         placeholder={placeholder}
+        required={required}
         step={step}
         type={type}
       />
@@ -445,6 +468,7 @@ function TextArea({
   maxLength?: number;
 }) {
   const [characterCount, setCharacterCount] = useState(defaultValue?.length ?? 0);
+  const [textValue, setTextValue] = useState(defaultValue ?? "");
   const remainingCharacters = typeof maxLength === "number" ? maxLength - characterCount : null;
   const isAtLimit = remainingCharacters !== null && remainingCharacters <= 0;
 
@@ -455,12 +479,16 @@ function TextArea({
         {required ? <span className="ml-1 text-[#B56F8A]">*</span> : null}
       </span>
       <textarea
-        className={minHeight + " w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:bg-[#F6FBF3] required:valid:border-[#CFE3C8] p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"}
+        className={minHeight + " w-full min-w-0 rounded-card border p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(textValue)}
         defaultValue={defaultValue}
         maxLength={maxLength}
         name={name}
-        onInput={(event) => setCharacterCount(event.currentTarget.value.length)}
+        onInput={(event) => {
+          setCharacterCount(event.currentTarget.value.length);
+          setTextValue(event.currentTarget.value);
+        }}
         placeholder={placeholder}
+        required={required}
       />
       {help ? <span className="text-xs leading-5 text-ink/52">{help}</span> : null}
       {typeof maxLength === "number" ? (
@@ -474,6 +502,7 @@ function TextArea({
 
 function EventDescriptionField({ defaultValue = "" }: { defaultValue?: string }) {
   const [characterCount, setCharacterCount] = useState(defaultValue.length);
+  const [descriptionValue, setDescriptionValue] = useState(defaultValue);
   const remainingCharacters = maxEventDescriptionLength - characterCount;
   const isAtLimit = remainingCharacters <= 0;
 
@@ -483,11 +512,14 @@ function EventDescriptionField({ defaultValue = "" }: { defaultValue?: string })
         Hvad skal deltagerne opleve?<span className="ml-1 text-[#B56F8A]">*</span>
       </span>
       <textarea
-        className="min-h-40 w-full min-w-0 rounded-card border border-midnight/15 bg-white required:valid:!bg-[#F6FBF3] required:valid:!border-[#CFE3C8] p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
+        className={"min-h-40 w-full min-w-0 rounded-card border p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(descriptionValue)}
         maxLength={maxEventDescriptionLength}
         defaultValue={defaultValue}
         name="event_description"
-        onInput={(event) => setCharacterCount(event.currentTarget.value.length)}
+        onInput={(event) => {
+          setCharacterCount(event.currentTarget.value.length);
+          setDescriptionValue(event.currentTarget.value);
+        }}
         placeholder="Beskriv med dine egne ord, hvad der skal ske, hvem oplevelsen er for, og hvad deltagerne kan forvente."
         required
       />
@@ -535,18 +567,6 @@ function CheckboxPill({
   );
 }
 
-function Tip({ children }: { children: ReactNode }) {
-  return (
-    <details className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4 text-sm leading-6 text-ink/70">
-      <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold text-[#7A4EAB] [&::-webkit-details-marker]:hidden">
-        <Sparkles className="size-4" aria-hidden="true" />
-        Gode råd
-      </summary>
-      <div className="mt-3">{children}</div>
-    </details>
-  );
-}
-
 export function EventForm({
   regions,
   mainCategories = [],
@@ -557,16 +577,21 @@ export function EventForm({
   message,
   facilitator,
 }: EventFormProps) {
-  const today = new Date().toISOString().slice(0, 10);
+  const todayDate = new Date();
+  const tomorrowDate = new Date(todayDate);
+  tomorrowDate.setDate(todayDate.getDate() + 1);
+  const today = todayDate.toISOString().slice(0, 10);
+  const tomorrow = tomorrowDate.toISOString().slice(0, 10);
   const draftStart = draftEvent?.starts_at ? new Date(draftEvent.starts_at) : null;
   const draftEnd = draftEvent?.ends_at ? new Date(draftEvent.ends_at) : null;
-  const draftStartDate = draftStart ? draftStart.toISOString().slice(0, 10) : today;
+  const draftStartDate = draftStart ? draftStart.toISOString().slice(0, 10) : tomorrow;
   const draftEndDate = draftEnd ? draftEnd.toISOString().slice(0, 10) : draftStartDate;
   const draftStartTime = draftStart ? draftStart.toISOString().slice(11, 16) : "19:00";
   const draftEndTime = draftEnd ? draftEnd.toISOString().slice(11, 16) : "21:00";
   const formRef = useRef<HTMLFormElement | null>(null);
   const coverFileInputRef = useRef<HTMLInputElement | null>(null);
   const [currentStep, setCurrentStep] = useState(() => Math.min(Math.max(initialStep, 0), 4));
+  const [openStepIndexes, setOpenStepIndexes] = useState<number[]>(() => [Math.min(Math.max(initialStep, 0), 3)]);
   const [startDate, setStartDate] = useState(draftStartDate);
   const [endDate, setEndDate] = useState(draftEndDate);
   const [startTime, setStartTime] = useState(draftStartTime);
@@ -579,6 +604,7 @@ export function EventForm({
   const [postalCodeMessage, setPostalCodeMessage] = useState("");
   const [eventFormat, setEventFormat] = useState<"physical" | "online">(draftEvent?.event_format === "online" ? "online" : "physical");
   const [hasChosenEventFormat, setHasChosenEventFormat] = useState(Boolean(draftEvent?.event_format));
+  const [sendOnlineLinkLater, setSendOnlineLinkLater] = useState(draftEvent?.online_url_or_note === onlineLinkLaterText);
   const [priceMode, setPriceMode] = useState<"" | "free" | "paid">(
     draftEvent ? ((draftEvent.price_cents ?? 0) > 0 ? "paid" : "free") : "",
   );
@@ -605,6 +631,7 @@ export function EventForm({
   const [coverFileName, setCoverFileName] = useState("");
   const [coverPreviewUrl, setCoverPreviewUrl] = useState("");
   const [coverCrop, setCoverCrop] = useState<CoverCropState | null>(null);
+  const [, setFormVersion] = useState(0);
   const showAddress = hasChosenEventFormat && eventFormat === "physical";
   const showOnline = hasChosenEventFormat && eventFormat === "online";
   const isDanishPhysicalEvent = showAddress && country.trim().toLowerCase() === "danmark";
@@ -788,6 +815,7 @@ export function EventForm({
     if (!file) {
       setCoverFileName("");
       setCoverPreviewUrl("");
+      setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: "" } : currentPreview));
       return;
     }
 
@@ -795,6 +823,7 @@ export function EventForm({
       input.value = "";
       setCoverFileName("");
       setCoverPreviewUrl("");
+      setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: "" } : currentPreview));
       setCoverImageErrorMessage("Vælg et billede i JPG, PNG, WebP eller GIF.");
       return;
     }
@@ -811,6 +840,7 @@ export function EventForm({
 
       if (Math.abs(aspectRatio - expectedRatio) <= 0.04) {
         setCoverPreviewUrl(imageUrl);
+        setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: imageUrl } : currentPreview));
         setCoverCrop(null);
         return;
       }
@@ -831,6 +861,7 @@ export function EventForm({
       input.value = "";
       setCoverFileName("");
       setCoverPreviewUrl("");
+      setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: "" } : currentPreview));
       setCoverImageErrorMessage("Billedet kunne ikke læses. Prøv et andet billede.");
     }
   }
@@ -906,14 +937,16 @@ export function EventForm({
     const regionSlug = regionSlugFromPostalCode(nextPostalCode);
 
     if (!regionSlug) {
+      setRegionId("");
       return;
     }
 
-    const normalizedSlug = normalizeRegionName(regionSlug);
-    const matchingRegion = regions.find((region) => normalizeRegionName(region.name) === normalizedSlug);
+    const matchingRegion = regions.find((region) => region.slug === regionSlug);
 
     if (matchingRegion) {
       setRegionId(matchingRegion.id);
+    } else {
+      setRegionId("");
     }
   }
 
@@ -949,6 +982,7 @@ export function EventForm({
 
     if (normalizedPostalCode.length < 4) {
       setPostalCodeMessage("Skriv et postnummer på 4 tal.");
+      setRegionId("");
       return;
     }
 
@@ -994,7 +1028,7 @@ export function EventForm({
       .map((part) => String(part ?? "").trim())
       .filter(Boolean)
       .join(", ");
-    const onlineText = String(data.get("online_url_or_note") ?? data.get("online_description") ?? "").trim();
+    const onlineLink = String(data.get("online_url_or_note") ?? "").trim();
     const numericPrice = Number(priceValue.replace(",", "."));
 
     setPreview({
@@ -1004,7 +1038,7 @@ export function EventForm({
       price: isFree || numericPrice <= 0 ? "Gratis" : priceValue + " kr.",
       date: startDateValue === endDateValue ? formatReviewDate(startDateValue) : formatReviewDate(startDateValue) + " - " + formatReviewDate(endDateValue),
       time: startTimeValue && endTimeValue ? startTimeValue + " - " + endTimeValue : "Tidspunkt mangler",
-      location: eventFormat === "online" ? onlineText || "Online-link eller adgangstekst mangler" : address || "Adresse mangler",
+      location: eventFormat === "online" ? onlineLink || "Online-link mangler" : address || "Adresse mangler",
       capacity: String(data.get("capacity") ?? "").trim() || "Ikke angivet",
       categories: categoryNames,
       tags: tagNames,
@@ -1019,7 +1053,8 @@ export function EventForm({
     const selectedCategories = data?.getAll("main_category_ids").map(String).filter(Boolean) ?? [];
     const priceValue = text("price");
     const start = new Date(startDate + "T" + startTime + ":00");
-    const end = new Date(endDate + "T" + endTime + ":00");
+    const effectiveEndDate = showEndDateTime ? endDate : startDate;
+    const end = new Date(effectiveEndDate + "T" + endTime + ":00");
     const hasValidDuration = Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) && end.getTime() > start.getTime();
     const capacityValue = Number(text("capacity") || 0);
     const hasValidPrice = /^\d{1,5}$/.test(priceValue || "0");
@@ -1030,7 +1065,7 @@ export function EventForm({
 
     if (index === 1) {
       if (!hasChosenEventFormat) return "missing";
-      if (eventFormat === "online") return text("online_url_or_note").length > 0 || text("online_description").length > 0 ? "complete" : "missing";
+      if (eventFormat === "online") return isValidHttpUrl(text("online_url_or_note")) ? "complete" : "missing";
       return text("address_line").length > 0 && postalCode.length === 4 && city.trim().length > 0 && country.trim().length > 0 ? "complete" : "missing";
     }
 
@@ -1057,7 +1092,7 @@ export function EventForm({
 
     if (text("title").length === 0) missing.push("Titel");
     if (text("event_description").length < 20) missing.push("Beskrivelse");
-    if (getStepStatus(1) !== "complete") missing.push("Lokation eller onlinevalg");
+    if (getStepStatus(1) !== "complete") missing.push(eventFormat === "online" ? "Online-link" : "Lokation");
     if (priceMode !== "free" && priceMode !== "paid") missing.push("Pris eller gratis");
     if (getStepStatus(2) !== "complete") missing.push("Pris og antal deltagere");
     if (selectedCategories.length === 0) missing.push("Kategori");
@@ -1066,16 +1101,38 @@ export function EventForm({
     return Array.from(new Set(missing));
   }
 
+  function isStepOpen(index: number) {
+    return openStepIndexes.includes(index);
+  }
+
+  function openStep(index: number) {
+    setCurrentStep(index);
+    setOpenStepIndexes((currentIndexes) =>
+      currentIndexes.includes(index) ? currentIndexes : [...currentIndexes, index].sort((first, second) => first - second),
+    );
+  }
+
   function goToStep(index: number, anchor?: HTMLElement | null) {
     const nextStep = Math.min(Math.max(index, 0), steps.length - 1);
-    const shouldCollapse = currentStep === nextStep;
+    const shouldCollapse = isStepOpen(nextStep);
     const beforeTop = anchor?.getBoundingClientRect().top ?? null;
+
+    writeDraft();
 
     if (nextStep === steps.length - 1) {
       showPreview();
     }
 
-    setCurrentStep(shouldCollapse ? -1 : nextStep);
+    setCurrentStep(nextStep);
+    setOpenStepIndexes((currentIndexes) =>
+      shouldCollapse
+        ? currentIndexes.filter((currentIndex) => currentIndex !== nextStep)
+        : [...currentIndexes, nextStep].sort((first, second) => first - second),
+    );
+    window.setTimeout(() => {
+      restoreDraftFields();
+      showPreview();
+    }, 0);
 
     if (beforeTop !== null && anchor) {
       window.requestAnimationFrame(() => {
@@ -1134,10 +1191,11 @@ export function EventForm({
           country,
           endDate,
           endTime,
-          eventFormat,
+          eventFormat: String(formData.get("event_format") || eventFormat),
           hasChosenEventFormat,
           priceMode,
           isFree,
+          sendOnlineLinkLater,
 
           postalCode,
           regionId,
@@ -1149,6 +1207,39 @@ export function EventForm({
       }),
     );
     setHasAutosavedDraft(true);
+  }
+
+  function applyDraftFields(fields: Record<string, string[]>, options: { keepEventFormat?: boolean } = {}) {
+    const form = formRef.current;
+    const restoredOnlineValues = Array.isArray(fields.online_url_or_note) ? fields.online_url_or_note : [];
+
+    if (restoredOnlineValues.includes(onlineLinkLaterText)) {
+      setSendOnlineLinkLater(true);
+    }
+
+    if (!form) {
+      return;
+    }
+
+    for (const [name, values] of Object.entries(fields) as Array<[string, string[]]>) {
+      if (options.keepEventFormat && name === "event_format") {
+        continue;
+      }
+
+      const controls = Array.from(form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("[name='" + name + "']"));
+
+      controls.forEach((control, index) => {
+        const valueAtIndex = values[index] ?? values[0] ?? "";
+
+        if (control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")) {
+          control.checked = values.includes(control.value);
+        } else {
+          control.value = valueAtIndex;
+        }
+      });
+    }
+
+    setFormVersion((version) => version + 1);
   }
 
   function restoreDraft() {
@@ -1171,32 +1262,20 @@ export function EventForm({
     setHasChosenEventFormat(Boolean(draft.state?.hasChosenEventFormat));
     setPriceMode(draft.state?.priceMode === "paid" || draft.state?.priceMode === "free" ? draft.state.priceMode : "");
     setIsFree(Boolean(draft.state?.isFree));
+    setSendOnlineLinkLater(Boolean(draft.state?.sendOnlineLinkLater));
     setSelectedMainCategoryIds(Array.isArray(draft.state?.selectedMainCategoryIds) ? draft.state.selectedMainCategoryIds : []);
 
-    window.requestAnimationFrame(() => {
-      const form = formRef.current;
-      const fields = draft.fields ?? {};
+    window.requestAnimationFrame(() => applyDraftFields(draft.fields ?? {}));
+  }
 
-      if (!form) {
-        return;
-      }
+  function restoreDraftFields() {
+    const draft = readDraft();
 
-      for (const [name, values] of Object.entries(fields) as Array<[string, string[]]>) {
-        const controls = Array.from(form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("[name='" + name + "']"));
+    if (!draft) {
+      return;
+    }
 
-        controls.forEach((control, index) => {
-          const valueAtIndex = values[index] ?? values[0] ?? "";
-
-          if (control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")) {
-            control.checked = values.includes(control.value);
-          } else {
-            control.value = valueAtIndex;
-          }
-        });
-      }
-    });
-
-
+    window.requestAnimationFrame(() => applyDraftFields(draft.fields ?? {}, { keepEventFormat: true }));
   }
 
   function clearDraft() {
@@ -1214,7 +1293,7 @@ export function EventForm({
 
     if (imageMessage) {
       setCoverImageErrorMessage(imageMessage);
-      setCurrentStep(0);
+      openStep(0);
     }
 
     if (normalizedMessage.includes("oprettet") || normalizedMessage.includes("gemt")) {
@@ -1238,11 +1317,11 @@ export function EventForm({
   useEffect(() => {
     const timeout = window.setTimeout(showPreview, 0);
     return () => window.clearTimeout(timeout);
-  }, []);
+  }, [city, country, endDate, endTime, eventFormat, hasChosenEventFormat, isFree, postalCode, priceValue, regionId, selectedMainCategoryIds, startDate, startTime]);
 
   function StepAccordionHeader({ index }: { index: number }) {
     const step = steps[index];
-    const isOpen = currentStep === index;
+    const isOpen = isStepOpen(index);
     const status = getStepStatus(index);
     const isDone = status === "complete";
     const statusClass = isDone
@@ -1253,11 +1332,17 @@ export function EventForm({
     const badgeClass = isDone
       ? "border-[#CFE3C8] bg-[#EAF4E6] text-[#4F6F48]"
       : "border-[#D8CBE4] bg-[#F4F0F7] text-[#7A5D91]";
-    const decisionSelectClass =
-      "h-10 w-full cursor-pointer appearance-none rounded-full border border-[#D8CBE4] bg-white bg-[linear-gradient(45deg,transparent_50%,#7A5D91_50%),linear-gradient(135deg,#7A5D91_50%,transparent_50%)] bg-[length:7px_7px,7px_7px] bg-[position:calc(100%-20px)_52%,calc(100%-14px)_52%] bg-no-repeat px-4 pr-10 text-sm font-semibold text-[#2F2437] outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] sm:w-[245px]";
+    const headerLayoutClass =
+      index === 1 || index === 2 ? "flex-col items-stretch sm:flex-row sm:items-center" : "items-center";
+    const radioGroupClass = "grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[245px]";
+    const radioPillClass = (checked: boolean) =>
+      "inline-flex h-9 cursor-pointer items-center justify-center rounded-full border px-3 text-xs font-semibold transition sm:h-10 sm:text-sm " +
+      (checked
+        ? "border-[#7A5D91] bg-[#7A5D91] text-white shadow-soft"
+        : "border-[#D8CBE4] bg-white text-[#2F2437] hover:border-[#7A5D91]");
 
     return (
-      <div className={"flex w-full flex-col gap-3 rounded-[18px] border px-4 py-3 transition sm:flex-row sm:items-center " + statusClass}>
+      <div className={"flex w-full gap-3 rounded-[18px] border px-4 py-3 transition " + headerLayoutClass + " " + statusClass}>
         <button
           aria-expanded={isOpen}
           className="min-w-0 flex-1 text-left"
@@ -1273,67 +1358,83 @@ export function EventForm({
         </button>
 
         {index === 1 ? (
-          <label className="sr-only" htmlFor="event-format-header-select">
+          <span className="sr-only" id="event-format-header-label">
             Hvordan deltager man?
-          </label>
+          </span>
         ) : null}
         {index === 1 ? (
-          <select
-            className={decisionSelectClass}
-            id="event-format-header-select"
-            name="event_format"
-            onChange={(event) => {
-              const nextFormat = event.target.value as "physical" | "online";
-              if (nextFormat === "physical" || nextFormat === "online") {
-                setEventFormat(nextFormat);
-                setHasChosenEventFormat(true);
-                setCurrentStep(1);
-              } else {
-                setHasChosenEventFormat(false);
-              }
-              window.setTimeout(showPreview, 0);
-            }}
-            value={hasChosenEventFormat ? eventFormat : ""}
-          >
-            <option value="" disabled hidden>Er eventet personligt eller virtuelt?</option>
-            <option value="physical">Personligt event</option>
-            <option value="online">Virtuelt event</option>
-          </select>
+          <div aria-labelledby="event-format-header-label" className={radioGroupClass} role="radiogroup">
+            {[
+              { label: "Personligt", value: "physical" },
+              { label: "Online", value: "online" },
+            ].map((option) => (
+              <label className={radioPillClass(hasChosenEventFormat && eventFormat === option.value)} key={option.value}>
+                <input
+                  checked={hasChosenEventFormat && eventFormat === option.value}
+                  className="sr-only"
+                  name="event_format"
+                  onChange={() => {
+                    writeDraft();
+                    setEventFormat(option.value as "physical" | "online");
+                    setHasChosenEventFormat(true);
+                    openStep(1);
+                    window.setTimeout(() => {
+                      restoreDraftFields();
+                      showPreview();
+                    }, 0);
+                  }}
+                  type="radio"
+                  value={option.value}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
         ) : null}
 
         {index === 2 ? (
-          <label className="sr-only" htmlFor="event-price-header-select">
+          <span className="sr-only" id="event-price-header-label">
             Hvad koster det at deltage?
-          </label>
+          </span>
         ) : null}
         {index === 2 ? (
-          <select
-            className={decisionSelectClass}
-            id="event-price-header-select"
-            onChange={(event) => {
-              const nextMode = event.target.value as "" | "free" | "paid";
-              setPriceMode(nextMode);
-              setCurrentStep(2);
-              if (nextMode === "free") {
-                setIsFree(true);
-                setPriceValue("0");
-              }
-              if (nextMode === "paid") {
-                setIsFree(false);
-                if (priceValue === "0") setPriceValue("");
-              }
-              window.setTimeout(showPreview, 0);
-            }}
-            value={priceMode}
-          >
-            <option value="" disabled hidden>Vælg gratis eller betaling</option>
-            <option value="free">Gratis event</option>
-            <option value="paid">Betaling</option>
-          </select>
+          <div aria-labelledby="event-price-header-label" className={radioGroupClass} role="radiogroup">
+            {[
+              { label: "Gratis", value: "free" },
+              { label: "Betaling", value: "paid" },
+            ].map((option) => (
+              <label className={radioPillClass(priceMode === option.value)} key={option.value}>
+                <input
+                  checked={priceMode === option.value}
+                  className="sr-only"
+                  onChange={() => {
+                    const nextMode = option.value as "free" | "paid";
+                    writeDraft();
+                    setPriceMode(nextMode);
+                    openStep(2);
+                    if (nextMode === "free") {
+                      setIsFree(true);
+                      setPriceValue("0");
+                    }
+                    if (nextMode === "paid") {
+                      setIsFree(false);
+                      if (priceValue === "0") setPriceValue("");
+                    }
+                    window.setTimeout(() => {
+                      restoreDraftFields();
+                      showPreview();
+                    }, 0);
+                  }}
+                  type="radio"
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
         ) : null}
 
         {index !== 1 && index !== 2 ? (
-          <span className={"inline-flex h-8 shrink-0 items-center justify-center rounded-full border px-3 text-xs font-semibold uppercase tracking-wide " + badgeClass}>
+          <span className={"inline-flex h-7 shrink-0 items-center justify-center rounded-full border px-2.5 text-[10px] font-semibold uppercase tracking-wide sm:h-8 sm:px-3 sm:text-xs " + badgeClass}>
             {isDone ? "Klar" : "Afventer"}
           </span>
         ) : null}
@@ -1351,10 +1452,12 @@ export function EventForm({
       className="grid w-full max-w-full gap-5 overflow-x-hidden sm:gap-6"
       noValidate
       onChange={() => {
+        setFormVersion((version) => version + 1);
         writeDraft();
         window.setTimeout(showPreview, 0);
       }}
       onInput={() => {
+        setFormVersion((version) => version + 1);
         writeDraft();
         window.setTimeout(showPreview, 0);
       }}
@@ -1371,10 +1474,23 @@ export function EventForm({
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
         <div className="grid gap-5">
           <StepAccordionHeader index={0} />
-      <section className={currentStep === 0 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
+      <section className={isStepOpen(0) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <div className="grid gap-4 md:grid-cols-2 md:gap-x-5 md:gap-y-4">
-          <div className="md:col-span-2">
-            <TextInput defaultValue={value(draftEvent?.title)} label="Hvad kalder du dit event?" maxLength={80} name="title" placeholder="Giv dit event et navn" required />
+          <div className="rounded-[20px] border border-[#F0D6D2] bg-[#FFF8F6] p-4 md:col-span-2">
+            <div className="mb-3 inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#B56F8A] shadow-sm">
+              Start her
+            </div>
+            <TextInput
+              autoFocus={!draftEvent?.title}
+              defaultValue={value(draftEvent?.title)}
+              help="Giv eventet et kort og tydeligt navn. Det bliver deltagernes første indtryk."
+              highlightWhenEmpty
+              label="Hvad kalder du dit event?"
+              maxLength={80}
+              name="title"
+              placeholder="Giv dit event et navn"
+              required
+            />
           </div>
 
           <label className="grid gap-2 text-sm font-medium text-ink/72">
@@ -1382,10 +1498,11 @@ export function EventForm({
               Startdato<span className="ml-1 text-[#B56F8A]">*</span>
             </span>
             <input
-              className="h-12 w-full min-w-0 cursor-pointer rounded-card border border-midnight/15 bg-white required:valid:bg-[#F6FBF3] required:valid:border-[#CFE3C8] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
+              className={"h-12 w-full min-w-0 cursor-pointer rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(startDate)}
               name="start_date"
               onClick={(event) => openNativePicker(event.currentTarget)}
               onChange={(event) => updateStartDate(event.target.value)}
+              required
               type="date"
               value={startDate}
             />
@@ -1395,35 +1512,39 @@ export function EventForm({
 
           {!showEndDateTime ? <input name="end_date" type="hidden" value={startDate} /> : null}
 
-          {showEndDateTime ? (
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
-              <span>
-                Slutdato<span className="ml-1 text-[#B56F8A]">*</span>
-              </span>
-              <input
-                className="h-12 w-full min-w-0 cursor-pointer rounded-card border border-midnight/15 bg-white required:valid:bg-[#F6FBF3] required:valid:border-[#CFE3C8] px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA]"
-                min={startDate}
-                name="end_date"
-                onClick={(event) => openNativePicker(event.currentTarget)}
-                onChange={(event) => setEndDate(event.target.value)}
-                type="date"
-                value={endDate}
-              />
-            </label>
-          ) : (
+          <TimeSelect defaultValue="21:00" label="Sluttidspunkt" name="end_time" onChange={setEndTime} required value={endTime} />
+
+          {!showEndDateTime ? (
             <button
-              className="self-end inline-flex h-12 w-fit items-center gap-2 rounded-full border border-[#D8CBE4] bg-[#FAF6EF] px-4 text-sm font-semibold text-[#7A5D91] transition hover:border-[#7A5D91] hover:bg-[#F4F0F7]"
+              className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-[#7A5D91] transition hover:text-[#6E5285] md:col-span-2"
               onClick={() => {
                 setEndDate(startDate);
                 setShowEndDateTime(true);
               }}
               type="button"
             >
-              + Slutdato og tidspunkt
+              <Plus className="size-4" aria-hidden="true" />
+              Anden slutdato
             </button>
-          )}
+          ) : null}
 
-          <TimeSelect defaultValue="21:00" label="Sluttidspunkt" name="end_time" onChange={setEndTime} required value={endTime} />
+          {showEndDateTime ? (
+            <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2 md:max-w-[calc(50%-0.625rem)]">
+              <span>
+                Slutdato<span className="ml-1 text-[#B56F8A]">*</span>
+              </span>
+              <input
+                className={"h-12 w-full min-w-0 cursor-pointer rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(endDate)}
+                min={startDate}
+                name="end_date"
+                onClick={(event) => openNativePicker(event.currentTarget)}
+                onChange={(event) => setEndDate(event.target.value)}
+                required
+                type="date"
+                value={endDate}
+              />
+            </label>
+          ) : null}
 
           {durationLabel && (
             <div
@@ -1440,7 +1561,7 @@ export function EventForm({
         <EventDescriptionField defaultValue={value(draftEvent?.long_description || draftEvent?.short_description)} />
       </section>
 <StepAccordionHeader index={1} />
-      <section className={currentStep === 1 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
+      <section className={isStepOpen(1) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         {!hasChosenEventFormat ? (
           <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
             Vælg først fysisk eller online i trinlinjen ovenfor.
@@ -1464,11 +1585,6 @@ export function EventForm({
                 required
                 value={postalCode}
               />
-              <span className="text-xs leading-5 text-ink/52">
-                {isDanishPhysicalEvent
-                  ? "By og område opdateres automatisk, når postnummeret er gyldigt."
-                  : "For events uden for Danmark bruges postnummer/ZIP kun sammen med adresse, by og land."}
-              </span>
             </label>
 
             <label className="grid gap-2 text-sm font-medium text-ink/72">
@@ -1497,7 +1613,6 @@ export function EventForm({
                 required
                 value={country}
               />
-              <span className="text-xs leading-5 text-ink/52">Skriv Danmark for danske events. Ved udenlandske retreats kan du skrive landet her.</span>
             </label>
 
             {isDanishPhysicalEvent ? (
@@ -1507,7 +1622,6 @@ export function EventForm({
                 <div className="flex min-h-12 items-center rounded-card border border-[#D7C4F0] bg-[#F8F3FF] px-4 text-base text-ink">
                   {selectedRegionName || "Område beregnes automatisk ud fra postnummer"}
                 </div>
-                <span className="text-xs leading-5 text-ink/52">Område styres automatisk ud fra postnummer, så eventet vises korrekt i søgning og på kort.</span>
               </div>
             ) : (
               <TextInput label="Region / område" name="foreign_region" placeholder="Fx Skåne, Mallorca eller Bali" help="Valgfrit. Bruges kun som ekstra lokationshjælp ved events uden for Danmark." maxLength={80} />
@@ -1516,13 +1630,55 @@ export function EventForm({
         ) : null}
         {showOnline ? (
           <div className="grid gap-4 md:grid-cols-2">
-            <TextArea
-              defaultValue={value(draftEvent?.online_url_or_note)}
-              help="Linket deles kun med tilmeldte deltagere, hvis du ønsker det."
-              label="Online-link / møderum"
-              name="online_url_or_note"
-              placeholder="Zoom-link, Teams-link eller tekst om at link sendes senere." maxLength={500}
-            />
+            <div className="grid gap-3">
+              {sendOnlineLinkLater ? (
+                <div className="grid gap-3 rounded-card border border-[#CFE3C8] bg-[#F6FBF3] p-4 text-sm text-ink/72">
+                  <input name="online_url_or_note" type="hidden" value={onlineLinkLaterText} />
+                  <p className="font-semibold text-[#4B6B45]">{onlineLinkLaterText}</p>
+                  <button
+                    className="justify-self-start text-sm font-semibold text-[#7A5D91] underline-offset-4 hover:underline"
+                    onClick={() => {
+                      setSendOnlineLinkLater(false);
+                      setFormVersion((version) => version + 1);
+                      window.setTimeout(() => {
+                        writeDraft();
+                        showPreview();
+                      }, 0);
+                    }}
+                    type="button"
+                  >
+                    Indsæt link nu i stedet
+                  </button>
+                </div>
+              ) : (
+                <TextInput
+                  defaultValue={value(draftEvent?.online_url_or_note)}
+                  help="Indsæt et direkte link til møderum eller bookingside."
+                  label="Online-link"
+                  maxLength={500}
+                  name="online_url_or_note"
+                  placeholder="https://..."
+                  required
+                  type="url"
+                />
+              )}
+              {!sendOnlineLinkLater ? (
+                <button
+                  className="inline-flex min-h-12 items-center justify-center rounded-card border border-[#D8CBE4] bg-white px-4 text-center text-sm font-semibold text-[#7A5D91] transition hover:-translate-y-0.5 hover:border-[#7A5D91]"
+                  onClick={() => {
+                    setSendOnlineLinkLater(true);
+                    setFormVersion((version) => version + 1);
+                    window.setTimeout(() => {
+                      writeDraft();
+                      showPreview();
+                    }, 0);
+                  }}
+                  type="button"
+                >
+                  {onlineLinkLaterText}
+                </button>
+              ) : null}
+            </div>
             <label className="grid gap-2 text-sm font-medium text-ink/72">
               <span>Platform</span>
               <select
@@ -1546,21 +1702,12 @@ export function EventForm({
             </div>
           </div>
         ) : null}
-        <Tip>
-          {showOnline ? (
-            <p>Fortæl deltageren, om linket sendes efter tilmelding, eller om de får adgang via et fast møderum. Skriv også gerne, hvis de skal bruge kamera, headset eller have ro omkring sig.</p>
-          ) : isDanishPhysicalEvent ? (
-            <p>By og område beregnes automatisk ud fra postnummeret, så eventet bliver vist korrekt i søgning og på kort.</p>
-          ) : (
-            <p>Ved events uden for Danmark bruges adresse, by og land til at finde placeringen på kortet. Hvis kortet ikke rammer rigtigt, kan du justere adressen før publicering.</p>
-          )}
-        </Tip>
       </section>
           <StepAccordionHeader index={2} />
       
 
       
-<section className={currentStep === 2 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
+<section className={isStepOpen(2) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         {priceMode === "" ? (
           <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
             Vælg først gratis eller betaling i trinlinjen ovenfor.
@@ -1571,7 +1718,7 @@ export function EventForm({
             <label className="grid gap-2 text-sm font-medium text-ink/72">
               <span>Pris i kr.</span>
               <input
-                className="h-12 w-full min-w-0 rounded-card border border-midnight/15 bg-white px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA]"
+                className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(priceValue)}
                 inputMode="numeric"
                 maxLength={5}
                 name="price"
@@ -1592,14 +1739,14 @@ export function EventForm({
             </div>
           ) : null}
 
-          <TextInput defaultValue={String(draftEvent?.capacity ?? 12)} label="Maks. antal deltagere" name="capacity" type="number" />
+          <TextInput defaultValue={String(draftEvent?.capacity ?? 12)} label="Maks. antal deltagere" max={500} min={1} name="capacity" type="number" />
         </div>
         <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
           Kontaktoplysninger og sociale links hentes fra din arrangørprofil, så eventoprettelsen holdes enkel.
         </p>
       </section>
 
-<section className={currentStep === 2 ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
+<section className={isStepOpen(2) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <details className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4">
           <summary className="cursor-pointer list-none text-sm font-semibold text-[#7A4EAB] [&::-webkit-details-marker]:hidden">
             Tilføj praktiske oplysninger
@@ -1618,7 +1765,7 @@ export function EventForm({
 
 
           <StepAccordionHeader index={3} />
-      <section className={currentStep === 3 ? "grid w-full max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-6 sm:p-6" : "hidden"}>
+      <section className={isStepOpen(3) ? "grid w-full max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-6 sm:p-6" : "hidden"}>
         {draftEvent?.subcategoryIds?.map((subcategoryId) => (
           <input key={subcategoryId} name="subcategory_ids" type="hidden" value={subcategoryId} />
         ))}
@@ -1654,15 +1801,15 @@ export function EventForm({
         )}
       </section>
 </div>
-        <aside className="xl:block">
+        <aside className="mt-8 border-t border-[#E5D4F7] pt-8 xl:mt-0 xl:border-t-0 xl:pt-0">
           <div className="sticky top-6 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 shadow-soft">
             <div className="border-b border-[#E5D4F7] bg-[#F4F0F7] px-5 py-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Din invitation</p>
               <h2 className="mt-1 font-serif text-xl font-semibold text-midnight">Sådan ser din invitation ud</h2>
             </div>
             <div className="relative h-44 overflow-hidden bg-[radial-gradient(circle_at_20%_20%,#F4F0F7_0%,transparent_34%),radial-gradient(circle_at_85%_15%,#DDE8D7_0%,transparent_32%),linear-gradient(135deg,#FAF6EF_0%,#F8F3FA_48%,#EEE7DA_100%)]">
-              {preview?.coverImageUrl ? (
-                <img alt="Preview af eventets forsidebillede" className="h-full w-full object-cover" src={preview.coverImageUrl} />
+              {currentCoverImageUrl ? (
+                <img alt="Preview af eventets forsidebillede" className="h-full w-full object-cover" src={currentCoverImageUrl} />
               ) : null}
               <label className="absolute inset-0 grid cursor-pointer place-items-center bg-midnight/5 transition hover:bg-midnight/10">
                 <input
@@ -1675,7 +1822,7 @@ export function EventForm({
                 />
                 <span className="inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-[#7A5D91] shadow-soft">
                   <ImagePlus className="size-4" aria-hidden="true" />
-                  {preview?.coverImageUrl ? "Udskift billede" : "Vælg billede"}
+                  {currentCoverImageUrl ? "Udskift billede" : "Vælg billede"}
                 </span>
               </label>
             </div>

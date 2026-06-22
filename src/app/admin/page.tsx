@@ -13,6 +13,7 @@ import {
   ReceiptText,
   Scale,
   Search,
+  SlidersHorizontal,
   Star,
   Shapes,
   ShieldCheck,
@@ -50,6 +51,11 @@ function formatNumber(value: number | null | undefined) {
 
 function formatMoney(valueCents: number) {
   return new Intl.NumberFormat("da-DK").format(valueCents / 100) + " kr.";
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Tidspunkt mangler";
+  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 export default async function AdminPage({ searchParams }: AdminPageProps) {
@@ -96,7 +102,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     supabase.from("facilitator_event_reminders").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("bookings").select("booking_value_cents, commission_cents, seats"),
     supabase.from("facilitator_profiles").select("id, host_reference_id, status, company_name, created_at, profiles(full_name, email)").order("created_at", { ascending: false }).limit(5),
-    supabase.from("events").select("id, title, status, starts_at, created_at, facilitator_profiles(company_name, profiles(full_name))").order("created_at", { ascending: false }).limit(5),
+    supabase.from("events").select("id, title, status, starts_at, created_at, updated_at, facilitator_profiles(company_name, profiles(full_name))").order("created_at", { ascending: false }).limit(5),
     supabase.from("bookings").select("id, participant_name, created_at, events(title)").order("created_at", { ascending: false }).limit(5),
     supabase.from("facilitator_admin_messages").select("id, subject, message, type, status, created_at, facilitator_profiles(company_name, host_reference_id, profiles(full_name, email))").order("created_at", { ascending: false }).limit(5),
   ]);
@@ -158,6 +164,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { href: "/admin/homepage", title: "Forsidebokse og temaer", text: "Styr de store 1:1 bokse og kampagne-temaer på forsiden.", icon: LayoutGrid },
     { href: "/admin/ads", title: "Reklamer / partnerindhold", text: "Styr diskrete reklamer på forsiden og hovedkategorisider.", icon: Megaphone },
     { href: "/admin/featured-facilitators", title: "Fremhævede arrangører", text: "Vælg hvem der skal vises særskilt på forsiden.", icon: Star },
+    { href: "/admin/settings", title: "Platformindstillinger", text: "Styr grænser for kladder og aktive events per arrangør.", icon: SlidersHorizontal },
     { href: "/admin/users", title: "Brugere og roller", text: "Styr adgang til adminpanelet.", icon: UserCog },
     { href: "/admin/legal", title: "Juridiske dokumenter", text: "Opdater betingelser, privatliv og retningslinjer.", icon: Scale },
     { href: "/admin/reports", title: "Rapporter og faktura", text: "Månedsrapporter, fakturakladder og Excel-eksport.", icon: FileText },
@@ -261,6 +268,9 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     <p className="mt-1 text-xs text-ink/55">
                       {facilitator?.company_name || messageProfile?.full_name || "Arrangør"} {facilitator?.host_reference_id ? "· " + facilitator.host_reference_id : ""}
                     </p>
+                    <p className="mt-1 text-xs font-semibold text-ink/55">
+                      Modtaget {formatDateTime(item.created_at)}
+                    </p>
                     <p className="mt-2 leading-6 text-ink/68">{item.message}</p>
                   </article>
                 );
@@ -310,6 +320,9 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     <p className="font-semibold text-midnight">{event.title}</p>
                     <p className="mt-1 text-xs text-ink/64">
                       {facilitator?.company_name || eventProfile?.full_name || "Arrangør"} · {event.status}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-ink/55">
+                      Oprettet {formatDateTime(event.created_at)} · Senest ændret {formatDateTime(event.updated_at)}
                     </p>
                     <Link className="mt-2 inline-flex text-sm font-semibold text-sage-700" href="/admin/events">
                       Gå til moderation
