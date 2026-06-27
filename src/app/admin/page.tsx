@@ -1,7 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import {
   AlertCircle,
-  Banknote,
   Bell,
   CalendarDays,
   CheckCircle2,
@@ -15,8 +15,6 @@ import {
   Search,
   SlidersHorizontal,
   Star,
-  Shapes,
-  ShieldCheck,
   Tags,
   UserCog,
   UsersRound,
@@ -24,6 +22,7 @@ import {
 import { FacilitatorApprovalTable } from "@/components/admin/facilitator-approval-table";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { archiveFacilitatorAdminMessageAction, replyToFacilitatorAdminMessageAction } from "@/app/admin/facilitators/actions";
 import { requireRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import type { FacilitatorStatus } from "@/types/database";
@@ -47,10 +46,6 @@ function normalizeStatus(status?: string) {
 
 function formatNumber(value: number | null | undefined) {
   return new Intl.NumberFormat("da-DK").format(value ?? 0);
-}
-
-function formatMoney(valueCents: number) {
-  return new Intl.NumberFormat("da-DK").format(valueCents / 100) + " kr.";
 }
 
 function formatDateTime(value: string | null | undefined) {
@@ -86,7 +81,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { count: pendingEvents },
     { count: recentBookings },
     { count: reminderSubscribers },
-    { data: bookingStats },
     { data: recentFacilitators },
     { data: recentEvents },
     { data: latestBookings },
@@ -100,11 +94,16 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "pending_review"),
     supabase.from("bookings").select("id", { count: "exact", head: true }).gte("created_at", thirtyDaysAgo.toISOString()),
     supabase.from("facilitator_event_reminders").select("id", { count: "exact", head: true }).eq("status", "active"),
-    supabase.from("bookings").select("booking_value_cents, commission_cents, seats"),
     supabase.from("facilitator_profiles").select("id, host_reference_id, status, company_name, created_at, profiles(full_name, email)").order("created_at", { ascending: false }).limit(5),
     supabase.from("events").select("id, title, status, starts_at, created_at, updated_at, facilitator_profiles(company_name, profiles(full_name))").order("created_at", { ascending: false }).limit(5),
     supabase.from("bookings").select("id, participant_name, created_at, events(title)").order("created_at", { ascending: false }).limit(5),
-    supabase.from("facilitator_admin_messages").select("id, subject, message, type, status, created_at, facilitator_profiles(company_name, host_reference_id, profiles(full_name, email))").order("created_at", { ascending: false }).limit(5),
+    supabase
+      .from("facilitator_admin_messages")
+      .select("id, facilitator_id, subject, message, type, status, created_at, facilitator_profiles(company_name, host_reference_id, profiles(full_name, email))")
+      .in("type", ["message", "closure_request"])
+      .in("status", ["unread", "read"])
+      .order("created_at", { ascending: false })
+      .limit(5),
   ]);
 
   const visibleFacilitators = (facilitators ?? []).filter((facilitator: any) => {
@@ -143,9 +142,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     return "/admin" + (queryString ? "?" + queryString : "");
   }
 
-  const totalBookingValue = bookingStats?.reduce((sum: number, booking: { booking_value_cents: number }) => sum + booking.booking_value_cents, 0) ?? 0;
-  const totalCommission = bookingStats?.reduce((sum: number, booking: { commission_cents: number }) => sum + booking.commission_cents, 0) ?? 0;
-
   const stats = [
     { label: "Aktive arrangører", value: formatNumber(activeFacilitators), icon: UsersRound },
     { label: "Kommende events", value: formatNumber(upcomingEvents), icon: CalendarDays },
@@ -158,7 +154,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
   const adminLinks = [
     { href: "/admin/events", title: "Eventmoderation", text: "Godkend, afvis, skjul og arkiver events.", icon: CalendarDays },
-    { href: "/admin/bookings", title: "Tilmeldinger og statistik", text: "Se bookingværdi, kommission og pladser.", icon: Banknote },
+    { href: "/admin/bookings", title: "Tilmeldinger", text: "Se deltagere, status og antal pladser.", icon: ReceiptText },
     { href: "/admin/category-architecture", title: "Kategorier & tag-farver", text: "Administrer kategorier, tags, eventformat og farver på tags.", icon: Tags },
     { href: "/admin/service-titles", title: "Behandlertitler", text: "Styr titler og ydelsestyper til arrangørprofiler.", icon: UserCog },
     { href: "/admin/homepage", title: "Forsidebokse og temaer", text: "Styr de store 1:1 bokse og kampagne-temaer på forsiden.", icon: LayoutGrid },
@@ -190,181 +186,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <AuthMessage message={message} />
 
-        <div className="mt-5 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
-          {stats.map((stat) => (
-            <article className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft" key={stat.label}>
-              <stat.icon className="size-5 text-terracotta" aria-hidden="true" />
-              <p className="mt-4 text-3xl font-semibold text-midnight">{stat.value}</p>
-              <p className="mt-1 text-sm text-ink/64">{stat.label}</p>
-            </article>
-          ))}
-        </div>
-
-        <section className="mt-6 rounded-[26px] border border-[#F0DEC0] bg-[#FFF6E8] p-5 shadow-soft">
-          <div className="flex items-start gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-[#7A5D3A]">
-              <Bell className="size-5" aria-hidden="true" />
-            </span>
-            <div>
-              <h2 className="font-serif text-xl font-semibold text-midnight">Kræver opmærksomhed</h2>
-              <p className="mt-1 text-sm leading-6 text-ink/64">De vigtigste punkter hvor admin typisk skal tage stilling.</p>
-            </div>
-          </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="/admin?status=pending">
-              <p className="font-semibold text-midnight">Nye arrangører</p>
-              <p className="mt-1 text-sm text-ink/64">Profiler der afventer godkendelse.</p>
-              <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">{formatNumber(pendingFacilitators)}</span>
-            </Link>
-            <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="/admin/events">
-              <p className="font-semibold text-midnight">Events til godkendelse</p>
-              <p className="mt-1 text-sm text-ink/64">Events der skal læses og godkendes.</p>
-              <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">{formatNumber(pendingEvents)}</span>
-            </Link>
-            <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="/admin">
-              <p className="font-semibold text-midnight">Beskeder</p>
-              <p className="mt-1 text-sm text-ink/64">Beskeder og anmodninger fra arrangører.</p>
-              <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">{formatNumber((adminMessages ?? []).length)}</span>
-            </Link>
-            <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="/admin?status=all">
-              <p className="font-semibold text-midnight">Særlige tilladelser</p>
-              <p className="mt-1 text-sm text-ink/64">Arrangører med badges eller auto-publicering.</p>
-              <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">Se liste</span>
-            </Link>
-          </div>
-        </section>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-4">
-          {adminLinks.map((item) => (
-            <Link className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft transition hover:border-sage-700" href={item.href} key={item.href}>
-              <item.icon className="size-5 text-sage-700" aria-hidden="true" />
-              <h2 className="mt-4 font-semibold text-midnight">{item.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-ink/64">{item.text}</p>
-            </Link>
-          ))}
-        </div>
-
-        {(adminMessages ?? []).length > 0 && (
-          <section className="mt-6 rounded-md border border-[#E5D4F7] bg-white p-5 shadow-soft">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="font-semibold text-midnight">Beskeder fra arrangører</h2>
-                <p className="mt-1 text-sm text-ink/64">Seneste interne beskeder og anmodninger om lukning.</p>
-              </div>
-              <span className="rounded-full bg-[#F6EFFF] px-3 py-1 text-sm font-semibold text-[#7A4EAB]">{(adminMessages ?? []).length} nye/seneste</span>
-            </div>
-            <div className="mt-4 grid gap-3">
-              {(adminMessages ?? []).map((item: any) => {
-                const facilitator = Array.isArray(item.facilitator_profiles) ? item.facilitator_profiles[0] : item.facilitator_profiles;
-                const messageProfile = Array.isArray(facilitator?.profiles) ? facilitator.profiles[0] : facilitator?.profiles;
-                return (
-                  <article className="rounded-md bg-[#FAF6EF] p-4 text-sm" key={item.id}>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-semibold text-midnight">{item.subject}</p>
-                      <span className={item.type === "closure_request" ? "rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800" : "rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/55"}>
-                        {item.type === "closure_request" ? "Lukning" : "Besked"}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-ink/55">
-                      {facilitator?.company_name || messageProfile?.full_name || "Arrangør"} {facilitator?.host_reference_id ? "· " + facilitator.host_reference_id : ""}
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-ink/55">
-                      Modtaget {formatDateTime(item.created_at)}
-                    </p>
-                    <p className="mt-2 leading-6 text-ink/68">{item.message}</p>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        <div className="mt-6 grid gap-4 lg:grid-cols-3">
-          <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-            <h2 className="font-semibold text-midnight">Nye arrangører</h2>
-            <div className="mt-4 grid gap-3">
-              {(recentFacilitators ?? []).map((facilitator: any) => {
-                const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
-                return (
-                  <div className="rounded-md bg-sage-50 p-3" key={facilitator.id}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-midnight">{facilitator.company_name || profile?.full_name || "Uden navn"}</p>
-                      {facilitator.host_reference_id && (
-                        <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-sage-700">
-                          {facilitator.host_reference_id}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-ink/64">
-                      {new Intl.DateTimeFormat("da-DK").format(new Date(facilitator.created_at))} · {facilitator.status}
-                    </p>
-                    {facilitator.status === "pending" && (
-                      <Link className="mt-2 inline-flex text-sm font-semibold text-sage-700" href="/admin">
-                        Godkend
-                      </Link>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-            <h2 className="font-semibold text-midnight">Nye events</h2>
-            <div className="mt-4 grid gap-3">
-              {(recentEvents ?? []).map((event: any) => {
-                const facilitator = Array.isArray(event.facilitator_profiles) ? event.facilitator_profiles[0] : event.facilitator_profiles;
-                const eventProfile = Array.isArray(facilitator?.profiles) ? facilitator.profiles[0] : facilitator?.profiles;
-                return (
-                  <div className="rounded-md bg-sage-50 p-3" key={event.id}>
-                    <p className="font-semibold text-midnight">{event.title}</p>
-                    <p className="mt-1 text-xs text-ink/64">
-                      {facilitator?.company_name || eventProfile?.full_name || "Arrangør"} · {event.status}
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-ink/55">
-                      Oprettet {formatDateTime(event.created_at)} · Senest ændret {formatDateTime(event.updated_at)}
-                    </p>
-                    <Link className="mt-2 inline-flex text-sm font-semibold text-sage-700" href="/admin/events">
-                      Gå til moderation
-                    </Link>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-            <h2 className="font-semibold text-midnight">Seneste tilmeldinger</h2>
-            <div className="mt-4 grid gap-3">
-              {(latestBookings ?? []).map((booking: any) => {
-                const event = Array.isArray(booking.events) ? booking.events[0] : booking.events;
-                return (
-                  <div className="rounded-md bg-sage-50 p-3" key={booking.id}>
-                    <p className="font-semibold text-midnight">{booking.participant_name}</p>
-                    <p className="mt-1 text-xs text-ink/64">
-                      {event?.title || "Event"} · {new Intl.DateTimeFormat("da-DK").format(new Date(booking.created_at))}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        </div>
-
-        <div className="mt-6 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-semibold text-midnight">Platformøkonomi</h2>
-              <p className="mt-1 text-sm text-ink/64">Samlet overblik baseret på registrerede tilmeldinger.</p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-sm font-semibold text-midnight">
-              <span className="rounded-md bg-sand px-3 py-2">Bookingværdi: {formatMoney(totalBookingValue)}</span>
-              <span className="rounded-md bg-sage-50 px-3 py-2">Kommission: {formatMoney(totalCommission)}</span>
-            </div>
-          </div>
-        </div>
-
-        <section className="my-6 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+        <section className="mt-5 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
           <div className="grid gap-4 lg:grid-cols-2">
             <form action="/admin" className="grid gap-2">
               {selectedStatus !== "all" && <input name="status" type="hidden" value={selectedStatus} />}
@@ -429,7 +251,203 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           </div>
         </section>
 
-        <FacilitatorApprovalTable facilitators={visibleFacilitators as never} />
+        <div className="mt-5 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+          {stats.map((stat) => (
+            <article className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft" key={stat.label}>
+              <stat.icon className="size-5 text-terracotta" aria-hidden="true" />
+              <p className="mt-4 text-3xl font-semibold text-midnight">{stat.value}</p>
+              <p className="mt-1 text-sm text-ink/64">{stat.label}</p>
+            </article>
+          ))}
+        </div>
+
+        <section className="mt-6 rounded-[26px] border border-[#F0DEC0] bg-[#FFF6E8] p-5 shadow-soft">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-[#7A5D3A]">
+              <Bell className="size-5" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="font-serif text-xl font-semibold text-midnight">Kræver opmærksomhed</h2>
+              <p className="mt-1 text-sm leading-6 text-ink/64">De vigtigste punkter hvor admin typisk skal tage stilling.</p>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="#admin-facilitators">
+              <p className="font-semibold text-midnight">Nye arrangører</p>
+              <p className="mt-1 text-sm text-ink/64">Profiler der afventer godkendelse.</p>
+              <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">{formatNumber(pendingFacilitators)}</span>
+            </Link>
+            <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="/admin/events?status=pending_review">
+              <p className="font-semibold text-midnight">Events til godkendelse</p>
+              <p className="mt-1 text-sm text-ink/64">Events der skal læses og godkendes.</p>
+              <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">{formatNumber(pendingEvents)}</span>
+            </Link>
+            <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="#admin-messages">
+              <p className="font-semibold text-midnight">Beskeder</p>
+              <p className="mt-1 text-sm text-ink/64">Beskeder og anmodninger fra arrangører.</p>
+              <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">{formatNumber((adminMessages ?? []).length)}</span>
+            </Link>
+            <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="#admin-permissions">
+              <p className="font-semibold text-midnight">Særlige tilladelser</p>
+              <p className="mt-1 text-sm text-ink/64">Arrangører med badges eller auto-publicering.</p>
+              <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">Se liste</span>
+            </Link>
+          </div>
+        </section>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-4">
+          {adminLinks.map((item) => (
+            <Link className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft transition hover:border-sage-700" href={item.href} key={item.href}>
+              <item.icon className="size-5 text-sage-700" aria-hidden="true" />
+              <h2 className="mt-4 font-semibold text-midnight">{item.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-ink/64">{item.text}</p>
+            </Link>
+          ))}
+        </div>
+
+        {(adminMessages ?? []).length > 0 && (
+          <section id="admin-messages" className="mt-6 scroll-mt-24 rounded-md border border-[#E5D4F7] bg-white p-5 shadow-soft">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-midnight">Beskeder fra arrangører</h2>
+                <p className="mt-1 text-sm text-ink/64">Seneste interne beskeder og anmodninger om lukning.</p>
+              </div>
+              <span className="rounded-full bg-[#F6EFFF] px-3 py-1 text-sm font-semibold text-[#7A4EAB]">{(adminMessages ?? []).length} nye/seneste</span>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {(adminMessages ?? []).map((item: any) => {
+                const facilitator = Array.isArray(item.facilitator_profiles) ? item.facilitator_profiles[0] : item.facilitator_profiles;
+                const messageProfile = Array.isArray(facilitator?.profiles) ? facilitator.profiles[0] : facilitator?.profiles;
+                return (
+                  <article className="rounded-md bg-[#FAF6EF] p-4 text-sm" key={item.id}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold text-midnight">{item.subject}</p>
+                      <span className={item.type === "closure_request" ? "rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800" : "rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/55"}>
+                        {item.type === "closure_request" ? "Lukning" : "Besked"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-ink/55">
+                      {facilitator?.company_name || messageProfile?.full_name || "Arrangør"} {facilitator?.host_reference_id ? "· " + facilitator.host_reference_id : ""}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-ink/55">
+                      Modtaget {formatDateTime(item.created_at)}
+                    </p>
+                    <p className="mt-2 leading-6 text-ink/68">{item.message}</p>
+                    <form action={replyToFacilitatorAdminMessageAction} className="mt-4 rounded-[18px] border border-[#E5D4F7] bg-white p-3">
+                      <input name="message_id" type="hidden" value={item.id} />
+                      <input name="facilitator_id" type="hidden" value={item.facilitator_id ?? ""} />
+                      <input name="subject" type="hidden" value={item.subject ?? "Besked fra arrangør"} />
+                      <label className="grid gap-2 text-xs font-semibold text-ink/68">
+                        Svar til arrangøren
+                        <textarea
+                          className="min-h-24 rounded-md border border-midnight/10 bg-[#FAF7F2] p-3 text-sm font-normal leading-6 text-ink outline-none transition focus:border-[#7A4EAB]"
+                          maxLength={500}
+                          name="message"
+                          placeholder="Skriv et kort svar. Arrangøren ser det på sit dashboard."
+                          required
+                        />
+                      </label>
+                      <div className="mt-3 flex justify-end">
+                        <button className="inline-flex h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#62408D]" type="submit">
+                          Send svar
+                        </button>
+                      </div>
+                    </form>
+                    <form action={archiveFacilitatorAdminMessageAction} className="mt-3 flex justify-end">
+                      <input name="message_id" type="hidden" value={item.id} />
+                      <button className="inline-flex h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-4 text-sm font-semibold text-ink/65 transition hover:border-terracotta hover:text-terracotta" type="submit">
+                        Arkivér besked
+                      </button>
+                    </form>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <section id="admin-new-facilitators" className="scroll-mt-24 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+            <h2 className="font-semibold text-midnight">Nye arrangører</h2>
+            <div className="mt-4 grid gap-3">
+              {(recentFacilitators ?? []).map((facilitator: any) => {
+                const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
+                return (
+                  <div className="rounded-md bg-sage-50 p-3" key={facilitator.id}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-midnight">{facilitator.company_name || profile?.full_name || "Uden navn"}</p>
+                      {facilitator.host_reference_id && (
+                        <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-sage-700">
+                          {facilitator.host_reference_id}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-ink/64">
+                      {new Intl.DateTimeFormat("da-DK").format(new Date(facilitator.created_at))} · {facilitator.status}
+                    </p>
+                    {facilitator.status === "pending" && (
+                      <Link className="mt-2 inline-flex text-sm font-semibold text-sage-700" href="#admin-facilitators">
+                        Godkend
+                      </Link>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section id="admin-new-events" className="scroll-mt-24 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+            <h2 className="font-semibold text-midnight">Nye events</h2>
+            <div className="mt-4 grid gap-3">
+              {(recentEvents ?? []).map((event: any) => {
+                const facilitator = Array.isArray(event.facilitator_profiles) ? event.facilitator_profiles[0] : event.facilitator_profiles;
+                const eventProfile = Array.isArray(facilitator?.profiles) ? facilitator.profiles[0] : facilitator?.profiles;
+                return (
+                  <div className="rounded-md bg-sage-50 p-3" key={event.id}>
+                    <p className="font-semibold text-midnight">{event.title}</p>
+                    <p className="mt-1 text-xs text-ink/64">
+                      {facilitator?.company_name || eventProfile?.full_name || "Arrangør"} · {event.status}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-ink/55">
+                      Oprettet {formatDateTime(event.created_at)} · Senest ændret {formatDateTime(event.updated_at)}
+                    </p>
+                    <Link className="mt-2 inline-flex text-sm font-semibold text-sage-700" href={"/events/" + event.id + "?admin_return=/admin%23admin-new-events"}>
+                      Åbn event
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+            <h2 className="font-semibold text-midnight">Seneste tilmeldinger</h2>
+            <div className="mt-4 grid gap-3">
+              {(latestBookings ?? []).map((booking: any) => {
+                const event = Array.isArray(booking.events) ? booking.events[0] : booking.events;
+                return (
+                  <div className="rounded-md bg-sage-50 p-3" key={booking.id}>
+                    <p className="font-semibold text-midnight">{booking.participant_name}</p>
+                    <p className="mt-1 text-xs text-ink/64">
+                      {event?.title || "Event"} · {new Intl.DateTimeFormat("da-DK").format(new Date(booking.created_at))}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+
+        <section id="admin-permissions" className="mb-6 scroll-mt-24 rounded-md border border-[#D8CBE4] bg-[#F7F2FA] p-5 shadow-soft">
+          <h2 className="font-semibold text-midnight">Særlige tilladelser</h2>
+          <p className="mt-1 text-sm leading-6 text-ink/64">
+            Auto-godkendelse og badges fjernes ved at åbne arrangørens redigering og fjerne markeringen under &quot;Status og synlighed&quot;.
+          </p>
+        </section>
+
+        <div id="admin-facilitators" className="scroll-mt-24">
+          <FacilitatorApprovalTable facilitators={visibleFacilitators as never} />
+        </div>
       </section>
     </main>
   );

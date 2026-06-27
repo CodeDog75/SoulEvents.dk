@@ -17,6 +17,75 @@ function adminFacilitatorEditRedirect(facilitatorId: string, message: string): n
   redirect(`/admin/facilitators/${facilitatorId}/edit?message=${encodeURIComponent(message)}`);
 }
 
+export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
+  await requireRole("admin");
+
+  const originalMessageId = getString(formData, "message_id");
+  const facilitatorId = getString(formData, "facilitator_id");
+  const subject = getString(formData, "subject") || "Svar fra SoulEvents administration";
+  const message = getString(formData, "message");
+
+  if (!originalMessageId || !facilitatorId || !message || message.length > 500) {
+    adminRedirect("Skriv et svar på højst 500 tegn.");
+  }
+
+  const supabase = createAdminClient();
+  const { data: facilitator } = await supabase
+    .from("facilitator_profiles")
+    .select("id, profile_id")
+    .eq("id", facilitatorId)
+    .single();
+
+  if (!facilitator?.profile_id) {
+    adminRedirect("Arrangøren kunne ikke findes.");
+  }
+
+  const { error } = await supabase.from("facilitator_admin_messages").insert({
+    facilitator_id: facilitator.id,
+    profile_id: facilitator.profile_id,
+    type: "admin_reply",
+    status: "unread",
+    subject: subject.startsWith("Re:") ? subject : "Re: " + subject,
+    message,
+    facilitator_read_at: null,
+  });
+
+  if (error) {
+    adminRedirect("Svaret kunne ikke sendes. Kør eventuelt den nyeste Supabase-migration og prøv igen.");
+  }
+
+  await supabase
+    .from("facilitator_admin_messages")
+    .update({ status: "handled", read_at: new Date().toISOString() })
+    .eq("id", originalMessageId);
+
+  revalidatePath("/admin");
+  revalidatePath("/facilitator");
+  redirect("/admin?message=" + encodeURIComponent("Svaret er sendt til arrangøren.") + "#admin-messages");
+}
+
+export async function archiveFacilitatorAdminMessageAction(formData: FormData) {
+  await requireRole("admin");
+
+  const messageId = getString(formData, "message_id");
+
+  if (!messageId) {
+    adminRedirect("Beskeden kunne ikke arkiveres.");
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("facilitator_admin_messages")
+    .update({ status: "handled", read_at: new Date().toISOString() })
+    .eq("id", messageId);
+
+  if (error) {
+    adminRedirect("Beskeden kunne ikke arkiveres.");
+  }
+
+  revalidatePath("/admin");
+  redirect("/admin?message=" + encodeURIComponent("Beskeden er arkiveret.") + "#admin-messages");
+}
 
 export async function updateFacilitatorStatusAction(formData: FormData) {
   await requireRole("admin");

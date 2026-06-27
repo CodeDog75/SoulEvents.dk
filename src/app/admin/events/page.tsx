@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { ArrowLeft, Archive, Check, Clock3, Eye, Search, Slash } from "lucide-react";
 import { updateAdminEventStatusAction } from "@/app/admin/events/actions";
@@ -53,6 +54,14 @@ function formatDateTime(value: string | null | undefined) {
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+function eventStatusHref(status: "all" | EventStatus, queryText: string) {
+  const params = new URLSearchParams();
+  if (status !== "pending_review") params.set("status", status);
+  if (queryText.trim()) params.set("q", queryText.trim());
+  const queryString = params.toString();
+  return "/admin/events" + (queryString ? "?" + queryString : "");
+}
+
 function EventStatusButton({ eventId, status, children }: { eventId: string; status: EventStatus; children: React.ReactNode }) {
   return (
     <form action={updateAdminEventStatusAction}>
@@ -78,7 +87,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
     .from("events")
     .select("id, title, status, starts_at, created_at, updated_at, city, event_format, facilitator_profiles(company_name, profiles(full_name, email)), regions(name), event_categories(categories(name))")
     .order("created_at", { ascending: false })
-    .limit(80);
+    .limit(queryText ? 300 : 80);
 
   if (selectedStatus !== "all") {
     query = query.eq("status", selectedStatus);
@@ -139,7 +148,6 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
           <div className="flex flex-wrap gap-2">
             {statuses.map((item) => {
               const active = item.value === selectedStatus;
-              const href = item.value === "pending_review" ? "/admin/events" : "/admin/events?status=" + item.value;
               return (
                 <Link
                   className={
@@ -147,7 +155,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                       ? "rounded-md bg-midnight px-3 py-2 text-sm font-semibold text-white"
                       : "rounded-md border border-midnight/10 bg-white px-3 py-2 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta"
                   }
-                  href={href}
+                  href={eventStatusHref(item.value, q ?? "")}
                   key={item.value}
                 >
                   {item.label}
@@ -209,7 +217,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                     </div>
 
                     <div className="flex flex-wrap content-start gap-2 lg:justify-end">
-                      <Link className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta" href={"/events/" + event.id}>
+                      <Link className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta" href={"/events/" + event.id + "?admin_return=/admin/events"}>
                         <Eye className="size-4" aria-hidden="true" />
                         Vis
                       </Link>

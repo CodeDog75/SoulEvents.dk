@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Banknote, CalendarDays, ReceiptText, Ticket, UsersRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, Ticket, UsersRound } from "lucide-react";
 import { AdminBookingFilters } from "@/components/admin/bookings/admin-booking-filters";
 import { AdminBookingTable } from "@/components/admin/bookings/admin-booking-table";
 import { requireRole } from "@/lib/auth/roles";
@@ -16,10 +16,6 @@ type AdminBookingsPageProps = {
     to?: string;
   }>;
 };
-
-function formatMoney(cents: number) {
-  return `${new Intl.NumberFormat("da-DK").format(cents / 100)} kr.`;
-}
 
 function validDate(value?: string) {
   if (!value) return "";
@@ -46,7 +42,7 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
   let query = supabase
     .from("bookings")
     .select(
-      "id, status, participant_name, participant_email, seats, event_title_snapshot, event_starts_at_snapshot, facilitator_name_snapshot, primary_category_snapshot, booking_value_cents, commission_cents, created_at",
+      "id, status, participant_name, participant_email, seats, event_title_snapshot, event_starts_at_snapshot, facilitator_name_snapshot, primary_category_snapshot, created_at",
     )
     .order("created_at", { ascending: false });
 
@@ -69,21 +65,16 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
   const { data: bookings } = await query;
   const rows = (bookings ?? []) as Array<{
     seats: number;
-    booking_value_cents: number;
-    commission_cents: number;
     status: BookingStatus;
   }>;
   const totalBookings = rows.length;
   const totalSeats = rows.reduce((sum, booking) => sum + booking.seats, 0);
-  const totalBookingValue = rows.reduce((sum, booking) => sum + booking.booking_value_cents, 0);
-  const totalCommission = rows.reduce((sum, booking) => sum + booking.commission_cents, 0);
   const confirmedCount = rows.filter((booking) => booking.status === "confirmed").length;
 
   const stats = [
     { label: "Tilmeldinger", value: totalBookings, icon: UsersRound },
     { label: "Pladser", value: totalSeats, icon: Ticket },
-    { label: "Bookingværdi", value: formatMoney(totalBookingValue), icon: Banknote },
-    { label: "Kommission", value: formatMoney(totalCommission), icon: ReceiptText },
+    { label: "Bekræftede", value: confirmedCount, icon: CheckCircle2 },
   ];
 
   return (
@@ -110,12 +101,16 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
       </header>
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-3">
           {stats.map((stat) => (
-            <article className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft" key={stat.label}>
-              <stat.icon className="size-5 text-terracotta" aria-hidden="true" />
-              <p className="mt-4 text-2xl font-semibold text-midnight">{stat.value}</p>
-              <p className="mt-1 text-sm text-ink/64">{stat.label}</p>
+            <article className="flex items-center gap-3 rounded-md border border-midnight/10 bg-white p-4 shadow-soft" key={stat.label}>
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-sage-50 text-sage-700">
+                <stat.icon className="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-2xl font-semibold text-midnight">{stat.value}</p>
+                <p className="text-sm text-ink/64">{stat.label}</p>
+              </div>
             </article>
           ))}
         </div>

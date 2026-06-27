@@ -10,8 +10,6 @@ type BookingRow = {
   event_starts_at_snapshot: string;
   facilitator_name_snapshot: string;
   primary_category_snapshot: string | null;
-  booking_value_cents: number;
-  commission_cents: number;
   created_at: string;
 };
 
@@ -29,10 +27,6 @@ const statusLabels: Record<BookingStatus, string> = {
   paid: "Betalt",
 };
 
-function formatMoney(cents: number) {
-  return `${new Intl.NumberFormat("da-DK").format(cents / 100)} kr.`;
-}
-
 export function AdminBookingTable({ bookings }: AdminBookingTableProps) {
   if (bookings.length === 0) {
     return (
@@ -47,11 +41,11 @@ export function AdminBookingTable({ bookings }: AdminBookingTableProps) {
     <section className="overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
       <div className="border-b border-midnight/10 px-5 py-4">
         <h2 className="text-lg font-semibold text-midnight">Tilmeldinger</h2>
-        <p className="mt-1 text-sm text-ink/64">Seneste tilmeldinger med økonomi og kommission.</p>
+        <p className="mt-1 text-sm text-ink/64">Seneste tilmeldinger med deltager, arrangør og status.</p>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-[1040px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[820px] w-full border-collapse text-left text-sm">
           <thead className="bg-sage-50 text-xs uppercase tracking-wide text-ink/60">
             <tr>
               <th className="px-4 py-3">Event</th>
@@ -59,8 +53,6 @@ export function AdminBookingTable({ bookings }: AdminBookingTableProps) {
               <th className="px-4 py-3">Deltager</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3 text-right">Pladser</th>
-              <th className="px-4 py-3 text-right">Bookingværdi</th>
-              <th className="px-4 py-3 text-right">Kommission</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-midnight/10">
@@ -88,12 +80,6 @@ export function AdminBookingTable({ bookings }: AdminBookingTableProps) {
                   </span>
                 </td>
                 <td className="px-4 py-4 text-right align-top text-ink/72">{booking.seats}</td>
-                <td className="px-4 py-4 text-right align-top font-semibold text-midnight">
-                  {formatMoney(booking.booking_value_cents)}
-                </td>
-                <td className="px-4 py-4 text-right align-top font-semibold text-terracotta">
-                  {formatMoney(booking.commission_cents)}
-                </td>
               </tr>
             ))}
           </tbody>

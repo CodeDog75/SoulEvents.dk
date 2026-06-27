@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, ExternalLink, Pencil, Slash, UserRoundCheck } from "lucide-react";
+import { Check, ExternalLink, Eye, Pencil, Slash, UserRoundCheck } from "lucide-react";
 import { updateFacilitatorStatusAction } from "@/app/admin/facilitators/actions";
 import type { FacilitatorStatus } from "@/types/database";
 
@@ -170,6 +170,13 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
                   <Pencil className="size-4" aria-hidden="true" />
                   Rediger
                 </Link>
+                <Link
+                  className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
+                  href={"/facilitators/" + facilitator.id + "?admin_return=/admin%23admin-facilitators"}
+                >
+                  <Eye className="size-4" aria-hidden="true" />
+                  Se profil
+                </Link>
                 {facilitator.status !== "approved" && (
                   <StatusButton facilitatorId={facilitator.id} status="approved">
                     <Check className="size-4" aria-hidden="true" />
@@ -179,7 +186,7 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
                 {facilitator.status !== "disabled" && (
                   <StatusButton facilitatorId={facilitator.id} status="disabled">
                     <Slash className="size-4" aria-hidden="true" />
-                    Deaktiver
+                    {facilitator.status === "pending" ? "Afvis" : "Deaktiver"}
                   </StatusButton>
                 )}
               </div>

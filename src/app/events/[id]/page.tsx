@@ -6,6 +6,9 @@ import { BrandLogo } from "@/components/brand-logo";
 import { OrganizerBadges } from "@/components/badges/organizer-badges";
 import { BookingForm } from "@/components/events/detail/booking-form";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
+import { getCurrentProfile } from "@/lib/auth/roles";
+import { getAvailableEventSeats } from "@/lib/events/capacity";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +17,7 @@ type EventDetailPageProps = {
   params: Promise<{
     id: string;
   }>;
-  searchParams: Promise<{ booking?: string; message?: string }>;
+  searchParams: Promise<{ admin_return?: string; booking?: string; message?: string }>;
 };
 
 function formatEventFormat(format?: string | null) {
@@ -61,9 +64,10 @@ function startOfToday() {
 }
 
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
-  const [{ id }, { booking, message }] = await Promise.all([params, searchParams]);
+  const [{ id }, { admin_return: adminReturn, booking, message }] = await Promise.all([params, searchParams]);
   const messageVariant = booking === "sent" ? "success" : "notice";
   const supabase = await createClient();
+  const viewer = await getCurrentProfile();
 
   const { data: event } = await supabase
     .from("events")
@@ -93,6 +97,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       instagram_url,
       facilitator_profiles!inner(
         id,
+        profile_id,
         status,
         company_name,
         profile_image_path,
@@ -110,19 +115,23 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     `,
     )
     .eq("id", id)
-    .eq("status", "active")
-    .eq("facilitator_profiles.status", "approved")
-    .single();
+    .maybeSingle();
 
   if (!event) {
     notFound();
   }
 
-  const { data: capacity } = await supabase.from("event_capacity_view").select("available_seats").eq("event_id", id).single();
-  const availableSeats = capacity?.available_seats ?? event.capacity;
+  const availableSeats = await getAvailableEventSeats(createAdminClient(), id, event.capacity);
   const facilitatorProfile = Array.isArray(event.facilitator_profiles)
     ? event.facilitator_profiles[0]
     : event.facilitator_profiles;
+  const isPublicEvent = event.status === "active" && facilitatorProfile?.status === "approved";
+  const canPreviewEvent = viewer?.role === "admin" || viewer?.id === facilitatorProfile?.profile_id;
+
+  if (!isPublicEvent && !canPreviewEvent) {
+    notFound();
+  }
+
   const facilitatorUser = Array.isArray(facilitatorProfile?.profiles)
     ? facilitatorProfile?.profiles[0]
     : facilitatorProfile?.profiles;
@@ -135,7 +144,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
   );
   const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør";
-  const isBookable = event.status === "active" && facilitatorProfile?.status === "approved";
+  const isBookable = isPublicEvent;
   const facilitatorImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
@@ -162,18 +171,39 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             <h1 className="text-3xl font-medium text-olive">{event.title}</h1>
             </div>
           </div>
-          <Link
-            className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
-            href="/"
-          >
-            <ArrowLeft className="size-4" aria-hidden="true" />
-            Forsiden
-          </Link>
+          <div className="flex flex-wrap justify-end gap-2">
+            {viewer?.role === "admin" && adminReturn ? (
+              <Link
+                className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
+                href={adminReturn}
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+                Tilbage til admin
+              </Link>
+            ) : null}
+            <Link
+              className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
+              href="/"
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+              Forsiden
+            </Link>
+          </div>
         </div>
       </header>
 
       <section className="mx-auto grid max-w-[1400px] gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1fr_400px]">
         <div className="grid gap-6">
+          {!isPublicEvent && (
+            <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-5 shadow-soft">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Forhåndsvisning</p>
+              <h2 className="mt-1 text-2xl font-semibold text-midnight">Dette event er endnu ikke offentligt</h2>
+              <p className="mt-2 text-sm leading-6 text-ink/70">
+                Du ser eventet som {viewer?.role === "admin" ? "administrator" : "arrangør"}. Deltagere kan først se og tilmelde sig eventet, når det er godkendt og publiceret.
+              </p>
+            </section>
+          )}
+
           <section className="overflow-hidden rounded-card bg-white shadow-soft">
             <div className="aspect-[16/7] bg-sage-50 p-10">
               <div className="flex h-full items-center justify-center rounded-card bg-cream/80">
