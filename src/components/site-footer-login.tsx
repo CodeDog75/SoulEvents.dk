@@ -12,16 +12,16 @@ export function SiteFooterLogin() {
             SoulEvents.dk - Find spirituelle events nær dig.
           </p>
           <div className="mt-5 flex flex-wrap gap-4 text-sm font-semibold text-olive">
-            <Link className="transition hover:text-rose" href="/">
+            <Link className="transition hover:text-rose" href="/about">
               Om SoulEvents
             </Link>
             <Link className="transition hover:text-rose" href="/auth/signup">
-              For Arrangører
+              Opret gratis arrangørprofil
             </Link>
-            <Link className="transition hover:text-rose" href="/events">
+            <Link className="transition hover:text-rose" href="/contact">
               Kontakt
             </Link>
-            <Link className="transition hover:text-rose" href="/events">
+            <Link className="transition hover:text-rose" href="/legal/privatlivspolitik">
               Privatlivspolitik
             </Link>
           </div>

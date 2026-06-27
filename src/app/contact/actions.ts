@@ -6,24 +6,47 @@ import { escapeHtml, sendLoggedEmail } from "@/lib/email/resend-mail";
 
 const CONTACT_EMAIL = "kontakt@soulevents.dk";
 
+export type ContactFormState = {
+  status: "idle" | "success" | "error";
+  message: string;
+};
+
 function getValue(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
 }
 
-export async function sendContactMessageAction(formData: FormData) {
+function readContactForm(formData: FormData) {
   const name = getValue(formData, "name");
   const email = getValue(formData, "email");
   const phone = getValue(formData, "phone");
   const message = getValue(formData, "message");
 
+  return { email, message, name, phone };
+}
+
+function validateContactForm(formData: FormData): ContactFormState | null {
+  const { email, message, name } = readContactForm(formData);
+
   if (!name || !email || !message || message.length > 500 || !email.includes("@")) {
-    redirect("/?contact=error#contact");
+    return {
+      status: "error",
+      message: "Udfyld navn, e-mail og besked. Beskeden må højst være 500 tegn.",
+    };
   }
 
   if (!env.resendApiKey || !env.resendFromEmail) {
-    redirect("/?contact=email-missing#contact");
+    return {
+      status: "error",
+      message: "Mailafsendelse mangler opsætning. Tilføj RESEND_API_KEY og RESEND_FROM_EMAIL i .env.local.",
+    };
   }
+
+  return null;
+}
+
+async function sendContactMessage(formData: FormData) {
+  const { email, message, name, phone } = readContactForm(formData);
 
   const safeName = escapeHtml(name);
   const safeEmail = escapeHtml(email);
@@ -52,6 +75,34 @@ Telefon: ${phone || "Ikke oplyst"}
 Besked:
 ${message}`,
   });
+}
 
-  redirect("/?contact=sent#contact");
+export async function sendContactMessageStateAction(
+  _previousState: ContactFormState,
+  formData: FormData,
+): Promise<ContactFormState> {
+  const validationError = validateContactForm(formData);
+
+  if (validationError) {
+    return validationError;
+  }
+
+  await sendContactMessage(formData);
+
+  return {
+    status: "success",
+    message: "Tak for din besked. Vi vender tilbage hurtigst muligt.",
+  };
+}
+
+export async function sendContactMessageAction(formData: FormData) {
+  const validationError = validateContactForm(formData);
+
+  if (validationError) {
+    redirect("/contact?status=error");
+  }
+
+  await sendContactMessage(formData);
+
+  redirect("/contact?status=sent");
 }

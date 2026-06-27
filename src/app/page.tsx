@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   CalendarDays,
   Flame,
   Heart,
-  MapPinned,
+  Mail,
   Moon,
   Music2,
   ShieldCheck,
@@ -14,7 +15,6 @@ import {
   Wind,
 } from "lucide-react";
 import Link from "next/link";
-import { sendContactMessageAction } from "@/app/contact/actions";
 import { PartnerAdCarousel } from "@/components/ads/partner-ad-carousel";
 import { BrandLogo } from "@/components/brand-logo";
 import { EventMap } from "@/components/events/event-map";
@@ -61,7 +61,6 @@ type LocalServiceProvider = {
 
 type HomeProps = {
   searchParams?: Promise<{
-    contact?: string;
     q?: string;
     area?: string;
     category_label?: string;
@@ -903,7 +902,6 @@ async function getHomepageAds() {
 
 export default async function Home({ searchParams }: HomeProps) {
   const params = searchParams ? await searchParams : {};
-  const contactStatus = params.contact ?? "";
   const homeTiles = await getHomeTiles();
   const homepageAds = await getHomepageAds();
   const discoveryTiles = [
@@ -1073,14 +1071,14 @@ export default async function Home({ searchParams }: HomeProps) {
         <header className="relative z-10">
           <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-6 sm:px-8 sm:py-8">
             <Link aria-label="SoulEvents.dk forside" href="/">
-              <BrandLogo className="h-32 w-32 sm:h-52 sm:w-52" priority />
+              <BrandLogo className="h-24 w-24 sm:h-44 sm:w-44 lg:h-52 lg:w-52" priority />
             </Link>
 
             <Link
               className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#D8A7B1] px-4 text-sm font-semibold text-[#2F2633] shadow-soft transition hover:bg-[#C9939F] md:hidden"
-              href="/auth/signup"
+              href="#find-events"
             >
-              Opret gratis event
+              Find events
             </Link>
 
             <nav className="hidden items-center gap-9 text-[15px] font-semibold tracking-[0.01em] text-[#2F2633] md:flex">
@@ -1090,20 +1088,20 @@ export default async function Home({ searchParams }: HomeProps) {
               <a className="transition hover:text-[#7A4EAB]" href="#map">
                 Kort
               </a>
-              <a className="transition hover:text-[#7A4EAB]" href="/facilitators">
+              <Link className="transition hover:text-[#7A4EAB]" href="/facilitators">
                 Arrangører
-              </a>
-              <a className="transition hover:text-[#7A4EAB]" href="/inspiration">
+              </Link>
+              <Link className="transition hover:text-[#7A4EAB]" href="/inspiration">
                 Inspiration
-              </a>
+              </Link>
               <a className="transition hover:text-[#7A4EAB]" href="#categories">
                 Kategorier
               </a>
               <Link
                 className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#D8A7B1] px-5 text-sm font-semibold text-[#2F2633] shadow-soft transition hover:-translate-y-0.5 hover:bg-[#C9939F]"
-                href="/auth/signup"
+                href="#find-events"
               >
-                Opret gratis event
+                Find events
               </Link>
               <Link className="transition hover:text-[#7A4EAB]" href="/auth/login">
                 Login
@@ -1119,7 +1117,7 @@ export default async function Home({ searchParams }: HomeProps) {
               SoulEvents.dk
             </p>
             <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-tight text-[#2F2633] sm:mt-8 sm:text-7xl sm:leading-[0.95] lg:text-8xl">
-              Find ro, balance og nærvær
+              Find events for krop, sind og sjæl
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#2F2633]/76 sm:mt-6 sm:text-xl sm:leading-8">
               SoulEvents samler mennesker, arrangører og fællesskaber fra hele Danmark. Her kan du opdage spirituelle aktiviteter og fællesskaber, der skaber ro, nærvær, personlig udvikling og meningsfulde møder med andre.
@@ -1274,83 +1272,24 @@ export default async function Home({ searchParams }: HomeProps) {
         </section>
       )}
 
-      <section className="bg-[#FAF6EF] py-16 sm:py-20" id="contact">
-        <div className="mx-auto grid max-w-[1200px] gap-10 px-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Kontakt</p>
-            <h2 className="mt-3 text-5xl font-medium leading-tight text-[#2F2633]">Skriv til SoulEvents.dk</h2>
-            <p className="mt-4 max-w-xl text-base leading-7 text-ink/70">
-              Har du spørgsmål, ideer eller brug for hjælp, kan du sende en besked direkte til os.
-            </p>
-          </div>
-
-          <form action={sendContactMessageAction} className="grid gap-4 rounded-card bg-[#FAF6EF] p-6 shadow-soft">
-            {contactStatus === "sent" && (
-              <p className="rounded-input bg-white px-4 py-3 text-sm font-semibold text-[#2F2633]">
-                Tak for din besked, vi kommer retur hurtigst muligt.
+      <section className="bg-[#FAF6EF] py-14 sm:py-18" id="contact">
+        <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
+          <div className="rounded-[28px] bg-white p-6 shadow-soft sm:p-8 md:flex md:items-center md:justify-between md:gap-8">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Kontakt</p>
+              <h2 className="mt-3 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Skriv til SoulEvents.dk</h2>
+              <p className="mt-4 max-w-xl text-base leading-7 text-ink/70">
+                Har du spørgsmål, ideer eller brug for hjælp, kan du sende en besked direkte til os.
               </p>
-            )}
-            {contactStatus === "error" && (
-              <p className="rounded-input bg-white px-4 py-3 text-sm font-semibold text-terracotta">
-                Udfyld navn, e-mail og besked. Beskeden må højst være 500 tegn.
-              </p>
-            )}
-            {contactStatus === "email-missing" && (
-              <p className="rounded-input bg-white px-4 py-3 text-sm font-semibold text-terracotta">
-                Mailafsendelse mangler opsætning. Tilføj RESEND_API_KEY og RESEND_FROM_EMAIL i .env.local.
-              </p>
-            )}
-
-            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
-              Navn
-              <input
-                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
-                maxLength={120}
-                name="name"
-                required
-                type="text"
-              />
-            </label>
-
-            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
-              E-mail
-              <input
-                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
-                maxLength={160}
-                name="email"
-                required
-                type="email"
-              />
-            </label>
-
-            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
-              Telefon
-              <input
-                className="h-12 rounded-input border border-olive/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
-                maxLength={40}
-                name="phone"
-                type="tel"
-              />
-            </label>
-
-            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
-              Besked
-              <textarea
-                className="min-h-40 rounded-input border border-olive/15 bg-white px-4 py-3 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
-                maxLength={500}
-                name="message"
-                required
-              />
-              <span className="text-xs font-medium text-ink/60">Maks 500 tegn.</span>
-            </label>
-
-            <button
-              className="inline-flex h-12 items-center justify-center rounded-button bg-[#7A4EAB] px-6 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
-              type="submit"
+            </div>
+            <Link
+              className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift md:mt-0 md:w-auto"
+              href="/contact"
             >
-              Afsend
-            </button>
-          </form>
+              <Mail className="size-4" aria-hidden="true" />
+              Åbn kontaktformular
+            </Link>
+          </div>
         </div>
       </section>
 
