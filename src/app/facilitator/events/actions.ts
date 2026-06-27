@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
+import {
+  formatEventUpdateDate,
+  formatEventUpdateMoney,
+  sendEventUpdateNotifications,
+} from "@/lib/email/event-update-notification";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
@@ -17,6 +22,20 @@ const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 
 const facilitatorProfileEventSelect = "id, status, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, facilitator_categories(category_id), profiles(email, phone)";
 type AdminClient = ReturnType<typeof createAdminClient>;
+type EventUpdateSnapshot = {
+  address_line: string | null;
+  city: string | null;
+  country?: string | null;
+  ends_at: string;
+  event_format?: string | null;
+  online_description?: string | null;
+  online_url_or_note?: string | null;
+  postal_code: string | null;
+  price_cents: number;
+  starts_at: string;
+  status: EventStatus;
+  title: string;
+};
 
 async function getAutoApproveEvents(supabase: AdminClient, facilitatorId: string) {
   const { data, error } = await supabase
@@ -66,6 +85,80 @@ function isValidUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+function formatLocation(input: {
+  addressLine: string | null;
+  city: string | null;
+  country?: string | null;
+  postalCode: string | null;
+}) {
+  const cityLine = [input.postalCode, input.city].filter(Boolean).join(" ");
+  return [input.addressLine, cityLine, input.country].filter(Boolean).join(", ") || "Ikke angivet";
+}
+
+function formatOnlineAccess(input: {
+  eventFormat?: string | null;
+  onlineDescription?: string | null;
+  onlineUrlOrNote?: string | null;
+}) {
+  if (input.eventFormat !== "online") {
+    return "Fysisk event";
+  }
+
+  return [input.onlineUrlOrNote, input.onlineDescription].filter(Boolean).join(" - ") || "Online-adgang sendes senere";
+}
+
+function addEventUpdateField(
+  fields: Array<{ label: string; nextValue: string; previousValue: string }>,
+  label: string,
+  previousValue: string,
+  nextValue: string,
+) {
+  if (previousValue !== nextValue) {
+    fields.push({ label, previousValue, nextValue });
+  }
+}
+
+function getEventUpdateFields(previousEvent: EventUpdateSnapshot, nextEvent: EventUpdateSnapshot) {
+  const fields: Array<{ label: string; nextValue: string; previousValue: string }> = [];
+
+  addEventUpdateField(fields, "Titel", previousEvent.title, nextEvent.title);
+  addEventUpdateField(fields, "Starttidspunkt", formatEventUpdateDate(previousEvent.starts_at), formatEventUpdateDate(nextEvent.starts_at));
+  addEventUpdateField(fields, "Sluttidspunkt", formatEventUpdateDate(previousEvent.ends_at), formatEventUpdateDate(nextEvent.ends_at));
+  addEventUpdateField(fields, "Pris", formatEventUpdateMoney(previousEvent.price_cents), formatEventUpdateMoney(nextEvent.price_cents));
+  addEventUpdateField(
+    fields,
+    "Sted",
+    formatLocation({
+      addressLine: previousEvent.address_line,
+      city: previousEvent.city,
+      country: previousEvent.country,
+      postalCode: previousEvent.postal_code,
+    }),
+    formatLocation({
+      addressLine: nextEvent.address_line,
+      city: nextEvent.city,
+      country: nextEvent.country,
+      postalCode: nextEvent.postal_code,
+    }),
+  );
+  addEventUpdateField(
+    fields,
+    "Online-adgang",
+    formatOnlineAccess({
+      eventFormat: previousEvent.event_format,
+      onlineDescription: previousEvent.online_description,
+      onlineUrlOrNote: previousEvent.online_url_or_note,
+    }),
+    formatOnlineAccess({
+      eventFormat: nextEvent.event_format,
+      onlineDescription: nextEvent.online_description,
+      onlineUrlOrNote: nextEvent.online_url_or_note,
+    }),
+  );
+
+  return fields;
 }
 
 async function uploadEventCoverImage(formData: FormData, currentImagePath: string | null) {
@@ -253,11 +346,12 @@ export async function createEventAction(formData: FormData) {
   }
 
   let existingEventStatus: EventStatus | null = null;
+  let previousEventSnapshot: EventUpdateSnapshot | null = null;
 
   if (existingEventId) {
     const { data: existingEvent } = await supabase
       .from("events")
-      .select("id, status")
+      .select("id, status, title, starts_at, ends_at, address_line, postal_code, city, country, price_cents, event_format, online_description, online_url_or_note")
       .eq("id", existingEventId)
       .eq("facilitator_id", facilitatorProfile.id)
       .maybeSingle();
@@ -267,6 +361,7 @@ export async function createEventAction(formData: FormData) {
     }
 
     existingEventStatus = existingEvent.status as EventStatus;
+    previousEventSnapshot = existingEvent as EventUpdateSnapshot;
   }
 
   const autoApproveEvents = await getAutoApproveEvents(supabase, facilitatorProfile.id);
@@ -465,6 +560,20 @@ export async function createEventAction(formData: FormData) {
       : await geocodeDanishAddress({ addressLine, postalCode, city });
 
   if (existingEventId) {
+    const nextEventSnapshot: EventUpdateSnapshot = {
+      address_line: addressLine,
+      city,
+      country,
+      ends_at: endsAt,
+      event_format: eventFormat,
+      online_description: onlineDescription,
+      online_url_or_note: onlineUrlOrNote,
+      postal_code: postalCode,
+      price_cents: priceCents,
+      starts_at: startsAt,
+      status,
+      title,
+    };
     const { error: updateError } = await supabase
       .from("events")
       .update({
@@ -509,6 +618,41 @@ export async function createEventAction(formData: FormData) {
       subcategoryIds,
       tagIds,
     });
+
+    if (previousEventSnapshot && shouldPreservePublishedStatus) {
+      const changedFields = getEventUpdateFields(previousEventSnapshot, nextEventSnapshot);
+
+      if (changedFields.length > 0) {
+        if (previousEventSnapshot.title !== title || previousEventSnapshot.starts_at !== startsAt) {
+          await supabase
+            .from("bookings")
+            .update({
+              event_starts_at_snapshot: startsAt,
+              event_title_snapshot: title,
+            })
+            .eq("event_id", existingEventId)
+            .in("status", ["pending", "confirmed"]);
+        }
+
+        const { data: participants } = await supabase
+          .from("bookings")
+          .select("id, participant_email, participant_name")
+          .eq("event_id", existingEventId)
+          .in("status", ["pending", "confirmed"]);
+
+        await sendEventUpdateNotifications({
+          eventId: existingEventId,
+          eventTitle: title,
+          facilitatorName: contactName || "Arrangør",
+          fields: changedFields,
+          recipients: (participants ?? []).map((participant) => ({
+            bookingId: participant.id,
+            email: participant.participant_email,
+            name: participant.participant_name,
+          })),
+        });
+      }
+    }
 
     revalidatePath("/facilitator");
     revalidatePath("/facilitator/events");

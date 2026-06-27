@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendBookingNotification } from "@/lib/email/booking-notification";
 import { sendParticipantBookingReceipt } from "@/lib/email/participant-booking-receipt";
+import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -28,7 +29,7 @@ function validEmail(value: string) {
 
 function validOptionalPhone(value: string | null) {
   if (!value) return true;
-  return value.replace(/\D/g, "").length === 8;
+  return /^[\d\s]+$/.test(value) && value.replace(/\D/g, "").length === 8;
 }
 
 const eventSelect = [
@@ -45,6 +46,31 @@ const eventSelect = [
   "),",
   "event_categories(categories(name))",
 ].join("\n");
+
+type BookingEventResult = {
+  capacity: number;
+  event_categories?: Array<{ categories?: { name: string } | { name: string }[] | null }> | null;
+  facilitator_id: string;
+  facilitator_profiles:
+    | {
+        company_name: string | null;
+        profiles?: { email: string | null; full_name: string | null } | { email: string | null; full_name: string | null }[] | null;
+      }
+    | Array<{
+        company_name: string | null;
+        profiles?: { email: string | null; full_name: string | null } | { email: string | null; full_name: string | null }[] | null;
+      }>;
+  id: string;
+  price_cents: number;
+  starts_at: string;
+  title: string;
+};
+
+type CreatedBookingResult = {
+  booking_value_cents: number;
+  commission_cents: number;
+  id: string;
+};
 
 export async function createBookingAction(formData: FormData) {
   const eventId = getString(formData, "event_id");
@@ -96,19 +122,14 @@ export async function createBookingAction(formData: FormData) {
     .eq("facilitator_profiles.status", "approved")
     .single();
 
-  const event = eventResult as any;
+  const event = eventResult as BookingEventResult | null;
 
   if (!event) {
     bookingRedirect(eventId, "Eventet kunne ikke findes eller er ikke aktivt.");
   }
 
-  const { data: capacityResult } = await supabase
-    .from("event_capacity_view")
-    .select("available_seats")
-    .eq("event_id", eventId)
-    .single();
-  const capacity = capacityResult as { available_seats?: number } | null;
-  const availableSeats = capacity?.available_seats ?? event.capacity;
+  const adminSupabase = createAdminClient();
+  const availableSeats = await getAvailableEventSeats(adminSupabase, eventId, event.capacity);
 
   if (seats > availableSeats) {
     bookingRedirect(eventId, "Der er kun " + availableSeats + " ledige pladser.");
@@ -126,8 +147,6 @@ export async function createBookingAction(formData: FormData) {
     : primaryCategoryRow?.categories;
 
   const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør";
-  const adminSupabase = createAdminClient();
-
   const { data: bookingResult, error } = await adminSupabase
     .from("bookings")
     .insert({
@@ -149,7 +168,7 @@ export async function createBookingAction(formData: FormData) {
     .select("id, booking_value_cents, commission_cents")
     .single();
 
-  const booking = bookingResult as any;
+  const booking = bookingResult as CreatedBookingResult | null;
 
   if (error || !booking) {
     bookingRedirect(

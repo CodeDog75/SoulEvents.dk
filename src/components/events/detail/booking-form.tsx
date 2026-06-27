@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Send } from "lucide-react";
+import { Minus, Plus, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 import { createBookingAction } from "@/app/events/[id]/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
@@ -31,11 +31,15 @@ export function BookingForm({ eventId, availableSeats, message, messageVariant =
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [seats, setSeats] = useState(1);
   const [acceptedGuidelines, setAcceptedGuidelines] = useState(false);
 
   const nameComplete = Boolean(name.trim());
   const emailComplete = validEmail(email.trim());
-  const phoneValid = useMemo(() => !phone.trim() || cleanPhone(phone).length === 8, [phone]);
+  const phoneValid = useMemo(() => !phone.trim() || (/^[\d\s]+$/.test(phone) && cleanPhone(phone).length === 8), [phone]);
+  const maxSeats = Math.max(availableSeats, 1);
+  const canDecreaseSeats = seats > 1 && !isSoldOut;
+  const canIncreaseSeats = seats < maxSeats && !isSoldOut;
 
   return (
     <form action={createBookingAction} className="rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_18px_45px_rgba(90,59,122,0.16)]">
@@ -102,9 +106,9 @@ export function BookingForm({ eventId, availableSeats, message, messageVariant =
             inputMode="tel"
             maxLength={14}
             name="participant_phone"
-            onChange={(event) => setPhone(event.target.value)}
+            onChange={(event) => setPhone(event.target.value.replace(/[^\d\s]/g, ""))}
             pattern="[0-9 ]{8,14}"
-            placeholder="Valgfrit - fx 12 34 56 78"
+            placeholder="Valgfrit"
             title={"Telefonnummer skal best\u00e5 af 8 cifre. Mellemrum er tilladt."}
             value={phone}
           />
@@ -113,16 +117,42 @@ export function BookingForm({ eventId, availableSeats, message, messageVariant =
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">
           Antal pladser *
-          <input
-            className={inputClass}
-            defaultValue={1}
-            disabled={isSoldOut}
-            max={Math.max(availableSeats, 1)}
-            min={1}
-            name="seats"
-            required
-            type="number"
-          />
+          <div className="grid grid-cols-[3rem_1fr_3rem] overflow-hidden rounded-md border border-[#e5d4f7] bg-white focus-within:border-[#b98be8] focus-within:ring-2 focus-within:ring-[#e5d4f7]">
+            <button
+              aria-label="Vælg færre pladser"
+              className="grid h-12 place-items-center border-r border-[#e5d4f7] text-olive transition hover:bg-[#FAF7F2] disabled:cursor-not-allowed disabled:text-ink/25"
+              disabled={!canDecreaseSeats}
+              onClick={() => setSeats((currentSeats) => Math.max(1, currentSeats - 1))}
+              type="button"
+            >
+              <Minus className="size-4" aria-hidden="true" />
+            </button>
+            <input
+              aria-label="Antal pladser"
+              className="h-12 border-0 bg-white px-3 text-center text-base font-semibold text-midnight outline-none"
+              disabled={isSoldOut}
+              inputMode="numeric"
+              max={maxSeats}
+              min={1}
+              name="seats"
+              onChange={(event) => {
+                const numericValue = Number(event.target.value.replace(/\D/g, ""));
+                setSeats(Number.isInteger(numericValue) ? Math.min(Math.max(numericValue, 1), maxSeats) : 1);
+              }}
+              required
+              type="number"
+              value={seats}
+            />
+            <button
+              aria-label="Vælg flere pladser"
+              className="grid h-12 place-items-center border-l border-[#e5d4f7] text-olive transition hover:bg-[#FAF7F2] disabled:cursor-not-allowed disabled:text-ink/25"
+              disabled={!canIncreaseSeats}
+              onClick={() => setSeats((currentSeats) => Math.min(maxSeats, currentSeats + 1))}
+              type="button"
+            >
+              <Plus className="size-4" aria-hidden="true" />
+            </button>
+          </div>
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">
