@@ -32,8 +32,6 @@ type HomeEventSearchFormProps = {
   };
 };
 
-const popularCategoryNames = ["Yoga", "Lydbad", "Saunagus", "Healing", "Breathwork", "Ceremonier"];
-
 function LotusIcon() {
   return (
     <svg aria-hidden="true" className="size-5" fill="none" viewBox="0 0 24 24">
@@ -62,35 +60,8 @@ function LotusIcon() {
   );
 }
 
-function categoryStyle(active: boolean, disabled: boolean) {
-  if (disabled) {
-    return {
-      background: "radial-gradient(circle at center, rgba(255,255,255,0.94) 0%, rgba(241,239,242,0.96) 48%, rgba(219,215,221,0.98) 100%)",
-      boxShadow: undefined,
-    };
-  }
-
-  return {
-    background: active
-      ? "radial-gradient(circle at center, rgba(255,255,255,0.96) 0%, rgba(237,228,247,0.96) 50%, rgba(122,78,171,0.34) 100%)"
-      : "radial-gradient(circle at center, rgba(255,255,255,0.94) 0%, rgba(247,241,250,0.96) 46%, rgba(237,228,247,0.96) 100%)",
-    boxShadow: active ? "0 18px 45px rgba(122, 78, 171, 0.22)" : undefined,
-  };
-}
-
 function categoryHref(slug: string) {
   return "/categories/" + slug;
-}
-
-function categoryClass(active: boolean, disabled: boolean) {
-  return [
-    "group relative min-h-[104px] overflow-hidden rounded-[22px] border p-4 text-center shadow-[0_18px_45px_rgba(47,38,51,0.08)] transition sm:min-h-[112px] lg:min-h-[116px]",
-    "flex items-center justify-center",
-    disabled
-      ? "cursor-not-allowed border-stone-200 opacity-55 grayscale"
-      : "border-[#D9C5EA] bg-[#EDE4F7] hover:-translate-y-0.5 hover:border-[#7A4EAB]/45 hover:shadow-[0_22px_55px_rgba(122,78,171,0.16)]",
-    active && !disabled ? "ring-2 ring-[#7A4EAB] ring-offset-2 ring-offset-[#FAF6EF]" : "",
-  ].join(" ");
 }
 
 export function HomeEventSearchForm({ categoryEventCounts = {}, categories, experienceGroups = [], selected }: HomeEventSearchFormProps) {
@@ -133,6 +104,55 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, categories, expe
       }),
     }))
 ;
+  const visibleExperienceGroups = sortedExperienceGroups.slice(0, 4);
+  const hiddenExperienceGroups = sortedExperienceGroups.slice(4);
+
+  function renderExperienceGroupCard(group: (typeof sortedExperienceGroups)[number]) {
+    return (
+      <Link
+        className="group relative min-h-[132px] overflow-hidden rounded-[22px] border border-[#D9C5EA] p-4 shadow-[0_18px_45px_rgba(47,38,51,0.08)] transition duration-500 hover:-translate-y-0.5 hover:scale-[1.015] hover:border-[#7A4EAB]/45 hover:shadow-[0_24px_60px_rgba(122,78,171,0.18)] sm:min-h-[164px] sm:p-5"
+        href={categoryHref(group.slug)}
+        key={group.id}
+        style={{
+          background: group.imageUrl
+            ? "linear-gradient(180deg, rgba(47, 38, 51, 0.16), rgba(47, 38, 51, 0.68)), url('" + group.imageUrl + "') center/cover"
+            : "radial-gradient(circle at center, rgba(255,255,255,0.88) 0%, " + group.colorHex + "30 54%, " + group.colorHex + "70 100%)",
+        }}
+      >
+        <span
+          className={
+            group.imageUrl
+              ? "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.10),rgba(47,38,51,0.28)_62%,rgba(47,38,51,0.52))] transition duration-500 group-hover:bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.16),rgba(47,38,51,0.20)_62%,rgba(47,38,51,0.44))]"
+              : "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.28),transparent_58%)]"
+          }
+          aria-hidden="true"
+        />
+        <span className="relative flex h-full min-h-[104px] flex-col justify-between sm:min-h-[124px]">
+          <span>
+            <span className={
+              "block min-h-[2.7rem] break-words font-serif text-[1.3rem] font-medium leading-[1.08] sm:min-h-[3.6rem] sm:text-[1.65rem] " +
+              (group.imageUrl ? "text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.72)]" : "text-[#2F1642]")
+            }>
+              {group.name}
+            </span>
+            {group.description && (
+              <span className={
+                "mt-2 block line-clamp-2 text-xs leading-5 sm:text-sm sm:leading-6 " +
+                (group.imageUrl ? "font-semibold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.82)]" : "text-[#2F2633]/72")
+              }>
+                {group.description}
+              </span>
+            )}
+          </span>
+          <span className="mt-3 flex justify-end">
+            <span className="grid size-7 place-items-center rounded-full bg-white/70 text-[#7A4EAB] opacity-0 shadow-soft transition duration-300 group-hover:translate-x-0.5 group-hover:bg-white group-hover:opacity-100">
+              <LotusIcon />
+            </span>
+          </span>
+        </span>
+      </Link>
+    );
+  }
 
   function goToResults(form: HTMLFormElement, submitter?: HTMLButtonElement | HTMLInputElement | null, anchor = "events") {
     const formData = new FormData(form);
@@ -217,7 +237,7 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, categories, expe
     <form
       action="/#events"
       aria-label="Find events"
-      className="w-full max-w-full rounded-card border border-[#EDE4F7] bg-white/88 p-4 shadow-soft sm:p-6"
+      className="w-full max-w-full rounded-card border border-[#EDE4F7] bg-white/88 p-3 shadow-soft sm:p-5"
       onSubmit={submitForm}
       ref={formRef}
     >
@@ -243,65 +263,30 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, categories, expe
 
       </section>
 
-      <section className="mt-6" id="categories">
+      <section className="mt-4" id="categories">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Udforsk oplevelser</p>
-          <h2 className="mt-1 text-2xl font-medium text-[#2F2633]">Vælg en retning</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#2F2633]/65">
-            Start med en hovedkategori. På næste side kan du gå dybere med underkategorier og filtre.
-          </p>
+          <h2 className="mt-1 text-2xl font-medium text-[#2F2633] sm:text-3xl">Vælg en retning</h2>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
-          {sortedExperienceGroups.map((group) => (
-            <Link
-              className="group relative min-h-[168px] overflow-hidden rounded-[24px] border border-[#D9C5EA] p-4 shadow-[0_18px_45px_rgba(47,38,51,0.08)] transition duration-500 hover:-translate-y-0.5 hover:scale-[1.015] hover:border-[#7A4EAB]/45 hover:shadow-[0_24px_60px_rgba(122,78,171,0.18)] sm:min-h-[190px] sm:p-5"
-              href={categoryHref(group.slug)}
-              key={group.id}
-              style={{
-                background: group.imageUrl
-                  ? "linear-gradient(180deg, rgba(47, 38, 51, 0.16), rgba(47, 38, 51, 0.68)), url('" + group.imageUrl + "') center/cover"
-                  : "radial-gradient(circle at center, rgba(255,255,255,0.88) 0%, " + group.colorHex + "30 54%, " + group.colorHex + "70 100%)",
-              }}
-            >
-              <span
-                className={
-                  group.imageUrl
-                    ? "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.10),rgba(47,38,51,0.28)_62%,rgba(47,38,51,0.52))] transition duration-500 group-hover:bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.16),rgba(47,38,51,0.20)_62%,rgba(47,38,51,0.44))]"
-                    : "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.28),transparent_58%)]"
-                }
-                aria-hidden="true"
-              />
-              <span className="relative flex h-full min-h-[136px] flex-col justify-between sm:min-h-[150px]">
-                <span>
-                  <span className={
-                    "block min-h-[3.2rem] break-words font-serif text-[1.35rem] font-medium leading-[1.08] sm:min-h-[4.4rem] sm:text-3xl " +
-                    (group.imageUrl ? "text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.72)]" : "text-[#2F1642]")
-                  }>
-                    {group.name}
-                  </span>
-                  {group.description && (
-                    <span className={
-                      "mt-2 block min-h-[2.6rem] line-clamp-2 text-xs leading-5 sm:text-sm sm:leading-6 " +
-                      (group.imageUrl ? "font-semibold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.82)]" : "text-[#2F2633]/72")
-                    }>
-                      {group.description}
-                    </span>
-                  )}
-                </span>
-                <span className="mt-4 flex justify-end">
-                  <span className="grid size-7 place-items-center rounded-full bg-white/70 text-[#7A4EAB] opacity-0 shadow-soft transition duration-300 group-hover:translate-x-0.5 group-hover:bg-white group-hover:opacity-100">
-                    <LotusIcon />
-                  </span>
-                </span>
-              </span>
-            </Link>
-          ))}
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+          {visibleExperienceGroups.map((group) => renderExperienceGroupCard(group))}
         </div>
+
+        {hiddenExperienceGroups.length > 0 && (
+          <details className="mt-3">
+            <summary className="inline-flex cursor-pointer list-none rounded-full border border-[#7A4EAB]/20 bg-white/80 px-4 py-2 text-sm font-semibold text-[#7A4EAB] shadow-soft marker:hidden">
+              Vis flere retninger
+            </summary>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+              {hiddenExperienceGroups.map((group) => renderExperienceGroupCard(group))}
+            </div>
+          </details>
+        )}
       </section>
 
       <details
-        className="mt-6 rounded-[1.25rem] border border-[#7A4EAB]/12 bg-white/62 p-4"
+        className="mt-4 rounded-[1.25rem] border border-[#7A4EAB]/12 bg-white/62 p-4"
         open={Boolean(selected.q || selected.date || selected.format || selected.country)}
       >
         <summary className="cursor-pointer list-none text-sm font-semibold text-[#7A4EAB] marker:hidden">

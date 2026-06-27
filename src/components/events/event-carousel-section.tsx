@@ -140,14 +140,14 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
   if (events.length === 0) return null;
 
   return (
-    <section className="grid gap-4">
+    <section className="grid gap-3">
       <div className="flex items-end justify-between gap-4">
         <h2 className="text-3xl font-medium leading-tight text-[#2F2633] sm:text-4xl">{title}</h2>
         <Link className="shrink-0 text-sm font-semibold text-[#7A4EAB] transition hover:text-olive" href={href}>
           Se alle
         </Link>
       </div>
-      <div className="-mx-5 flex snap-x gap-4 overflow-x-auto px-5 pb-4 sm:-mx-8 sm:px-8">
+      <div className="-mx-5 flex snap-x gap-4 overflow-x-auto px-5 pb-3 sm:-mx-8 sm:px-8">
         {events.map((event) => (
           <EventCardVisual event={event} key={event.id} />
         ))}
@@ -200,14 +200,14 @@ export function FacilitatorCarouselSection({ facilitators, href, title }: Facili
   if (facilitators.length === 0) return null;
 
   return (
-    <section className="grid gap-4">
+    <section className="grid gap-3">
       <div className="flex items-end justify-between gap-4">
         <h2 className="text-3xl font-medium leading-tight text-[#2F2633] sm:text-4xl">{title}</h2>
         <Link className="shrink-0 text-sm font-semibold text-[#7A4EAB] transition hover:text-olive" href={href}>
           Se alle
         </Link>
       </div>
-      <div className="-mx-5 flex snap-x gap-4 overflow-x-auto px-5 pb-4 sm:-mx-8 sm:px-8">
+      <div className="-mx-5 flex snap-x gap-4 overflow-x-auto px-5 pb-3 sm:-mx-8 sm:px-8">
         {facilitators.map((facilitator) => (
           <FacilitatorCardVisual facilitator={facilitator} key={facilitator.id} />
         ))}

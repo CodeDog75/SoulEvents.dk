@@ -666,7 +666,7 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
 
   return (
     <section className="overflow-hidden rounded-card bg-white shadow-soft" id="map">
-      <div className="border-b border-olive/10 px-5 py-5 sm:px-6">
+      <div className="border-b border-olive/10 px-5 py-4 sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-3xl font-medium leading-tight text-olive sm:text-4xl">{headerText.title}</h2>
@@ -679,7 +679,7 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
         )}
         {mapError && <p className="mt-2 text-sm font-semibold text-terracotta">{mapError}</p>}
       </div>
-      <div className="h-[70vh] min-h-[430px] w-full sm:h-[72vh] sm:min-h-[520px]" ref={containerRef} />
+      <div className="h-[58vh] min-h-[360px] w-full sm:h-[62vh] sm:min-h-[440px]" ref={containerRef} />
     </section>
   );
 }

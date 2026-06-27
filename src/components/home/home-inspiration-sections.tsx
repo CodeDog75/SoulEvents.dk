@@ -67,16 +67,13 @@ export function HomeInspirationSections({
   }
 
   return (
-    <section className="bg-white py-20 sm:py-24" id="featured-hosts">
-      <div className="mx-auto grid max-w-[1200px] gap-12 px-5 sm:px-8">
+    <section className="bg-white py-10 sm:py-12" id="featured-hosts">
+      <div className="mx-auto grid max-w-[1200px] gap-9 px-5 sm:px-8">
         {hasFeatured && (
           <div>
             <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-wide text-rose">Fremhævede arrangører</p>
-              <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Mød udvalgte arrangører</h2>
-              <p className="mt-4 text-base leading-7 text-ink/70">
-                Arrangører, som SoulEvents fremhæver for deres nærvær, faglighed og aktuelle tilbud.
-              </p>
+              <h2 className="mt-2 text-4xl font-medium leading-tight text-olive sm:text-5xl">Mød udvalgte arrangører</h2>
             </div>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {featuredFacilitators.map((facilitator) => (
@@ -90,10 +87,7 @@ export function HomeInspirationSections({
           <div>
             <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-wide text-rose">Nye arrangører</p>
-              <h2 className="mt-3 text-5xl font-medium leading-tight text-olive">Nye stemmer på SoulEvents</h2>
-              <p className="mt-4 text-base leading-7 text-ink/70">
-                Senest godkendte aktive arrangører på platformen.
-              </p>
+              <h2 className="mt-2 text-4xl font-medium leading-tight text-olive sm:text-5xl">Nye stemmer på SoulEvents</h2>
             </div>
             <div className="mt-6 flex snap-x gap-4 overflow-x-auto pb-4">
               {newFacilitators.map((facilitator) => (

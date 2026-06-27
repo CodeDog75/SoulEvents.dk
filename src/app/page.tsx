@@ -1026,19 +1026,18 @@ export default async function Home({ searchParams }: HomeProps) {
 
   return (
     <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
-      <section className="relative overflow-hidden bg-[#FAF6EF] pb-10 sm:min-h-[720px] sm:pb-0">
+      <section className="relative overflow-hidden bg-[#FAF6EF] pb-8 sm:pb-10">
         <div
-          className="absolute inset-0 bg-[url('/brand/soulevents-logo.png')] bg-[length:360px_360px] sm:bg-[length:680px_680px] bg-center bg-no-repeat opacity-20"
+          className="absolute inset-0 bg-[url('/brand/soulevents-logo.png')] bg-[length:300px_300px] bg-center bg-no-repeat opacity-16 sm:bg-[length:520px_520px]"
           aria-hidden="true"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#FAF6EF]/92 via-[#F7F0FA]/82 to-[#EDE4F7]/72" aria-hidden="true" />
-        <div className="absolute left-1/2 top-8 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-[#EDE4F7]/45 blur-3xl sm:top-12 sm:h-[680px] sm:w-[680px]" aria-hidden="true" />
-        <div className="absolute -right-28 top-28 h-[320px] w-[320px] rounded-full bg-[#D8A7B1]/18 blur-3xl sm:h-[460px] sm:w-[460px]" aria-hidden="true" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#FAF6EF]/94 via-[#F7F0FA]/82 to-[#EDE4F7]/58" aria-hidden="true" />
+        <div className="absolute left-1/2 top-4 h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-[#EDE4F7]/40 blur-3xl sm:h-[500px] sm:w-[500px]" aria-hidden="true" />
 
         <header className="relative z-10">
-          <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-6 sm:px-8 sm:py-8">
+          <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-3 sm:px-8 sm:py-5">
             <Link aria-label="SoulEvents.dk forside" href="/">
-              <BrandLogo className="h-24 w-24 sm:h-44 sm:w-44 lg:h-52 lg:w-52" priority />
+              <BrandLogo className="h-16 w-16 sm:h-28 sm:w-28 lg:h-32 lg:w-32" priority />
             </Link>
 
             <Link
@@ -1077,24 +1076,24 @@ export default async function Home({ searchParams }: HomeProps) {
           </div>
         </header>
 
-        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-5 px-4 pb-10 pt-4 sm:gap-8 sm:px-8 sm:pb-16 sm:pt-8 lg:pt-10">
+        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-4 px-4 pb-6 pt-2 sm:gap-6 sm:px-8 sm:pb-8 sm:pt-3">
           <div className="max-w-4xl">
-            <p className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-[#2F2633] shadow-soft">
+            <p className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-xs font-semibold text-[#2F2633] shadow-soft sm:text-sm">
               <Sparkles className="size-4 text-[#7A4EAB]" aria-hidden="true" />
               SoulEvents.dk
             </p>
-            <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-tight text-[#2F2633] sm:mt-8 sm:text-7xl sm:leading-[0.95] lg:text-8xl">
+            <h1 className="mt-4 max-w-4xl text-4xl font-semibold leading-tight text-[#2F2633] sm:mt-5 sm:text-6xl sm:leading-[0.98] lg:text-7xl">
               Find events for krop, sind og sjæl
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-[#2F2633]/76 sm:mt-6 sm:text-xl sm:leading-8">
-              SoulEvents samler mennesker, arrangører og fællesskaber fra hele Danmark. Her kan du opdage spirituelle aktiviteter og fællesskaber, der skaber ro, nærvær, personlig udvikling og meningsfulde møder med andre.
+            <p className="mt-3 max-w-2xl text-base leading-7 text-[#2F2633]/76 sm:text-lg">
+              Find spirituelle events, fællesskaber og oplevelser over hele Danmark.
             </p>
           </div>
 
-          <div className="max-w-5xl pt-2 sm:pt-0" id="find-events">
-            <div className="mb-5 max-w-2xl">
+          <div className="max-w-5xl" id="find-events">
+            <div className="mb-3 max-w-2xl">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Find din næste oplevelse</p>
-              <h2 className="mt-2 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Søg efter det, der passer til dig</h2>
+              <h2 className="mt-1 text-2xl font-medium leading-tight text-[#2F2633] sm:text-4xl">Søg efter det, der passer til dig</h2>
             </div>
             <HomeEventSearchForm
               categoryEventCounts={categoryEventCounts}
@@ -1107,21 +1106,16 @@ export default async function Home({ searchParams }: HomeProps) {
       </section>
 
       {!hasSearch && (
-        <section className="bg-white py-14 sm:py-18" id="events">
-          <div className="mx-auto grid max-w-[1200px] gap-9 px-5 sm:gap-11 sm:px-8">
+        <section className="bg-white py-10 sm:py-12" id="events">
+          <div className="mx-auto grid max-w-[1200px] gap-7 px-5 sm:gap-9 sm:px-8">
             <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Aktuelle oplevelser</p>
-              <h2 className="mt-2 text-4xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Find dit næste event</h2>
-              <p className="mt-3 text-base leading-7 text-[#2F2633]/70">
-                Swipe på mobilen eller gå på opdagelse i rækkerne. Kortene viser det vigtigste først, så du hurtigt kan mærke, hvad der kalder.
-              </p>
+              <h2 className="mt-1 text-4xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Find dit næste event</h2>
             </div>
 
             {homepageEventSections.map((section) => (
               <EventCarouselSection events={section.events} href={section.href} key={section.title} title={section.title} />
             ))}
-
-            <FacilitatorCarouselSection facilitators={facilitatorCards} href="/facilitators" title="Mød arrangørerne" />
           </div>
         </section>
       )}
@@ -1217,27 +1211,29 @@ export default async function Home({ searchParams }: HomeProps) {
         </section>
       )}
 
-      <section className="bg-[#FAF6EF] py-16 sm:py-20" id="map">
+      <section className="bg-[#FAF6EF] py-12 sm:py-14" id="map">
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
-          <div className="mb-6 max-w-2xl">
+          <div className="mb-4 max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Danmarkskort</p>
-            <h2 className="mt-2 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Udforsk events på kort</h2>
-            <p className="mt-3 text-base leading-7 text-[#2F2633]/70">
-              Brug kortet som et roligt overblik, når du vil se, hvor oplevelserne finder sted.
-            </p>
+            <h2 className="mt-1 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Udforsk events på kort</h2>
           </div>
           <EventMap events={mapEvents} mapboxStyleUrl={env.mapboxStyleUrl} mapboxToken={env.mapboxToken} serviceProviders={localServiceProviders} />
         </div>
       </section>
 
-      <section className="bg-white py-16 sm:py-20" id="categories">
+      {!hasSearch && (
+        <section className="bg-white py-10 sm:py-12" id="facilitators">
+          <div className="mx-auto grid max-w-[1200px] gap-8 px-5 sm:px-8">
+            <FacilitatorCarouselSection facilitators={facilitatorCards} href="/facilitators" title="Mød arrangørerne" />
+          </div>
+        </section>
+      )}
+
+      <section className="bg-white py-10 sm:py-12" id="categories">
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
-          <div className="mb-6 max-w-2xl">
+          <div className="mb-4 max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Kategorier og inspiration</p>
-            <h2 className="mt-2 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Gå på opdagelse i SoulEvents</h2>
-            <p className="mt-3 text-base leading-7 text-[#2F2633]/70">
-              Udforsk kortet, online events, arrangører og særlige temaer på SoulEvents.dk.
-            </p>
+            <h2 className="mt-1 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Gå på opdagelse</h2>
           </div>
           <HomeDiscoveryTiles tiles={discoveryTiles} />
         </div>
@@ -1259,13 +1255,13 @@ export default async function Home({ searchParams }: HomeProps) {
         </section>
       )}
 
-      <section className="bg-[#FAF6EF] py-14 sm:py-18" id="contact">
+      <section className="bg-[#FAF6EF] py-10 sm:py-12" id="contact">
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
-          <div className="rounded-[28px] bg-white p-6 shadow-soft sm:p-8 md:flex md:items-center md:justify-between md:gap-8">
+          <div className="rounded-[28px] bg-white p-5 shadow-soft sm:p-7 md:flex md:items-center md:justify-between md:gap-8">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Kontakt</p>
-              <h2 className="mt-3 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Skriv til SoulEvents.dk</h2>
-              <p className="mt-4 max-w-xl text-base leading-7 text-ink/70">
+              <h2 className="mt-2 text-3xl font-medium leading-tight text-[#2F2633] sm:text-4xl">Skriv til SoulEvents.dk</h2>
+              <p className="mt-3 max-w-xl text-base leading-7 text-ink/70">
                 Har du spørgsmål, ideer eller brug for hjælp, kan du sende en besked direkte til os.
               </p>
             </div>
