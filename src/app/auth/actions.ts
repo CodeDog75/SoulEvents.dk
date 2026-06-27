@@ -16,6 +16,11 @@ function authRedirect(path: string, message: string): never {
   redirect(`${path}?message=${encodeURIComponent(message)}`);
 }
 
+function authRedirectWithParams(path: string, params: Record<string, string>): never {
+  const searchParams = new URLSearchParams(params);
+  redirect(`${path}?${searchParams.toString()}`);
+}
+
 async function getAuthUserByEmail(email: string) {
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.listUsers({
@@ -97,10 +102,11 @@ export async function signInAction(formData: FormData) {
   const errorMessage = error?.message.toLowerCase() ?? "";
 
   if (errorMessage.includes("email not confirmed") || errorMessage.includes("not confirmed")) {
-    authRedirect(
-      "/auth/login",
-      "E-mailen er ikke bekræftet endnu. Klik på linket i bekræftelsesmailen, og prøv derefter at logge ind igen.",
-    );
+    authRedirectWithParams("/auth/login", {
+      confirmation: "needed",
+      email,
+      message: "E-mailen er ikke bekræftet endnu. Klik på linket i bekræftelsesmailen, og prøv derefter at logge ind igen. Du kan også få tilsendt en ny bekræftelsesmail herunder.",
+    });
   }
 
   if (error || !data.user) {
@@ -108,10 +114,11 @@ export async function signInAction(formData: FormData) {
       const authUser = await getAuthUserByEmail(email);
 
       if (authUser && !authUser.email_confirmed_at) {
-        authRedirect(
-          "/auth/login",
-          "Kontoen findes, men e-mailen er ikke bekræftet endnu. Klik på linket i bekræftelsesmailen først.",
-        );
+        authRedirectWithParams("/auth/login", {
+          confirmation: "needed",
+          email,
+          message: "Kontoen findes, men e-mailen er ikke bekræftet endnu. Klik på linket i bekræftelsesmailen først, eller send en ny bekræftelsesmail herunder.",
+        });
       }
     }
 
@@ -132,7 +139,10 @@ export async function resendConfirmationAction(formData: FormData) {
   const email = getString(formData, "email").toLowerCase();
 
   if (!email) {
-    authRedirect("/auth/login", "Skriv e-mailen, så sender vi en ny bekræftelsesmail.");
+    authRedirectWithParams("/auth/login", {
+      confirmation: "needed",
+      message: "Skriv e-mailadressen, så sender vi en ny bekræftelsesmail.",
+    });
   }
 
   const authUser = await getAuthUserByEmail(email);
@@ -151,10 +161,27 @@ export async function resendConfirmationAction(formData: FormData) {
   });
 
   if (error) {
-    authRedirect("/auth/login", `Ny bekræftelsesmail kunne ikke sendes: ${error.message}`);
+    const errorMessage = error.message.toLowerCase();
+
+    if (errorMessage.includes("rate limit")) {
+      authRedirectWithParams("/auth/login", {
+        confirmation: "needed",
+        email,
+        message: "Der er sendt for mange bekræftelsesmails på kort tid. Vent lidt og prøv igen.",
+      });
+    }
+
+    authRedirectWithParams("/auth/login", {
+      confirmation: "needed",
+      email,
+      message: "Ny bekræftelsesmail kunne ikke sendes lige nu. Tjek e-mailadressen og prøv igen.",
+    });
   }
 
-  authRedirect("/auth/login", "Ny bekræftelsesmail er sendt. Tjek indbakken og spam/reklame.");
+  authRedirectWithParams("/auth/login", {
+    email,
+    message: "Ny bekræftelsesmail er sendt. Tjek indbakken og spam/reklame.",
+  });
 }
 
 export async function requestPasswordResetAction(formData: FormData) {
@@ -216,11 +243,11 @@ export async function signUpFacilitatorAction(formData: FormData) {
   const phoneDigits = phone.replace(/\D/g, "");
 
   if (!fullName || !email || !password) {
-    authRedirect("/auth/signup", "Navn, e-mail og adgangskode er påkrævet.");
+    authRedirect("/auth/signup", "Udfyld e-mail, adgangskode og dit rigtige navn for at oprette profilen.");
   }
 
   if (phone && (!/^[\d\s]+$/.test(phone) || phoneDigits.length !== 8)) {
-    authRedirect("/auth/signup", "Telefonnummer skal bestå af præcis 8 tal. Kun tal og mellemrum er tilladt.");
+    authRedirect("/auth/signup", "Telefonnummer skal bestå af præcis 8 tal. Feltet kan også stå tomt.");
   }
 
   if (password.length < 8) {
@@ -316,7 +343,7 @@ export async function signUpFacilitatorAction(formData: FormData) {
   revalidatePath("/", "layout");
   authRedirect(
     "/auth/login",
-    "Din konto er oprettet. Tjek din indbakke og bekræft e-mailen. Når e-mailen er bekræftet, skal administrator godkende din arrangørprofil.",
+    "Din konto er oprettet. Tjek din indbakke og bekræft e-mailen via linket. Tjek også spam/reklame. Når e-mailen er bekræftet, kan du logge ind, færdiggøre profilen og oprette dit første event, mens vi gennemgår arrangørprofilen.",
   );
 }
 

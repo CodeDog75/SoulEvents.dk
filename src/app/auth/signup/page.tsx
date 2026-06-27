@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
-import { LegalConsentLinks } from "@/components/auth/legal-consent-links";
-import { SignupPhoneInput } from "@/components/auth/signup-phone-input";
-import { signUpFacilitatorAction } from "@/app/auth/actions";
+import { SignupForm } from "@/components/auth/signup-form";
 import { createClient } from "@/lib/supabase/server";
 
 type SignUpPageProps = {
@@ -16,6 +14,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
   const { message } = await searchParams;
   const existingAccountMessage = message?.toLowerCase().includes("der findes allerede en konto") ?? false;
   const rateLimitMessage = message?.toLowerCase().includes("for mange mails") ?? false;
+  const shouldRestoreFormValues = Boolean(message) && !message?.toLowerCase().includes("oprettet");
   const supabase = await createClient();
   const { data: legalDocuments } = await supabase
     .from("legal_documents")
@@ -140,70 +139,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
             </div>
           )}
 
-          <form
-            action={signUpFacilitatorAction}
-            className="mt-6 grid gap-5 [&_input::placeholder]:text-sm [&_input::placeholder]:font-normal [&_input::placeholder]:text-[#2F2633]/42"
-          >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
-                E-mail *
-                <input
-                  autoComplete="email"
-                  className="h-12 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
-                  name="email"
-                  placeholder="din@mail.dk"
-                  required
-                  type="email"
-                />
-              </label>
-
-              <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
-                Adgangskode *
-                <input
-                  autoComplete="new-password"
-                  className="h-12 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
-                  minLength={8}
-                  name="password"
-                  placeholder="Mindst 8 tegn"
-                  required
-                  type="password"
-                />
-              </label>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
-                Dit rigtige navn *
-                <input
-                  autoComplete="name"
-                  className="h-12 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
-                  name="full_name"
-                  placeholder="Dit fulde navn"
-                  required
-                />
-              </label>
-
-              <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
-                Telefon
-                <SignupPhoneInput />
-                <span className="text-xs leading-5 text-[#2F2633]/52">Valgfrit. Indtast præcis 8 cifre uden landekode.</span>
-              </label>
-            </div>
-
-            <label className="flex items-start gap-3 rounded-[1.25rem] bg-[#EDE4F7]/65 p-4 text-sm leading-6 text-[#2F2633]/72">
-              <input className="mt-1 size-4 accent-[#7A4EAB]" name="accepted_terms" required type="checkbox" />
-              <span>
-                <LegalConsentLinks documents={legalDocuments ?? []} />
-              </span>
-            </label>
-
-            <button
-              className="mt-1 h-12 rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6A4199] hover:shadow-lift"
-              type="submit"
-            >
-              Opret gratis arrangørprofil
-            </button>
-          </form>
+          <SignupForm documents={legalDocuments ?? []} restoreValues={shouldRestoreFormValues} />
 
           <section className="mt-7 rounded-[1.25rem] border border-[#EDE4F7] bg-[#FAF6EF] p-5">
             <h2 className="text-xl font-semibold text-[#2F2633]">Når din profil er oprettet 💜</h2>

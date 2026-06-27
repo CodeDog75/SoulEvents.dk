@@ -5,14 +5,20 @@ import { resendConfirmationAction, signInAction } from "@/app/auth/actions";
 
 type LoginPageProps = {
   searchParams: Promise<{
+    confirmation?: string;
+    email?: string;
     message?: string;
     role?: string;
   }>;
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const { message, role } = await searchParams;
+  const { confirmation, email, message, role } = await searchParams;
   const loginRole = role === "admin" ? "admin" : role === "facilitator" ? "facilitator" : null;
+  const showConfirmationHelp =
+    confirmation === "needed" ||
+    confirmation === "expired" ||
+    Boolean(message?.toLowerCase().includes("bekræftelsesmail") || message?.toLowerCase().includes("bekræftelseslink"));
   const title =
     loginRole === "admin" ? "Admin-login" : loginRole === "facilitator" ? "Arrangør-login" : "Log ind";
   const description =
@@ -86,13 +92,30 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </Link>
         </p>
 
-        <form action={resendConfirmationAction} className="mt-6 rounded-card bg-sage-50 p-4">
-          <p className="text-sm font-semibold text-olive">Mangler du bekræftelsesmailen?</p>
+        <form
+          action={resendConfirmationAction}
+          className={
+            "mt-6 rounded-card p-4 " +
+            (showConfirmationHelp
+              ? "border border-[#D8A7B1]/45 bg-[#FFF8F6] shadow-soft"
+              : "bg-sage-50")
+          }
+        >
+          <p className="text-sm font-semibold text-olive">
+            {confirmation === "expired" ? "Bekræftelseslinket er udløbet" : "Mangler du bekræftelsesmailen?"}
+          </p>
+          {showConfirmationHelp ? (
+            <p className="mt-1 text-sm leading-6 text-ink/65">
+              Skriv din e-mailadresse, så sender vi et nyt link. Brug altid den nyeste mail i din indbakke.
+            </p>
+          ) : null}
           <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
             <input
               className="h-11 rounded-input border border-olive/15 px-3 text-base outline-none transition focus:border-rose"
+              defaultValue={email ?? ""}
               name="email"
               placeholder="din@email.dk"
+              required
               type="email"
             />
             <button
