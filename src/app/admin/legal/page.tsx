@@ -50,7 +50,7 @@ export default async function AdminLegalPage({ searchParams }: AdminLegalPagePro
         <AuthMessage message={message} />
 
         <section className="rounded-card border border-sage-700/15 bg-sage-50 p-5 text-sm leading-6 text-ink/70">
-          Her kan du indsætte og opdatere handelsbetingelser, privatlivspolitik og SoulEvents.dk's retningslinjer.
+          Her kan du indsætte og opdatere handelsbetingelser, privatlivspolitik og SoulEvents.dk&apos;s retningslinjer.
           Dokumenterne vises via links på oprettelsessiden.
         </section>
 

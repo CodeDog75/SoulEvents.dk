@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Copy, Mail, MessageCircle, Share2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 
 type ShareFacilitatorButtonProps = {
   facilitatorName: string;
@@ -11,11 +11,7 @@ type ShareFacilitatorButtonProps = {
 export function ShareFacilitatorButton({ facilitatorName, facilitatorId }: ShareFacilitatorButtonProps) {
   const [copied, setCopied] = useState(false);
   const relativeUrl = "/facilitators/" + facilitatorId;
-  const [url, setUrl] = useState(relativeUrl);
-
-  useEffect(() => {
-    setUrl(window.location.origin + relativeUrl);
-  }, [relativeUrl]);
+  const url = useMemo(() => (typeof window === "undefined" ? relativeUrl : window.location.origin + relativeUrl), [relativeUrl]);
 
   const text = "Jeg fandt " + facilitatorName + " på SoulEvents.dk. Se profilen her: " + url;
   const encodedText = encodeURIComponent(text);

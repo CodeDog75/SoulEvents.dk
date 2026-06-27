@@ -75,7 +75,7 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Statistikeksport</p>
               <h2 className="mt-1 text-xl font-semibold text-midnight">Eksportér data til Excel</h2>
               <p className="mt-2 text-sm leading-6 text-ink/64">
-                Hent arrangørdata, kontaktoplysninger, events, tilmeldinger, kategorier, priser og profilvisninger til nyhedsbreve, status og dokumentation af SoulEvents' værdi.
+                Hent arrangørdata, kontaktoplysninger, events, tilmeldinger, kategorier, priser og profilvisninger til nyhedsbreve, status og dokumentation af SoulEvents&apos; værdi.
               </p>
             </div>
             <form action="/admin/reports/export" className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">

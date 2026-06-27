@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, Filter, Search, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";

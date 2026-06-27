@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, CircleUserRound } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";

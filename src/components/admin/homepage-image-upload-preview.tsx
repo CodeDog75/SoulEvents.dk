@@ -9,12 +9,9 @@ type HomepageImageUploadPreviewProps = {
 };
 
 export function HomepageImageUploadPreview({ imageUrl, imagePath }: HomepageImageUploadPreviewProps) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(imageUrl ?? null);
+  const [selectedPreviewUrl, setSelectedPreviewUrl] = useState<string | null>(null);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    setPreviewUrl(imageUrl ?? null);
-  }, [imageUrl]);
+  const previewUrl = selectedPreviewUrl ?? imageUrl ?? null;
 
   useEffect(() => {
     return () => {
@@ -23,10 +20,10 @@ export function HomepageImageUploadPreview({ imageUrl, imagePath }: HomepageImag
   }, [objectUrl]);
 
   const previewLabel = useMemo(() => {
-    if (previewUrl && previewUrl !== imageUrl) return "Nyt billede valgt";
+    if (selectedPreviewUrl) return "Nyt billede valgt";
     if (imagePath) return "Nuværende billede";
     return "Intet billede valgt";
-  }, [imagePath, imageUrl, previewUrl]);
+  }, [imagePath, selectedPreviewUrl]);
 
   return (
     <div className="grid gap-3">
@@ -55,12 +52,12 @@ export function HomepageImageUploadPreview({ imageUrl, imagePath }: HomepageImag
             if (objectUrl) URL.revokeObjectURL(objectUrl);
             if (!file) {
               setObjectUrl(null);
-              setPreviewUrl(imageUrl ?? null);
+              setSelectedPreviewUrl(null);
               return;
             }
             const nextObjectUrl = URL.createObjectURL(file);
             setObjectUrl(nextObjectUrl);
-            setPreviewUrl(nextObjectUrl);
+            setSelectedPreviewUrl(nextObjectUrl);
           }}
         />
         <span className="text-xs leading-5 text-ink/55">Anbefalet: kvadratisk billede. JPG, PNG eller WebP under 8 MB.</span>

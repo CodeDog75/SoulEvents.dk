@@ -36,7 +36,8 @@ export function PartnerAdCarousel({ ads }: PartnerAdCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const visibleAds = useMemo(() => ads, [ads]);
-  const activeAd = visibleAds[activeIndex] ?? visibleAds[0];
+  const safeActiveIndex = visibleAds.length > 0 ? activeIndex % visibleAds.length : 0;
+  const activeAd = visibleAds[safeActiveIndex] ?? visibleAds[0];
 
   useEffect(() => {
     if (paused || visibleAds.length <= 1 || !activeAd) return;
@@ -46,12 +47,6 @@ export function PartnerAdCarousel({ ads }: PartnerAdCarouselProps) {
     }, delay);
     return () => window.clearTimeout(timer);
   }, [activeAd, paused, visibleAds.length]);
-
-  useEffect(() => {
-    if (activeIndex >= visibleAds.length) {
-      setActiveIndex(0);
-    }
-  }, [activeIndex, visibleAds.length]);
 
   if (!activeAd) return null;
 
@@ -103,7 +98,7 @@ export function PartnerAdCarousel({ ads }: PartnerAdCarouselProps) {
         <div className="absolute bottom-4 right-4 flex gap-1.5" aria-label="Partnerindhold">
           {visibleAds.map((ad, index) => (
             <span
-              className={index === activeIndex ? "h-2 w-6 rounded-full bg-white" : "size-2 rounded-full bg-white/55"}
+              className={index === safeActiveIndex ? "h-2 w-6 rounded-full bg-white" : "size-2 rounded-full bg-white/55"}
               key={ad.id}
             />
           ))}

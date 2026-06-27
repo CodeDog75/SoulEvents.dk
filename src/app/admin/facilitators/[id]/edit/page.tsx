@@ -237,7 +237,7 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
               <div className="mt-5 rounded-[18px] border border-[#D7E4D1] bg-[#F3F7F0] px-5 py-4 text-sm text-[#4D6048]">
                 <p className="font-bold text-[#5F7A55]">Klar til vurdering</p>
                 <p className="mt-2 leading-6">
-                  Denne arrangør har oprettet mindst 3 kommende eller offentliggjorte events på SoulEvents inden for de seneste 90 dage og kan vurderes til badget "Aktiv Arrangør". Badget aktiveres ikke automatisk.
+                  Denne arrangør har oprettet mindst 3 kommende eller offentliggjorte events på SoulEvents inden for de seneste 90 dage og kan vurderes til badget &quot;Aktiv Arrangør&quot;. Badget aktiveres ikke automatisk.
                 </p>
               </div>
             )}
@@ -245,7 +245,7 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
               <div className="mt-5 rounded-[18px] border border-[#D8CBE4] bg-[#F4F0F7] px-5 py-4 text-sm text-[#4D4458]">
                 <p className="font-bold text-[#7A5D91]">Klar til vurdering</p>
                 <p className="mt-2 leading-6">
-                  Denne arrangør har opnået 5 gennemførte events med minimum 1 tilmelding pr. event via SoulEvents og kan vurderes til badget "Erfaren Arrangør". Badget aktiveres ikke automatisk.
+                  Denne arrangør har opnået 5 gennemførte events med minimum 1 tilmelding pr. event via SoulEvents og kan vurderes til badget &quot;Erfaren Arrangør&quot;. Badget aktiveres ikke automatisk.
                 </p>
               </div>
             )}

@@ -7,6 +7,30 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+type FeaturedFacilitatorRow = {
+  id: string;
+  company_name: string | null;
+  city: string | null;
+  featured_sort_order: number | null;
+  is_featured: boolean | null;
+  profile_image_path: string | null;
+  short_description: string | null;
+  profiles:
+    | { full_name: string | null }
+    | Array<{ full_name: string | null }>
+    | null;
+  facilitator_categories?: Array<{
+    categories:
+      | { name: string | null }
+      | Array<{ name: string | null }>
+      | null;
+  }> | null;
+};
+
+function first<T>(value: T | T[] | null | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 type PageProps = {
   searchParams: Promise<{ message?: string }>;
 };
@@ -55,12 +79,12 @@ export default async function FeaturedFacilitatorsAdminPage({ searchParams }: Pa
               <p className="mt-1 text-sm text-ink/64">Markér hvem der skal vises som fremhævede på forsiden.</p>
             </div>
             <div className="divide-y divide-midnight/10">
-              {(facilitators ?? []).map((facilitator: any) => {
-                const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
+              {((facilitators ?? []) as unknown as FeaturedFacilitatorRow[]).map((facilitator) => {
+                const profile = first(facilitator.profiles);
                 const categories =
                   facilitator.facilitator_categories
-                    ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories)?.name)
-                    .filter(Boolean) ?? [];
+                    ?.map((row) => first(row.categories)?.name)
+                    .filter((category): category is string => Boolean(category)) ?? [];
                 return (
                   <form action={updateFeaturedFacilitatorAction} className="grid gap-5 p-5 lg:grid-cols-[1fr_auto]" key={facilitator.id}>
                     <input name="facilitator_id" type="hidden" value={facilitator.id} />
@@ -81,7 +105,7 @@ export default async function FeaturedFacilitatorsAdminPage({ searchParams }: Pa
                         </p>
                         {categories.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-2">
-                            {categories.slice(0, 3).map((category: string) => (
+                            {categories.slice(0, 3).map((category) => (
                               <span className="rounded-md bg-sage-50 px-2.5 py-1 text-xs font-semibold text-sage-700" key={category}>
                                 {category}
                               </span>
