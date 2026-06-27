@@ -6,6 +6,7 @@ export type PublicEvent = {
   title: string;
   short_description: string;
   starts_at: string;
+  created_at?: string | null;
   city: string | null;
   price_cents: number;
   capacity: number;

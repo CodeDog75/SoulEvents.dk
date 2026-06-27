@@ -18,8 +18,9 @@ import Link from "next/link";
 import { PartnerAdCarousel } from "@/components/ads/partner-ad-carousel";
 import { BrandLogo } from "@/components/brand-logo";
 import { EventMap } from "@/components/events/event-map";
+import { EventCarouselSection, FacilitatorCarouselSection } from "@/components/events/event-carousel-section";
 import { HomeEventSearchForm } from "@/components/events/home-event-search-form";
-import { PublicEventList } from "@/components/events/public-event-list";
+import { PublicEventList, type PublicEvent } from "@/components/events/public-event-list";
 import { HomeDiscoveryTiles } from "@/components/home/home-discovery-tiles";
 import { HomeInspirationSections } from "@/components/home/home-inspiration-sections";
 import { PublicFacilitatorCarousel } from "@/components/facilitator/public-facilitator-carousel";
@@ -74,33 +75,6 @@ type HomeProps = {
   }>;
 };
 
-const featuredEvents = [
-  {
-    title: "Morgenyoga og meditation",
-    facilitator: "Nordlys Studio",
-    date: "I dag kl. 09.00",
-    location: "København",
-    price: "180 kr.",
-    category: "Yoga",
-  },
-  {
-    title: "Lydbad under nymånen",
-    facilitator: "Sofie Lykke",
-    date: "Onsdag kl. 19.30",
-    location: "Odense",
-    price: "250 kr.",
-    category: "Lydbad",
-  },
-  {
-    title: "Åndedræt, ro og nærvær",
-    facilitator: "Hjerterum Aarhus",
-    date: "Søndag kl. 10.00",
-    location: "Aarhus",
-    price: "Gratis",
-    category: "Breathwork",
-  },
-];
-
 function startOfToday() {
   const date = new Date();
   date.setHours(0, 0, 0, 0);
@@ -147,42 +121,6 @@ function endOfMonth() {
   return date;
 }
 
-function getEventFacilitatorId(event: { facilitator_profiles?: { id?: string } | Array<{ id?: string }> | null }) {
-  const facilitator = Array.isArray(event.facilitator_profiles)
-    ? event.facilitator_profiles[0]
-    : event.facilitator_profiles;
-
-  return facilitator?.id ?? "";
-}
-
-function selectFairHomepageEvents<T extends { id: string; starts_at: string; facilitator_profiles?: { id?: string } | Array<{ id?: string }> | null }>(
-  events: T[],
-  limit = 6,
-) {
-  const byFacilitator = new Map<string, T[]>();
-
-  for (const event of uniqueEventsById(events)) {
-    const facilitatorId = getEventFacilitatorId(event) || event.id;
-    const list = byFacilitator.get(facilitatorId) ?? [];
-    list.push(event);
-    byFacilitator.set(facilitatorId, list);
-  }
-
-  const selected = Array.from(byFacilitator.values()).map((facilitatorEvents) =>
-    facilitatorEvents.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())[0],
-  );
-
-  return selected
-    .map((event) => ({
-      event,
-      time: new Date(event.starts_at).getTime(),
-      variation: Math.random() * 0.15,
-    }))
-    .sort((a, b) => a.time - b.time || a.variation - b.variation)
-    .slice(0, limit)
-    .map(({ event }) => event);
-}
-
 function removeSearchParam(params: Record<string, string>, key: string) {
   const next = new URLSearchParams();
 
@@ -213,7 +151,11 @@ function normalizeText(value: string | null | undefined) {
 }
 
 function categoryMatches(
-  event: { event_categories?: Array<{ categories?: { name?: string } | Array<{ name?: string }> | null }> },
+  event: {
+    event_categories?: Array<{ categories?: { name?: string } | Array<{ name?: string }> | null }>;
+    event_main_categories?: Array<{ main_categories?: { name?: string | null } | Array<{ name?: string | null }> | null }>;
+    event_subcategories?: Array<{ subcategories?: { name?: string | null } | Array<{ name?: string | null }> | null }>;
+  },
   categoryLabel: string,
 ) {
   if (!categoryLabel) {
@@ -221,11 +163,30 @@ function categoryMatches(
   }
 
   return Boolean(
-    event.event_categories?.some((row) => {
-      const category = Array.isArray(row.categories) ? row.categories[0] : row.categories;
-      return normalizeText(category?.name) === normalizeText(categoryLabel);
-    }),
+    getEventCategoryNames(event).some((name) => normalizeText(name) === normalizeText(categoryLabel)),
   );
+}
+
+function getEventCategoryNames(event: {
+  event_categories?: Array<{ categories?: { name?: string | null } | Array<{ name?: string | null }> | null }>;
+  event_main_categories?: Array<{ main_categories?: { name?: string | null } | Array<{ name?: string | null }> | null }>;
+  event_subcategories?: Array<{ subcategories?: { name?: string | null } | Array<{ name?: string | null }> | null }>;
+}) {
+  return [
+    ...(event.event_categories ?? []).map((row) => (Array.isArray(row.categories) ? row.categories[0] : row.categories)?.name),
+    ...(event.event_main_categories ?? []).map((row) => (Array.isArray(row.main_categories) ? row.main_categories[0] : row.main_categories)?.name),
+    ...(event.event_subcategories ?? []).map((row) => (Array.isArray(row.subcategories) ? row.subcategories[0] : row.subcategories)?.name),
+  ].filter((name): name is string => Boolean(name));
+}
+
+function eventMatchesAnyLabel(event: PublicEvent, labels: string[]) {
+  const haystack = getEventCategoryNames(event).join(" ").toLowerCase();
+  return labels.some((label) => haystack.includes(label.toLowerCase()));
+}
+
+function categoryPageHref(experienceGroups: Array<{ slug: string; name: string }>, fallback: string, labels: string[]) {
+  const group = experienceGroups.find((item) => labels.some((label) => item.name.toLowerCase().includes(label.toLowerCase())));
+  return group ? "/categories/" + group.slug : fallback;
 }
 
 function textMatches(
@@ -380,7 +341,7 @@ async function getSearchEvents(selected: {
   let query = supabase
     .from("events")
     .select(
-      "id, title, short_description, starts_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, company_name, profiles(full_name)), regions(name), event_categories(categories(id, name, color_hex))",
+      "id, title, short_description, starts_at, created_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, company_name, profiles(full_name)), regions(name), event_categories(categories(id, name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug))",
     )
     .eq("status", "active")
     .eq("facilitator_profiles.status", "approved")
@@ -526,33 +487,6 @@ async function getExperienceGroups() {
       subcategories,
     };
   });
-}
-
-async function getHomeThemes() {
-  if (!env.supabaseUrl || !env.supabaseAnonKey) {
-    return [];
-  }
-
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("homepage_tiles")
-    .select("id, title, description, image_path, href")
-    .eq("is_active", true)
-    .eq("tile_type", "campaign")
-    .order("sort_order")
-    .limit(8);
-
-  if (error || !data) {
-    return [];
-  }
-
-  return data.map((theme) => ({
-    id: theme.id,
-    title: theme.title,
-    description: theme.description,
-    href: theme.href,
-    imageUrl: theme.image_path ? supabase.storage.from("media").getPublicUrl(theme.image_path).data.publicUrl : null,
-  }));
 }
 
 function localServiceTextMatchesCategory(provider: any, categoryLabel: string) {
@@ -976,14 +910,47 @@ export default async function Home({ searchParams }: HomeProps) {
   const experienceGroups = await getExperienceGroups();
   const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
   const localServiceProviders = await getLocalServiceProviders(selected);
-  const fairUpcomingEvents = selectFairHomepageEvents(upcomingEvents, 6);
   const mapSourceEvents = uniqueEventsById(mapOverviewEvents);
-  const listEvents = hasSearch ? searchEvents : fairUpcomingEvents;
   const facilitatorCards = await getHomeFacilitators(facilitatorQuery);
   const [featuredFacilitators, newFacilitators] = await Promise.all([
     getFeaturedHomeFacilitators(),
     getNewHomeFacilitators(),
   ]);
+  const homepageEventPool = uniqueEventsById(upcomingEvents as PublicEvent[]);
+  const physicalHomepageEvents = homepageEventPool.filter((event) => event.event_format !== "online");
+  const newHomepageEvents = [...homepageEventPool].sort(
+    (a, b) => new Date(b.created_at ?? b.starts_at).getTime() - new Date(a.created_at ?? a.starts_at).getTime(),
+  );
+  const saunaEvents = homepageEventPool.filter((event) => eventMatchesAnyLabel(event, ["Sauna", "Saunagus", "Velvære"]));
+  const yogaEvents = homepageEventPool.filter((event) => eventMatchesAnyLabel(event, ["Yoga"]));
+  const meditationEvents = homepageEventPool.filter((event) => eventMatchesAnyLabel(event, ["Meditation", "Mindfulness", "Nærvær"]));
+  const retreatEvents = homepageEventPool.filter((event) => eventMatchesAnyLabel(event, ["Retreat", "Rejse", "Rejser"]));
+  const onlineHomepageEvents = homepageEventPool.filter((event) => event.event_format === "online");
+  const homepageEventSections = [
+    { title: "Events nær dig", href: "/#find-events", events: physicalHomepageEvents.slice(0, 10) },
+    { title: "Nye events", href: "/events", events: newHomepageEvents.slice(0, 10) },
+    {
+      title: "Sauna & Velvære",
+      href: categoryPageHref(experienceGroups, "/?category_label=Saunagus#events", ["Sauna", "Velvære"]),
+      events: saunaEvents.slice(0, 10),
+    },
+    {
+      title: "Yoga",
+      href: categoryPageHref(experienceGroups, "/?category_label=Yoga#events", ["Yoga", "Bevægelse", "Krop"]),
+      events: yogaEvents.slice(0, 10),
+    },
+    {
+      title: "Meditation",
+      href: categoryPageHref(experienceGroups, "/?category_label=Meditation#events", ["Meditation", "Nærvær"]),
+      events: meditationEvents.slice(0, 10),
+    },
+    {
+      title: "Retreats & Rejser",
+      href: categoryPageHref(experienceGroups, "/?category_label=Retreat#events", ["Retreat", "Rejse"]),
+      events: retreatEvents.slice(0, 10),
+    },
+    { title: "Online events", href: "/?format=online#events", events: onlineHomepageEvents.slice(0, 10) },
+  ];
   const mapEvents = mapSourceEvents.map((event) => {
     const facilitatorProfile = Array.isArray(event.facilitator_profiles)
       ? event.facilitator_profiles[0]
@@ -1139,6 +1106,26 @@ export default async function Home({ searchParams }: HomeProps) {
         </div>
       </section>
 
+      {!hasSearch && (
+        <section className="bg-white py-14 sm:py-18" id="events">
+          <div className="mx-auto grid max-w-[1200px] gap-9 px-5 sm:gap-11 sm:px-8">
+            <div className="max-w-3xl">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Aktuelle oplevelser</p>
+              <h2 className="mt-2 text-4xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Find dit næste event</h2>
+              <p className="mt-3 text-base leading-7 text-[#2F2633]/70">
+                Swipe på mobilen eller gå på opdagelse i rækkerne. Kortene viser det vigtigste først, så du hurtigt kan mærke, hvad der kalder.
+              </p>
+            </div>
+
+            {homepageEventSections.map((section) => (
+              <EventCarouselSection events={section.events} href={section.href} key={section.title} title={section.title} />
+            ))}
+
+            <FacilitatorCarouselSection facilitators={facilitatorCards} href="/facilitators" title="Mød arrangørerne" />
+          </div>
+        </section>
+      )}
+
       {hasSearch && (
         <section className="bg-white py-14 sm:py-16" id="events">
           <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
@@ -1257,7 +1244,7 @@ export default async function Home({ searchParams }: HomeProps) {
       </section>
 
 
-      <PublicFacilitatorCarousel facilitators={facilitatorCards} query={facilitatorQuery} />
+      {facilitatorQuery && <PublicFacilitatorCarousel facilitators={facilitatorCards} query={facilitatorQuery} />}
 
       <HomeInspirationSections
         featuredFacilitators={featuredFacilitators}
