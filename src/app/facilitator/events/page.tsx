@@ -3,10 +3,20 @@ import { AlertTriangle, ArrowLeft, CalendarPlus, CheckCircle2 } from "lucide-rea
 import { AuthMessage } from "@/components/auth/auth-message";
 import { EventForm } from "@/components/facilitator/events/event-form";
 import { requireRole } from "@/lib/auth/roles";
+import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+type CategoryRelationRow = { category_id: string };
+type MainCategoryRelationRow = { main_category_id: string };
+type SubcategoryRelationRow = { subcategory_id: string };
+type MainCategoryRow = { color_hex?: string | null; id: string; image_path?: string | null; name: string };
+type SubcategoryRow = {
+  id: string;
+  name: string;
+  subcategory_main_categories?: MainCategoryRelationRow[] | null;
+};
 
 function isEventImageMessage(message?: string) {
   if (!message) {
@@ -68,6 +78,11 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
           .in("status", ["draft", "active", "pending_review"])
           .maybeSingle()
       : { data: null };
+  const limitStatus = facilitatorProfile
+    ? await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id, { excludeEventId: selectedDraft?.id ?? null })
+    : null;
+  const hasReachedDraftLimit = !selectedDraft && Boolean(limitStatus && limitStatus.draftCount >= limitStatus.maxDraftEvents);
+  const hasReachedActiveLimit = Boolean(limitStatus && limitStatus.activeCount >= limitStatus.maxActiveEvents);
 
   const contactProfile = Array.isArray(facilitatorProfile?.profiles)
     ? facilitatorProfile?.profiles[0]
@@ -164,8 +179,25 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
               </div>
             </div>
           </section>
+        ) : hasReachedDraftLimit && limitStatus ? (
+          <section className="rounded-card border border-[#D8CBE4] bg-white p-6 shadow-soft">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 size-5 text-[#7A5D91]" aria-hidden="true" />
+              <div>
+                <h2 className="font-semibold text-midnight">Grænsen for kladder er nået</h2>
+                <p className="mt-1 text-sm leading-6 text-ink/65">{draftLimitMessage(limitStatus.maxDraftEvents)}</p>
+                <Link
+                  className="mt-4 inline-flex h-10 items-center gap-2 rounded-button bg-olive px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500"
+                  href="/facilitator#kladder"
+                >
+                  Gå til dine kladder
+                </Link>
+              </div>
+            </div>
+          </section>
         ) : facilitatorProfile && profileReady && (
           <EventForm
+            activeLimitMessage={hasReachedActiveLimit && limitStatus ? activeLimitMessage(limitStatus.maxActiveEvents) : null}
             initialStep={initialStep}
             message={draftMessage}
             draftEvent={
@@ -173,21 +205,25 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
                 ? {
                     ...selectedDraft,
                     coverImageUrl: selectedDraft.cover_image_path ? supabase.storage.from("media").getPublicUrl(selectedDraft.cover_image_path).data.publicUrl : null,
-                    categoryIds: selectedDraft.event_categories?.map((row: any) => row.category_id) ?? [],
-                    mainCategoryIds: selectedDraft.event_main_categories?.map((row: any) => row.main_category_id) ?? [],
-                    subcategoryIds: selectedDraft.event_subcategories?.map((row: any) => row.subcategory_id) ?? [],
-                    tagIds: selectedDraft.event_tags?.map((row: any) => row.tag_id) ?? [],
+                    categoryIds: selectedDraft.event_categories?.map((row: CategoryRelationRow) => row.category_id) ?? [],
+                    mainCategoryIds: selectedDraft.event_main_categories?.map((row: MainCategoryRelationRow) => row.main_category_id) ?? [],
+                    subcategoryIds: selectedDraft.event_subcategories?.map((row: SubcategoryRelationRow) => row.subcategory_id) ?? [],
+                    tagIds: selectedDraft.event_tags?.map((row: { tag_id: string }) => row.tag_id) ?? [],
                   }
                 : null
             }
             categories={categories ?? []}
-            mainCategories={(mainCategories ?? []).map((category: any) => ({
+            mainCategories={(mainCategories ?? []).map((category: MainCategoryRow) => ({
               id: category.id,
               name: category.name,
               colorHex: category.color_hex,
               imageUrl: category.image_path ? supabase.storage.from("media").getPublicUrl(category.image_path).data.publicUrl : null,
             }))}
-            subcategories={(subcategories ?? []).map((subcategory: any) => ({ id: subcategory.id, name: subcategory.name, mainCategoryIds: (subcategory.subcategory_main_categories ?? []).map((row: any) => row.main_category_id) }))}
+            subcategories={(subcategories ?? []).map((subcategory: SubcategoryRow) => ({
+              id: subcategory.id,
+              name: subcategory.name,
+              mainCategoryIds: (subcategory.subcategory_main_categories ?? []).map((row) => row.main_category_id),
+            }))}
             tags={tags ?? []}
             facilitator={{
               contactEmail: contactProfile?.email ?? profile.email,

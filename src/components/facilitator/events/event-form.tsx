@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createEventAction } from "@/app/facilitator/events/actions";
+import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
 
 type Region = {
   id: string;
@@ -54,6 +55,7 @@ type CoverCropState = {
 
 type DraftEvent = {
   id: string;
+  status?: string | null;
   title?: string | null;
   short_description?: string | null;
   long_description?: string | null;
@@ -86,6 +88,7 @@ type DraftEvent = {
 type EventFormProps = {
   regions: Region[];
   categories: Category[];
+  activeLimitMessage?: string | null;
   mainCategories?: MainCategory[];
   subcategories?: Subcategory[];
   tags?: Tag[];
@@ -106,6 +109,14 @@ type Step = {
   icon: ReactNode;
   label: string;
   title: string;
+};
+
+type MissingInvitationItem = {
+  focusSelector?: string;
+  key: string;
+  label: string;
+  step: number;
+  targetId: string;
 };
 
 function value(input: string | number | null | undefined) {
@@ -180,24 +191,31 @@ function MainCategoryCard({
   );
 }
 
-function TagPill({ checked, index, tag }: { checked?: boolean; index: number; tag: Tag }) {
-  const [isChecked, setIsChecked] = useState(Boolean(checked));
+function TagPill({
+  checked,
+  onChange,
+  tag,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  tag: Tag;
+}) {
   return (
     <label
       className={
         "inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5 " +
-        (isChecked ? "border-[#7A5D91] bg-[#7A5D91] text-white" : "border-[#D8CBE4] bg-white text-[#6E6475]")
+        (checked ? "border-[#7A5D91] bg-[#7A5D91] text-white" : "border-[#D8CBE4] bg-white text-[#6E6475]")
       }
     >
       <input
-        checked={isChecked}
+        checked={checked}
         className="sr-only"
         name="tag_ids"
-        onChange={(event) => setIsChecked(event.target.checked)}
+        onChange={(event) => onChange(event.target.checked)}
         type="checkbox"
         value={tag.id}
       />
-      {isChecked ? <span aria-hidden="true">{"✓"}</span> : null}
+      {checked ? <span aria-hidden="true">{"✓"}</span> : null}
       {tag.name}
     </label>
   );
@@ -393,6 +411,7 @@ function TextInput({
   step,
   autoFocus,
   highlightWhenEmpty,
+  id,
 }: {
   label: string;
   name: string;
@@ -407,6 +426,7 @@ function TextInput({
   step?: string;
   autoFocus?: boolean;
   highlightWhenEmpty?: boolean;
+  id?: string;
 }) {
   const [inputCharacterCount, setInputCharacterCount] = useState(defaultValue?.length ?? 0);
   const [inputValue, setInputValue] = useState(defaultValue ?? "");
@@ -425,6 +445,7 @@ function TextInput({
         autoFocus={autoFocus}
         className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + emptyHighlightClass}
         defaultValue={defaultValue}
+        id={id}
         max={max}
         maxLength={maxLength}
         min={min}
@@ -504,7 +525,10 @@ function EventDescriptionField({ defaultValue = "" }: { defaultValue?: string })
   const [characterCount, setCharacterCount] = useState(defaultValue.length);
   const [descriptionValue, setDescriptionValue] = useState(defaultValue);
   const remainingCharacters = maxEventDescriptionLength - characterCount;
+  const minimumCharacters = 20;
+  const missingMinimumCharacters = Math.max(minimumCharacters - characterCount, 0);
   const isAtLimit = remainingCharacters <= 0;
+  const hasMinimumCharacters = missingMinimumCharacters === 0;
 
   return (
     <label className="grid gap-2 text-sm font-medium text-ink/72">
@@ -515,6 +539,7 @@ function EventDescriptionField({ defaultValue = "" }: { defaultValue?: string })
         className={"min-h-40 w-full min-w-0 rounded-card border p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(descriptionValue)}
         maxLength={maxEventDescriptionLength}
         defaultValue={defaultValue}
+        id="event-description-input"
         name="event_description"
         onInput={(event) => {
           setCharacterCount(event.currentTarget.value.length);
@@ -524,10 +549,20 @@ function EventDescriptionField({ defaultValue = "" }: { defaultValue?: string })
         required
       />
       <span className="text-xs leading-5 text-ink/52">
-        Fortæl kort, hvad der skal ske, hvem eventet er for, og hvad deltagerne kan forvente.
+        Fortæl kort, hvad der skal ske, hvem eventet er for, og hvad deltagerne kan forvente. Minimum {minimumCharacters} tegn.
       </span>
-      <span className={isAtLimit ? "text-xs font-semibold text-[#9A3F3F]" : "text-xs font-semibold text-[#7A4EAB]"}>
-        {remainingCharacters} tegn tilbage
+      <span
+        className={
+          isAtLimit
+            ? "text-xs font-semibold text-[#9A3F3F]"
+            : hasMinimumCharacters
+              ? "text-xs font-semibold text-[#7A4EAB]"
+              : "text-xs font-semibold text-[#B56F8A]"
+        }
+      >
+        {hasMinimumCharacters
+          ? remainingCharacters + " tegn tilbage"
+          : "Mangler " + missingMinimumCharacters + " tegn før beskrivelsen er lang nok"}
       </span>
     </label>
   );
@@ -569,6 +604,7 @@ function CheckboxPill({
 
 export function EventForm({
   regions,
+  activeLimitMessage,
   mainCategories = [],
   subcategories = [],
   tags = [],
@@ -590,6 +626,16 @@ export function EventForm({
   const draftEndTime = draftEnd ? draftEnd.toISOString().slice(11, 16) : "21:00";
   const formRef = useRef<HTMLFormElement | null>(null);
   const coverFileInputRef = useRef<HTMLInputElement | null>(null);
+  const cropDragRef = useRef<{
+    cropX: number;
+    cropY: number;
+    height: number;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    width: number;
+  } | null>(null);
+  const cropPinchRef = useRef<{ distance: number; zoom: number } | null>(null);
   const [currentStep, setCurrentStep] = useState(() => Math.min(Math.max(initialStep, 0), 4));
   const [openStepIndexes, setOpenStepIndexes] = useState<number[]>(() => [Math.min(Math.max(initialStep, 0), 3)]);
   const [startDate, setStartDate] = useState(draftStartDate);
@@ -610,6 +656,10 @@ export function EventForm({
   );
   const [isFree, setIsFree] = useState((draftEvent?.price_cents ?? 0) === 0);
   const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState<string[]>(draftEvent?.mainCategoryIds ?? []);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(draftEvent?.tagIds ?? []);
+  const [categoryLimitMessage, setCategoryLimitMessage] = useState("");
+  const [capacityValue, setCapacityValue] = useState(String(draftEvent?.capacity ?? 12));
+  const [highlightedMissingKey, setHighlightedMissingKey] = useState("");
   const initialPriceValue = String((draftEvent?.price_cents ?? 0) / 100);
   const [priceValue, setPriceValue] = useState(initialPriceValue);
   const [preview, setPreview] = useState<{
@@ -638,6 +688,10 @@ export function EventForm({
   const selectedRegionName = regions.find((region) => region.id === regionId)?.name ?? "";
   const currentCoverImageUrl = coverPreviewUrl || draftEvent?.coverImageUrl || "";
   const hasExistingCoverImage = Boolean(draftEvent?.coverImageUrl || draftEvent?.cover_image_path);
+  const draftEventStatus = draftEvent?.status ?? null;
+  const isEditingPublishedEvent = draftEventStatus === "active" || draftEventStatus === "sold_out";
+  const primarySubmitStatus = isEditingPublishedEvent && draftEventStatus ? draftEventStatus : "pending_review";
+  const draftStorageKey = draftEvent?.id ? eventDraftStorageKey + ":" + draftEvent.id : eventDraftStorageKey;
   const statusHelp = useMemo(
     () =>
       "Når du gør eventet offentligt, bliver det enten sendt til godkendelse eller publiceret med det samme, hvis du har automatisk godkendelse.",
@@ -678,7 +732,7 @@ export function EventForm({
     { icon: <CalendarPlus className="size-4" />, label: "Invitation", title: "Hvad vil du invitere til?" },
     { icon: <MapPin className="size-4" />, label: "Sted", title: "Hvor foregår oplevelsen?" },
     { icon: <Ticket className="size-4" />, label: "Pris", title: "Pris & antal deltagere" },
-    { icon: <Tags className="size-4" />, label: "Findbarhed", title: "Vælg eventets kategori" },
+    { icon: <Tags className="size-4" />, label: "Findbarhed", title: "Vælg 1-3 kategorier, som bedst beskriver dit event." },
   ];
 
   const stepDescriptions = [
@@ -687,6 +741,10 @@ export function EventForm({
     "Tilføj pris, antal deltagere og eventuelle praktiske oplysninger.",
     "Vælg brede hovedkategorier og eventuelle tags.",
   ];
+  const [missingInvitationItems, setMissingInvitationItems] = useState<MissingInvitationItem[]>([]);
+  const [stepStatuses, setStepStatuses] = useState<Array<"complete" | "missing">>(() =>
+    steps.map(() => "missing"),
+  );
 
 
   function loadImageDimensions(url: string) {
@@ -755,6 +813,88 @@ export function EventForm({
     };
   }
 
+  function updateCoverCropZoom(direction: "in" | "out") {
+    setCoverCrop((current) => {
+      if (!current) return current;
+      const nextZoom = direction === "in" ? current.zoom + 0.15 : current.zoom - 0.15;
+      return { ...current, zoom: Math.min(Math.max(nextZoom, 1), 3) };
+    });
+  }
+
+  function startCoverCropDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (!coverCrop) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    cropDragRef.current = {
+      cropX: coverCrop.cropX,
+      cropY: coverCrop.cropY,
+      height: rect.height,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      width: rect.width,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveCoverCrop(event: React.PointerEvent<HTMLDivElement>) {
+    const drag = cropDragRef.current;
+
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    const nextCropX = Math.min(Math.max(drag.cropX - (deltaX / drag.width) * 100, 0), 100);
+    const nextCropY = Math.min(Math.max(drag.cropY - (deltaY / drag.height) * 100, 0), 100);
+
+    setCoverCrop((current) => (current ? { ...current, cropX: nextCropX, cropY: nextCropY } : current));
+  }
+
+  function stopCoverCropDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (cropDragRef.current?.pointerId === event.pointerId) {
+      cropDragRef.current = null;
+    }
+  }
+
+  function getTouchDistance(touches: React.TouchList) {
+    const firstTouch = touches[0];
+    const secondTouch = touches[1];
+
+    if (!firstTouch || !secondTouch) {
+      return 0;
+    }
+
+    return Math.hypot(firstTouch.clientX - secondTouch.clientX, firstTouch.clientY - secondTouch.clientY);
+  }
+
+  function startCoverCropPinch(event: React.TouchEvent<HTMLDivElement>) {
+    if (!coverCrop || event.touches.length !== 2) {
+      cropPinchRef.current = null;
+      return;
+    }
+
+    cropPinchRef.current = { distance: getTouchDistance(event.touches), zoom: coverCrop.zoom };
+  }
+
+  function moveCoverCropPinch(event: React.TouchEvent<HTMLDivElement>) {
+    const pinch = cropPinchRef.current;
+
+    if (!pinch || event.touches.length !== 2 || pinch.distance <= 0) {
+      return;
+    }
+
+    event.preventDefault();
+    const nextDistance = getTouchDistance(event.touches);
+    const nextZoom = Math.min(Math.max(pinch.zoom * (nextDistance / pinch.distance), 1), 3);
+    setCoverCrop((current) => (current ? { ...current, zoom: nextZoom } : current));
+  }
+
+  function stopCoverCropPinch() {
+    cropPinchRef.current = null;
+  }
+
   function closeCoverCrop() {
     if (coverCrop?.url) {
       URL.revokeObjectURL(coverCrop.url);
@@ -810,7 +950,7 @@ export function EventForm({
 
   async function handleCoverFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget;
-    const file = input.files?.[0];
+    let file = input.files?.[0];
 
     if (!file) {
       setCoverFileName("");
@@ -819,12 +959,19 @@ export function EventForm({
       return;
     }
 
-    if (!file.type.startsWith("image/")) {
+    try {
+      if (file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif")) {
+        setCoverImageErrorMessage("Konverterer HEIC til JPG...");
+      }
+
+      file = await prepareImageFileForUpload(file);
+      replaceInputFile(input, file);
+    } catch (error) {
       input.value = "";
       setCoverFileName("");
       setCoverPreviewUrl("");
       setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: "" } : currentPreview));
-      setCoverImageErrorMessage("Vælg et billede i JPG, PNG, WebP eller GIF.");
+      setCoverImageErrorMessage(error instanceof Error ? error.message : "Billedet kunne ikke klargøres til upload.");
       return;
     }
 
@@ -1000,9 +1147,45 @@ export function EventForm({
   }
 
   function updateMainCategory(categoryId: string, checked: boolean) {
-    setSelectedMainCategoryIds((current) =>
-      checked ? [...current, categoryId] : current.filter((currentCategoryId) => currentCategoryId !== categoryId),
-    );
+    setSelectedMainCategoryIds((current) => {
+      if (!checked) {
+        setCategoryLimitMessage("");
+        return current.filter((currentCategoryId) => currentCategoryId !== categoryId);
+      }
+
+      if (current.includes(categoryId)) {
+        return current;
+      }
+
+      if (current.length >= 3) {
+        setCategoryLimitMessage("Du kan vælge op til 3 kategorier og op til 4 tags.");
+        return current;
+      }
+
+      setCategoryLimitMessage("");
+      return [...current, categoryId];
+    });
+  }
+
+  function updateTag(tagId: string, checked: boolean) {
+    setSelectedTagIds((current) => {
+      if (!checked) {
+        setCategoryLimitMessage("");
+        return current.filter((currentTagId) => currentTagId !== tagId);
+      }
+
+      if (current.includes(tagId)) {
+        return current;
+      }
+
+      if (current.length >= 4) {
+        setCategoryLimitMessage("Du kan vælge op til 3 kategorier og op til 4 tags.");
+        return current;
+      }
+
+      setCategoryLimitMessage("");
+      return [...current, tagId];
+    });
   }
 
   function showPreview() {
@@ -1073,7 +1256,7 @@ export function EventForm({
       const numericPrice = Number(priceValue || 0);
       if (priceMode !== "free" && priceMode !== "paid") return "missing";
       if (priceMode === "paid" && (!hasValidPrice || numericPrice <= 0)) return "missing";
-      return capacityValue > 0 ? "complete" : "missing";
+      return capacityValue > 0 && capacityValue <= 500 ? "complete" : "missing";
     }
 
     if (index === 3) {
@@ -1083,22 +1266,54 @@ export function EventForm({
     return [0, 1, 2, 3].every((stepIndex) => getStepStatus(stepIndex) === "complete") ? "complete" : "missing";
   }
 
-  function getMissingInvitationItems() {
+  function getMissingInvitationItems(): MissingInvitationItem[] {
     const form = formRef.current;
     const data = form ? new FormData(form) : null;
     const text = (name: string) => String(data?.get(name) || "").trim();
     const selectedCategories = data?.getAll("main_category_ids").map(String).filter(Boolean) ?? [];
-    const missing = [];
+    const missing: MissingInvitationItem[] = [];
+    const addMissing = (item: MissingInvitationItem) => {
+      if (!missing.some((currentItem) => currentItem.key === item.key)) {
+        missing.push(item);
+      }
+    };
 
-    if (text("title").length === 0) missing.push("Titel");
-    if (text("event_description").length < 20) missing.push("Beskrivelse");
-    if (getStepStatus(1) !== "complete") missing.push(eventFormat === "online" ? "Online-link" : "Lokation");
-    if (priceMode !== "free" && priceMode !== "paid") missing.push("Pris eller gratis");
-    if (getStepStatus(2) !== "complete") missing.push("Pris og antal deltagere");
-    if (selectedCategories.length === 0) missing.push("Kategori");
-    if (!currentCoverImageUrl) missing.push("Billede");
+    if (text("title").length === 0) {
+      addMissing({ focusSelector: "#event-title-input", key: "title", label: "Eventtitel", step: 0, targetId: "event-title-field" });
+    }
 
-    return Array.from(new Set(missing));
+    if (text("event_description").length < 20) {
+      addMissing({ focusSelector: "#event-description-input", key: "description", label: "Beskrivelse", step: 0, targetId: "event-description-field" });
+    }
+
+    if (getStepStatus(1) !== "complete") {
+      addMissing({
+        focusSelector: eventFormat === "online" ? "[name='online_url_or_note']" : "[name='address_line']",
+        key: eventFormat === "online" ? "online" : "location",
+        label: eventFormat === "online" ? "Online-link" : "Lokation",
+        step: 1,
+        targetId: "event-location-field",
+      });
+    }
+
+    if (priceMode !== "free" && priceMode !== "paid") {
+      addMissing({ key: "price-mode", label: "Prisvalg", step: 2, targetId: "event-price-field" });
+    }
+
+    if (getStepStatus(2) !== "complete") {
+      addMissing({ focusSelector: "[name='capacity']", key: "capacity", label: "Pris og antal deltagere", step: 2, targetId: "event-price-field" });
+    }
+
+    if (selectedCategories.length === 0) {
+      addMissing({ key: "category", label: "Kategori", step: 3, targetId: "event-category-field" });
+    }
+
+    return missing;
+  }
+
+  function refreshFormValidationState() {
+    setMissingInvitationItems(getMissingInvitationItems());
+    setStepStatuses(steps.map((_, stepIndex) => getStepStatus(stepIndex)));
   }
 
   function isStepOpen(index: number) {
@@ -1110,6 +1325,31 @@ export function EventForm({
     setOpenStepIndexes((currentIndexes) =>
       currentIndexes.includes(index) ? currentIndexes : [...currentIndexes, index].sort((first, second) => first - second),
     );
+  }
+
+  function guideToMissingItem(item?: MissingInvitationItem) {
+    if (!item) {
+      return;
+    }
+
+    openStep(item.step);
+    setHighlightedMissingKey(item.key);
+
+    window.setTimeout(() => {
+      const target = document.getElementById(item.targetId);
+      const focusTarget = item.focusSelector
+        ? (document.querySelector(item.focusSelector) as HTMLElement | null)
+        : (target?.querySelector("input, textarea, select, button") as HTMLElement | null);
+
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      focusTarget?.focus({ preventScroll: true });
+    }, 80);
+
+    window.setTimeout(() => setHighlightedMissingKey(""), 1800);
+  }
+
+  function highlightMissingClass(key: string) {
+    return highlightedMissingKey === key ? "ring-4 ring-[#D89A94]/35" : "";
   }
 
   function goToStep(index: number, anchor?: HTMLElement | null) {
@@ -1132,6 +1372,7 @@ export function EventForm({
     window.setTimeout(() => {
       restoreDraftFields();
       showPreview();
+      refreshFormValidationState();
     }, 0);
 
     if (beforeTop !== null && anchor) {
@@ -1144,7 +1385,7 @@ export function EventForm({
 
   function readDraft() {
     try {
-      const rawDraft = window.localStorage.getItem(eventDraftStorageKey);
+      const rawDraft = window.localStorage.getItem(draftStorageKey);
       return rawDraft ? JSON.parse(rawDraft) : null;
     } catch {
       return null;
@@ -1183,7 +1424,7 @@ export function EventForm({
     }
 
     window.localStorage.setItem(
-      eventDraftStorageKey,
+      draftStorageKey,
       JSON.stringify({
         fields,
         state: {
@@ -1196,10 +1437,12 @@ export function EventForm({
           priceMode,
           isFree,
           sendOnlineLinkLater,
+          capacityValue,
 
           postalCode,
           regionId,
           selectedMainCategoryIds,
+          selectedTagIds,
           startDate,
           startTime,
         },
@@ -1233,8 +1476,11 @@ export function EventForm({
 
         if (control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")) {
           control.checked = values.includes(control.value);
+          control.dispatchEvent(new Event("change", { bubbles: true }));
         } else {
           control.value = valueAtIndex;
+          control.dispatchEvent(new Event("input", { bubbles: true }));
+          control.dispatchEvent(new Event("change", { bubbles: true }));
         }
       });
     }
@@ -1263,9 +1509,14 @@ export function EventForm({
     setPriceMode(draft.state?.priceMode === "paid" || draft.state?.priceMode === "free" ? draft.state.priceMode : "");
     setIsFree(Boolean(draft.state?.isFree));
     setSendOnlineLinkLater(Boolean(draft.state?.sendOnlineLinkLater));
+    setCapacityValue(draft.state?.capacityValue ?? String(draftEvent?.capacity ?? 12));
     setSelectedMainCategoryIds(Array.isArray(draft.state?.selectedMainCategoryIds) ? draft.state.selectedMainCategoryIds : []);
+    setSelectedTagIds(Array.isArray(draft.state?.selectedTagIds) ? draft.state.selectedTagIds : []);
 
-    window.requestAnimationFrame(() => applyDraftFields(draft.fields ?? {}));
+    window.requestAnimationFrame(() => {
+      applyDraftFields(draft.fields ?? {});
+      refreshFormValidationState();
+    });
   }
 
   function restoreDraftFields() {
@@ -1279,7 +1530,7 @@ export function EventForm({
   }
 
   function clearDraft() {
-    window.localStorage.removeItem(eventDraftStorageKey);
+    window.localStorage.removeItem(draftStorageKey);
     setHasAutosavedDraft(false);
     setAutosaveMessage("");
   }
@@ -1292,37 +1543,46 @@ export function EventForm({
     const imageMessage = getEventImageMessage(message);
 
     if (imageMessage) {
-      setCoverImageErrorMessage(imageMessage);
-      openStep(0);
+      window.setTimeout(() => {
+        setCoverImageErrorMessage(imageMessage);
+        openStep(0);
+      }, 0);
     }
 
-    if (normalizedMessage.includes("oprettet") || normalizedMessage.includes("gemt")) {
+    if (normalizedMessage.includes("oprettet") || normalizedMessage.includes("gemt") || normalizedMessage.includes("opdateret")) {
+      window.localStorage.removeItem(draftStorageKey);
       window.localStorage.removeItem(eventDraftStorageKey);
       return;
     }
 
-    const hasDraft = Boolean(window.localStorage.getItem(eventDraftStorageKey));
-    setHasAutosavedDraft(hasDraft);
-
-    if (message && hasDraft) {
-      window.setTimeout(restoreDraft, 0);
-    }
+    const hasDraft = Boolean(window.localStorage.getItem(draftStorageKey));
+    window.setTimeout(() => {
+      setHasAutosavedDraft(hasDraft);
+      if (hasDraft) {
+        restoreDraft();
+      } else {
+        refreshFormValidationState();
+      }
+    }, 0);
   }, []);
 
   useEffect(() => {
     const timeout = window.setTimeout(writeDraft, 350);
     return () => window.clearTimeout(timeout);
-  }, [city, country, endDate, endTime, eventFormat, hasChosenEventFormat, priceMode, isFree, postalCode, regionId, selectedMainCategoryIds, startDate, startTime]);
+  }, [capacityValue, city, country, endDate, endTime, eventFormat, hasChosenEventFormat, priceMode, isFree, postalCode, regionId, selectedMainCategoryIds, selectedTagIds, startDate, startTime]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(showPreview, 0);
+    const timeout = window.setTimeout(() => {
+      showPreview();
+      refreshFormValidationState();
+    }, 0);
     return () => window.clearTimeout(timeout);
-  }, [city, country, endDate, endTime, eventFormat, hasChosenEventFormat, isFree, postalCode, priceValue, regionId, selectedMainCategoryIds, startDate, startTime]);
+  }, [capacityValue, city, country, endDate, endTime, eventFormat, hasChosenEventFormat, isFree, postalCode, priceValue, regionId, selectedMainCategoryIds, selectedTagIds, startDate, startTime]);
 
-  function StepAccordionHeader({ index }: { index: number }) {
+  function renderStepAccordionHeader(index: number) {
     const step = steps[index];
     const isOpen = isStepOpen(index);
-    const status = getStepStatus(index);
+    const status = stepStatuses[index] ?? "missing";
     const isDone = status === "complete";
     const statusClass = isDone
       ? "border-[#C8DCC0] bg-[#F3F7F0] text-[#4E6A48]"
@@ -1381,6 +1641,7 @@ export function EventForm({
                     window.setTimeout(() => {
                       restoreDraftFields();
                       showPreview();
+                      refreshFormValidationState();
                     }, 0);
                   }}
                   type="radio"
@@ -1423,6 +1684,7 @@ export function EventForm({
                     window.setTimeout(() => {
                       restoreDraftFields();
                       showPreview();
+                      refreshFormValidationState();
                     }, 0);
                   }}
                   type="radio"
@@ -1443,8 +1705,9 @@ export function EventForm({
     );
   }
 
-  const missingInvitationItems = getMissingInvitationItems();
-  const canPublish = missingInvitationItems.length === 0;
+  const hasReachedActiveLimit = Boolean(activeLimitMessage);
+  const activeLimitBlocksSubmit = hasReachedActiveLimit && !isEditingPublishedEvent;
+  const canPublish = missingInvitationItems.length === 0 && !activeLimitBlocksSubmit;
 
   return (
     <form
@@ -1454,12 +1717,37 @@ export function EventForm({
       onChange={() => {
         setFormVersion((version) => version + 1);
         writeDraft();
-        window.setTimeout(showPreview, 0);
+        window.setTimeout(() => {
+          showPreview();
+          refreshFormValidationState();
+        }, 0);
       }}
       onInput={() => {
         setFormVersion((version) => version + 1);
         writeDraft();
-        window.setTimeout(showPreview, 0);
+        window.setTimeout(() => {
+          showPreview();
+          refreshFormValidationState();
+        }, 0);
+      }}
+      onSubmit={(event) => {
+        const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+        const latestMissingInvitationItems = getMissingInvitationItems();
+        const latestCanPublish = latestMissingInvitationItems.length === 0 && !activeLimitBlocksSubmit;
+
+        const isPrimarySubmit =
+          submitter?.value === "pending_review" ||
+          (isEditingPublishedEvent && submitter?.value === primarySubmitStatus);
+
+        if (isPrimarySubmit && activeLimitBlocksSubmit) {
+          event.preventDefault();
+          return;
+        }
+
+        if (isPrimarySubmit && !latestCanPublish) {
+          event.preventDefault();
+          guideToMissingItem(latestMissingInvitationItems[0]);
+        }
       }}
       onKeyDown={(event) => {
         if (event.key === "Enter" && event.target instanceof HTMLElement && event.target.tagName !== "TEXTAREA") {
@@ -1471,12 +1759,18 @@ export function EventForm({
       {draftEvent?.id ? <input name="event_id" type="hidden" value={draftEvent.id} /> : null}
       <input name="current_step" type="hidden" value={currentStep} />
       <input name="current_cover_image_path" type="hidden" value={value(draftEvent?.cover_image_path)} />
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
-        <div className="grid gap-5">
-          <StepAccordionHeader index={0} />
+      <div className="grid min-w-0 max-w-full gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+        <div className="grid min-w-0 max-w-full gap-5">
+          {renderStepAccordionHeader(0)}
       <section className={isStepOpen(0) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <div className="grid gap-4 md:grid-cols-2 md:gap-x-5 md:gap-y-4">
-          <div className="rounded-[20px] border border-[#F0D6D2] bg-[#FFF8F6] p-4 md:col-span-2">
+          <div
+            className={
+              "rounded-[20px] border border-[#F0D6D2] bg-[#FFF8F6] p-4 transition md:col-span-2 " +
+              (highlightedMissingKey === "title" ? "ring-4 ring-[#D89A94]/35" : "")
+            }
+            id="event-title-field"
+          >
             <div className="mb-3 inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#B56F8A] shadow-sm">
               Start her
             </div>
@@ -1485,6 +1779,7 @@ export function EventForm({
               defaultValue={value(draftEvent?.title)}
               help="Giv eventet et kort og tydeligt navn. Det bliver deltagernes første indtryk."
               highlightWhenEmpty
+              id="event-title-input"
               label="Hvad kalder du dit event?"
               maxLength={80}
               name="title"
@@ -1558,10 +1853,12 @@ export function EventForm({
             </div>
           )}
         </div>
-        <EventDescriptionField defaultValue={value(draftEvent?.long_description || draftEvent?.short_description)} />
+        <div className={"rounded-[20px] transition " + highlightMissingClass("description")} id="event-description-field">
+          <EventDescriptionField defaultValue={value(draftEvent?.long_description || draftEvent?.short_description)} />
+        </div>
       </section>
-<StepAccordionHeader index={1} />
-      <section className={isStepOpen(1) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
+{renderStepAccordionHeader(1)}
+      <section className={isStepOpen(1) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-5 sm:p-6 " + highlightMissingClass(eventFormat === "online" ? "online" : "location") : "hidden"} id="event-location-field">
         {!hasChosenEventFormat ? (
           <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
             Vælg først fysisk eller online i trinlinjen ovenfor.
@@ -1643,6 +1940,7 @@ export function EventForm({
                       window.setTimeout(() => {
                         writeDraft();
                         showPreview();
+                        refreshFormValidationState();
                       }, 0);
                     }}
                     type="button"
@@ -1671,6 +1969,7 @@ export function EventForm({
                     window.setTimeout(() => {
                       writeDraft();
                       showPreview();
+                      refreshFormValidationState();
                     }, 0);
                   }}
                   type="button"
@@ -1703,11 +2002,11 @@ export function EventForm({
           </div>
         ) : null}
       </section>
-          <StepAccordionHeader index={2} />
+          {renderStepAccordionHeader(2)}
       
 
       
-<section className={isStepOpen(2) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
+<section className={isStepOpen(2) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-5 sm:p-6 " + highlightMissingClass(highlightedMissingKey === "capacity" ? "capacity" : "price-mode") : "hidden"} id="event-price-field">
         {priceMode === "" ? (
           <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
             Vælg først gratis eller betaling i trinlinjen ovenfor.
@@ -1739,11 +2038,24 @@ export function EventForm({
             </div>
           ) : null}
 
-          <TextInput defaultValue={String(draftEvent?.capacity ?? 12)} label="Maks. antal deltagere" max={500} min={1} name="capacity" type="number" />
+          <label className="grid gap-2 text-sm font-medium text-ink/72">
+            <span>Maks. antal deltagere</span>
+            <input
+              className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(capacityValue)}
+              inputMode="numeric"
+              maxLength={3}
+              name="capacity"
+              onChange={(event) => {
+                const normalizedValue = event.currentTarget.value.replace(/\D/g, "").slice(0, 3);
+                setCapacityValue(normalizedValue);
+              }}
+              pattern="[0-9]*"
+              type="text"
+              value={capacityValue}
+            />
+            <span className="text-xs leading-5 text-ink/52">Maks. 500 deltagere.</span>
+          </label>
         </div>
-        <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
-          Kontaktoplysninger og sociale links hentes fra din arrangørprofil, så eventoprettelsen holdes enkel.
-        </p>
       </section>
 
 <section className={isStepOpen(2) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
@@ -1764,11 +2076,20 @@ export function EventForm({
       </section>
 
 
-          <StepAccordionHeader index={3} />
-      <section className={isStepOpen(3) ? "grid w-full max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-6 sm:p-6" : "hidden"}>
+          {renderStepAccordionHeader(3)}
+      <section className={isStepOpen(3) ? "grid w-full max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-6 sm:p-6 " + highlightMissingClass("category") : "hidden"} id="event-category-field">
         {draftEvent?.subcategoryIds?.map((subcategoryId) => (
           <input key={subcategoryId} name="subcategory_ids" type="hidden" value={subcategoryId} />
         ))}
+        <div>
+          <h2 className="text-lg font-semibold text-midnight">Vælg 1-3 kategorier, som bedst beskriver dit event.</h2>
+          <p className="mt-1 text-sm leading-6 text-ink/60">Du kan vælge op til 3 kategorier og op til 4 tags.</p>
+          {categoryLimitMessage ? (
+            <p className="mt-3 rounded-card border border-[#E8D2CC] bg-[#FFF8F6] px-4 py-3 text-sm font-semibold text-[#8B5B68]">
+              {categoryLimitMessage}
+            </p>
+          ) : null}
+        </div>
         {mainCategories.length > 0 && (
           <div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1793,28 +2114,37 @@ export function EventForm({
               Tags er valgfrie ekstra filtre som begynder, gratis, weekend, udendørs eller online.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
-              {tags.map((tag, index) => (
-                <TagPill checked={draftEvent?.tagIds?.includes(tag.id)} index={index} key={tag.id} tag={tag} />
+              {tags.map((tag) => (
+                <TagPill
+                  checked={selectedTagIds.includes(tag.id)}
+                  key={tag.id}
+                  onChange={(checked) => updateTag(tag.id, checked)}
+                  tag={tag}
+                />
               ))}
             </div>
           </details>
         )}
       </section>
 </div>
-        <aside className="mt-8 border-t border-[#E5D4F7] pt-8 xl:mt-0 xl:border-t-0 xl:pt-0">
-          <div className="sticky top-6 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 shadow-soft">
+        <aside className="mt-8 min-w-0 max-w-full border-t border-[#E5D4F7] pt-8 xl:mt-0 xl:border-t-0 xl:pt-0">
+          <div className="w-full max-w-full overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 shadow-soft xl:sticky xl:top-6">
             <div className="border-b border-[#E5D4F7] bg-[#F4F0F7] px-5 py-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Din invitation</p>
               <h2 className="mt-1 font-serif text-xl font-semibold text-midnight">Sådan ser din invitation ud</h2>
             </div>
-            <div className="relative h-44 overflow-hidden bg-[radial-gradient(circle_at_20%_20%,#F4F0F7_0%,transparent_34%),radial-gradient(circle_at_85%_15%,#DDE8D7_0%,transparent_32%),linear-gradient(135deg,#FAF6EF_0%,#F8F3FA_48%,#EEE7DA_100%)]">
+            <div
+              className={"relative h-44 overflow-hidden bg-[radial-gradient(circle_at_20%_20%,#F4F0F7_0%,transparent_34%),radial-gradient(circle_at_85%_15%,#DDE8D7_0%,transparent_32%),linear-gradient(135deg,#FAF6EF_0%,#F8F3FA_48%,#EEE7DA_100%)] transition " + highlightMissingClass("cover")}
+              id="event-cover-field"
+            >
               {currentCoverImageUrl ? (
                 <img alt="Preview af eventets forsidebillede" className="h-full w-full object-cover" src={currentCoverImageUrl} />
               ) : null}
               <label className="absolute inset-0 grid cursor-pointer place-items-center bg-midnight/5 transition hover:bg-midnight/10">
-                <input
-                  accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif"
+                  <input
+                  accept={imageUploadAccept}
                   className="sr-only"
+                  id="event-cover-file"
                   name="event_cover_file"
                   onChange={handleCoverFileChange}
                   ref={coverFileInputRef}
@@ -1826,6 +2156,7 @@ export function EventForm({
                 </span>
               </label>
             </div>
+            <p className="border-b border-[#E5D4F7] px-5 py-2 text-xs font-semibold text-[#6E6475]">{supportedImageUploadText}</p>
             {coverFileName ? <p className="border-b border-[#E5D4F7] px-5 py-2 text-xs font-semibold text-[#7A4EAB]">Valgt fil: {coverFileName}</p> : null}
             {coverImageErrorMessage ? (
               <p className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold leading-6 text-red-900">{coverImageErrorMessage}</p>
@@ -1876,12 +2207,38 @@ export function EventForm({
                 }
               >
                 <p className="font-semibold">
-                  {canPublish ? "Din invitation er klar" : "Din invitation er næsten klar"}
+                  {canPublish
+                    ? isEditingPublishedEvent
+                      ? "Ændringerne er klar"
+                      : "Din invitation er klar"
+                    : activeLimitBlocksSubmit
+                      ? "Grænsen for aktive events er nået"
+                      : "Din invitation er næsten klar"}
                 </p>
                 {canPublish ? (
-                  <p>Du kan nu gøre eventet synligt på SoulEvents.</p>
+                  <p>
+                    {isEditingPublishedEvent
+                      ? "Du kan nu gemme ændringerne på eventet."
+                      : "Du kan nu gøre eventet synligt på SoulEvents."}
+                  </p>
+                ) : activeLimitBlocksSubmit ? (
+                  <p className="mt-2">{activeLimitMessage}</p>
                 ) : (
-                  <p>Udfyld først: {missingInvitationItems.join(", ")}.</p>
+                  <div className="mt-2">
+                    <p>Udfyld først:</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {missingInvitationItems.map((item) => (
+                        <button
+                          className="rounded-full border border-[#D8CBE4] bg-white px-3 py-1 text-xs font-semibold text-[#7A5D91] transition hover:border-[#7A5D91]"
+                          key={item.key}
+                          onClick={() => guideToMissingItem(item)}
+                          type="button"
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
               <button
@@ -1889,25 +2246,33 @@ export function EventForm({
                   "inline-flex h-11 items-center justify-center gap-2 rounded-button px-5 text-sm font-semibold shadow-soft transition " +
                   (canPublish
                     ? "bg-[#7A5D91] text-white hover:bg-[#6E5285]"
-                    : "cursor-not-allowed bg-[#D8CBE4] text-white shadow-none")
+                    : "bg-[#D8CBE4] text-white shadow-none")
                 }
-                disabled={!canPublish}
                 name="status"
+                disabled={activeLimitBlocksSubmit}
                 type="submit"
-                value="pending_review"
+                value={primarySubmitStatus}
               >
-                {canPublish ? "Gør event offentlig" : "Fuldfør eventet for at gøre det offentligt"}
+                {canPublish
+                  ? isEditingPublishedEvent
+                    ? "Gem ændringer"
+                    : "Gør event offentlig"
+                  : activeLimitBlocksSubmit
+                    ? "Grænsen er nået"
+                    : "Fuldfør eventet for at gøre det offentligt"}
                 <ArrowRight className="size-4" aria-hidden="true" />
               </button>
-              <button
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/30 bg-white px-5 text-sm font-semibold text-[#7A4EAB]"
-                name="status"
-                type="submit"
-                value="draft"
-              >
-                <Save className="size-4" aria-hidden="true" />
-                Gem kladde
-              </button>
+              {!isEditingPublishedEvent ? (
+                <button
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/30 bg-white px-5 text-sm font-semibold text-[#7A4EAB]"
+                  name="status"
+                  type="submit"
+                  value="draft"
+                >
+                  <Save className="size-4" aria-hidden="true" />
+                  Gem kladde
+                </button>
+              ) : null}
             </div>
           </div>
         </aside>
@@ -1917,16 +2282,26 @@ export function EventForm({
         <div className="fixed inset-0 z-50 grid place-items-center bg-midnight/45 px-4 py-6 backdrop-blur-sm">
           <section className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-card border border-[#D8CBE4] bg-white p-4 shadow-lift sm:p-6">
             <div className="grid gap-2">
-              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Forsidebillede</p>
-              <h2 className="font-serif text-3xl font-semibold text-midnight">Tilpas dit forsidebillede</h2>
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Eventbillede</p>
+              <h2 className="font-serif text-3xl font-semibold text-midnight">Tilpas dit eventbillede</h2>
               <p className="text-sm leading-6 text-ink/64">
-                Vælg det udsnit af billedet, som skal vises på dit event.
+                Træk direkte i billedet med mus eller finger, og brug zoom-knapperne til at finde det rigtige udsnit.
               </p>
             </div>
             <div className="mt-5 grid gap-5 lg:grid-cols-[1.4fr_1fr]">
               <div>
                 <p className="mb-2 text-sm font-semibold text-midnight">Sådan vil dit event se ud</p>
-                <div className="relative aspect-video overflow-hidden rounded-card border border-[#D8CBE4] bg-[#F4F0F7]">
+                <div
+                  className="relative aspect-video touch-none overflow-hidden rounded-card border-4 border-[#D8CBE4] bg-[#F4F0F7] cursor-grab active:cursor-grabbing"
+                  onPointerCancel={stopCoverCropDrag}
+                  onPointerDown={startCoverCropDrag}
+                  onPointerMove={moveCoverCrop}
+                  onPointerUp={stopCoverCropDrag}
+                  onTouchCancel={stopCoverCropPinch}
+                  onTouchEnd={stopCoverCropPinch}
+                  onTouchMove={moveCoverCropPinch}
+                  onTouchStart={startCoverCropPinch}
+                >
                   {(() => {
                     const preview = getCoverCropPreview(coverCrop);
 
@@ -1949,52 +2324,30 @@ export function EventForm({
                       </svg>
                     );
                   })()}
+                  <div className="pointer-events-none absolute inset-0 rounded-[18px] ring-2 ring-white/80 ring-inset" />
                 </div>
               </div>
               <div className="grid content-start gap-4 rounded-card bg-[#FAF6EF] p-4">
-                <label className="grid gap-2 text-sm font-semibold text-midnight">
-                  Flyt vandret
-                  <input
-                    className="accent-[#7A4EAB]"
-                    max="100"
-                    min="0"
-                    onChange={(event) => {
-                      const nextValue = Number(event.currentTarget.value);
-                      setCoverCrop((current) => current ? { ...current, cropX: nextValue } : current);
-                    }}
-                    type="range"
-                    value={coverCrop.cropX}
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-semibold text-midnight">
-                  Flyt lodret
-                  <input
-                    className="accent-[#7A4EAB]"
-                    max="100"
-                    min="0"
-                    onChange={(event) => {
-                      const nextValue = Number(event.currentTarget.value);
-                      setCoverCrop((current) => current ? { ...current, cropY: nextValue } : current);
-                    }}
-                    type="range"
-                    value={coverCrop.cropY}
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-semibold text-midnight">
-                  Zoom
-                  <input
-                    className="accent-[#7A4EAB]"
-                    max="2"
-                    min="1"
-                    onChange={(event) => {
-                      const nextValue = Number(event.currentTarget.value);
-                      setCoverCrop((current) => current ? { ...current, zoom: nextValue } : current);
-                    }}
-                    step="0.05"
-                    type="range"
-                    value={coverCrop.zoom}
-                  />
-                </label>
+                <div>
+                  <p className="text-sm font-semibold text-midnight">Zoom</p>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <button
+                      className="inline-flex h-12 items-center justify-center rounded-button border border-[#D8CBE4] bg-white text-2xl font-semibold text-[#7A5D91]"
+                      onClick={() => updateCoverCropZoom("out")}
+                      type="button"
+                    >
+                      {"−"}
+                    </button>
+                    <button
+                      className="inline-flex h-12 items-center justify-center rounded-button border border-[#D8CBE4] bg-white text-2xl font-semibold text-[#7A5D91]"
+                      onClick={() => updateCoverCropZoom("in")}
+                      type="button"
+                    >
+                      {"+"}
+                    </button>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-ink/64">Træk i billedet for at flytte udsnittet.</p>
+                </div>
                 <div className="grid gap-3 pt-2 sm:grid-cols-2 lg:grid-cols-1">
                   <button
                     className="inline-flex h-11 items-center justify-center rounded-button bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft"
@@ -2024,35 +2377,6 @@ export function EventForm({
         </div>
       ) : null}
 
-      <div className="sticky bottom-2 z-30 grid w-full max-w-full grid-cols-2 gap-2 rounded-card border border-[#E5D4F7] bg-white/95 p-2 shadow-lift backdrop-blur xl:hidden">
-        {message ? (
-          <p className="col-span-2 rounded-md border border-[#C7D7BF] bg-[#F3F7F0] px-3 py-2 text-sm font-semibold text-[#4E6A45]">
-            {message}
-          </p>
-        ) : null}
-        <button
-          className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/30 bg-white px-3 text-sm font-semibold text-[#7A4EAB]"
-          name="status"
-          type="submit"
-          value="draft"
-        >
-          <Save className="size-4" aria-hidden="true" />
-          Gem kladde
-        </button>
-        <button
-          className={
-            "inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-button px-3 text-sm font-semibold shadow-soft " +
-            (canPublish ? "bg-[#7A4EAB] text-white" : "cursor-not-allowed bg-[#D8CBE4] text-white shadow-none")
-          }
-          disabled={!canPublish}
-          name="status"
-          type="submit"
-          value="pending_review"
-        >
-          {canPublish ? "Gør offentlig" : "Udfyld først"}
-          <ArrowRight className="size-4" aria-hidden="true" />
-        </button>
-      </div>
     </form>
   );
 }

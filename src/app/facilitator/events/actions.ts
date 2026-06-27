@@ -3,14 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
-import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
 import { createSlug } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 import type { EventStatus } from "@/types/database";
 
 const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "rejected", "sold_out", "cancelled", "completed", "archived"];
@@ -18,8 +16,9 @@ const allowedFormats = ["physical", "online"] as const;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 
 const facilitatorProfileEventSelect = "id, status, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, facilitator_categories(category_id), profiles(email, phone)";
+type AdminClient = ReturnType<typeof createAdminClient>;
 
-async function getAutoApproveEvents(supabase: ReturnType<typeof createAdminClient>, facilitatorId: string) {
+async function getAutoApproveEvents(supabase: AdminClient, facilitatorId: string) {
   const { data, error } = await supabase
     .from("facilitator_profiles")
     .select("auto_approve_events")
@@ -80,16 +79,15 @@ async function uploadEventCoverImage(formData: FormData, currentImagePath: strin
     ["image/jpeg", "jpg"],
     ["image/png", "png"],
     ["image/webp", "webp"],
-    ["image/gif", "gif"],
   ]);
   const extension = allowedTypes.get(file.type);
 
   if (!extension) {
-    eventsRedirect("Billedet skal være JPG, PNG, WebP eller GIF.");
+    eventsRedirect("Billedet skal være JPG, PNG eller WebP. HEIC skal konverteres i browseren før upload.");
   }
 
-  if (file.size > 8 * 1024 * 1024) {
-    eventsRedirect("Billedet må højst være 8 MB.");
+  if (file.size > 10 * 1024 * 1024) {
+    eventsRedirect("Billedet må højst være 10 MB.");
   }
 
   const imagePath = "events/cover/" + crypto.randomUUID() + "." + extension;
@@ -116,7 +114,7 @@ function toDateTime(date: string, time: string) {
 }
 
 async function replaceEventRelations(
-  supabase: any,
+  supabase: AdminClient,
   eventId: string,
   input: {
     categoryIds: string[];
@@ -169,7 +167,7 @@ async function replaceEventRelations(
   }
 }
 
-async function createUniqueEventSlug(supabase: any, baseSlug: string) {
+async function createUniqueEventSlug(supabase: AdminClient, baseSlug: string) {
   const cleanBaseSlug = baseSlug || "event";
   let candidate = cleanBaseSlug;
 
@@ -207,11 +205,12 @@ function isProfileReady(input: {
 export async function createEventAction(formData: FormData) {
   const profile = await requireRole("facilitator");
   const supabase = createAdminClient();
-  let { data: facilitatorProfile, error: facilitatorLookupError } = await supabase
+  const { data: initialFacilitatorProfile, error: facilitatorLookupError } = await supabase
     .from("facilitator_profiles")
     .select(facilitatorProfileEventSelect)
     .eq("profile_id", profile.id)
     .maybeSingle();
+  let facilitatorProfile = initialFacilitatorProfile;
 
   if (facilitatorLookupError) {
     eventsRedirect("Arrangørprofilen kunne ikke hentes. Tjek at Supabase-migrationerne er kørt.");
@@ -245,14 +244,44 @@ export async function createEventAction(formData: FormData) {
   }
 
   const requestedStatus = getString(formData, "status") as EventStatus;
-  const autoApproveEvents = await getAutoApproveEvents(supabase, facilitatorProfile.id);
-  const status =
-    requestedStatus === "pending_review" && autoApproveEvents ? "active" : requestedStatus;
   const existingEventId = getOptionalString(formData, "event_id");
   const currentStep = getString(formData, "current_step") || "0";
   const safeStep = ["0", "1", "2", "3", "4"].includes(currentStep) ? currentStep : "0";
+
+  if (!allowedStatuses.includes(requestedStatus)) {
+    eventsRedirect("Ugyldig eventstatus.");
+  }
+
+  let existingEventStatus: EventStatus | null = null;
+
+  if (existingEventId) {
+    const { data: existingEvent } = await supabase
+      .from("events")
+      .select("id, status")
+      .eq("id", existingEventId)
+      .eq("facilitator_id", facilitatorProfile.id)
+      .maybeSingle();
+
+    if (!existingEvent) {
+      eventsRedirect("Eventet kunne ikke findes.");
+    }
+
+    existingEventStatus = existingEvent.status as EventStatus;
+  }
+
+  const autoApproveEvents = await getAutoApproveEvents(supabase, facilitatorProfile.id);
+  const preservedPublishedStatus =
+    existingEventStatus && ["active", "sold_out"].includes(existingEventStatus) ? existingEventStatus : null;
+  const shouldPreservePublishedStatus =
+    Boolean(preservedPublishedStatus) && requestedStatus !== "draft";
+  let status: EventStatus = requestedStatus === "pending_review" && autoApproveEvents ? "active" : requestedStatus;
+
+  if (shouldPreservePublishedStatus && preservedPublishedStatus) {
+    status = preservedPublishedStatus;
+  }
+
   const isDraft = status === "draft";
-  const wasAutoApproved = requestedStatus === "pending_review" && status === "active";
+  const wasAutoApproved = !shouldPreservePublishedStatus && requestedStatus === "pending_review" && status === "active";
 
   const facilitatorCategoryIds =
     facilitatorProfile.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [];
@@ -285,7 +314,7 @@ export async function createEventAction(formData: FormData) {
     if (status === "active" && limitStatus.activeCount >= limitStatus.maxActiveEvents) {
       eventsRedirect(activeLimitMessage(limitStatus.maxActiveEvents));
     }
-  } else if (status === "active") {
+  } else if (status === "active" && !shouldPreservePublishedStatus) {
     const limitStatus = await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id, {
       excludeEventId: existingEventId,
     });
@@ -313,6 +342,7 @@ export async function createEventAction(formData: FormData) {
   const country = getOptionalString(formData, "country") || "Danmark";
   let regionId = getOptionalString(formData, "region_id");
   const priceCents = getPriceCents(formData);
+  const capacityText = getString(formData, "capacity");
   const rawCapacity = getInteger(formData, "capacity");
   const capacity = isDraft && rawCapacity <= 0 ? 1 : rawCapacity;
   const relatedProfile = Array.isArray(facilitatorProfile.profiles)
@@ -387,12 +417,20 @@ export async function createEventAction(formData: FormData) {
     eventsRedirect("Sluttidspunkt skal være efter starttidspunkt.");
   }
 
+  if (capacityText && !/^\d{1,3}$/.test(capacityText)) {
+    eventsRedirect("Antal deltagere skal være et tal på højst 3 cifre.");
+  }
+
   if (!isDraft && capacity <= 0) {
     eventsRedirect("Kapacitet skal være mindst 1.");
   }
 
   if (capacity > 500) {
     eventsRedirect("Maks. antal deltagere er 500.");
+  }
+
+  if (mainCategoryIds.length > 3 || categoryIds.length > 3 || tagIds.length > 4) {
+    eventsRedirect("Du kan vælge op til 3 kategorier og op til 4 tags.");
   }
 
   if (!isDraft && eventFormat === "physical" && (!addressLine || !postalCode || !city || !country)) {
@@ -427,17 +465,6 @@ export async function createEventAction(formData: FormData) {
       : await geocodeDanishAddress({ addressLine, postalCode, city });
 
   if (existingEventId) {
-    const { data: existingEvent } = await supabase
-      .from("events")
-      .select("id")
-      .eq("id", existingEventId)
-      .eq("facilitator_id", facilitatorProfile.id)
-      .maybeSingle();
-
-    if (!existingEvent) {
-      eventsRedirect("Kladde kunne ikke findes.");
-    }
-
     const { error: updateError } = await supabase
       .from("events")
       .update({
@@ -488,6 +515,10 @@ export async function createEventAction(formData: FormData) {
 
     if (isDraft) {
       redirect("/facilitator/events?draft=" + existingEventId + "&step=" + safeStep + "&message=" + encodeURIComponent("Kladde er opdateret og gemt."));
+    }
+
+    if (shouldPreservePublishedStatus) {
+      redirect("/facilitator/events?draft=" + existingEventId + "&step=" + safeStep + "&message=" + encodeURIComponent("Eventet er opdateret."));
     }
 
     if (wasAutoApproved) {
