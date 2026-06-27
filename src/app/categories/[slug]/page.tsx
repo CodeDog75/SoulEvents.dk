@@ -1,41 +1,20 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { PartnerAdCarousel } from "@/components/ads/partner-ad-carousel";
 import { BrandLogo } from "@/components/brand-logo";
-import { PublicEventList } from "@/components/events/public-event-list";
+import { CategoryEventExplorer } from "@/components/categories/category-event-explorer";
 import { areaOptions } from "@/lib/regions/areas";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-function publicMediaUrl(imagePath: string | null) {
-  if (!imagePath) return null;
-  if (/^https?:\/\//i.test(imagePath)) return imagePath;
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) return null;
-
-  const encodedPath = imagePath
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/");
-
-  return supabaseUrl.replace(/\/$/, "") + "/storage/v1/object/public/media/" + encodedPath;
-}
-
-
 type CategoryPageProps = {
   params: Promise<{ slug: string }>;
   searchParams?: Promise<{ sub?: string; area?: string }>;
 };
-
-function startOfToday() {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
 
 function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -65,16 +44,6 @@ function uniqueById<T extends { id: string }>(items: T[]) {
     seen.add(item.id);
     return true;
   });
-}
-
-function toggleSubcategoryHref(mainSlug: string, allSlugs: string[], activeSlugs: string[], slug: string, area: string) {
-  const active = activeSlugs.length > 0 ? activeSlugs : allSlugs;
-  const next = active.includes(slug) ? active.filter((item) => item !== slug) : [...active, slug];
-  const params = new URLSearchParams();
-  if (next.length !== allSlugs.length) params.set("sub", next.join(","));
-  if (area) params.set("area", area);
-  const query = params.toString();
-  return "/categories/" + mainSlug + (query ? "?" + query : "");
 }
 
 export default async function MainCategoryPage({ params, searchParams }: CategoryPageProps) {
@@ -113,18 +82,15 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
     .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name, "da-DK"));
 
   const allSubcategorySlugs = subcategories.map((subcategory: any) => subcategory.slug);
+  const allSubcategoryIds = subcategories.map((subcategory: any) => subcategory.id);
+  const allSubcategoryNames = subcategories.map((subcategory: any) => subcategory.name);
   const requestedSubSlugs =
     query?.sub
       ?.split(",")
       .map((item: string) => item.trim())
       .filter((item: string) => allSubcategorySlugs.includes(item)) ?? [];
-  const activeSubcategorySlugs = requestedSubSlugs.length > 0 ? requestedSubSlugs : allSubcategorySlugs;
-  const activeSubcategories = subcategories.filter((subcategory: any) => activeSubcategorySlugs.includes(subcategory.slug));
-  const activeSubcategoryIds = activeSubcategories.map((subcategory: any) => subcategory.id);
-  const activeSubcategoryNames = activeSubcategories.map((subcategory: any) => subcategory.name);
   const selectedArea = query?.area?.trim() ?? "";
   const selectedAreaOption = areaOptions.find((area) => area.value === selectedArea) ?? null;
-  const selectedAreaLabel = selectedAreaOption?.label ?? "";
   const mainCategoryImageUrl = mainCategory.image_path
     ? supabase.storage.from("media").getPublicUrl(mainCategory.image_path).data.publicUrl
     : null;
@@ -158,7 +124,7 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
   const { data: rawEvents } = await supabase
     .from("events")
     .select(
-      "id, title, short_description, starts_at, city, price_cents, capacity, event_format, facilitator_profiles!inner(id, status, company_name, profiles(full_name)), regions(name, slug), event_categories(categories(name, color_hex)), event_main_categories(main_category_id), event_subcategories(subcategory_id, subcategories(name, slug))",
+      "id, title, short_description, starts_at, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, company_name, profiles(full_name)), regions(name, slug), event_categories(categories(name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug))",
     )
     .eq("status", "active")
     .eq("facilitator_profiles.status", "approved")
@@ -176,19 +142,15 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
     const legacyCategoryNames = event.event_categories?.map((row: any) => first(row.categories)?.name).filter(Boolean) ?? [];
 
     const matchesMainCategory = eventMainCategoryIds.includes(mainCategory.id);
-    const matchesActiveSubcategoryById = eventSubcategoryIds.some((subcategoryId: string) => activeSubcategoryIds.includes(subcategoryId));
+    const matchesActiveSubcategoryById = eventSubcategoryIds.some((subcategoryId: string) => allSubcategoryIds.includes(subcategoryId));
     const matchesActiveSubcategoryByName = [...eventSubcategoryNames, ...legacyCategoryNames].some((eventCategoryName) =>
-      activeSubcategoryNames.some((subcategoryName) => namesOverlap(eventCategoryName, subcategoryName)),
+      allSubcategoryNames.some((subcategoryName) => namesOverlap(eventCategoryName, subcategoryName)),
     );
     const matchesMainByLegacyName = legacyCategoryNames.some(
       (eventCategoryName: string) =>
         namesOverlap(mainCategory.name, eventCategoryName) ||
-        activeSubcategoryNames.some((subcategoryName) => namesOverlap(eventCategoryName, subcategoryName)),
+        allSubcategoryNames.some((subcategoryName) => namesOverlap(eventCategoryName, subcategoryName)),
     );
-
-    if (requestedSubSlugs.length > 0) {
-      return (matchesMainCategory || matchesMainByLegacyName || matchesActiveSubcategoryByName) && (matchesActiveSubcategoryById || matchesActiveSubcategoryByName);
-    }
 
     return matchesMainCategory || matchesMainByLegacyName || matchesActiveSubcategoryById || matchesActiveSubcategoryByName;
   });
@@ -260,56 +222,16 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
           </form>
         </section>
 
-        {subcategories.length > 0 && (
-          <section className="mt-6 rounded-card border border-[#EDE4F7] bg-white/88 p-5 shadow-soft">
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Filtrer emner</p>
-            <h2 className="mt-2 text-2xl font-medium text-[#2F2633]">Vælg eller fravælg underkategorier</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/64">
-              Kun emner, der er koblet til denne hovedkategori, vises her. Alle er valgt fra start, og du kan fravælge én eller flere.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {subcategories.map((subcategory: any) => {
-                const active = activeSubcategorySlugs.includes(subcategory.slug);
-                return (
-                  <Link
-                    className={
-                      active
-                        ? "rounded-full border border-[#7A4EAB] bg-[#7A4EAB] px-4 py-2 text-sm font-semibold text-white shadow-soft"
-                        : "rounded-full border border-[#7A4EAB]/18 bg-white px-4 py-2 text-sm font-semibold text-[#2F1642] opacity-60 transition hover:opacity-100"
-                    }
-                    href={toggleSubcategoryHref(mainCategory.slug, allSubcategorySlugs, requestedSubSlugs, subcategory.slug, selectedArea)}
-                    key={subcategory.id}
-                  >
-                    {subcategory.name}
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
         <PartnerAdCarousel ads={partnerAds} />
 
-        <section className="mt-8">
-          <div className="mb-5">
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Events</p>
-            <h2 className="mt-2 text-3xl font-medium text-[#2F2633]">Oplevelser i {mainCategory.name}</h2>
-            {selectedArea && (
-              <p className="mt-2 text-sm font-semibold text-[#7A4EAB]">Filtreret efter valgt område</p>
-            )}
-          </div>
-          {events.length > 0 ? (
-            <PublicEventList events={events as never} />
-          ) : (
-            <section className="rounded-card bg-white p-8 text-center shadow-soft">
-              <Sparkles className="mx-auto size-8 text-[#7A4EAB]" aria-hidden="true" />
-              <h3 className="mt-4 text-3xl font-medium text-[#2F2633]">Der er endnu ingen events, der matcher dine valg.</h3>
-              <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-ink/64">
-                Prøv at vælge flere emner eller gå tilbage og udforsk en anden retning.
-              </p>
-            </section>
-          )}
-        </section>
+        <CategoryEventExplorer
+          allSubcategorySlugs={allSubcategorySlugs}
+          events={events as never}
+          initialSelectedSlugs={requestedSubSlugs}
+          mainCategoryName={mainCategory.name}
+          selectedArea={selectedArea}
+          subcategories={subcategories}
+        />
       </section>
     </main>
   );

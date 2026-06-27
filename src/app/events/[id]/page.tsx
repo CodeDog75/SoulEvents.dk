@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, CircleUserRound, ExternalLink, Mail, MapPinned, Phone, Ticket } from "lucide-react";
-import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
 import { OrganizerBadges } from "@/components/badges/organizer-badges";
 import { BookingForm } from "@/components/events/detail/booking-form";
@@ -57,12 +56,6 @@ function ensureUrl(url: string) {
   return /^https?:\/\//i.test(url) ? url : "https://" + url;
 }
 
-function startOfToday() {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
   const [{ id }, { admin_return: adminReturn, booking, message }] = await Promise.all([params, searchParams]);
   const messageVariant = booking === "sent" ? "success" : "notice";
@@ -90,6 +83,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       online_description,
       online_url_or_note,
       practical_information,
+      cover_image_path,
       capacity,
       contact_email,
       contact_phone,
@@ -111,6 +105,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       ),
       regions(name),
       event_categories(categories(name, color_hex)),
+      event_main_categories(main_categories(name, color_hex, image_path)),
       event_images(image_path, alt_text, sort_order)
     `,
     )
@@ -140,6 +135,10 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     event.event_categories
       ?.map((row) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
       .filter((category): category is { name: string; color_hex: string } => Boolean(category)) ?? [];
+  const mainCategories =
+    event.event_main_categories
+      ?.map((row) => (Array.isArray(row.main_categories) ? row.main_categories[0] : row.main_categories))
+      .filter((category): category is { name: string | null; color_hex: string | null; image_path: string | null } => Boolean(category)) ?? [];
   const images = [...(event.event_images ?? [])].sort(
     (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
   );
@@ -149,10 +148,14 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
   const eventDuration = formatEventDuration(event.starts_at, event.ends_at);
-  const googleMapsUrl =
-    typeof event.latitude === "number" && typeof event.longitude === "number"
-      ? "https://www.google.com/maps/search/?api=1&query=" + event.latitude + "," + event.longitude
+  const firstEventImagePath = images[0]?.image_path ?? null;
+  const categoryCoverPath = mainCategories.find((category) => category.image_path)?.image_path ?? null;
+  const eventCoverPath = event.cover_image_path || firstEventImagePath || categoryCoverPath;
+  const eventCoverUrl = eventCoverPath
+    ? supabase.storage.from("media").getPublicUrl(eventCoverPath).data.publicUrl
       : null;
+  const eventCoverLabel = mainCategories[0]?.name || categories[0]?.name || "SoulEvents";
+  const eventCoverColor = mainCategories[0]?.color_hex || categories[0]?.color_hex || "#D89A94";
 
   const facilitatorLinks = [
     facilitatorProfile?.website_url ? { label: "Hjemmeside", href: ensureUrl(facilitatorProfile.website_url) } : null,
@@ -186,7 +189,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               href="/"
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
-              Forsiden
+              Tilbage til forsiden
             </Link>
           </div>
         </div>
@@ -205,10 +208,30 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           )}
 
           <section className="overflow-hidden rounded-card bg-white shadow-soft">
-            <div className="aspect-[16/7] bg-sage-50 p-10">
-              <div className="flex h-full items-center justify-center rounded-card bg-cream/80">
-                <BrandLogo className="h-40 w-40 opacity-80" />
-              </div>
+            <div
+              className="relative aspect-[16/8] overflow-hidden bg-sage-50 sm:aspect-[16/7]"
+              style={
+                eventCoverUrl
+                  ? undefined
+                  : {
+                      background:
+                        "radial-gradient(circle at 18% 20%, rgba(255,255,255,0.9), transparent 34%), linear-gradient(135deg, " +
+                        eventCoverColor +
+                        "33, #FAF6EF 56%, #EDE4F7)",
+                    }
+              }
+            >
+              {eventCoverUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img alt="" className="h-full w-full object-cover" src={eventCoverUrl} />
+              ) : (
+                <div className="flex h-full items-center justify-center px-8 text-center">
+                  <div>
+                    <BrandLogo className="mx-auto h-24 w-24 opacity-80 sm:h-36 sm:w-36" />
+                    <p className="mt-4 font-serif text-3xl font-medium text-olive sm:text-5xl">{eventCoverLabel}</p>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="p-8 sm:p-10">
             <div className="flex flex-wrap gap-2">
@@ -237,10 +260,13 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               <h2 className="text-4xl font-medium text-olive">Billeder</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 {images.map((image: { image_path: string; alt_text: string | null }) => (
-                  <div className="rounded-md bg-sage-50 p-4 text-sm text-ink/70" key={image.image_path}>
-                    <p className="font-semibold text-midnight">{image.alt_text || "Eventbillede"}</p>
-                    <p className="mt-2 break-all text-xs">{image.image_path}</p>
-                  </div>
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    alt={image.alt_text || "Eventbillede"}
+                    className="aspect-[4/3] w-full rounded-[18px] object-cover shadow-soft"
+                    key={image.image_path}
+                    src={supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl}
+                  />
                 ))}
               </div>
             </section>

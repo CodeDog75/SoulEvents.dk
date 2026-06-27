@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, MapPinned, Ticket } from "lucide-react";
 
-type PublicEvent = {
+export type PublicEvent = {
   id: string;
   title: string;
   short_description: string;
@@ -9,6 +9,7 @@ type PublicEvent = {
   city: string | null;
   price_cents: number;
   capacity: number;
+  cover_image_path?: string | null;
   event_format?: string | null;
   distance_km?: number | null;
   facilitator_profiles:
@@ -55,6 +56,34 @@ type PublicEvent = {
         }>
       | null;
   }>;
+  event_main_categories?: Array<{
+    main_category_id?: string | null;
+    main_categories?:
+      | {
+          name?: string | null;
+          color_hex?: string | null;
+          image_path?: string | null;
+        }
+      | Array<{
+          name?: string | null;
+          color_hex?: string | null;
+          image_path?: string | null;
+        }>
+      | null;
+  }>;
+  event_subcategories?: Array<{
+    subcategory_id?: string | null;
+    subcategories?:
+      | {
+          name?: string | null;
+          slug?: string | null;
+        }
+      | Array<{
+          name?: string | null;
+          slug?: string | null;
+        }>
+      | null;
+  }>;
 };
 
 type PublicEventListProps = {
@@ -89,6 +118,21 @@ function formatDistance(distanceKm?: number | null) {
   return Math.max(1, Math.round(distanceKm)) + " km væk";
 }
 
+function publicMediaUrl(imagePath?: string | null) {
+  if (!imagePath) return null;
+  if (/^https?:\/\//i.test(imagePath)) return imagePath;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return null;
+
+  const encodedPath = imagePath.split("/").map(encodeURIComponent).join("/");
+  return supabaseUrl.replace(/\/$/, "") + "/storage/v1/object/public/media/" + encodedPath;
+}
+
+function first<T>(value: T | T[] | null | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export function PublicEventList({ events, layout = "grid" }: PublicEventListProps) {
   if (events.length === 0) {
     return (
@@ -115,6 +159,13 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
           event.event_categories
             ?.map((row) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
             .filter((category): category is NonNullable<typeof category> => Boolean(category)) ?? [];
+        const mainCategories =
+          event.event_main_categories
+            ?.map((row) => first(row.main_categories))
+            .filter((category): category is NonNullable<typeof category> => Boolean(category)) ?? [];
+        const categoryImageUrl = publicMediaUrl(mainCategories.find((category) => category.image_path)?.image_path);
+        const eventImageUrl = publicMediaUrl(event.cover_image_path) ?? categoryImageUrl;
+        const imageFallbackColor = mainCategories[0]?.color_hex || categories[0]?.color_hex || "#D89A94";
         const distance = formatDistance(event.distance_km);
         const locationText = event.event_format === "online"
           ? "Online event"
@@ -123,45 +174,71 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
         return (
           <Link
             href={"/events/" + event.id}
-            className="group block rounded-card border border-olive/10 bg-white p-5 shadow-soft transition hover:-translate-y-0.5 hover:border-sage-700/25 hover:shadow-lift"
+            className="group block overflow-hidden rounded-card border border-olive/10 bg-white shadow-soft transition hover:-translate-y-0.5 hover:border-sage-700/25 hover:shadow-lift"
             key={event.id}
           >
-            <div className="flex flex-wrap gap-2">
-              {categories.slice(0, 3).map((category) => (
-                <span
-                  className="rounded-full px-3 py-1 text-xs font-semibold text-white"
-                  key={category.name}
-                  style={{ backgroundColor: category.color_hex }}
-                >
-                  {category.name}
+            <div
+              className="relative aspect-[16/10] overflow-hidden bg-[#FAF6EF]"
+              style={
+                eventImageUrl
+                  ? undefined
+                  : {
+                      background:
+                        "radial-gradient(circle at 18% 20%, rgba(255,255,255,0.88), transparent 32%), linear-gradient(135deg, " +
+                        imageFallbackColor +
+                        "33, #FAF6EF 56%, #EDE4F7)",
+                    }
+              }
+            >
+              {eventImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" src={eventImageUrl} />
+              ) : (
+                <div className="flex h-full items-center justify-center px-6 text-center">
+                  <span className="font-serif text-3xl font-medium leading-tight text-olive">
+                    {mainCategories[0]?.name || categories[0]?.name || "SoulEvents"}
+                  </span>
+                </div>
+              )}
+              <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+                {categories.slice(0, 2).map((category) => (
+                  <span
+                    className="rounded-full px-3 py-1 text-xs font-semibold text-white shadow-soft"
+                    key={category.name}
+                    style={{ backgroundColor: category.color_hex }}
+                  >
+                    {category.name}
+                  </span>
+                ))}
+                <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-ink/60 shadow-soft">
+                  {formatEventFormat(event.event_format)}
                 </span>
-              ))}
-              <span className="rounded-full border border-olive/10 bg-white/70 px-2.5 py-1 text-[11px] font-medium text-ink/55">
-                {formatEventFormat(event.event_format)}
-              </span>
-            </div>
-
-            <h2 className="mt-3 text-2xl font-medium leading-7 text-olive">{event.title}</h2>
-            <p className="mt-1 text-sm font-semibold text-sage-700">{facilitator}</p>
-            <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink/66">{event.short_description}</p>
-
-            <div className="mt-4 grid gap-2 text-sm text-ink/70">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="size-4 text-rose" aria-hidden="true" />
-                {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.starts_at))}
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPinned className="size-4 text-sage-700" aria-hidden="true" />
-                {distance ? distance + " · " + locationText : locationText}
               </div>
             </div>
 
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-olive/10 pt-4 text-sm">
-              <span className="flex items-center gap-2 font-semibold text-olive">
-                <Ticket className="size-4 text-olive" aria-hidden="true" />
-                {formatPrice(event.price_cents)}
-              </span>
-              <span className="text-xs font-semibold text-ink/50">Se event</span>
+            <div className="p-5">
+              <h2 className="text-2xl font-medium leading-7 text-olive">{event.title}</h2>
+              <p className="mt-1 text-sm font-semibold text-sage-700">{facilitator}</p>
+              <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink/66">{event.short_description}</p>
+
+              <div className="mt-4 grid gap-2 text-sm text-ink/70">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="size-4 text-rose" aria-hidden="true" />
+                  {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.starts_at))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPinned className="size-4 text-sage-700" aria-hidden="true" />
+                  {distance ? distance + " · " + locationText : locationText}
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-3 border-t border-olive/10 pt-4 text-sm">
+                <span className="flex items-center gap-2 font-semibold text-olive">
+                  <Ticket className="size-4 text-olive" aria-hidden="true" />
+                  {formatPrice(event.price_cents)}
+                </span>
+                <span className="text-xs font-semibold text-ink/50">Se event</span>
+              </div>
             </div>
           </Link>
         );
