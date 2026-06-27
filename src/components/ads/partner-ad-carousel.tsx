@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink } from "lucide-react";
 
-type PartnerAd = {
+export type PartnerAd = {
   id: string;
   title: string;
   imageUrl: string | null;

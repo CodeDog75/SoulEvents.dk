@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Sparkles } from "lucide-react";
-import { PartnerAdCarousel } from "@/components/ads/partner-ad-carousel";
 import { BrandLogo } from "@/components/brand-logo";
 import { CategoryEventExplorer } from "@/components/categories/category-event-explorer";
 import { areaOptions } from "@/lib/regions/areas";
@@ -222,13 +221,12 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
           </form>
         </section>
 
-        <PartnerAdCarousel ads={partnerAds} />
-
         <CategoryEventExplorer
           allSubcategorySlugs={allSubcategorySlugs}
           events={events as never}
           initialSelectedSlugs={requestedSubSlugs}
           mainCategoryName={mainCategory.name}
+          partnerAds={partnerAds}
           selectedArea={selectedArea}
           subcategories={subcategories}
         />

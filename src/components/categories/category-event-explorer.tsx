@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
+import { PartnerAdCarousel, type PartnerAd } from "@/components/ads/partner-ad-carousel";
 import { PublicEventList, type PublicEvent } from "@/components/events/public-event-list";
 
 type Subcategory = {
@@ -15,6 +16,7 @@ type CategoryEventExplorerProps = {
   events: PublicEvent[];
   initialSelectedSlugs: string[];
   mainCategoryName: string;
+  partnerAds: PartnerAd[];
   selectedArea: string;
   subcategories: Subcategory[];
 };
@@ -65,6 +67,7 @@ export function CategoryEventExplorer({
   events,
   initialSelectedSlugs,
   mainCategoryName,
+  partnerAds,
   selectedArea,
   subcategories,
 }: CategoryEventExplorerProps) {
@@ -76,6 +79,10 @@ export function CategoryEventExplorer({
     () => (allSelected ? events : events.filter((event) => eventMatchesSubcategory(event, selectedSlugs, subcategories))),
     [allSelected, events, selectedSlugs, subcategories],
   );
+  const adInsertIndex = Math.min(6, filteredEvents.length);
+  const eventsBeforeAd = filteredEvents.slice(0, adInsertIndex);
+  const eventsAfterAd = filteredEvents.slice(adInsertIndex);
+  const showPartnerAd = partnerAds.length > 0 && filteredEvents.length > 0;
 
   function updateUrl(nextSelectedSlugs: string[]) {
     const params = new URLSearchParams();
@@ -160,7 +167,11 @@ export function CategoryEventExplorer({
           </p>
         </div>
         {filteredEvents.length > 0 ? (
-          <PublicEventList events={filteredEvents} />
+          <div className="grid gap-8">
+            <PublicEventList events={eventsBeforeAd} />
+            {showPartnerAd && <PartnerAdCarousel ads={partnerAds} />}
+            {eventsAfterAd.length > 0 && <PublicEventList events={eventsAfterAd} />}
+          </div>
         ) : (
           <section className="rounded-card bg-white p-8 text-center shadow-soft">
             <Sparkles className="mx-auto size-8 text-[#7A4EAB]" aria-hidden="true" />
