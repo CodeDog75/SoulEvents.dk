@@ -18,6 +18,7 @@ type ExperienceGroup = {
 
 type HomeEventSearchFormProps = {
   categoryEventCounts?: Record<string, number>;
+  experienceGroupEventCounts?: Record<string, number>;
   experienceGroups?: ExperienceGroup[];
   selected: {
     q: string;
@@ -75,7 +76,24 @@ function categoryHref(slug: string) {
   return "/categories/" + slug;
 }
 
-export function HomeEventSearchForm({ categoryEventCounts = {}, experienceGroups = [], selected }: HomeEventSearchFormProps) {
+function categoryEmoji(name: string) {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("yoga") || normalized.includes("bevægelse") || normalized.includes("krop")) return "🧘";
+  if (normalized.includes("sauna") || normalized.includes("velvære")) return "🔥";
+  if (normalized.includes("meditation") || normalized.includes("nærvær")) return "🌙";
+  if (normalized.includes("healing") || normalized.includes("energi")) return "🌿";
+  if (normalized.includes("lyd") || normalized.includes("musik")) return "🎶";
+  if (normalized.includes("ceremoni") || normalized.includes("ritual")) return "✨";
+  if (normalized.includes("retreat") || normalized.includes("rejse")) return "🌄";
+  return "🌸";
+}
+
+export function HomeEventSearchForm({
+  categoryEventCounts = {},
+  experienceGroupEventCounts = {},
+  experienceGroups = [],
+  selected,
+}: HomeEventSearchFormProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement | null>(null);
   const [locationMessage, setLocationMessage] = useState("");
@@ -92,53 +110,33 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, experienceGroups
 
         return a.name.localeCompare(b.name, "da-DK");
       }),
-    }))
-;
-  const visibleExperienceGroups = sortedExperienceGroups.slice(0, 4);
-  const hiddenExperienceGroups = sortedExperienceGroups.slice(4);
+    }));
 
   function renderExperienceGroupCard(group: (typeof sortedExperienceGroups)[number]) {
+    const eventCount = experienceGroupEventCounts[group.id] ?? 0;
+
     return (
       <Link
-        className="group relative min-h-[132px] overflow-hidden rounded-[22px] border border-[#D9C5EA] p-4 shadow-[0_18px_45px_rgba(47,38,51,0.08)] transition duration-500 hover:-translate-y-0.5 hover:scale-[1.015] hover:border-[#7A4EAB]/45 hover:shadow-[0_24px_60px_rgba(122,78,171,0.18)] sm:min-h-[164px] sm:p-5"
+        className="group grid min-h-[116px] content-between rounded-[20px] border border-[#E4D6EF] bg-white/92 p-4 shadow-[0_14px_34px_rgba(47,38,51,0.08)] transition duration-300 hover:-translate-y-0.5 hover:border-[#7A4EAB]/35 hover:shadow-[0_18px_42px_rgba(122,78,171,0.14)]"
         href={categoryHref(group.slug)}
         key={group.id}
-        style={{
-          background: group.imageUrl
-            ? "linear-gradient(180deg, rgba(47, 38, 51, 0.16), rgba(47, 38, 51, 0.68)), url('" + group.imageUrl + "') center/cover"
-            : "radial-gradient(circle at center, rgba(255,255,255,0.88) 0%, " + group.colorHex + "30 54%, " + group.colorHex + "70 100%)",
-        }}
       >
-        <span
-          className={
-            group.imageUrl
-              ? "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.10),rgba(47,38,51,0.28)_62%,rgba(47,38,51,0.52))] transition duration-500 group-hover:bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.16),rgba(47,38,51,0.20)_62%,rgba(47,38,51,0.44))]"
-              : "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.28),transparent_58%)]"
-          }
-          aria-hidden="true"
-        />
-        <span className="relative flex h-full min-h-[104px] flex-col justify-between sm:min-h-[124px]">
-          <span>
-            <span className={
-              "block min-h-[2.7rem] break-words font-serif text-[1.3rem] font-medium leading-[1.08] sm:min-h-[3.6rem] sm:text-[1.65rem] " +
-              (group.imageUrl ? "text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.72)]" : "text-[#2F1642]")
-            }>
+        <span className="flex items-start gap-3">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#FAF6EF] text-2xl shadow-soft" aria-hidden="true">
+            {categoryEmoji(group.name)}
+          </span>
+          <span className="min-w-0">
+            <span className="block break-words font-serif text-2xl font-semibold leading-tight text-[#2F2633]">
               {group.name}
             </span>
-            {group.description && (
-              <span className={
-                "mt-2 block line-clamp-2 text-xs leading-5 sm:text-sm sm:leading-6 " +
-                (group.imageUrl ? "font-semibold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.82)]" : "text-[#2F2633]/72")
-              }>
-                {group.description}
-              </span>
-            )}
-          </span>
-          <span className="mt-3 flex justify-end">
-            <span className="grid size-7 place-items-center rounded-full bg-white/70 text-[#7A4EAB] opacity-0 shadow-soft transition duration-300 group-hover:translate-x-0.5 group-hover:bg-white group-hover:opacity-100">
-              <LotusIcon />
+            <span className="mt-1 block text-sm font-semibold text-[#2F2633]/62">
+              {eventCount} {eventCount === 1 ? "event" : "events"}
             </span>
           </span>
+        </span>
+        <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#7A4EAB] transition group-hover:text-[#2F2633]">
+          Se events
+          <LotusIcon />
         </span>
       </Link>
     );
@@ -249,9 +247,43 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, experienceGroups
       <input name="longitude" type="hidden" defaultValue={selected.longitude} />
 
       <section className="grid gap-3">
+        <section className="grid gap-3 lg:grid-cols-[1fr_220px_auto] lg:items-end">
+          <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
+            Hvad søger du?
+            <input
+              className="h-12 rounded-input border border-[#7A4EAB]/15 px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
+              defaultValue={selected.q}
+              name="q"
+              placeholder="Yoga, lydbad, sauna, by..."
+              type="search"
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
+            Område
+            <select
+              className="h-12 rounded-input border border-[#7A4EAB]/15 bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
+              defaultValue={selected.area}
+              name="area"
+            >
+              {areaOptions.map((option) => (
+                <option key={option.label} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+            type="submit"
+          >
+            <Search className="size-4 shrink-0" aria-hidden="true" />
+            Søg
+          </button>
+        </section>
+
         <div>
           <button
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/20 bg-white/86 px-5 py-3 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:-translate-y-0.5 hover:border-[#7A4EAB]/40 hover:shadow-lift"
             onClick={findNearby}
             type="button"
           >
@@ -295,23 +327,10 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, experienceGroups
           <h2 className="mt-1 text-2xl font-medium text-[#2F2633] sm:text-3xl">Vælg en retning</h2>
         </div>
 
-        {visibleExperienceGroups.length > 0 ? (
-          <>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
-              {visibleExperienceGroups.map((group) => renderExperienceGroupCard(group))}
-            </div>
-
-            {hiddenExperienceGroups.length > 0 && (
-              <details className="mt-3">
-                <summary className="inline-flex cursor-pointer list-none rounded-full border border-[#7A4EAB]/20 bg-white/80 px-4 py-2 text-sm font-semibold text-[#7A4EAB] shadow-soft marker:hidden">
-                  Vis flere retninger
-                </summary>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
-                  {hiddenExperienceGroups.map((group) => renderExperienceGroupCard(group))}
-                </div>
-              </details>
-            )}
-          </>
+        {sortedExperienceGroups.length > 0 ? (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+            {sortedExperienceGroups.map((group) => renderExperienceGroupCard(group))}
+          </div>
         ) : (
           <div className="mt-3 rounded-[22px] border border-[#E5D4F7] bg-white/80 p-5 shadow-soft">
             <p className="text-base font-semibold text-[#2F2633]">Der er endnu ikke planlagt events i dette område.</p>
@@ -362,25 +381,6 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, experienceGroups
             </label>
           </section>
 
-          <section className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-            <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
-              Hvad søger du?
-              <input
-                className="h-12 rounded-input border border-[#7A4EAB]/15 px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB]"
-                defaultValue={selected.q}
-                name="q"
-                placeholder="Søg efter events, kategorier eller steder..."
-                type="search"
-              />
-            </label>
-            <button
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
-              type="submit"
-            >
-              <Search className="size-4 shrink-0" aria-hidden="true" />
-              Søg
-            </button>
-          </section>
         </div>
       </details>
     </form>

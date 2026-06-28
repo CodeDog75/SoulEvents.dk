@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, LayoutGrid, Save, Trash2 } from "lucide-react";
-import { upsertHomepageTileAction, deleteHomepageTileAction, updateSiteLogoAction } from "@/app/admin/homepage/actions";
+import {
+  deleteHeroImageAction,
+  deleteHomepageTileAction,
+  updateSiteLogoAction,
+  upsertHeroImageAction,
+  upsertHomepageTileAction,
+} from "@/app/admin/homepage/actions";
 import { HomepageImageUploadPreview } from "@/components/admin/homepage-image-upload-preview";
 import { BrandLogo } from "@/components/brand-logo";
 import { AuthMessage } from "@/components/auth/auth-message";
@@ -25,6 +31,22 @@ type Tile = {
   sort_order: number;
 };
 
+type MainCategory = {
+  id: string;
+  name: string;
+};
+
+type HeroImage = {
+  id: string;
+  scope: "homepage" | "main_category";
+  main_category_id: string | null;
+  image_path: string;
+  image_url?: string | null;
+  alt_text: string | null;
+  is_active: boolean;
+  sort_order: number;
+};
+
 function TileStatus({ active }: { active: boolean }) {
   return active ? (
     <span className="inline-flex h-8 items-center rounded-full bg-sage-50 px-3 text-xs font-bold uppercase tracking-wide text-sage-700 shadow-soft">
@@ -34,6 +56,135 @@ function TileStatus({ active }: { active: boolean }) {
     <span className="inline-flex h-8 items-center rounded-full bg-stone-100 px-3 text-xs font-bold uppercase tracking-wide text-stone-600 shadow-soft">
       Skjult
     </span>
+  );
+}
+
+function HeroImageForm({
+  categories,
+  heroImage,
+  scope,
+  title,
+}: {
+  categories: MainCategory[];
+  heroImage?: HeroImage;
+  scope: "homepage" | "main_category";
+  title: string;
+}) {
+  const active = heroImage?.is_active ?? true;
+  const isCategoryHero = scope === "main_category";
+
+  return (
+    <details className={"overflow-hidden rounded-card border shadow-soft " + (!active ? "border-stone-300 bg-stone-50/80 opacity-85" : "border-midnight/10 bg-white")} suppressHydrationWarning>
+      <summary className="cursor-pointer list-none border-b border-midnight/10 bg-[#FAF6EF] px-5 py-4 marker:hidden sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">
+              {isCategoryHero ? "Hovedkategori-hero" : "Forside-hero"}
+            </p>
+            <h3 className="mt-1 text-lg font-semibold text-midnight">{title}</h3>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {heroImage && <TileStatus active={active} />}
+            <span className="rounded-full border border-midnight/10 bg-white px-3 py-1 text-xs font-semibold text-ink/60">Klik for at åbne/lukke</span>
+            <ChevronDown className="size-4 text-ink/45" aria-hidden="true" />
+          </div>
+        </div>
+      </summary>
+
+      <form action={upsertHeroImageAction} className="p-5 sm:p-6">
+        <input name="id" type="hidden" value={heroImage?.id ?? ""} />
+        <input name="image_path" type="hidden" value={heroImage?.image_path ?? ""} />
+        <input name="scope" type="hidden" value={scope} />
+
+        <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
+          <div className="grid content-start gap-3">
+            <div className="aspect-[3/2] overflow-hidden rounded-[22px] border border-midnight/10 bg-[#F4EFE8]">
+              {heroImage?.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img alt={heroImage.alt_text ?? "Hero-billede"} className="h-full w-full object-cover" src={heroImage.image_url} />
+              ) : (
+                <div className="grid h-full place-items-center px-6 text-center text-sm font-semibold text-ink/55">
+                  Upload et stemningsbillede i 3:2-format
+                </div>
+              )}
+            </div>
+            <p className="text-xs leading-5 text-ink/55">
+              Anbefalet format: ca. 2400 x 1600 px. JPG, PNG eller WEBP op til 10 MB.
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            {isCategoryHero && (
+              <label className="grid gap-2 text-sm font-medium text-ink/72">
+                Hovedkategori
+                <select
+                  className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+                  defaultValue={heroImage?.main_category_id ?? ""}
+                  name="main_category_id"
+                  required
+                >
+                  <option value="">Vælg hovedkategori</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <label className="grid gap-2 text-sm font-medium text-ink/72">
+              Alternativ tekst
+              <input
+                className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+                defaultValue={heroImage?.alt_text ?? ""}
+                maxLength={160}
+                name="alt_text"
+                placeholder="Kort beskrivelse af billedet"
+              />
+            </label>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium text-ink/72">
+                Sortering
+                <input
+                  className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+                  defaultValue={heroImage?.sort_order ?? 0}
+                  name="sort_order"
+                  type="number"
+                />
+              </label>
+              <label className="flex items-end gap-2 pb-3 text-sm font-semibold text-midnight">
+                <input className="size-4 accent-sage-700" defaultChecked={active} name="is_active" type="checkbox" />
+                Billedet er aktivt
+              </label>
+            </div>
+
+            <label className="grid gap-2 text-sm font-medium text-ink/72">
+              {heroImage ? "Udskift billede" : "Upload billede"}
+              <input accept="image/jpeg,image/png,image/webp" className="rounded-md border border-midnight/15 bg-white px-3 py-2 text-sm" name="hero_image" type="file" />
+            </label>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button className="inline-flex h-10 w-fit items-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700" type="submit">
+                <Save className="size-4" aria-hidden="true" />
+                Gem hero-billede
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      {heroImage && (
+        <form action={deleteHeroImageAction} className="border-t border-midnight/10 bg-white px-5 py-4 sm:px-6">
+          <input name="id" type="hidden" value={heroImage.id} />
+          <button className="inline-flex h-9 items-center gap-2 rounded-md border border-terracotta/30 bg-white px-3 text-sm font-semibold text-terracotta transition hover:bg-terracotta hover:text-white" type="submit">
+            <Trash2 className="size-4" aria-hidden="true" />
+            Slet hero-billede
+          </button>
+        </form>
+      )}
+    </details>
   );
 }
 
@@ -225,12 +376,24 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
   const { data: logoSetting } = await supabase.from("site_settings").select("value").eq("key", "brand_logo_path").maybeSingle();
   const logoPath = logoSetting?.value ?? null;
   const logoUrl = logoPath ? supabase.storage.from("media").getPublicUrl(logoPath).data.publicUrl : null;
-  const { data: tiles } = await supabase.from("homepage_tiles").select("*").order("sort_order");
+  const [{ data: tiles }, { data: categories }, { data: heroImages }] = await Promise.all([
+    supabase.from("homepage_tiles").select("*").order("sort_order"),
+    supabase.from("main_categories").select("id, name").eq("is_active", true).order("sort_order"),
+    supabase.from("hero_images").select("*").order("scope").order("sort_order"),
+  ]);
   const tilesWithImages =
     tiles?.map((tile) => ({
       ...tile,
       image_url: tile.image_path ? supabase.storage.from("media").getPublicUrl(tile.image_path).data.publicUrl : null,
     })) ?? [];
+  const categoriesList = (categories ?? []) as MainCategory[];
+  const heroImagesWithUrls =
+    heroImages?.map((heroImage) => ({
+      ...heroImage,
+      image_url: heroImage.image_path ? supabase.storage.from("media").getPublicUrl(heroImage.image_path).data.publicUrl : null,
+    })) ?? [];
+  const homepageHeroImages = heroImagesWithUrls.filter((heroImage) => heroImage.scope === "homepage") as HeroImage[];
+  const categoryHeroImages = heroImagesWithUrls.filter((heroImage) => heroImage.scope === "main_category") as HeroImage[];
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -267,6 +430,53 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
         </section>
 
         <LogoForm logoPath={logoPath} logoUrl={logoUrl} />
+
+        <section className="grid gap-5 rounded-card border border-midnight/10 bg-white p-5 shadow-soft sm:p-6" id="hero-images">
+          <div className="grid gap-2">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Hero-billeder</p>
+            <h2 className="text-2xl font-semibold text-midnight">Stemningsbilleder til forside og hovedkategorier</h2>
+            <p className="max-w-3xl text-sm leading-6 text-ink/68">
+              Upload flere billeder, vælg hvilke der er aktive, og lad SoulEvents vise ét roligt stemningsbillede pr. besøg.
+            </p>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <HeroImageForm categories={categoriesList} scope="homepage" title="Tilføj hero-billede til forsiden" />
+            <HeroImageForm categories={categoriesList} scope="main_category" title="Tilføj hero-billede til hovedkategori" />
+          </div>
+
+          {homepageHeroImages.length > 0 && (
+            <section className="grid gap-3">
+              <h3 className="text-lg font-semibold text-midnight">Forsidebilleder</h3>
+              <div className="grid gap-4">
+                {homepageHeroImages.map((heroImage) => (
+                  <HeroImageForm categories={categoriesList} heroImage={heroImage} key={heroImage.id} scope="homepage" title={"Forsidebillede · Sortering " + heroImage.sort_order} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {categoryHeroImages.length > 0 && (
+            <section className="grid gap-3">
+              <h3 className="text-lg font-semibold text-midnight">Hovedkategori-billeder</h3>
+              <div className="grid gap-4">
+                {categoryHeroImages.map((heroImage) => {
+                  const categoryName = categoriesList.find((category) => category.id === heroImage.main_category_id)?.name ?? "Hovedkategori";
+                  return (
+                    <HeroImageForm
+                      categories={categoriesList}
+                      heroImage={heroImage}
+                      key={heroImage.id}
+                      scope="main_category"
+                      title={categoryName + " · Sortering " + heroImage.sort_order}
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          )}
+        </section>
+
         <TileForm title="Opret ny boks" />
 
         <div className="grid gap-5">

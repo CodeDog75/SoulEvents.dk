@@ -233,6 +233,39 @@ function getMainCategoryEventCounts(events: Array<{
   return counts;
 }
 
+function getExperienceGroupEventCounts(
+  groups: Array<{ id: string; name: string; subcategories?: Array<{ name: string; value?: string | null }> }>,
+  events: Array<{
+    id: string;
+    event_categories?: Array<{ categories?: { name?: string | null } | Array<{ name?: string | null }> | null }>;
+    event_main_categories?: Array<{
+      main_category_id?: string | null;
+      main_categories?: { name?: string | null } | Array<{ name?: string | null }> | null;
+    }>;
+    event_subcategories?: Array<{ subcategories?: { name?: string | null } | Array<{ name?: string | null }> | null }>;
+  }>,
+) {
+  const counts: Record<string, number> = {};
+
+  for (const event of uniqueEventsById(events)) {
+    const eventKeys = new Set(getMainCategoryKeys(event));
+
+    for (const group of groups) {
+      const groupKeys = [
+        group.id,
+        group.name,
+        ...(group.subcategories ?? []).flatMap((subcategory) => [subcategory.name, subcategory.value].filter(Boolean)),
+      ].filter((value): value is string => Boolean(value));
+
+      if (groupKeys.some((key) => eventKeys.has(key))) {
+        counts[group.id] = (counts[group.id] ?? 0) + 1;
+      }
+    }
+  }
+
+  return counts;
+}
+
 function experienceGroupHasEvents(
   group: { id: string; name: string; subcategories?: Array<{ name: string; value?: string | null }> },
   counts: Record<string, number>,
@@ -351,6 +384,47 @@ function getHomeTileFallbackImage(tile: { id?: string | null; title?: string | n
   if (title.includes("ceremoni") || title.includes("ritual")) return homeTileFallbackImages.ceremony;
 
   return homeTileFallbackImages.fallback;
+}
+
+type HeroImage = {
+  image_path: string;
+  alt_text: string | null;
+};
+
+function pickRandomItem<T>(items: T[]) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+async function getHomepageHeroImage() {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    return null;
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("hero_images")
+    .select("image_path, alt_text")
+    .eq("scope", "homepage")
+    .eq("is_active", true)
+    .order("sort_order");
+
+  if (error || !data || data.length === 0) {
+    return null;
+  }
+
+  const image = pickRandomItem(data as HeroImage[]);
+  if (!image) {
+    return null;
+  }
+
+  return {
+    imageUrl: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,
+    altText: image.alt_text,
+  };
 }
 
 const fallbackHomeTiles = [
@@ -917,6 +991,7 @@ async function getHomepageAds() {
 export default async function Home({ searchParams }: HomeProps) {
   const params = searchParams ? await searchParams : {};
   const homeTiles = await getHomeTiles();
+  const homeHeroImage = await getHomepageHeroImage();
   const homepageAds = await getHomepageAds();
   const discoveryTiles = [
     ...homeTiles.filter(
@@ -990,6 +1065,7 @@ export default async function Home({ searchParams }: HomeProps) {
   const experienceGroups = await getExperienceGroups();
   const mainCategoryEventCounts = getMainCategoryEventCounts(categoryAvailabilityEvents);
   const homepageExperienceGroups = experienceGroups.filter((group) => experienceGroupHasEvents(group, mainCategoryEventCounts));
+  const homepageExperienceGroupCounts = getExperienceGroupEventCounts(homepageExperienceGroups, categoryAvailabilityEvents);
   const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
   const localServiceProviders = await getLocalServiceProviders(selected);
   const mapSourceEvents = uniqueEventsById(mapOverviewEvents);
@@ -1108,21 +1184,19 @@ export default async function Home({ searchParams }: HomeProps) {
 
   return (
     <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
-      <section className="relative overflow-hidden bg-[#FAF6EF] pb-10 sm:pb-10">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#FAF6EF]/94 via-[#F7F0FA]/82 to-[#EDE4F7]/58" aria-hidden="true" />
-        <div className="absolute left-1/2 top-4 h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-[#EDE4F7]/40 blur-3xl sm:h-[500px] sm:w-[500px]" aria-hidden="true" />
+      <section className="relative overflow-hidden bg-[#FAF6EF] pb-8 sm:pb-10">
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: "url('" + (homeHeroImage?.imageUrl ?? homeTileFallbackImages.fallback) + "')" }}
+          aria-hidden="true"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/78 via-[#FAF6EF]/76 to-[#FAF6EF] sm:from-white/70 sm:via-[#FAF6EF]/66" aria-hidden="true" />
+        <div className="absolute inset-0 bg-[#2F2633]/14" aria-hidden="true" />
 
         <header className="relative z-10">
           <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-3 sm:px-8 sm:py-5">
             <Link aria-label="SoulEvents.dk forside" href="/">
               <BrandLogo className="h-16 w-16 sm:h-28 sm:w-28 lg:h-32 lg:w-32" priority />
-            </Link>
-
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#D8A7B1] px-4 text-sm font-semibold text-[#2F2633] shadow-soft transition hover:bg-[#C9939F] md:hidden"
-              href="#find-events"
-            >
-              Find events
             </Link>
 
             <nav className="hidden items-center gap-9 text-[15px] font-semibold tracking-[0.01em] text-[#2F2633] md:flex">
@@ -1154,13 +1228,13 @@ export default async function Home({ searchParams }: HomeProps) {
           </div>
         </header>
 
-        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-5 px-4 pb-8 pt-3 sm:gap-6 sm:px-8 sm:pb-8 sm:pt-3">
+        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-4 px-4 pb-7 pt-2 sm:gap-6 sm:px-8 sm:pb-8 sm:pt-3">
           <div className="max-w-4xl">
             <p className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-xs font-semibold text-[#2F2633] shadow-soft sm:text-sm">
               <Sparkles className="size-4 text-[#7A4EAB]" aria-hidden="true" />
               SoulEvents.dk
             </p>
-            <h1 className="mt-4 max-w-4xl text-4xl font-semibold leading-tight text-[#2F2633] sm:mt-5 sm:text-6xl sm:leading-[0.98] lg:text-7xl">
+            <h1 className="mt-4 max-w-4xl text-4xl font-semibold leading-tight text-[#2F2633] drop-shadow-[0_1px_16px_rgba(255,255,255,0.55)] sm:mt-5 sm:text-6xl sm:leading-[0.98] lg:text-7xl">
               Find events for krop, sind og sjæl
             </h1>
             <p className="mt-3 max-w-2xl text-base leading-7 text-[#2F2633]/76 sm:text-lg">
@@ -1175,6 +1249,7 @@ export default async function Home({ searchParams }: HomeProps) {
             </div>
             <HomeEventSearchForm
               categoryEventCounts={categoryEventCounts}
+              experienceGroupEventCounts={homepageExperienceGroupCounts}
               experienceGroups={homepageExperienceGroups}
               selected={selected}
             />

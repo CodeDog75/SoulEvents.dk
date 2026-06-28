@@ -45,6 +45,47 @@ function uniqueById<T extends { id: string }>(items: T[]) {
   });
 }
 
+function pickRandomItem<T>(items: T[]) {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+async function getCategoryHeroImage(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  mainCategoryId: string,
+  fallbackImagePath: string | null,
+) {
+  const { data: categoryHeroImages } = await supabase
+    .from("hero_images")
+    .select("image_path, alt_text")
+    .eq("scope", "main_category")
+    .eq("main_category_id", mainCategoryId)
+    .eq("is_active", true)
+    .order("sort_order");
+
+  const categoryHero = pickRandomItem((categoryHeroImages ?? []) as Array<{ image_path: string; alt_text: string | null }>);
+  if (categoryHero?.image_path) {
+    return supabase.storage.from("media").getPublicUrl(categoryHero.image_path).data.publicUrl;
+  }
+
+  const { data: globalHeroImages } = await supabase
+    .from("hero_images")
+    .select("image_path, alt_text")
+    .eq("scope", "homepage")
+    .eq("is_active", true)
+    .order("sort_order");
+
+  const globalHero = pickRandomItem((globalHeroImages ?? []) as Array<{ image_path: string; alt_text: string | null }>);
+  if (globalHero?.image_path) {
+    return supabase.storage.from("media").getPublicUrl(globalHero.image_path).data.publicUrl;
+  }
+
+  return fallbackImagePath ? supabase.storage.from("media").getPublicUrl(fallbackImagePath).data.publicUrl : null;
+}
+
 export default async function MainCategoryPage({ params, searchParams }: CategoryPageProps) {
   const emptyQuery: { sub?: string; area?: string } = {};
   const [{ slug }, query] = await Promise.all([params, searchParams ?? Promise.resolve(emptyQuery)]);
@@ -90,9 +131,7 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
       .filter((item: string) => allSubcategorySlugs.includes(item)) ?? [];
   const selectedArea = query?.area?.trim() ?? "";
   const selectedAreaOption = areaOptions.find((area) => area.value === selectedArea) ?? null;
-  const mainCategoryImageUrl = mainCategory.image_path
-    ? supabase.storage.from("media").getPublicUrl(mainCategory.image_path).data.publicUrl
-    : null;
+  const mainCategoryImageUrl = await getCategoryHeroImage(supabase, mainCategory.id, mainCategory.image_path);
   const nowIso = new Date().toISOString();
 
   const adsClient = createAdminClient();

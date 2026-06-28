@@ -14,6 +14,10 @@ function logoGo(message: string): never {
   redirect("/admin/homepage?logo_message=" + encodeURIComponent(message) + "#logo");
 }
 
+function heroGo(message: string): never {
+  redirect("/admin/homepage?message=" + encodeURIComponent(message) + "#hero-images");
+}
+
 function sortOrder(formData: FormData) {
   const value = Number(getString(formData, "sort_order"));
   return Number.isFinite(value) ? value : 0;
@@ -110,6 +114,48 @@ async function uploadHomepageImage(formData: FormData, currentImagePath: string 
   return imagePath;
 }
 
+async function uploadHeroImage(formData: FormData, currentImagePath: string | null, scope: string) {
+  const file = formData.get("hero_image");
+  if (!(file instanceof File) || file.size === 0) {
+    return currentImagePath;
+  }
+
+  const extension = extensionFromFile(file);
+  const isAllowedType = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
+  const isAllowedExtension = ["jpg", "jpeg", "png", "webp"].includes(extension);
+
+  if (!isAllowedType && !isAllowedExtension) {
+    heroGo("Hero-billedet skal være JPG, PNG eller WEBP.");
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    heroGo("Hero-billedet er for stort. Vælg et billede under 10 MB.");
+  }
+
+  const supabase = createAdminClient();
+  const safeName = file.name
+    .replace(/\.[^.]+$/, "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 60);
+  const imagePath = "hero/" + scope + "/" + Date.now() + "-" + (safeName || "hero") + "." + extension;
+
+  const { error } = await supabase.storage.from("media").upload(imagePath, file, {
+    cacheControl: "31536000",
+    contentType: file.type || "image/jpeg",
+    upsert: false,
+  });
+
+  if (error) {
+    heroGo("Hero-billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
+  }
+
+  return imagePath;
+}
+
 export async function upsertHomepageTileAction(formData: FormData) {
   await requireRole("admin");
 
@@ -189,4 +235,66 @@ export async function updateSiteLogoAction(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/admin/homepage");
   logoGo("Logoet er gemt.");
+}
+
+export async function upsertHeroImageAction(formData: FormData) {
+  await requireRole("admin");
+
+  const id = getOptionalString(formData, "id");
+  const scope = getString(formData, "scope") === "main_category" ? "main_category" : "homepage";
+  const mainCategoryId = scope === "main_category" ? getString(formData, "main_category_id") : null;
+  const currentImagePath = getOptionalString(formData, "image_path");
+  const imagePath = await uploadHeroImage(formData, currentImagePath || null, scope);
+
+  if (scope === "main_category" && !mainCategoryId) {
+    heroGo("Vælg en hovedkategori til hero-billedet.");
+  }
+
+  if (!imagePath) {
+    heroGo("Upload et hero-billede først.");
+  }
+
+  const supabase = createAdminClient();
+  const payload = {
+    scope,
+    main_category_id: mainCategoryId,
+    image_path: imagePath,
+    alt_text: getOptionalString(formData, "alt_text"),
+    is_active: formData.get("is_active") === "on",
+    sort_order: sortOrder(formData),
+  };
+
+  const result = id
+    ? await supabase.from("hero_images").update(payload).eq("id", id)
+    : await supabase.from("hero_images").insert(payload);
+
+  if (result.error) {
+    heroGo("Hero-billedet kunne ikke gemmes. Tjek at database-migrationen er kørt.");
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin/homepage");
+  revalidatePath("/categories/[slug]", "page");
+  heroGo("Hero-billedet er gemt.");
+}
+
+export async function deleteHeroImageAction(formData: FormData) {
+  await requireRole("admin");
+
+  const id = getString(formData, "id");
+  if (!id) {
+    heroGo("Hero-billedet mangler ID.");
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("hero_images").delete().eq("id", id);
+
+  if (error) {
+    heroGo("Hero-billedet kunne ikke slettes.");
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin/homepage");
+  revalidatePath("/categories/[slug]", "page");
+  heroGo("Hero-billedet er slettet.");
 }
