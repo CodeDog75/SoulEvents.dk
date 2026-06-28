@@ -98,7 +98,7 @@ export async function createBookingAction(formData: FormData) {
   }
 
   if (!validOptionalPhone(participantPhone)) {
-    bookingRedirect(eventId, "Indtast et gyldigt telefonnummer eller lad feltet være tomt.");
+    bookingRedirect(eventId, "Telefonnummer skal være 8 cifre – eller lad feltet være tomt.");
   }
 
   if (seats <= 0) {

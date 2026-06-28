@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { LocateFixed, Search } from "lucide-react";
 import type { FormEvent } from "react";
 import { useRef, useState } from "react";
@@ -30,6 +31,17 @@ type HomeEventSearchFormProps = {
     country?: string;
   };
 };
+
+const locationFallbackMessage = "Vi kunne ikke finde din placering. Vælg dit område herunder.";
+
+const areaOptions = [
+  { label: "Hele Danmark", value: "" },
+  { label: "Sjælland & Øerne", value: "sjaelland-og-oerne" },
+  { label: "Fyn", value: "fyn" },
+  { label: "Sønderjylland", value: "sonderjylland" },
+  { label: "Midtjylland", value: "midtjylland" },
+  { label: "Nordjylland", value: "nordjylland" },
+];
 
 function LotusIcon() {
   return (
@@ -64,6 +76,7 @@ function categoryHref(slug: string) {
 }
 
 export function HomeEventSearchForm({ categoryEventCounts = {}, experienceGroups = [], selected }: HomeEventSearchFormProps) {
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement | null>(null);
   const [locationMessage, setLocationMessage] = useState("");
   const groupedExperiences = experienceGroups.length > 0 ? experienceGroups : [];
@@ -157,7 +170,21 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, experienceGroups
     }
 
     const query = params.toString();
-    window.location.assign(query ? "/?" + query + "#" + anchor : "/#" + anchor);
+    router.push(query ? "/?" + query + "#" + anchor : "/#" + anchor, { scroll: false });
+  }
+
+  function chooseFallbackArea(area: string) {
+    const params = new URLSearchParams();
+
+    if (area) params.set("area", area);
+    if (selected.categoryLabel) params.set("category_label", selected.categoryLabel);
+    if (selected.q) params.set("q", selected.q);
+    if (selected.date) params.set("date", selected.date);
+    if (selected.format) params.set("format", selected.format);
+    if (selected.country) params.set("country", selected.country);
+
+    const query = params.toString();
+    router.push(query ? "/?" + query + "#events" : "/#events", { scroll: false });
   }
 
   function submitForm(event: FormEvent<HTMLFormElement>) {
@@ -181,7 +208,7 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, experienceGroups
     }
 
     if (!navigator.geolocation) {
-      setLocationMessage("Vi kunne ikke finde din placering. Vælg venligst dit område manuelt.");
+      setLocationMessage(locationFallbackMessage);
       return;
     }
 
@@ -204,7 +231,7 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, experienceGroups
         goToResults(form);
       },
       () => {
-        setLocationMessage("Vi kunne ikke finde din placering. Vælg venligst dit område manuelt.");
+        setLocationMessage(locationFallbackMessage);
       },
       { enableHighAccuracy: false, maximumAge: 300000, timeout: 10000 },
     );
@@ -232,9 +259,31 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, experienceGroups
             Find events nær dig
           </button>
           {locationMessage && (
-            <p className="mt-3 rounded-xl border border-[#7A4EAB]/30 bg-[#EDE4F7] px-4 py-3 text-sm font-semibold leading-6 text-[#2F1642]">
-              {locationMessage}
-            </p>
+            <div className="mt-3 rounded-xl border border-[#7A4EAB]/30 bg-[#EDE4F7] px-4 py-3">
+              <p className="text-sm font-semibold leading-6 text-[#2F1642]">{locationMessage}</p>
+              {locationMessage === locationFallbackMessage && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {areaOptions.map((option) => {
+                    const isSelected = selected.area === option.value || (!selected.area && option.value === "");
+                    return (
+                      <button
+                        className={
+                          "rounded-full px-3 py-2 text-xs font-semibold transition " +
+                          (isSelected
+                            ? "bg-[#7A4EAB] text-white"
+                            : "border border-[#7A4EAB]/20 bg-white/80 text-[#2F1642] hover:border-[#7A4EAB]")
+                        }
+                        key={option.label}
+                        onClick={() => chooseFallbackArea(option.value)}
+                        type="button"
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
         </div>
 

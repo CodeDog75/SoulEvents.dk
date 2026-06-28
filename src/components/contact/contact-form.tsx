@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { Send } from "lucide-react";
 import { sendContactMessageStateAction, type ContactFormState } from "@/app/contact/actions";
 
@@ -11,9 +11,16 @@ const initialState: ContactFormState = {
 
 export function ContactForm() {
   const [state, formAction, isPending] = useActionState(sendContactMessageStateAction, initialState);
+  const formRef = useRef<HTMLFormElement | null>(null);
+
+  useEffect(() => {
+    if (state.status === "success") {
+      formRef.current?.reset();
+    }
+  }, [state.status]);
 
   return (
-    <form action={formAction} className="grid gap-4 rounded-[24px] border border-olive/10 bg-white p-5 shadow-soft sm:p-6">
+    <form action={formAction} className="grid gap-4 rounded-[24px] border border-olive/10 bg-white p-5 shadow-soft sm:p-6" ref={formRef}>
       {state.message && (
         <p
           className={

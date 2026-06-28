@@ -303,7 +303,6 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
   const [viewMode, setViewMode] = useState<MapViewMode>("events");
 
   const eventGroups = useMemo(() => groupEventsByLocation(events), [events]);
-  const onlineEvents = events.filter((event) => event.eventFormat === "online");
   const localServiceProviders = useMemo(
     () =>
       serviceProviders.filter(
@@ -674,9 +673,6 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
           </div>
           {viewToggle}
         </div>
-        {viewMode === "events" && onlineEvents.length > 0 && (
-          <p className="mt-2 text-sm font-semibold text-sage-700">💻 {onlineEvents.length} online events vises i listen nedenfor.</p>
-        )}
         {mapError && <p className="mt-2 text-sm font-semibold text-terracotta">{mapError}</p>}
       </div>
       <div className="h-[58vh] min-h-[360px] w-full sm:h-[62vh] sm:min-h-[440px]" ref={containerRef} />

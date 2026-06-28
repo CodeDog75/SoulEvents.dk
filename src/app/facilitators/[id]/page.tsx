@@ -1,6 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Metadata } from "next";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, Mail, MapPinned, Phone, Sparkles, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
@@ -8,6 +9,7 @@ import { ActiveHostInfo, ExperiencedHostInfo, OrganizerImageBadge } from "@/comp
 import { PublicEventList } from "@/components/events/public-event-list";
 import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitator-button";
 import { subscribeToFacilitatorReminderAction } from "./actions";
+import { getCurrentProfile } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -26,15 +28,35 @@ function ensureUrl(url: string) {
   return /^https?:\/\//i.test(url) ? url : "https://" + url;
 }
 
-function startOfToday() {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
 function nameOf(facilitator: any) {
   const profile = first(facilitator?.profiles);
   return facilitator?.company_name || profile?.full_name || "Arrangør";
+}
+
+function getBackLink(referer: string | null, currentId: string) {
+  if (!referer) {
+    return { href: "/facilitators", label: "Tilbage til arrangører" };
+  }
+
+  try {
+    const url = new URL(referer);
+
+    if (url.pathname === "/") {
+      return { href: "/#events", label: "Tilbage til forsiden" };
+    }
+
+    if (url.pathname === "/facilitators") {
+      return { href: "/facilitators", label: "Tilbage til arrangører" };
+    }
+
+    if (url.pathname === "/facilitators/" + currentId) {
+      return { href: "/facilitators", label: "Tilbage til arrangører" };
+    }
+  } catch {
+    return { href: "/facilitators", label: "Tilbage til arrangører" };
+  }
+
+  return { href: "/facilitators", label: "Tilbage til arrangører" };
 }
 
 export async function generateMetadata({ params }: FacilitatorPageProps): Promise<Metadata> {
@@ -59,12 +81,14 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
 export default async function PublicFacilitatorPage({ params, searchParams }: FacilitatorPageProps) {
   const { id } = await params;
   const reminderMessage = (await searchParams)?.reminder_message ?? "";
+  const referer = (await headers()).get("referer");
   const supabase = await createClient();
+  const viewer = await getCurrentProfile();
 
   const { data: facilitator } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
+      "id, profile_id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
     )
     .eq("id", id)
     .eq("status", "approved")
@@ -118,6 +142,8 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     facilitatorData.youtube_url ? { label: "YouTube", href: ensureUrl(facilitatorData.youtube_url) } : null,
     facilitatorData.tiktok_url ? { label: "TikTok", href: ensureUrl(facilitatorData.tiktok_url) } : null,
   ].filter((link): link is { label: string; href: string } => Boolean(link));
+  const isOwnProfilePreview = viewer?.role === "facilitator" && viewer.id === facilitatorData.profile_id;
+  const backLink = isOwnProfilePreview ? { href: "/facilitator", label: "Tilbage til min profil" } : getBackLink(referer, id);
 
   return (
     <main className="min-h-screen bg-cream text-ink">
@@ -128,10 +154,10 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
           </Link>
           <Link
             className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
-            href="/facilitators"
+            href={backLink.href}
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
-            Arrangører
+            {backLink.label}
           </Link>
         </div>
       </header>
@@ -252,7 +278,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
 
           <ShareFacilitatorButton facilitatorId={facilitatorData.id} facilitatorName={name} />
 
-          <section className="rounded-card border border-[#E5D4F7] bg-[#F6EFFF] p-6 shadow-soft">
+          <section className="scroll-mt-8 rounded-card border border-[#E5D4F7] bg-[#F6EFFF] p-6 shadow-soft" id="reminder-signup">
             <h2 className="text-3xl font-medium text-olive">Tilmeld påmindelse</h2>
             <p className="mt-3 text-sm leading-6 text-ink/72">
               Få besked på e-mail, når denne arrangør opretter et nyt event.

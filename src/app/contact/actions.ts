@@ -11,6 +11,9 @@ export type ContactFormState = {
   message: string;
 };
 
+const contactErrorMessage = "Din besked kunne desværre ikke sendes lige nu. Prøv igen om lidt.";
+const contactSuccessMessage = "Tak for din besked. Vi har modtaget din henvendelse og vender tilbage hurtigst muligt.";
+
 function getValue(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
@@ -38,7 +41,7 @@ function validateContactForm(formData: FormData): ContactFormState | null {
   if (!env.resendApiKey || !env.resendFromEmail) {
     return {
       status: "error",
-      message: "Mailafsendelse mangler opsætning. Tilføj RESEND_API_KEY og RESEND_FROM_EMAIL i .env.local.",
+      message: contactErrorMessage,
     };
   }
 
@@ -87,11 +90,18 @@ export async function sendContactMessageStateAction(
     return validationError;
   }
 
-  await sendContactMessage(formData);
+  try {
+    await sendContactMessage(formData);
+  } catch {
+    return {
+      status: "error",
+      message: contactErrorMessage,
+    };
+  }
 
   return {
     status: "success",
-    message: "Tak for din besked. Vi vender tilbage hurtigst muligt.",
+    message: contactSuccessMessage,
   };
 }
 
@@ -102,7 +112,11 @@ export async function sendContactMessageAction(formData: FormData) {
     redirect("/contact?status=error");
   }
 
-  await sendContactMessage(formData);
+  try {
+    await sendContactMessage(formData);
+  } catch {
+    redirect("/contact?status=send-error");
+  }
 
   redirect("/contact?status=sent");
 }

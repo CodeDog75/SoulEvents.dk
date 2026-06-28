@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function messageRedirect(facilitatorId: string, message: string): never {
-  redirect("/facilitators/" + facilitatorId + "?reminder_message=" + encodeURIComponent(message));
+  redirect("/facilitators/" + facilitatorId + "?reminder_message=" + encodeURIComponent(message) + "#reminder-signup");
 }
 
 function normalizeEmail(value: FormDataEntryValue | null) {
@@ -50,5 +50,5 @@ export async function subscribeToFacilitatorReminderAction(facilitatorId: string
   }
 
   revalidatePath("/facilitators/" + facilitatorId);
-  messageRedirect(facilitatorId, "Tak. Du får besked på e-mail, når arrangøren opretter et nyt event.");
+  messageRedirect(facilitatorId, "Tak. Vi giver dig besked på e-mail, når arrangøren opretter et nyt event.");
 }

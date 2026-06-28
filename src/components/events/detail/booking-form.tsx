@@ -22,6 +22,25 @@ function cleanPhone(value: string) {
   return value.replace(/\D/g, "");
 }
 
+function normalizePhoneInput(value: string) {
+  let digits = 0;
+  let next = "";
+
+  for (const character of value) {
+    if (/\d/.test(character)) {
+      if (digits >= 8) {
+        continue;
+      }
+      digits += 1;
+      next += character;
+    } else if (character === " ") {
+      next += character;
+    }
+  }
+
+  return next.replace(/\s{2,}/g, " ").trimStart();
+}
+
 function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
@@ -104,15 +123,19 @@ export function BookingForm({ eventId, availableSeats, message, messageVariant =
             className={inputClass}
             disabled={isSoldOut}
             inputMode="tel"
-            maxLength={14}
+            maxLength={15}
             name="participant_phone"
-            onChange={(event) => setPhone(event.target.value.replace(/[^\d\s]/g, ""))}
-            pattern="[0-9 ]{8,14}"
+            onChange={(event) => setPhone(normalizePhoneInput(event.target.value))}
+            pattern="[0-9 ]*"
             placeholder="Valgfrit"
             title={"Telefonnummer skal best\u00e5 af 8 cifre. Mellemrum er tilladt."}
             value={phone}
           />
-          {!phoneValid && <span className="text-xs font-semibold text-terracotta">{"Telefonnummer skal best\u00e5 af 8 cifre."}</span>}
+          {!phoneValid && (
+            <span className="rounded-md bg-white px-3 py-2 text-xs font-semibold text-[#8B1E2D] shadow-soft">
+              Telefonnummer skal være 8 cifre – eller lad feltet være tomt.
+            </span>
+          )}
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">
@@ -185,7 +208,7 @@ export function BookingForm({ eventId, availableSeats, message, messageVariant =
 
       <button
         className="mt-6 h-12 w-full rounded-button bg-rose px-4 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:bg-rose/40"
-        disabled={isSoldOut}
+        disabled={isSoldOut || !phoneValid}
         type="submit"
       >
         <span className="inline-flex items-center justify-center gap-2">

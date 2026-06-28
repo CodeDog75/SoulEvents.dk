@@ -167,7 +167,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     <main className="min-h-screen bg-cream">
       <header className="bg-white shadow-soft">
         <div className="mx-auto max-w-[1400px] px-5 py-5 sm:px-8">
-          <div className="mb-4 flex flex-wrap gap-2">
+          <nav className="mb-6 flex flex-wrap gap-2" aria-label="Tilbage-navigation">
             {viewer?.role === "admin" && adminReturn ? (
               <Link
                 className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
@@ -184,12 +184,12 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               <ArrowLeft className="size-4" aria-hidden="true" />
               Tilbage til forsiden
             </Link>
-          </div>
-          <div className="flex items-center gap-4">
-            <BrandLogo className="h-28 w-28" priority />
-            <div>
+          </nav>
+          <div className="flex items-start gap-4">
+            <BrandLogo className="h-20 w-20 shrink-0 sm:h-28 sm:w-28" priority />
+            <div className="min-w-0 pt-1">
               <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Event</p>
-              <h1 className="text-3xl font-medium text-olive">{event.title}</h1>
+              <h1 className="mt-1 break-words text-3xl font-medium leading-tight text-olive sm:text-4xl">{event.title}</h1>
             </div>
           </div>
         </div>

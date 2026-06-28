@@ -1108,11 +1108,7 @@ export default async function Home({ searchParams }: HomeProps) {
 
   return (
     <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
-      <section className="relative overflow-hidden bg-[#FAF6EF] pb-8 sm:pb-10">
-        <div
-          className="absolute inset-0 bg-[url('/brand/soulevents-logo.png')] bg-[length:300px_300px] bg-center bg-no-repeat opacity-16 sm:bg-[length:520px_520px]"
-          aria-hidden="true"
-        />
+      <section className="relative overflow-hidden bg-[#FAF6EF] pb-10 sm:pb-10">
         <div className="absolute inset-0 bg-gradient-to-b from-[#FAF6EF]/94 via-[#F7F0FA]/82 to-[#EDE4F7]/58" aria-hidden="true" />
         <div className="absolute left-1/2 top-4 h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-[#EDE4F7]/40 blur-3xl sm:h-[500px] sm:w-[500px]" aria-hidden="true" />
 
@@ -1158,7 +1154,7 @@ export default async function Home({ searchParams }: HomeProps) {
           </div>
         </header>
 
-        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-4 px-4 pb-6 pt-2 sm:gap-6 sm:px-8 sm:pb-8 sm:pt-3">
+        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-5 px-4 pb-8 pt-3 sm:gap-6 sm:px-8 sm:pb-8 sm:pt-3">
           <div className="max-w-4xl">
             <p className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-xs font-semibold text-[#2F2633] shadow-soft sm:text-sm">
               <Sparkles className="size-4 text-[#7A4EAB]" aria-hidden="true" />
@@ -1187,7 +1183,7 @@ export default async function Home({ searchParams }: HomeProps) {
       </section>
 
       {!hasSearch && (
-        <section className="bg-white py-10 sm:py-12" id="events">
+        <section className="bg-white py-12 sm:py-12" id="events">
           <div className="mx-auto grid max-w-[1200px] gap-7 px-5 sm:gap-9 sm:px-8">
             <div className="max-w-3xl">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Aktuelle oplevelser</p>
@@ -1202,7 +1198,7 @@ export default async function Home({ searchParams }: HomeProps) {
       )}
 
       {hasSearch && (
-        <section className="bg-white py-14 sm:py-16" id="events">
+        <section className="bg-white py-16 sm:py-16" id="events">
           <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
             {activeFilters.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -1292,7 +1288,7 @@ export default async function Home({ searchParams }: HomeProps) {
         </section>
       )}
 
-      <section className="bg-[#FAF6EF] py-12 sm:py-14" id="map">
+      <section className="bg-[#FAF6EF] py-14 sm:py-14" id="map">
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
           <div className="mb-4 max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Danmarkskort</p>
@@ -1303,14 +1299,14 @@ export default async function Home({ searchParams }: HomeProps) {
       </section>
 
       {!hasSearch && (
-        <section className="bg-white py-10 sm:py-12" id="facilitators">
+        <section className="bg-white py-12 sm:py-12" id="facilitators">
           <div className="mx-auto grid max-w-[1200px] gap-8 px-5 sm:px-8">
             <FacilitatorCarouselSection facilitators={facilitatorCards} href="/facilitators" title="Mød arrangørerne" />
           </div>
         </section>
       )}
 
-      <section className="bg-white py-10 sm:py-12" id="categories">
+      <section className="bg-white py-12 sm:py-12" id="categories">
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
           <div className="mb-4 max-w-2xl">
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Kategorier og inspiration</p>
@@ -1336,7 +1332,7 @@ export default async function Home({ searchParams }: HomeProps) {
         </section>
       )}
 
-      <section className="bg-[#FAF6EF] py-10 sm:py-12" id="contact">
+      <section className="bg-[#FAF6EF] py-12 sm:py-12" id="contact">
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
           <div className="rounded-[28px] bg-white p-5 shadow-soft sm:p-7 md:flex md:items-center md:justify-between md:gap-8">
             <div>

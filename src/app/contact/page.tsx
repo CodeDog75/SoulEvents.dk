@@ -31,7 +31,25 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
               Har du spørgsmål, ideer eller brug for hjælp, kan du sende en besked direkte til os.
             </p>
           </div>
+        </div>
 
+        <div className="grid gap-4">
+          {params.status === "sent" && (
+            <p className="rounded-input bg-sage-50 px-4 py-3 text-sm font-semibold text-olive">
+              Tak for din besked. Vi har modtaget din henvendelse og vender tilbage hurtigst muligt.
+            </p>
+          )}
+          {params.status === "error" && (
+            <p className="rounded-input bg-rose/10 px-4 py-3 text-sm font-semibold text-terracotta">
+              Udfyld navn, e-mail og besked. Beskeden må højst være 500 tegn.
+            </p>
+          )}
+          {params.status === "send-error" && (
+            <p className="rounded-input bg-rose/10 px-4 py-3 text-sm font-semibold text-terracotta">
+              Din besked kunne desværre ikke sendes lige nu. Prøv igen om lidt.
+            </p>
+          )}
+          <ContactForm />
           <div className="grid gap-3 text-sm leading-6 text-ink/70">
             <p className="flex items-start gap-3 rounded-[18px] bg-white/70 p-4">
               <MessageCircle className="mt-0.5 size-5 shrink-0 text-[#7A4EAB]" aria-hidden="true" />
@@ -42,20 +60,6 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
               Du kan også skrive direkte til kontakt@soulevents.dk.
             </p>
           </div>
-        </div>
-
-        <div className="grid gap-4">
-          {params.status === "sent" && (
-            <p className="rounded-input bg-sage-50 px-4 py-3 text-sm font-semibold text-olive">
-              Tak for din besked. Vi vender tilbage hurtigst muligt.
-            </p>
-          )}
-          {params.status === "error" && (
-            <p className="rounded-input bg-rose/10 px-4 py-3 text-sm font-semibold text-terracotta">
-              Udfyld navn, e-mail og besked. Beskeden må højst være 500 tegn.
-            </p>
-          )}
-          <ContactForm />
         </div>
       </section>
 
