@@ -1,18 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   CalendarDays,
-  Flame,
-  Heart,
   Mail,
-  Moon,
-  Music2,
-  ShieldCheck,
   Sparkles,
-  SunMedium,
-  Trees,
-  UsersRound,
-  Waves,
-  Wind,
 } from "lucide-react";
 import Link from "next/link";
 import { PartnerAdCarousel } from "@/components/ads/partner-ad-carousel";
@@ -31,21 +21,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
-
-const categories = [
-  { name: "Breathwork", value: "Breathwork", icon: Wind, href: "/?category_label=Breathwork#events" },
-  { name: "Ceremonier", value: "Ceremoni", icon: ShieldCheck, href: "/?category_label=Ceremoni#events" },
-  { name: "Cirkler & Fællesskaber", value: "Cirkler & Fællesskaber", icon: UsersRound, href: "/?category_label=Cirkler%20%26%20F%C3%A6llesskaber#events" },
-  { name: "Ecstatic Dance", value: "Ecstatic Dance", icon: Flame, href: "/?category_label=Ecstatic%20Dance#events" },
-  { name: "Healing", value: "Healing", icon: Heart, href: "/?category_label=Healing#events" },
-  { name: "Kirtan & Musik", value: "Kirtan", icon: Music2, href: "/?category_label=Kirtan#events" },
-  { name: "Lydbad", value: "Lydbad", icon: Waves, href: "/?category_label=Lydbad#events" },
-  { name: "Meditation", value: "Meditation", icon: Moon, href: "/?category_label=Meditation#events" },
-  { name: "Retreats", value: "Retreat", icon: Trees, href: "/?category_label=Retreat#events" },
-  { name: "Saunagus", value: "Saunagus", icon: Sparkles, href: "/?category_label=Saunagus#events" },
-  { name: "Tantra", value: "Tantra", icon: Heart, href: "/?category_label=Tantra#events" },
-  { name: "Yoga", value: "Yoga", icon: SunMedium, href: "/?category_label=Yoga#events" },
-];
 
 type LocalServiceProvider = {
   id: string;
@@ -177,6 +152,101 @@ function getEventCategoryNames(event: {
     ...(event.event_main_categories ?? []).map((row) => (Array.isArray(row.main_categories) ? row.main_categories[0] : row.main_categories)?.name),
     ...(event.event_subcategories ?? []).map((row) => (Array.isArray(row.subcategories) ? row.subcategories[0] : row.subcategories)?.name),
   ].filter((name): name is string => Boolean(name));
+}
+
+function getMainCategoryFallbackKeys(categoryName: string) {
+  const name = normalizeText(categoryName);
+  const keys = new Set<string>();
+
+  if (["meditation", "mindfulness", "nærvær", "naervaer", "breathwork", "åndedræt", "aandedraet"].some((label) => name.includes(label))) {
+    keys.add("Meditation & Nærvær");
+  }
+
+  if (["yoga", "dans", "krop", "kropsarbejde", "bevægelse", "bevaegelse", "sauna", "saunagus", "velvære", "velvaere", "natur"].some((label) => name.includes(label))) {
+    keys.add("Bevægelse & Krop");
+  }
+
+  if (["healing", "energi", "shamanisme", "chakra", "terapi"].some((label) => name.includes(label))) {
+    keys.add("Healing & Energiarbejde");
+  }
+
+  if (["lyd", "musik", "kirtan", "koncert", "sang"].some((label) => name.includes(label))) {
+    keys.add("Lyd & Musik");
+  }
+
+  if (["ceremoni", "ritual", "cirkel", "fællesskab", "faellesskab", "shamanisme", "tantra"].some((label) => name.includes(label))) {
+    keys.add("Ceremonier & Ritualer");
+  }
+
+  if (["udvikling", "coaching", "workshop", "kursus", "læring", "laering"].some((label) => name.includes(label))) {
+    keys.add("Personlig Udvikling");
+  }
+
+  return [...keys];
+}
+
+function getMainCategoryKeys(event: {
+  event_categories?: Array<{ categories?: { name?: string | null } | Array<{ name?: string | null }> | null }>;
+  event_main_categories?: Array<{
+    main_category_id?: string | null;
+    main_categories?: { name?: string | null } | Array<{ name?: string | null }> | null;
+  }>;
+  event_subcategories?: Array<{ subcategories?: { name?: string | null } | Array<{ name?: string | null }> | null }>;
+}) {
+  const mainCategoryKeys =
+    event.event_main_categories?.flatMap((row) => {
+      const category = Array.isArray(row.main_categories) ? row.main_categories[0] : row.main_categories;
+      return [row.main_category_id, category?.name].filter((value): value is string => Boolean(value));
+    }) ?? [];
+
+  if (mainCategoryKeys.length > 0) {
+    return mainCategoryKeys;
+  }
+
+  return (
+    [
+      ...(event.event_categories ?? []).map((row) => (Array.isArray(row.categories) ? row.categories[0] : row.categories)?.name),
+      ...(event.event_subcategories ?? []).map((row) => (Array.isArray(row.subcategories) ? row.subcategories[0] : row.subcategories)?.name),
+    ]
+      .filter((name): name is string => Boolean(name))
+      .flatMap((name) => [name, ...getMainCategoryFallbackKeys(name)])
+  );
+}
+
+function getMainCategoryEventCounts(events: Array<{
+  id: string;
+  event_categories?: Array<{ categories?: { name?: string | null } | Array<{ name?: string | null }> | null }>;
+  event_main_categories?: Array<{
+    main_category_id?: string | null;
+    main_categories?: { name?: string | null } | Array<{ name?: string | null }> | null;
+  }>;
+  event_subcategories?: Array<{ subcategories?: { name?: string | null } | Array<{ name?: string | null }> | null }>;
+}>) {
+  const counts: Record<string, number> = {};
+
+  for (const event of uniqueEventsById(events)) {
+    for (const key of new Set(getMainCategoryKeys(event))) {
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+  }
+
+  return counts;
+}
+
+function experienceGroupHasEvents(
+  group: { id: string; name: string; subcategories?: Array<{ name: string; value?: string | null }> },
+  counts: Record<string, number>,
+) {
+  if ((counts[group.id] ?? counts[group.name] ?? 0) > 0) {
+    return true;
+  }
+
+  return (
+    group.subcategories?.some((subcategory) => {
+      const keys = [subcategory.name, subcategory.value].filter((value): value is string => Boolean(value));
+      return keys.some((key) => (counts[key] ?? 0) > 0);
+    }) ?? false
+  );
 }
 
 function eventMatchesAnyLabel(event: PublicEvent, labels: string[]) {
@@ -426,7 +496,10 @@ async function getSearchEvents(selected: {
 
 
 
-function getCategoryEventCounts(events: Array<{ event_categories?: Array<{ categories?: { name?: string } | Array<{ name?: string }> | null }> }>) {
+function getCategoryEventCounts(events: Array<{
+  event_categories?: Array<{ categories?: { name?: string } | Array<{ name?: string }> | null }>;
+  event_subcategories?: Array<{ subcategories?: { name?: string } | Array<{ name?: string }> | null }>;
+}>) {
   const counts: Record<string, number> = {};
 
   for (const event of events) {
@@ -436,6 +509,13 @@ function getCategoryEventCounts(events: Array<{ event_categories?: Array<{ categ
       const category = Array.isArray(row.categories) ? row.categories[0] : row.categories;
       if (category?.name) {
         eventCategories.add(category.name);
+      }
+    }
+
+    for (const row of event.event_subcategories ?? []) {
+      const subcategory = Array.isArray(row.subcategories) ? row.subcategories[0] : row.subcategories;
+      if (subcategory?.name) {
+        eventCategories.add(subcategory.name);
       }
     }
 
@@ -908,6 +988,8 @@ export default async function Home({ searchParams }: HomeProps) {
   });
   const categoryEventCounts = getCategoryEventCounts(categoryAvailabilityEvents);
   const experienceGroups = await getExperienceGroups();
+  const mainCategoryEventCounts = getMainCategoryEventCounts(categoryAvailabilityEvents);
+  const homepageExperienceGroups = experienceGroups.filter((group) => experienceGroupHasEvents(group, mainCategoryEventCounts));
   const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
   const localServiceProviders = await getLocalServiceProviders(selected);
   const mapSourceEvents = uniqueEventsById(mapOverviewEvents);
@@ -1097,8 +1179,7 @@ export default async function Home({ searchParams }: HomeProps) {
             </div>
             <HomeEventSearchForm
               categoryEventCounts={categoryEventCounts}
-              categories={categories.map(({ name, value }) => ({ name, value }))}
-              experienceGroups={experienceGroups}
+              experienceGroups={homepageExperienceGroups}
               selected={selected}
             />
           </div>

@@ -17,7 +17,6 @@ type ExperienceGroup = {
 
 type HomeEventSearchFormProps = {
   categoryEventCounts?: Record<string, number>;
-  categories: Array<{ name: string; value: string }>;
   experienceGroups?: ExperienceGroup[];
   selected: {
     q: string;
@@ -64,32 +63,10 @@ function categoryHref(slug: string) {
   return "/categories/" + slug;
 }
 
-export function HomeEventSearchForm({ categoryEventCounts = {}, categories, experienceGroups = [], selected }: HomeEventSearchFormProps) {
+export function HomeEventSearchForm({ categoryEventCounts = {}, experienceGroups = [], selected }: HomeEventSearchFormProps) {
   const formRef = useRef<HTMLFormElement | null>(null);
   const [locationMessage, setLocationMessage] = useState("");
-  const visibleCategories = [...categories].sort((a, b) => {
-    const aCount = categoryEventCounts[a.name] ?? categoryEventCounts[a.value] ?? 0;
-    const bCount = categoryEventCounts[b.name] ?? categoryEventCounts[b.value] ?? 0;
-
-    if (aCount > 0 && bCount <= 0) return -1;
-    if (aCount <= 0 && bCount > 0) return 1;
-
-    return a.name.localeCompare(b.name, "da-DK");
-  });
-  const groupedExperiences =
-    experienceGroups.length > 0
-      ? experienceGroups
-      : [
-          {
-            id: "fallback",
-            name: "Oplevelser",
-            slug: "oplevelser",
-            description: "Vælg den eventform, der kalder på dig.",
-            colorHex: "#7A4EAB",
-            imageUrl: null,
-            subcategories: visibleCategories,
-          },
-        ];
+  const groupedExperiences = experienceGroups.length > 0 ? experienceGroups : [];
   const sortedExperienceGroups = groupedExperiences
     .map((group) => ({
       ...group,
@@ -269,19 +246,30 @@ export function HomeEventSearchForm({ categoryEventCounts = {}, categories, expe
           <h2 className="mt-1 text-2xl font-medium text-[#2F2633] sm:text-3xl">Vælg en retning</h2>
         </div>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
-          {visibleExperienceGroups.map((group) => renderExperienceGroupCard(group))}
-        </div>
-
-        {hiddenExperienceGroups.length > 0 && (
-          <details className="mt-3">
-            <summary className="inline-flex cursor-pointer list-none rounded-full border border-[#7A4EAB]/20 bg-white/80 px-4 py-2 text-sm font-semibold text-[#7A4EAB] shadow-soft marker:hidden">
-              Vis flere retninger
-            </summary>
+        {visibleExperienceGroups.length > 0 ? (
+          <>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
-              {hiddenExperienceGroups.map((group) => renderExperienceGroupCard(group))}
+              {visibleExperienceGroups.map((group) => renderExperienceGroupCard(group))}
             </div>
-          </details>
+
+            {hiddenExperienceGroups.length > 0 && (
+              <details className="mt-3">
+                <summary className="inline-flex cursor-pointer list-none rounded-full border border-[#7A4EAB]/20 bg-white/80 px-4 py-2 text-sm font-semibold text-[#7A4EAB] shadow-soft marker:hidden">
+                  Vis flere retninger
+                </summary>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+                  {hiddenExperienceGroups.map((group) => renderExperienceGroupCard(group))}
+                </div>
+              </details>
+            )}
+          </>
+        ) : (
+          <div className="mt-3 rounded-[22px] border border-[#E5D4F7] bg-white/80 p-5 shadow-soft">
+            <p className="text-base font-semibold text-[#2F2633]">Der er endnu ikke planlagt events i dette område.</p>
+            <p className="mt-1 text-sm leading-6 text-[#2F2633]/68">
+              Prøv Hele Danmark, eller kig forbi igen senere.
+            </p>
+          </div>
         )}
       </section>
 
