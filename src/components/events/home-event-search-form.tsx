@@ -33,7 +33,7 @@ type HomeEventSearchFormProps = {
   };
 };
 
-const locationFallbackMessage = "Vi kunne ikke finde din placering. Vælg dit område herunder.";
+const locationFallbackMessage = "Vi kunne ikke finde din placering. Vælg område i feltet ovenfor.";
 
 const areaOptions = [
   { label: "Hele Danmark", value: "" },
@@ -43,34 +43,6 @@ const areaOptions = [
   { label: "Midtjylland", value: "midtjylland" },
   { label: "Nordjylland", value: "nordjylland" },
 ];
-
-function LotusIcon() {
-  return (
-    <svg aria-hidden="true" className="size-5" fill="none" viewBox="0 0 24 24">
-      <path
-        d="M12 20c-2.7-2.1-4-4.4-4-6.9 0-2.4 1.4-4.7 4-6.8 2.6 2.1 4 4.4 4 6.8 0 2.5-1.3 4.8-4 6.9Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M7.9 18.8c-2.9-.6-5-2.5-5.9-5.6 2.7-.8 5.1-.4 7 1.2M16.1 18.8c2.9-.6 5-2.5 5.9-5.6-2.7-.8-5.1-.4-7 1.2"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M12 20c-1.1-2.2-1.1-4.4 0-6.7 1.1 2.3 1.1 4.5 0 6.7Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
-}
 
 function categoryHref(slug: string) {
   return "/categories/" + slug;
@@ -117,16 +89,16 @@ export function HomeEventSearchForm({
 
     return (
       <Link
-        className="group grid min-h-[116px] content-between rounded-[20px] border border-[#E4D6EF] bg-white/92 p-4 shadow-[0_14px_34px_rgba(47,38,51,0.08)] transition duration-300 hover:-translate-y-0.5 hover:border-[#7A4EAB]/35 hover:shadow-[0_18px_42px_rgba(122,78,171,0.14)]"
+        className="group grid min-h-[96px] content-between rounded-[18px] border border-[#E9DDF2] bg-white/94 p-3.5 shadow-[0_10px_26px_rgba(47,38,51,0.06)] transition duration-300 hover:-translate-y-0.5 hover:border-[#7A4EAB]/30 hover:shadow-[0_14px_34px_rgba(122,78,171,0.11)] sm:p-4"
         href={categoryHref(group.slug)}
         key={group.id}
       >
         <span className="flex items-start gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#FAF6EF] text-2xl shadow-soft" aria-hidden="true">
+          <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#FAF6EF] text-xl shadow-soft" aria-hidden="true">
             {categoryEmoji(group.name)}
           </span>
           <span className="min-w-0">
-            <span className="block break-words font-serif text-2xl font-semibold leading-tight text-[#2F2633]">
+            <span className="block break-words font-serif text-xl font-semibold leading-tight text-[#2F2633] sm:text-2xl">
               {group.name}
             </span>
             <span className="mt-1 block text-sm font-semibold text-[#2F2633]/62">
@@ -134,12 +106,17 @@ export function HomeEventSearchForm({
             </span>
           </span>
         </span>
-        <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#7A4EAB] transition group-hover:text-[#2F2633]">
+        <span className="mt-3 inline-flex text-sm font-semibold text-[#7A4EAB] transition group-hover:text-[#2F2633]">
           Se events
-          <LotusIcon />
         </span>
       </Link>
     );
+  }
+
+  function scrollToAnchor(anchor: string) {
+    window.setTimeout(() => {
+      document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
   }
 
   function goToResults(form: HTMLFormElement, submitter?: HTMLButtonElement | HTMLInputElement | null, anchor = "events") {
@@ -169,20 +146,7 @@ export function HomeEventSearchForm({
 
     const query = params.toString();
     router.push(query ? "/?" + query + "#" + anchor : "/#" + anchor, { scroll: false });
-  }
-
-  function chooseFallbackArea(area: string) {
-    const params = new URLSearchParams();
-
-    if (area) params.set("area", area);
-    if (selected.categoryLabel) params.set("category_label", selected.categoryLabel);
-    if (selected.q) params.set("q", selected.q);
-    if (selected.date) params.set("date", selected.date);
-    if (selected.format) params.set("format", selected.format);
-    if (selected.country) params.set("country", selected.country);
-
-    const query = params.toString();
-    router.push(query ? "/?" + query + "#events" : "/#events", { scroll: false });
+    scrollToAnchor(anchor);
   }
 
   function submitForm(event: FormEvent<HTMLFormElement>) {
@@ -291,30 +255,8 @@ export function HomeEventSearchForm({
             Find events nær dig
           </button>
           {locationMessage && (
-            <div className="mt-3 rounded-xl border border-[#7A4EAB]/30 bg-[#EDE4F7] px-4 py-3">
+            <div className="mt-3 rounded-xl border border-[#7A4EAB]/20 bg-white/86 px-4 py-3">
               <p className="text-sm font-semibold leading-6 text-[#2F1642]">{locationMessage}</p>
-              {locationMessage === locationFallbackMessage && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {areaOptions.map((option) => {
-                    const isSelected = selected.area === option.value || (!selected.area && option.value === "");
-                    return (
-                      <button
-                        className={
-                          "rounded-full px-3 py-2 text-xs font-semibold transition " +
-                          (isSelected
-                            ? "bg-[#7A4EAB] text-white"
-                            : "border border-[#7A4EAB]/20 bg-white/80 text-[#2F1642] hover:border-[#7A4EAB]")
-                        }
-                        key={option.label}
-                        onClick={() => chooseFallbackArea(option.value)}
-                        type="button"
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           )}
         </div>

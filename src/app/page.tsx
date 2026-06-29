@@ -1184,14 +1184,8 @@ export default async function Home({ searchParams }: HomeProps) {
 
   return (
     <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
-      <section className="relative overflow-hidden bg-[#FAF6EF] pb-8 sm:pb-10">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url('" + (homeHeroImage?.imageUrl ?? homeTileFallbackImages.fallback) + "')" }}
-          aria-hidden="true"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/78 via-[#FAF6EF]/76 to-[#FAF6EF] sm:from-white/70 sm:via-[#FAF6EF]/66" aria-hidden="true" />
-        <div className="absolute inset-0 bg-[#2F2633]/14" aria-hidden="true" />
+      <section className="relative overflow-hidden bg-[linear-gradient(180deg,#FAF6EF_0%,#F7F0FA_58%,#FAF6EF_100%)] pb-8 sm:pb-10">
+        <div className="absolute left-1/2 top-8 h-72 w-72 -translate-x-1/2 rounded-full bg-white/50 blur-3xl" aria-hidden="true" />
 
         <header className="relative z-10">
           <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-3 sm:px-8 sm:py-5">
@@ -1229,18 +1223,25 @@ export default async function Home({ searchParams }: HomeProps) {
         </header>
 
         <div className="relative z-10 mx-auto grid max-w-[1200px] gap-4 px-4 pb-7 pt-2 sm:gap-6 sm:px-8 sm:pb-8 sm:pt-3">
-          <div className="max-w-4xl">
-            <p className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-xs font-semibold text-[#2F2633] shadow-soft sm:text-sm">
-              <Sparkles className="size-4 text-[#7A4EAB]" aria-hidden="true" />
-              SoulEvents.dk
-            </p>
-            <h1 className="mt-4 max-w-4xl text-4xl font-semibold leading-tight text-[#2F2633] drop-shadow-[0_1px_16px_rgba(255,255,255,0.55)] sm:mt-5 sm:text-6xl sm:leading-[0.98] lg:text-7xl">
-              Find events for krop, sind og sjæl
-            </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-[#2F2633]/76 sm:text-lg">
-              Find spirituelle events, fællesskaber og oplevelser over hele Danmark.
-            </p>
-          </div>
+          <section className="grid overflow-hidden rounded-[28px] border border-white/80 bg-white/82 shadow-[0_18px_50px_rgba(47,38,51,0.10)] backdrop-blur md:grid-cols-[1.05fr_0.95fr]">
+            <div className="p-4 sm:p-7 lg:p-9">
+              <p className="inline-flex items-center gap-2 rounded-full bg-[#FAF6EF] px-3 py-1.5 text-xs font-semibold text-[#2F2633] shadow-soft sm:text-sm">
+                <Sparkles className="size-4 text-[#7A4EAB]" aria-hidden="true" />
+                SoulEvents.dk
+              </p>
+              <h1 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight text-[#2F2633] sm:mt-4 sm:text-6xl sm:leading-[0.98] lg:text-7xl">
+                Find events for krop, sind og sjæl
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#2F2633]/76 sm:mt-3 sm:text-lg sm:leading-7">
+                Find spirituelle events, fællesskaber og oplevelser over hele Danmark.
+              </p>
+            </div>
+            <div
+              className="min-h-[120px] bg-cover bg-center sm:min-h-[240px] md:min-h-full"
+              style={{ backgroundImage: "url('" + (homeHeroImage?.imageUrl ?? homeTileFallbackImages.fallback) + "')" }}
+              aria-hidden="true"
+            />
+          </section>
 
           <div className="max-w-5xl" id="find-events">
             <div className="mb-3 max-w-2xl">
