@@ -203,54 +203,54 @@ export function HomeEventSearchForm({
     <form
       action="/#events"
       aria-label="Find events"
-      className="w-full max-w-full"
+      className="w-full max-w-full min-w-0"
       onSubmit={submitForm}
       ref={formRef}
     >
       <input name="latitude" type="hidden" defaultValue={selected.latitude} />
       <input name="longitude" type="hidden" defaultValue={selected.longitude} />
 
-      <section className="grid gap-3 md:rounded-card md:border md:border-[#EDE4F7] md:bg-white/88 md:p-5 md:shadow-soft">
-        <section className="rounded-[26px] bg-white/96 p-2 shadow-[0_18px_46px_rgba(47,38,51,0.13)] md:rounded-[22px] md:border md:border-[#7A4EAB]/12 md:bg-white/70 md:shadow-none">
-          <label className="flex min-h-16 items-center gap-3 rounded-[22px] px-3 text-sm font-semibold text-[#2F2633] md:min-h-12 md:rounded-input md:border md:border-[#7A4EAB]/15 md:bg-white md:px-4">
-            <Search className="size-6 shrink-0 text-[#7A4EAB] md:size-5" aria-hidden="true" />
+      <section className="grid min-w-0 gap-2.5 md:rounded-card md:border md:border-[#EDE4F7] md:bg-white/88 md:p-5 md:shadow-soft">
+        <section className="rounded-[24px] border border-white/80 bg-white p-1.5 shadow-[0_16px_38px_rgba(47,38,51,0.14)] md:rounded-[22px] md:border-[#7A4EAB]/12 md:bg-white/70 md:shadow-none">
+          <label className="flex min-h-14 items-center gap-3 rounded-[20px] bg-white px-3 text-sm font-semibold text-[#2F2633] md:min-h-12 md:rounded-input md:border md:border-[#7A4EAB]/15 md:px-4">
+            <Search className="size-5 shrink-0 text-[#7A4EAB]" aria-hidden="true" />
             <span className="sr-only">Hvad søger du?</span>
             <input
-              className="min-w-0 flex-1 bg-transparent text-base font-normal outline-none placeholder:text-[#2F2633]/54 md:text-sm"
+              className="min-w-0 flex-1 bg-transparent text-base font-medium outline-none placeholder:text-[#2F2633]/68 md:text-sm"
               defaultValue={selected.q}
               name="q"
               placeholder="Hvad søger du?"
               type="search"
             />
             <button
-              className="grid size-11 shrink-0 place-items-center rounded-full bg-[#7A4EAB] text-white shadow-soft transition hover:bg-[#6C4499]"
+              className="grid size-10 shrink-0 place-items-center rounded-full bg-[#7A4EAB] text-white shadow-soft transition hover:bg-[#6C4499]"
               type="submit"
             >
-              <SlidersHorizontal className="size-5" aria-hidden="true" />
+              <SlidersHorizontal className="size-4" aria-hidden="true" />
               <span className="sr-only">Søg events</span>
             </button>
           </label>
         </section>
 
-        <section className="rounded-[24px] bg-white/94 p-4 shadow-[0_14px_36px_rgba(47,38,51,0.08)] md:grid md:grid-cols-[1fr_auto] md:items-center md:gap-4 md:rounded-[22px] md:border md:border-[#7A4EAB]/12 md:shadow-none">
-          <div className="flex items-center gap-3">
-            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#F4ECFA] text-[#7A4EAB]" aria-hidden="true">
-              <MapPin className="size-6" />
+        <section className="rounded-[22px] bg-white/95 p-3 shadow-[0_12px_28px_rgba(47,38,51,0.08)] md:grid md:grid-cols-[1fr_auto] md:items-center md:gap-4 md:rounded-[22px] md:border md:border-[#7A4EAB]/12 md:shadow-none">
+          <div className="flex items-center gap-2.5">
+            <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#F4ECFA] text-[#7A4EAB]" aria-hidden="true">
+              <MapPin className="size-5" />
             </span>
             <div className="min-w-0">
-              <h3 className="text-base font-bold text-[#2F2633]">Events nær dig</h3>
-              <p className="mt-0.5 text-sm font-semibold text-[#7A4EAB]">
+              <h3 className="text-sm font-bold text-[#2F2633]">Events nær dig</h3>
+              <p className="mt-0.5 text-xs font-semibold text-[#7A4EAB]">
                 {areaOptions.find((option) => option.value === selected.area)?.label ?? "Vælg område"}
               </p>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-2 md:mt-0 md:grid-cols-[1fr_auto]">
+          <div className="mt-3 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 md:mt-0">
             <label className="sr-only" htmlFor="home-area-select">
               Vælg område
             </label>
             <select
-              className="h-12 min-w-0 rounded-input border border-[#7A4EAB]/15 bg-white px-4 text-sm font-semibold text-[#2F2633] outline-none transition focus:border-[#7A4EAB]"
+              className="h-10 min-w-0 rounded-[14px] border border-[#7A4EAB]/15 bg-white px-3 text-sm font-semibold text-[#2F2633] outline-none transition focus:border-[#7A4EAB]"
               defaultValue={selected.area}
               id="home-area-select"
               name="area"
@@ -262,12 +262,12 @@ export function HomeEventSearchForm({
               ))}
             </select>
             <button
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/20 bg-white/86 px-4 py-3 text-sm font-semibold text-[#7A4EAB] transition hover:border-[#7A4EAB]/40"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-[14px] border border-[#7A4EAB]/20 bg-white px-3 text-sm font-semibold text-[#7A4EAB] transition hover:border-[#7A4EAB]/40"
               onClick={findNearby}
               type="button"
             >
               <LocateFixed className="size-4 shrink-0" aria-hidden="true" />
-              Find nær mig
+              Nær mig
             </button>
           </div>
 
@@ -279,7 +279,7 @@ export function HomeEventSearchForm({
         </section>
       </section>
 
-      <section className="mt-4" id="categories">
+      <section className="mt-3 min-w-0 max-w-full overflow-hidden" id="categories">
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Udforsk oplevelser</p>
@@ -291,7 +291,7 @@ export function HomeEventSearchForm({
         </div>
 
         {sortedExperienceGroups.length > 0 ? (
-          <div className="mt-3 flex w-full max-w-full gap-3 overflow-x-auto overscroll-x-contain pb-2 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible lg:grid-cols-4">
+          <div className="mt-3 flex w-full max-w-full min-w-0 gap-3 overflow-x-auto overscroll-x-contain pb-2 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible lg:grid-cols-4">
             {sortedExperienceGroups.map((group) => renderExperienceGroupCard(group))}
           </div>
         ) : (

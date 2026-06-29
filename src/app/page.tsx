@@ -1184,28 +1184,28 @@ export default async function Home({ searchParams }: HomeProps) {
   ].filter((filter): filter is { key: string; label: string; href: string } => Boolean(filter));
 
   return (
-    <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
+    <main className="min-h-screen overflow-x-clip bg-[#FAF6EF] text-[#2F2633]">
       <section className="relative overflow-hidden bg-[#FAF6EF] pb-8 md:bg-[linear-gradient(180deg,#FAF6EF_0%,#F7F0FA_58%,#FAF6EF_100%)] md:pb-10">
         <div
-          className="absolute inset-x-0 top-0 h-[520px] bg-cover bg-center md:hidden"
+          className="absolute inset-x-0 top-0 h-[405px] bg-cover bg-center md:hidden"
           style={{ backgroundImage: "url('" + (homeHeroImage?.imageUrl ?? homeTileFallbackImages.fallback) + "')" }}
           aria-hidden="true"
         />
         <div
-          className="absolute inset-x-0 top-0 h-[520px] bg-[linear-gradient(90deg,rgba(250,246,239,0.84)_0%,rgba(250,246,239,0.34)_55%,rgba(250,246,239,0.06)_100%)] md:hidden"
+          className="absolute inset-x-0 top-0 h-[405px] bg-[linear-gradient(90deg,rgba(250,246,239,0.84)_0%,rgba(250,246,239,0.36)_55%,rgba(250,246,239,0.08)_100%)] md:hidden"
           aria-hidden="true"
         />
         <div
-          className="absolute inset-x-0 top-0 h-[610px] bg-[linear-gradient(180deg,rgba(250,246,239,0.24)_0%,rgba(250,246,239,0.02)_48%,rgba(250,246,239,0.92)_86%,#FAF6EF_100%)] md:hidden"
+          className="absolute inset-x-0 top-0 h-[480px] bg-[linear-gradient(180deg,rgba(250,246,239,0.20)_0%,rgba(250,246,239,0.02)_48%,rgba(250,246,239,0.90)_84%,#FAF6EF_100%)] md:hidden"
           aria-hidden="true"
         />
         <div className="absolute left-1/2 top-8 hidden h-72 w-72 -translate-x-1/2 rounded-full bg-white/50 blur-3xl md:block" aria-hidden="true" />
 
         <header className="relative z-10">
-          <div className="mx-auto flex max-w-[1400px] items-center justify-between px-5 py-4 sm:px-8 md:py-5">
+          <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-3 sm:px-8 md:py-5">
             <Link aria-label="SoulEvents.dk forside" className="inline-flex items-center gap-2.5" href="/">
-              <BrandLogo className="h-14 w-14 sm:h-16 sm:w-16 md:h-28 md:w-28 lg:h-32 lg:w-32" priority />
-              <span className="font-serif text-2xl font-semibold leading-none text-[#2F2633] md:hidden">SoulEvents</span>
+              <BrandLogo className="h-12 w-12 sm:h-16 sm:w-16 md:h-28 md:w-28 lg:h-32 lg:w-32" priority />
+              <span className="font-serif text-xl font-semibold leading-none text-[#2F2633] md:hidden">SoulEvents</span>
             </Link>
 
             <nav className="hidden items-center gap-9 text-[15px] font-semibold tracking-[0.01em] text-[#2F2633] md:flex">
@@ -1239,9 +1239,9 @@ export default async function Home({ searchParams }: HomeProps) {
           </div>
         </header>
 
-        <div className="relative z-10 mx-auto grid max-w-[1200px] gap-4 px-4 pb-7 pt-1 sm:gap-6 sm:px-8 sm:pb-8 md:pt-3">
-          <section className="min-h-[365px] pt-24 md:hidden">
-            <h1 className="max-w-[19rem] font-serif text-[2.95rem] font-semibold leading-[0.98] text-[#2F2633] drop-shadow-[0_2px_16px_rgba(255,255,255,0.55)]">
+        <div className="relative z-10 mx-auto grid max-w-[1200px] min-w-0 gap-3 px-4 pb-6 pt-1 sm:gap-6 sm:px-8 sm:pb-8 md:pt-3">
+          <section className="min-h-[265px] pt-16 md:hidden">
+            <h1 className="max-w-[20rem] font-serif text-[2.22rem] font-semibold leading-[1.02] text-[#2F2633] drop-shadow-[0_2px_16px_rgba(255,255,255,0.55)]">
               Oplevelser der nærer krop, sind og sjæl
             </h1>
           </section>
@@ -1266,7 +1266,7 @@ export default async function Home({ searchParams }: HomeProps) {
             />
           </section>
 
-          <div className="-mt-24 max-w-5xl md:mt-0" id="find-events">
+          <div className="-mt-16 min-w-0 max-w-5xl md:mt-0" id="find-events">
             <div className="mb-3 hidden max-w-2xl md:block">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Find din næste oplevelse</p>
               <h2 className="mt-1 text-2xl font-medium leading-tight text-[#2F2633] sm:text-4xl">Søg efter det, der passer til dig</h2>
