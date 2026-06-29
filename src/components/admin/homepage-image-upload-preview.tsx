@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ImagePlus } from "lucide-react";
+import type { ReactNode } from "react";
 
 type HomepageImageUploadPreviewProps = {
   imageUrl?: string | null;
@@ -10,6 +11,7 @@ type HomepageImageUploadPreviewProps = {
   label?: string;
   helpText?: string;
   previewAspectClassName?: string;
+  children?: ReactNode;
 };
 
 export function HomepageImageUploadPreview({
@@ -19,6 +21,7 @@ export function HomepageImageUploadPreview({
   label = "Upload billede",
   helpText = "Anbefalet: kvadratisk billede. JPG, PNG eller WebP under 8 MB.",
   previewAspectClassName = "aspect-square",
+  children,
 }: HomepageImageUploadPreviewProps) {
   const [selectedPreviewUrl, setSelectedPreviewUrl] = useState<string | null>(null);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -50,6 +53,8 @@ export function HomepageImageUploadPreview({
       </div>
 
       <p className="text-xs font-semibold text-ink/55">{previewLabel}</p>
+
+      {children}
 
       <label className="grid gap-2 text-sm font-medium text-ink/72">
         {label}

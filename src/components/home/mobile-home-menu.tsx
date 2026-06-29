@@ -17,7 +17,7 @@ export function MobileHomeMenu() {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="relative md:hidden">
+    <div className="relative isolate md:hidden">
       <button
         aria-expanded={isOpen}
         aria-label="Åbn menu"
@@ -32,11 +32,11 @@ export function MobileHomeMenu() {
         <>
           <button
             aria-label="Luk menu"
-            className="fixed inset-0 z-40 cursor-default bg-transparent"
+            className="fixed inset-0 z-[9998] cursor-default bg-black/10"
             onClick={() => setIsOpen(false)}
             type="button"
           />
-          <div className="absolute right-0 top-14 z-50 w-[min(18rem,calc(100vw-2rem))] rounded-[24px] border border-white/80 bg-white/96 p-3 shadow-[0_22px_60px_rgba(47,38,51,0.18)] backdrop-blur-xl">
+          <div className="fixed right-4 top-20 z-[9999] w-[min(18rem,calc(100vw-2rem))] rounded-[24px] border border-white bg-white p-3 shadow-[0_22px_60px_rgba(47,38,51,0.22)]">
             <div className="flex items-center justify-between gap-3 px-2 py-1">
               <p className="font-serif text-2xl font-semibold text-[#2F2633]">Menu</p>
               <button

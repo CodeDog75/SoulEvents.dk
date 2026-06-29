@@ -34,6 +34,16 @@ function extensionFromFile(file: File) {
   return "jpg";
 }
 
+function imageContentType(extension: string, fallback: string) {
+  if (fallback && fallback !== "application/octet-stream") {
+    return fallback;
+  }
+
+  if (extension === "png") return "image/png";
+  if (extension === "webp") return "image/webp";
+  return "image/jpeg";
+}
+
 async function uploadSiteLogo(formData: FormData, currentLogoPath: string | null) {
   const removeLogo = formData.get("remove_logo") === "on";
   if (removeLogo) {
@@ -145,11 +155,12 @@ async function uploadHeroImage(formData: FormData, currentImagePath: string | nu
 
   const { error } = await supabase.storage.from("media").upload(imagePath, file, {
     cacheControl: "31536000",
-    contentType: file.type || "image/jpeg",
+    contentType: imageContentType(extension, file.type),
     upsert: false,
   });
 
   if (error) {
+    console.error("Hero image upload failed", { error, imagePath, scope });
     heroGo("Hero-billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
   }
 
@@ -269,6 +280,13 @@ export async function upsertHeroImageAction(formData: FormData) {
     : await supabase.from("hero_images").insert(payload);
 
   if (result.error) {
+    console.error("Hero image database save failed", {
+      error: result.error,
+      id,
+      imagePath,
+      mainCategoryId,
+      scope,
+    });
     heroGo("Hero-billedet kunne ikke gemmes. Tjek at database-migrationen er kørt.");
   }
 
@@ -314,6 +332,7 @@ export async function useHomepageHeroImageAction(formData: FormData) {
     .eq("scope", "homepage");
 
   if (deactivateError) {
+    console.error("Hero image homepage deactivate failed", { error: deactivateError, id });
     heroGo("Forsidebillederne kunne ikke opdateres.");
   }
 
@@ -324,6 +343,7 @@ export async function useHomepageHeroImageAction(formData: FormData) {
     .eq("scope", "homepage");
 
   if (activateError) {
+    console.error("Hero image homepage activate failed", { error: activateError, id });
     heroGo("Hero-billedet kunne ikke vælges som forsidebillede.");
   }
 

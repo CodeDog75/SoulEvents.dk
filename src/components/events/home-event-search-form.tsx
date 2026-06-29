@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LocateFixed, MapPin, Search } from "lucide-react";
+import { LocateFixed, MapPin, Search, X } from "lucide-react";
 import type { FormEvent } from "react";
 import { useRef, useState } from "react";
 
@@ -68,7 +68,9 @@ export function HomeEventSearchForm({
 }: HomeEventSearchFormProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [locationMessage, setLocationMessage] = useState("");
+  const [query, setQuery] = useState(selected.q);
   const groupedExperiences = experienceGroups.length > 0 ? experienceGroups : [];
   const sortedExperienceGroups = groupedExperiences
     .map((group) => ({
@@ -224,11 +226,26 @@ export function HomeEventSearchForm({
             <span className="sr-only">Hvad søger du?</span>
             <input
               className="min-w-0 flex-1 bg-transparent text-base font-medium outline-none placeholder:text-[#2F2633]/68 md:text-sm"
-              defaultValue={selected.q}
               name="q"
+              onChange={(event) => setQuery(event.currentTarget.value)}
               placeholder="Hvad søger du?"
+              ref={searchInputRef}
               type="search"
+              value={query}
             />
+            {query.trim() && (
+              <button
+                aria-label="Ryd søgning"
+                className="grid size-9 shrink-0 place-items-center rounded-full text-[#2F2633]/55 transition hover:bg-[#FAF6EF] hover:text-[#2F2633]"
+                onClick={() => {
+                  setQuery("");
+                  window.requestAnimationFrame(() => searchInputRef.current?.focus());
+                }}
+                type="button"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            )}
             <button
               className="grid size-10 shrink-0 place-items-center rounded-full bg-[#7A4EAB] text-white shadow-soft transition hover:bg-[#6C4499]"
               type="submit"

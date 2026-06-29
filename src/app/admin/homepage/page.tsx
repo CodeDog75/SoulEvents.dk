@@ -92,22 +92,20 @@ function HeroImageForm({
         </div>
       </summary>
 
-      <form action={upsertHeroImageAction} className="p-5 sm:p-6">
+      <form action={upsertHeroImageAction} className="grid gap-5 p-5 sm:p-6" encType="multipart/form-data">
         <input name="id" type="hidden" value={heroImage?.id ?? ""} />
         <input name="image_path" type="hidden" value={heroImage?.image_path ?? ""} />
         <input name="scope" type="hidden" value={scope} />
 
-        <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(280px,420px)_minmax(0,1fr)]">
-          <HomepageImageUploadPreview
-            helpText="Anbefalet format: ca. 2400 x 1600 px. JPG, PNG eller WebP op til 10 MB."
-            imagePath={heroImage?.image_path ?? null}
-            imageUrl={heroImage?.image_url ?? null}
-            inputName="hero_image"
-            label={heroImage ? "Udskift hero-billede" : "Upload hero-billede"}
-            previewAspectClassName="aspect-[3/2]"
-          />
-
-          <div className="grid min-w-0 gap-4">
+        <HomepageImageUploadPreview
+          helpText="Anbefalet format: ca. 2400 x 1600 px. JPG, PNG eller WebP op til 10 MB."
+          imagePath={heroImage?.image_path ?? null}
+          imageUrl={heroImage?.image_url ?? null}
+          inputName="hero_image"
+          label={heroImage ? "Udskift hero-billede" : "Upload hero-billede"}
+          previewAspectClassName="aspect-[3/2]"
+        >
+          <div className="grid min-w-0 gap-5">
             {isCategoryHero && (
               <label className="grid gap-2 text-sm font-medium text-ink/72">
                 Hovedkategori
@@ -153,15 +151,13 @@ function HeroImageForm({
                 Billedet er aktivt
               </label>
             </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button className="inline-flex h-10 w-fit items-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700" type="submit">
-                <Save className="size-4" aria-hidden="true" />
-                Gem hero-billede
-              </button>
-            </div>
           </div>
-        </div>
+        </HomepageImageUploadPreview>
+
+        <button className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700 sm:w-fit" type="submit">
+          <Save className="size-4" aria-hidden="true" />
+          Gem hero-billede
+        </button>
       </form>
 
       {heroImage && (
