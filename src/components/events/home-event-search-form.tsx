@@ -48,18 +48,6 @@ function categoryHref(slug: string) {
   return "/categories/" + slug;
 }
 
-function categoryEmoji(name: string) {
-  const normalized = name.toLowerCase();
-  if (normalized.includes("yoga") || normalized.includes("bevægelse") || normalized.includes("krop")) return "🧘";
-  if (normalized.includes("sauna") || normalized.includes("velvære")) return "🔥";
-  if (normalized.includes("meditation") || normalized.includes("nærvær")) return "🌙";
-  if (normalized.includes("healing") || normalized.includes("energi")) return "🌿";
-  if (normalized.includes("lyd") || normalized.includes("musik")) return "🎶";
-  if (normalized.includes("ceremoni") || normalized.includes("ritual")) return "✨";
-  if (normalized.includes("retreat") || normalized.includes("rejse")) return "🌄";
-  return "🌸";
-}
-
 export function HomeEventSearchForm({
   categoryEventCounts = {},
   experienceGroupEventCounts = {},
@@ -108,9 +96,6 @@ export function HomeEventSearchForm({
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
                 src={group.imageUrl ?? ""}
               />
-              <span className="absolute left-3 bottom-3 grid size-10 place-items-center rounded-2xl bg-white/94 text-xl shadow-soft" aria-hidden="true">
-                {categoryEmoji(group.name)}
-              </span>
             </span>
             <span className="grid gap-1 p-3.5">
               <span className="block break-words text-base font-bold leading-tight text-[#2F2633] sm:font-serif sm:text-xl sm:font-semibold">
@@ -123,10 +108,7 @@ export function HomeEventSearchForm({
           </>
         ) : (
           <>
-            <span className="grid gap-2">
-              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#FAF6EF] text-xl shadow-soft" aria-hidden="true">
-                {categoryEmoji(group.name)}
-              </span>
+            <span className="grid gap-1">
               <span className="min-w-0">
                 <span className="block break-words text-base font-bold leading-tight text-[#2F2633] sm:font-serif sm:text-xl sm:font-semibold">
                   {group.name}

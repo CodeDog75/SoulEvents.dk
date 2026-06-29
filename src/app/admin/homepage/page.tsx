@@ -392,6 +392,17 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
     })) ?? [];
   const homepageHeroImages = heroImagesWithUrls.filter((heroImage) => heroImage.scope === "homepage") as HeroImage[];
   const categoryHeroImages = heroImagesWithUrls.filter((heroImage) => heroImage.scope === "main_category") as HeroImage[];
+  const knownCategoryIds = new Set(categoriesList.map((category) => category.id));
+  const categoryHeroImagesByCategoryId = new Map<string, HeroImage[]>();
+
+  for (const heroImage of categoryHeroImages) {
+    if (!heroImage.main_category_id) {
+      continue;
+    }
+
+    const existingImages = categoryHeroImagesByCategoryId.get(heroImage.main_category_id) ?? [];
+    categoryHeroImagesByCategoryId.set(heroImage.main_category_id, [...existingImages, heroImage]);
+  }
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -469,19 +480,42 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
           {categoryHeroImages.length > 0 && (
             <section className="grid gap-3">
               <h3 className="text-lg font-semibold text-midnight">Hovedkategori-billeder</h3>
-              <div className="grid gap-4">
-                {categoryHeroImages.map((heroImage) => {
-                  const categoryName = categoriesList.find((category) => category.id === heroImage.main_category_id)?.name ?? "Hovedkategori";
+              <div className="grid gap-5">
+                {categoriesList.map((category) => {
+                  const categoryImages = categoryHeroImagesByCategoryId.get(category.id) ?? [];
+
+                  if (categoryImages.length === 0) {
+                    return null;
+                  }
+
                   return (
+                    <section className="grid gap-3 rounded-card border border-midnight/10 bg-[#FAF6EF] p-4" key={category.id}>
+                      <h4 className="text-base font-semibold text-midnight">{category.name}</h4>
+                      <div className="grid gap-4">
+                        {categoryImages.map((heroImage) => (
+                          <HeroImageForm
+                            categories={categoriesList}
+                            heroImage={heroImage}
+                            key={heroImage.id}
+                            scope="main_category"
+                            title={category.name + " · Sortering " + heroImage.sort_order}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+                {categoryHeroImages
+                  .filter((heroImage) => !heroImage.main_category_id || !knownCategoryIds.has(heroImage.main_category_id))
+                  .map((heroImage) => (
                     <HeroImageForm
                       categories={categoriesList}
                       heroImage={heroImage}
                       key={heroImage.id}
                       scope="main_category"
-                      title={categoryName + " · Sortering " + heroImage.sort_order}
+                      title={"Ukendt hovedkategori · Sortering " + heroImage.sort_order}
                     />
-                  );
-                })}
+                  ))}
               </div>
             </section>
           )}

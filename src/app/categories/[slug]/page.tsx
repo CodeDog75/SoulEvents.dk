@@ -71,18 +71,6 @@ async function getCategoryHeroImage(
     return supabase.storage.from("media").getPublicUrl(categoryHero.image_path).data.publicUrl;
   }
 
-  const { data: globalHeroImages } = await supabase
-    .from("hero_images")
-    .select("image_path, alt_text")
-    .eq("scope", "homepage")
-    .eq("is_active", true)
-    .order("sort_order");
-
-  const globalHero = pickRandomItem((globalHeroImages ?? []) as Array<{ image_path: string; alt_text: string | null }>);
-  if (globalHero?.image_path) {
-    return supabase.storage.from("media").getPublicUrl(globalHero.image_path).data.publicUrl;
-  }
-
   return fallbackImagePath ? supabase.storage.from("media").getPublicUrl(fallbackImagePath).data.publicUrl : null;
 }
 
