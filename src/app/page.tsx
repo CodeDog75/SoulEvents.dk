@@ -1228,27 +1228,27 @@ export default async function Home({ searchParams }: HomeProps) {
             </h1>
           </section>
 
-          <section className="hidden overflow-hidden rounded-[28px] border border-white/80 bg-white/82 shadow-[0_18px_50px_rgba(47,38,51,0.10)] backdrop-blur md:grid md:grid-cols-[1.05fr_0.95fr]">
-            <div className="p-4 sm:p-7 lg:p-9">
-              <p className="inline-flex items-center gap-2 rounded-full bg-[#FAF6EF] px-3 py-1.5 text-xs font-semibold text-[#2F2633] shadow-soft sm:text-sm">
+          <section
+            className="relative hidden min-h-[540px] overflow-hidden rounded-[32px] border border-white/75 bg-[#D8C1A2] bg-cover bg-center shadow-[0_22px_70px_rgba(47,38,51,0.16)] md:block lg:min-h-[580px] xl:min-h-[620px]"
+            style={{ backgroundImage: "url('" + (homeHeroImage?.imageUrl ?? homeTileFallbackImages.fallback) + "')" }}
+          >
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(250,246,239,0.92)_0%,rgba(250,246,239,0.72)_34%,rgba(250,246,239,0.20)_66%,rgba(250,246,239,0.02)_100%)]" aria-hidden="true" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(47,38,51,0.02)_0%,rgba(47,38,51,0.04)_58%,rgba(250,246,239,0.70)_100%)]" aria-hidden="true" />
+            <div className="relative flex min-h-[540px] max-w-[760px] flex-col justify-center px-9 py-16 lg:min-h-[580px] lg:px-12 xl:min-h-[620px]">
+              <p className="inline-flex w-max items-center gap-2 rounded-full bg-white/72 px-3 py-1.5 text-xs font-semibold text-[#2F2633] shadow-soft backdrop-blur sm:text-sm">
                 <Sparkles className="size-4 text-[#7A4EAB]" aria-hidden="true" />
                 SoulEvents.dk
               </p>
-              <h1 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight text-[#2F2633] sm:mt-4 sm:text-6xl sm:leading-[0.98] lg:text-7xl">
+              <h1 className="mt-5 max-w-[720px] text-5xl font-semibold leading-[0.98] text-[#2F2633] lg:text-7xl">
                 Find events for krop, sind og sjæl
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#2F2633]/76 sm:mt-3 sm:text-lg sm:leading-7">
+              <p className="mt-5 max-w-[620px] text-lg leading-8 text-[#2F2633]/78">
                 Find spirituelle events, fællesskaber og oplevelser over hele Danmark.
               </p>
             </div>
-            <div
-              className="min-h-[120px] bg-cover bg-center sm:min-h-[240px] md:min-h-full"
-              style={{ backgroundImage: "url('" + (homeHeroImage?.imageUrl ?? homeTileFallbackImages.fallback) + "')" }}
-              aria-hidden="true"
-            />
           </section>
 
-          <div className="-mt-16 min-w-0 w-full md:mt-0" id="find-events">
+          <div className="-mt-16 min-w-0 w-full md:-mt-20" id="find-events">
             <div className="mb-3 hidden max-w-2xl md:block">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Find din næste oplevelse</p>
               <h2 className="mt-1 text-2xl font-medium leading-tight text-[#2F2633] sm:text-4xl">Søg efter det, der passer til dig</h2>
