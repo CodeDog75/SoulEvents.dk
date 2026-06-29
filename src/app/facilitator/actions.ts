@@ -39,12 +39,14 @@ export async function sendFacilitatorAdminMessageAction(formData: FormData) {
   }
 
   const { admin, profile, facilitator } = await getFacilitatorForCurrentUser();
+  const now = new Date().toISOString();
   const { error } = await admin.from("facilitator_admin_messages").insert({
     facilitator_id: facilitator.id,
     profile_id: profile.id,
     type: "message",
     subject,
     message,
+    facilitator_read_at: now,
   });
 
   if (error) {
@@ -70,6 +72,7 @@ export async function requestFacilitatorProfileClosureAction(formData: FormData)
 
   const { admin, profile, facilitator } = await getFacilitatorForCurrentUser();
   const message = reason || "Arrangøren har ikke skrevet en begrundelse.";
+  const now = new Date().toISOString();
 
   const { error: messageError } = await admin.from("facilitator_admin_messages").insert({
     facilitator_id: facilitator.id,
@@ -77,6 +80,7 @@ export async function requestFacilitatorProfileClosureAction(formData: FormData)
     type: "closure_request",
     subject: "Anmodning om at sætte arrangørprofil på pause",
     message,
+    facilitator_read_at: now,
   });
 
   if (messageError) {
@@ -88,4 +92,20 @@ export async function requestFacilitatorProfileClosureAction(formData: FormData)
   revalidatePath("/facilitator");
   revalidatePath("/admin");
   go("Din arrangørprofil er sat på pause, og admin har fået besked om din anmodning.");
+}
+
+export async function markFacilitatorAdminMessagesReadAction() {
+  const { admin, facilitator } = await getFacilitatorForCurrentUser();
+  const { error } = await admin
+    .from("facilitator_admin_messages")
+    .update({ facilitator_read_at: new Date().toISOString() })
+    .eq("facilitator_id", facilitator.id)
+    .is("facilitator_read_at", null);
+
+  if (error) {
+    go("Beskederne kunne ikke markeres som læst. Prøv igen.");
+  }
+
+  revalidatePath("/facilitator");
+  go("Beskederne er markeret som læst.");
 }

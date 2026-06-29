@@ -106,8 +106,8 @@ async function ensureMediaBucket(supabase: ReturnType<typeof createAdminClient>)
   }
 
   const { error } = await supabase.storage.createBucket("media", {
-    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
-    fileSizeLimit: 30 * 1024 * 1024,
+    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
+    fileSizeLimit: 10 * 1024 * 1024,
     public: true,
   });
 
@@ -122,15 +122,15 @@ async function uploadImage(supabase: ReturnType<typeof createAdminClient>, file:
   }
 
   if (isHeicImage(file)) {
-    profileRedirect("HEIC understøttes ikke endnu. Vælg et billede som JPG, PNG eller WebP.");
+    profileRedirect("HEIC-billedet kunne ikke konverteres. Prøv et andet billede eller eksportér som JPG.");
   }
 
-  if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
-    profileRedirect("Du kan kun uploade billedfiler som JPG, PNG, WebP eller GIF.");
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    profileRedirect("Du kan uploade JPG, PNG, WEBP eller HEIC. HEIC konverteres automatisk i browseren.");
   }
 
-  if (file.size > 8 * 1024 * 1024) {
-    profileRedirect("Billedet må højst fylde 5 MB.");
+  if (file.size > 10 * 1024 * 1024) {
+    profileRedirect("Billedet må højst fylde 10 MB.");
   }
 
   await ensureMediaBucket(supabase);
@@ -142,7 +142,7 @@ async function uploadImage(supabase: ReturnType<typeof createAdminClient>, file:
   });
 
   if (error) {
-    profileRedirect("Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase, og at filen er JPG, PNG, WebP eller GIF under 8 MB.");
+    profileRedirect("Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase, og at filen er JPG, PNG eller WebP under 10 MB.");
   }
 
   return path;
@@ -225,6 +225,16 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
 
   if (section === "all" && !categoryIds.length) {
     profileRedirect("Vælg mindst én kategori, så vi kan placere din profil korrekt.");
+  }
+
+  if (
+    (section === "all" || section === "services") &&
+    offersServices &&
+    serviceTitleIds.length === 0 &&
+    !serviceOtherTitle &&
+    !serviceDescription
+  ) {
+    profileRedirect("Vælg mindst én titel/ydelse fra listen, eller skriv din egen titel eller uddybning.");
   }
 
   const { data: existingProfile } = await supabase

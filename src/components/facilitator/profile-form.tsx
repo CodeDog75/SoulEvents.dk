@@ -1,8 +1,8 @@
 "use client";
 
-import { Camera, CheckCircle2, CircleAlert, CircleDashed, Info, Link2, Save } from "lucide-react";
+import { Camera, CheckCircle2, CircleAlert, CircleDashed, Info, Link2, Save, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { updateFacilitatorProfileAction } from "@/app/facilitator/profile/actions";
 import { ProfileImageManager } from "@/components/facilitator/profile-image-manager";
 
@@ -168,15 +168,47 @@ function SectionSaveButton({ children, section }: { children: string; section: s
 }
 
 function InfoHelp({ children }: { children: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const popoverId = useId();
+
   return (
-    <details className="group relative inline-block">
-      <summary className="grid size-6 cursor-pointer list-none place-items-center rounded-full border border-sage-700/25 bg-sage-50 text-sage-700 transition hover:bg-sage-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 [&::-webkit-details-marker]:hidden">
-        <Info className="size-3.5" aria-label="Vis hjælp" />
-      </summary>
-      <div className="absolute left-0 z-20 mt-2 w-[min(18rem,calc(100vw-3rem))] rounded-md border border-midnight/10 bg-white p-3 text-xs font-normal leading-5 text-ink/70 shadow-lift sm:left-auto sm:right-0">
-        {children}
-      </div>
-    </details>
+    <span className="relative inline-block">
+      {isOpen ? (
+        <button
+          aria-label="Luk hjælp"
+          className="fixed inset-0 z-10 cursor-default"
+          onClick={() => setIsOpen(false)}
+          type="button"
+        />
+      ) : null}
+      <button
+        aria-controls={popoverId}
+        aria-expanded={isOpen}
+        aria-label={isOpen ? "Luk hjælp" : "Vis hjælp"}
+        className="relative z-20 grid size-6 cursor-pointer place-items-center rounded-full border border-sage-700/25 bg-sage-50 text-sage-700 transition hover:bg-sage-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
+        onClick={() => setIsOpen((current) => !current)}
+        type="button"
+      >
+        <Info className="size-3.5" aria-hidden="true" />
+      </button>
+      {isOpen ? (
+        <span
+          className="absolute left-0 z-30 mt-2 grid w-[min(18rem,calc(100vw-3rem))] gap-2 rounded-md border border-midnight/10 bg-white p-3 text-xs font-normal leading-5 text-ink/70 shadow-lift sm:left-auto sm:right-0"
+          id={popoverId}
+          role="dialog"
+        >
+          <button
+            aria-label="Luk hjælp"
+            className="justify-self-end rounded-full p-1 text-ink/45 transition hover:bg-sage-50 hover:text-sage-700"
+            onClick={() => setIsOpen(false)}
+            type="button"
+          >
+            <X className="size-3.5" aria-hidden="true" />
+          </button>
+          <span>{children}</span>
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -212,7 +244,11 @@ export function ProfileForm({
   const phoneComplete = Boolean(phone && digits(phone).length === 8);
   const locationComplete = Boolean(postalCode.trim() && city.trim());
   const categoriesComplete = selectedCategories.length > 0;
-  const servicesComplete = !offersServices || selectedServiceTitles.length > 0;
+  const shortDescriptionMinimum = 20;
+  const shortDescriptionMaximum = 300;
+  const longDescriptionMaximum = 2000;
+  const serviceDescriptionMaximum = 500;
+  const shortDescriptionMissing = Math.max(shortDescriptionMinimum - shortDescription.trim().length, 0);
 
   async function fetchPostalCodeCity(normalizedPostalCode: string) {
     try {
@@ -328,12 +364,17 @@ export function ProfileForm({
             <textarea
               className={`min-h-24 p-3 ${fieldClass(shortComplete)}`}
               name="short_description"
-              maxLength={300}
+              maxLength={shortDescriptionMaximum}
 
               onChange={(event) => setShortDescription(event.target.value)}
               placeholder="Skal udfyldes"
               value={shortDescription}
             />
+            <span className={shortComplete ? "text-xs font-semibold text-[#7A4EAB]" : "text-xs font-semibold text-[#B56F8A]"}>
+              {shortComplete
+                ? `${shortDescriptionMaximum - shortDescription.length} tegn tilbage`
+                : `Mangler ${shortDescriptionMissing} tegn før præsentationen er lang nok`}
+            </span>
           </label>
 
           <label className="grid gap-2 text-sm font-medium text-ink/72">
@@ -347,12 +388,15 @@ export function ProfileForm({
             <textarea
               className={`min-h-40 p-3 ${fieldClass(Boolean(longDescription.trim()), true)}`}
               name="long_description"
-              maxLength={2000}
+              maxLength={longDescriptionMaximum}
 
               onChange={(event) => setLongDescription(event.target.value)}
               placeholder="Valgfrit"
               value={longDescription}
             />
+            <span className="text-xs font-semibold text-[#7A4EAB]">
+              {longDescriptionMaximum - longDescription.length} tegn tilbage
+            </span>
           </label>
         </div>
 
@@ -586,10 +630,7 @@ export function ProfileForm({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Behandlinger og ydelser</p>
-            <h2 className="mt-1 flex items-center gap-2 text-lg font-semibold text-midnight">
-              Tilbyder du også sessioner?
-              <FieldStatus complete={servicesComplete} optional={!offersServices} />
-            </h2>
+            <h2 className="mt-1 text-lg font-semibold text-midnight">Tilbyder du også sessioner?</h2>
             <p className="mt-1 text-sm leading-6 text-ink/64">
               Vælg titler fra listen, så din profil senere kan findes i lokale søgeresultater og på kortet.
             </p>
@@ -652,12 +693,15 @@ export function ProfileForm({
               <textarea
                 className={"min-h-28 p-3 " + fieldClass(Boolean(serviceDescription.trim()), true)}
                 name="service_description"
-                maxLength={500}
+                maxLength={serviceDescriptionMaximum}
 
                 onChange={(event) => setServiceDescription(event.target.value)}
                 placeholder="Fortæl kort hvilke behandlinger, sessioner eller ydelser du tilbyder."
                 value={serviceDescription}
               />
+              <span className="text-xs font-semibold text-[#7A4EAB]">
+                {serviceDescriptionMaximum - serviceDescription.length} tegn tilbage
+              </span>
             </label>
 
             <label className="grid gap-2 text-sm font-medium text-ink/72">

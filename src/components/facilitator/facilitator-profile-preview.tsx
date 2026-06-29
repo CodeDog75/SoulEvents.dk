@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { ArrowRight, CircleUserRound, MapPin, X } from "lucide-react";
 import { useState } from "react";
+import { OrganizerBadges, OrganizerImageBadge, type OrganizerBadgeType } from "@/components/badges/organizer-badges";
 
 type PreviewCategory = {
   colorHex?: string;
@@ -17,9 +18,11 @@ type MoodImage = {
 };
 
 type FacilitatorProfilePreviewProps = {
+  badges?: OrganizerBadgeType[];
   categories: PreviewCategory[];
   city?: string | null;
   editHref?: string;
+  fullProfileHref?: string | null;
   introText?: string;
   moodImages: MoodImage[];
   profileImageUrl?: string | null;
@@ -33,9 +36,11 @@ type FacilitatorProfilePreviewProps = {
 const previewTextLimit = 180;
 
 export function FacilitatorProfilePreview({
+  badges = [],
   categories,
   city,
   editHref,
+  fullProfileHref,
   introText,
   moodImages,
   profileImageUrl,
@@ -54,7 +59,7 @@ export function FacilitatorProfilePreview({
       : shortDescription;
 
   return (
-    <aside className="w-full rounded-card border border-sage-700/15 bg-sage-50 p-5">
+    <aside className="w-full rounded-card border border-sage-700/15 bg-sage-50 p-5 shadow-soft">
       {title || introText ? (
         <div className="mb-5">
           {title ? <h3 className="font-semibold text-midnight">{title}</h3> : null}
@@ -62,19 +67,26 @@ export function FacilitatorProfilePreview({
         </div>
       ) : null}
 
-      {profileImageUrl ? (
-        <img
-          alt={`Profilbillede for ${profileName}`}
-          className="size-[160px] rounded-full border-4 border-rose object-cover shadow-soft lg:mx-auto sm:size-[200px]"
-          src={profileImageUrl}
-        />
-      ) : (
-        <div className="grid size-[160px] place-items-center rounded-full border-4 border-rose bg-white text-sage-700 shadow-soft lg:mx-auto sm:size-[200px]">
-          <CircleUserRound className="size-20" aria-hidden="true" />
-        </div>
-      )}
+      <div className="relative aspect-square overflow-hidden rounded-card bg-white shadow-soft">
+        {badges.includes("experienced") ? (
+          <OrganizerImageBadge type="experienced" />
+        ) : badges.includes("active") ? (
+          <OrganizerImageBadge type="active" />
+        ) : null}
+        {profileImageUrl ? (
+          <img
+            alt={`Profilbillede for ${profileName}`}
+            className="h-full w-full object-cover"
+            src={profileImageUrl}
+          />
+        ) : (
+          <div className="grid h-full place-items-center text-sage-700">
+            <CircleUserRound className="size-20" aria-hidden="true" />
+          </div>
+        )}
+      </div>
 
-      <div className="mt-4 text-left lg:text-center">
+      <div className="mt-4 text-left">
         <h3 className="text-xl font-semibold text-midnight">{profileName}</h3>
         {city ? (
           <p className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-ink/65">
@@ -83,7 +95,7 @@ export function FacilitatorProfilePreview({
           </p>
         ) : null}
         {categories.length > 0 ? (
-          <div className="mt-3 flex flex-wrap justify-start gap-2 lg:justify-center">
+          <div className="mt-3 flex flex-wrap justify-start gap-2">
             {categories.map((category) => (
               <span
                 className="rounded-full px-3 py-1 text-xs font-semibold text-white"
@@ -93,6 +105,11 @@ export function FacilitatorProfilePreview({
                 {category.name}
               </span>
             ))}
+          </div>
+        ) : null}
+        {badges.length > 0 ? (
+          <div className="mt-3">
+            <OrganizerBadges badges={badges} />
           </div>
         ) : null}
         {serviceTitles.length > 0 ? (
@@ -113,7 +130,7 @@ export function FacilitatorProfilePreview({
         ) : null}
 
         {visibleDescription ? (
-          <div className="mt-4 text-left text-sm leading-6 text-ink/68 lg:text-center">
+          <div className="relative mt-4 text-left text-sm leading-6 text-ink/68">
             <p>{visibleDescription}</p>
             {hasLongDescription ? (
               <button
@@ -157,6 +174,16 @@ export function FacilitatorProfilePreview({
         >
           Ret profil
           <ArrowRight className="size-4" aria-hidden="true" />
+        </Link>
+      ) : null}
+
+      {fullProfileHref ? (
+        <Link
+          className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-button bg-olive px-4 py-3 text-center text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-rose"
+          href={fullProfileHref}
+        >
+          Se profil som gæst
+          <ArrowRight className="size-4 shrink-0" aria-hidden="true" />
         </Link>
       ) : null}
 

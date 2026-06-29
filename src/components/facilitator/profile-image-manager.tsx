@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowUp, ImagePlus, Repeat2, Upload } from "lucide-react";
-import { type ChangeEvent, useState } from "react";
+import { ArrowDown, ArrowUp, ImagePlus, Pencil, Repeat2, Trash2, Upload } from "lucide-react";
+import { type ChangeEvent, type ReactNode, type Ref, useEffect, useRef, useState } from "react";
+import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
 
 type GalleryImage = {
   image_path: string;
@@ -13,6 +14,14 @@ type ProfileImageManagerProps = {
   profileImagePath: string | null;
 };
 
+type ImageSlot = {
+  file: File | null;
+  fileName: string;
+  message: string;
+  path: string;
+  previewUrl: string;
+};
+
 function publicImageUrl(path: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   return supabaseUrl && path ? `${supabaseUrl}/storage/v1/object/public/media/${path}` : "";
@@ -20,115 +29,53 @@ function publicImageUrl(path: string) {
 
 type UploadFieldProps = {
   imagePath: string;
+  inputRef?: Ref<HTMLInputElement>;
   name: string;
+  onClear: () => void;
   onSelect: (file: File, previewUrl: string) => void;
   onUnsupportedFile: (message: string) => void;
   previewUrl: string;
+  ratio?: "square";
+  secondaryActions?: ReactNode;
   selectedFileName: string;
+  title: string;
   unsupportedMessage: string;
 };
 
-function isHeicFile(file: File) {
-  const name = file.name.toLowerCase();
-  return file.type === "image/heic" || file.type === "image/heif" || name.endsWith(".heic") || name.endsWith(".heif");
+function publicUploadText() {
+  return supportedImageUploadText.replace("Understøtter ", "").replace("Maks. 10 MB pr. billede.", "Maks. 10 MB.");
 }
 
-async function imageBitmapFromFile(file: File) {
-  if (typeof createImageBitmap !== "function") {
-    return null;
-  }
-
-  try {
-    return await createImageBitmap(file);
-  } catch {
-    return null;
-  }
-}
-
-async function imageElementFromFile(file: File) {
-  const url = URL.createObjectURL(file);
-
-  try {
-    const image = new Image();
-    image.src = url;
-
-    await new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () => reject(new Error("Image could not be decoded."));
-    });
-
-    return image;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
-async function canvasBlobFromImage(source: ImageBitmap | HTMLImageElement) {
-  const canvas = document.createElement("canvas");
-  canvas.width = source.width;
-  canvas.height = source.height;
-
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    return null;
-  }
-
-  context.drawImage(source, 0, 0);
-
-  return await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.9);
-  });
-}
-
-async function convertHeicToJpeg(file: File) {
-  const bitmap = await imageBitmapFromFile(file);
-  const blob = bitmap ? await canvasBlobFromImage(bitmap) : await canvasBlobFromImage(await imageElementFromFile(file));
-
-  if (!blob) {
-    return null;
-  }
-
-  const fileName = file.name.replace(/\.(heic|heif)$/i, ".jpg");
-  return new File([blob], fileName, { type: "image/jpeg" });
-}
-
-function uploadField({
+function UploadField({
   imagePath,
+  inputRef,
   name,
+  onClear,
   onSelect,
   onUnsupportedFile,
   previewUrl,
+  ratio = "square",
+  secondaryActions,
   selectedFileName,
+  title,
   unsupportedMessage,
 }: UploadFieldProps) {
   const imageUrl = previewUrl || publicImageUrl(imagePath);
+  const inputId = `${name}-${title.replace(/\s+/g, "-").toLowerCase()}`;
 
   async function handleChange(event: ChangeEvent<HTMLInputElement>) {
     let file = event.target.files?.[0];
 
     if (file) {
-      if (isHeicFile(file)) {
-        onUnsupportedFile("Konverterer HEIC til JPG...");
+      onUnsupportedFile(file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif") ? "Konverterer HEIC til JPG..." : "");
 
-        try {
-          const convertedFile = await convertHeicToJpeg(file);
-
-          if (!convertedFile) {
-            event.target.value = "";
-            onUnsupportedFile("Din browser kunne ikke konvertere HEIC. Vælg JPG, PNG eller WebP.");
-            return;
-          }
-
-          const files = new DataTransfer();
-          files.items.add(convertedFile);
-          event.target.files = files.files;
-          file = convertedFile;
-        } catch {
-          event.target.value = "";
-          onUnsupportedFile("Din browser kunne ikke konvertere HEIC. Vælg JPG, PNG eller WebP.");
-          return;
-        }
+      try {
+        file = await prepareImageFileForUpload(file);
+        replaceInputFile(event.target, file);
+      } catch (error) {
+        event.target.value = "";
+        onUnsupportedFile(error instanceof Error ? error.message : "Billedet kunne ikke klargøres til upload.");
+        return;
       }
 
       onUnsupportedFile("");
@@ -137,57 +84,154 @@ function uploadField({
   }
 
   return (
-    <span className="relative grid min-h-40 cursor-pointer place-items-center overflow-hidden rounded-md border border-dashed border-midnight/20 bg-white px-4 py-5 text-center transition hover:border-sage-700 hover:bg-sage-50">
-      {imageUrl && (
-        <span
-          className="absolute inset-0 bg-cover bg-center opacity-70"
-          style={{ backgroundImage: `url("${imageUrl}")` }}
-          aria-hidden="true"
-        />
-      )}
-      {imageUrl && <span className="absolute inset-0 bg-white/70" aria-hidden="true" />}
-      <span className="relative z-10 grid place-items-center gap-3">
-        <ImagePlus className="size-8 text-sage-700" aria-hidden="true" />
-        <span className="text-sm font-semibold leading-6 text-midnight">
-          Vælg JPG, PNG, WebP eller GIF under 8 MB
-        </span>
-        <span className="inline-flex h-10 items-center gap-2 rounded-md bg-sage-700 px-4 text-sm font-semibold text-white">
-          <Upload className="size-4" aria-hidden="true" />
-          Indsæt billede
-        </span>
-        {selectedFileName && (
-          <span className="rounded-md bg-white/85 px-3 py-1 text-xs font-semibold text-sage-700">
-            Valgt: {selectedFileName}
-          </span>
+    <div className="overflow-hidden rounded-[20px] border border-midnight/10 bg-white shadow-soft">
+      <div className={(ratio === "square" ? "aspect-square" : "aspect-video") + " overflow-hidden bg-[#F6F8F3]"}>
+        {imageUrl ? (
+          <img alt={title} className="h-full w-full object-cover" src={imageUrl} />
+        ) : (
+          <label className="grid h-full cursor-pointer place-items-center p-4 text-center transition hover:bg-sage-100" htmlFor={inputId}>
+            <span className="grid justify-items-center gap-3">
+              <span className="grid size-12 place-items-center rounded-full bg-white text-sage-700 shadow-soft">
+                <ImagePlus className="size-6" aria-hidden="true" />
+              </span>
+              <span className="text-sm font-semibold text-midnight">Indsæt billede</span>
+              <span className="max-w-44 text-xs leading-5 text-ink/55">{publicUploadText()}</span>
+            </span>
+          </label>
         )}
-        {unsupportedMessage && (
-          <span className="rounded-md bg-terracotta/10 px-3 py-1 text-xs font-semibold text-terracotta">
-            {unsupportedMessage}
-          </span>
-        )}
-      </span>
+      </div>
+
+      <div className="grid gap-2 border-t border-midnight/10 p-3">
+        {selectedFileName ? <p className="truncate text-xs font-semibold text-sage-700">Valgt: {selectedFileName}</p> : null}
+        {unsupportedMessage ? <p className="rounded-md bg-terracotta/10 px-3 py-2 text-xs font-semibold text-terracotta">{unsupportedMessage}</p> : null}
+
+        <div className="grid gap-2">
+          <label
+            className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md bg-olive px-3 text-xs font-semibold text-white transition hover:bg-sage-700"
+            htmlFor={inputId}
+          >
+            <Upload className="size-4" aria-hidden="true" />
+            {imageUrl ? "Udskift billede" : "Indsæt billede"}
+          </label>
+          {imageUrl ? (
+            <div className="grid grid-cols-2 gap-2">
+              <label
+                className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-midnight/15 bg-white px-2 text-xs font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
+                htmlFor={inputId}
+              >
+                <Pencil className="size-4" aria-hidden="true" />
+                Rediger
+              </label>
+              <button
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md border border-rose/30 bg-white px-2 text-xs font-semibold text-rose transition hover:bg-rose/10"
+                onClick={() => {
+                  if (window.confirm("Er du sikker på, at du vil slette billedet?")) {
+                    onClear();
+                  }
+                }}
+                type="button"
+              >
+                <Trash2 className="size-4" aria-hidden="true" />
+                Slet
+              </button>
+            </div>
+          ) : null}
+          {secondaryActions ? <div className="grid grid-cols-3 gap-2 border-t border-midnight/10 pt-2">{secondaryActions}</div> : null}
+        </div>
+      </div>
+
       <input
-        accept="image/jpeg,image/png,image/webp,image/gif,.heic,.heif"
-        className="absolute inset-0 z-20 cursor-pointer opacity-0"
+        accept={imageUploadAccept}
+        className="sr-only"
+        id={inputId}
         name={name}
         onChange={handleChange}
+        ref={inputRef}
         type="file"
       />
-    </span>
+    </div>
+  );
+}
+
+function SmallActionButton({
+  children,
+  disabled,
+  icon,
+  onClick,
+  title,
+}: {
+  children: string;
+  disabled?: boolean;
+  icon: ReactNode;
+  onClick: () => void;
+  title: string;
+}) {
+  return (
+    <button
+      className="inline-flex h-9 items-center justify-center gap-1 rounded-md border border-midnight/10 bg-white px-2 text-xs font-semibold text-ink/70 transition hover:border-sage-700 hover:text-sage-700 disabled:cursor-not-allowed disabled:opacity-35"
+      disabled={disabled}
+      onClick={onClick}
+      title={title}
+      type="button"
+    >
+      {icon}
+      {children}
+    </button>
   );
 }
 
 export function ProfileImageManager({ galleryImages, profileImagePath }: ProfileImageManagerProps) {
-  const [profileImage, setProfileImage] = useState(profileImagePath ?? "");
-  const [profilePreview, setProfilePreview] = useState("");
-  const [profileFileName, setProfileFileName] = useState("");
-  const [profileUnsupportedMessage, setProfileUnsupportedMessage] = useState("");
+  const profileInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const [profileSlot, setProfileSlot] = useState<ImageSlot>({
+    file: null,
+    fileName: "",
+    message: "",
+    path: profileImagePath ?? "",
+    previewUrl: "",
+  });
   const [gallery, setGallery] = useState(
-    Array.from({ length: 3 }, (_, index) => galleryImages[index]?.image_path ?? ""),
+    Array.from({ length: 3 }, (_, index): ImageSlot => ({
+      file: null,
+      fileName: "",
+      message: "",
+      path: galleryImages[index]?.image_path ?? "",
+      previewUrl: "",
+    })),
   );
-  const [galleryPreviews, setGalleryPreviews] = useState(Array.from({ length: 3 }, () => ""));
-  const [galleryFileNames, setGalleryFileNames] = useState(Array.from({ length: 3 }, () => ""));
-  const [galleryUnsupportedMessages, setGalleryUnsupportedMessages] = useState(Array.from({ length: 3 }, () => ""));
+
+  useEffect(() => {
+    if (profileInputRef.current) {
+      if (profileSlot.file) {
+        replaceInputFile(profileInputRef.current, profileSlot.file);
+      } else {
+        profileInputRef.current.value = "";
+      }
+    }
+
+    gallery.forEach((slot, index) => {
+      const input = galleryInputRefs.current[index];
+      if (!input) return;
+
+      if (slot.file) {
+        replaceInputFile(input, slot.file);
+      } else {
+        input.value = "";
+      }
+    });
+  }, [gallery, profileSlot]);
+
+  function clearProfileImage() {
+    setProfileSlot((current) => ({ ...current, file: null, fileName: "", message: "", path: "", previewUrl: "" }));
+  }
+
+  function clearGalleryImage(index: number) {
+    setGallery((current) => {
+      const next = [...current];
+      next[index] = { file: null, fileName: "", message: "", path: "", previewUrl: "" };
+      return next;
+    });
+  }
 
   function moveUp(index: number) {
     if (index === 0) {
@@ -199,19 +243,16 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
       [next[index - 1], next[index]] = [next[index], next[index - 1]];
       return next;
     });
-    setGalleryPreviews((current) => {
+  }
+
+  function moveDown(index: number) {
+    if (index >= gallery.length - 1) {
+      return;
+    }
+
+    setGallery((current) => {
       const next = [...current];
-      [next[index - 1], next[index]] = [next[index], next[index - 1]];
-      return next;
-    });
-    setGalleryFileNames((current) => {
-      const next = [...current];
-      [next[index - 1], next[index]] = [next[index], next[index - 1]];
-      return next;
-    });
-    setGalleryUnsupportedMessages((current) => {
-      const next = [...current];
-      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+      [next[index], next[index + 1]] = [next[index + 1], next[index]];
       return next;
     });
   }
@@ -220,117 +261,89 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
     setGallery((current) => {
       const next = [...current];
       const selected = next[index];
-      next[index] = profileImage;
-      setProfileImage(selected);
-      return next;
-    });
-    setGalleryPreviews((current) => {
-      const next = [...current];
-      const selectedPreview = next[index];
-      next[index] = profilePreview;
-      setProfilePreview(selectedPreview);
-      return next;
-    });
-    setGalleryFileNames((current) => {
-      const next = [...current];
-      const selectedFileName = next[index];
-      next[index] = profileFileName;
-      setProfileFileName(selectedFileName);
-      return next;
-    });
-    setGalleryUnsupportedMessages((current) => {
-      const next = [...current];
-      const selectedMessage = next[index];
-      next[index] = profileUnsupportedMessage;
-      setProfileUnsupportedMessage(selectedMessage);
+      next[index] = profileSlot;
+      setProfileSlot(selected);
       return next;
     });
   }
 
   return (
-    <div className="grid gap-5 md:col-span-2">
-      <label className="grid gap-2 text-sm font-medium text-ink/72">
-        <span>Profilbillede</span>
-        {uploadField({
-          imagePath: profileImage,
-          name: "profile_image_file",
-          onSelect: (file, previewUrl) => {
-            setProfileFileName(file.name);
-            setProfilePreview(previewUrl);
-            setProfileUnsupportedMessage("");
-          },
-          onUnsupportedFile: setProfileUnsupportedMessage,
-          previewUrl: profilePreview,
-          selectedFileName: profileFileName,
-          unsupportedMessage: profileUnsupportedMessage,
-        })}
-        <input name="profile_image_path" type="hidden" value={profileImage} />
-        {profileImage && <span className="text-xs text-ink/55">Nuværende billede bevares, hvis du ikke vælger et nyt.</span>}
-      </label>
-
-      <div className="mt-5 grid gap-4">
-        {gallery.map((imagePath, index) => (
-          <div className="grid gap-3 rounded-md bg-sage-50 p-4" key={index}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-sm font-semibold text-ink/72">
-                Stemningsbillede {index + 1} <span className="font-normal text-ink/55">Valgfrit</span>
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700 disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={index === 0 || !imagePath}
-                  onClick={() => moveUp(index)}
-                  type="button"
-                >
-                  <ArrowUp className="size-4" aria-hidden="true" />
-                  Flyt op
-                </button>
-                <button
-                  className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={!imagePath}
-                  onClick={() => swapWithProfile(index)}
-                  type="button"
-                >
-                  <Repeat2 className="size-4" aria-hidden="true" />
-                  Byt med profil
-                </button>
-              </div>
-            </div>
-            {uploadField({
-              imagePath,
-              name: "gallery_image_files",
-              onSelect: (file, previewUrl) => {
-                setGalleryFileNames((current) => {
-                  const next = [...current];
-                  next[index] = file.name;
-                  return next;
-                });
-                setGalleryUnsupportedMessages((current) => {
-                  const next = [...current];
-                  next[index] = "";
-                  return next;
-                });
-                setGalleryPreviews((current) => {
-                  const next = [...current];
-                  next[index] = previewUrl;
-                  return next;
-                });
-              },
-              onUnsupportedFile: (message) =>
-                setGalleryUnsupportedMessages((current) => {
-                  const next = [...current];
-                  next[index] = message;
-                  return next;
-                }),
-              previewUrl: galleryPreviews[index],
-              selectedFileName: galleryFileNames[index],
-              unsupportedMessage: galleryUnsupportedMessages[index],
-            })}
-            <input name="gallery_image_paths" type="hidden" value={imagePath} />
-            {imagePath && <span className="text-xs text-ink/55">Nuværende billede bevares, hvis du ikke vælger et nyt.</span>}
-          </div>
-        ))}
+    <div className="grid gap-4 md:col-span-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid content-start gap-3 rounded-[22px] bg-sage-50 p-3">
+        <div className="min-h-10">
+          <p className="text-sm font-semibold text-ink/80">Profilbillede</p>
+          <p className="mt-0.5 text-xs text-ink/50">Vises øverst på din offentlige profil</p>
+        </div>
+        <UploadField
+          imagePath={profileSlot.path}
+          inputRef={profileInputRef}
+          name="profile_image_file"
+          onClear={clearProfileImage}
+          onSelect={(file, previewUrl) => {
+            setProfileSlot((current) => ({ ...current, file, fileName: file.name, message: "", previewUrl }));
+          }}
+          onUnsupportedFile={(message) => setProfileSlot((current) => ({ ...current, message }))}
+          previewUrl={profileSlot.previewUrl}
+          selectedFileName={profileSlot.fileName}
+          title="Profilbillede"
+          unsupportedMessage={profileSlot.message}
+        />
+        <input name="profile_image_path" type="hidden" value={profileSlot.path} />
       </div>
+
+      {gallery.map((slot, index) => {
+        const hasImage = Boolean(slot.path || slot.previewUrl);
+        return (
+          <div className="grid content-start gap-3 rounded-[22px] bg-sage-50 p-3" key={index}>
+            <div className="min-h-10">
+              <p className="text-sm font-semibold text-ink/80">
+                Stemningsbillede {index + 1} <span className="font-normal text-ink/50">Valgfrit</span>
+              </p>
+              <p className="mt-0.5 text-xs text-ink/50">Vises i galleriet på din profil</p>
+            </div>
+            <UploadField
+              imagePath={slot.path}
+              inputRef={(element: HTMLInputElement | null) => {
+                galleryInputRefs.current[index] = element;
+              }}
+              name="gallery_image_files"
+              onClear={() => clearGalleryImage(index)}
+              onSelect={(file, previewUrl) => {
+                setGallery((current) => {
+                  const next = [...current];
+                  next[index] = { ...next[index], file, fileName: file.name, message: "", previewUrl };
+                  return next;
+                });
+              }}
+              onUnsupportedFile={(message) =>
+                setGallery((current) => {
+                  const next = [...current];
+                  next[index] = { ...next[index], message };
+                  return next;
+                })
+              }
+              previewUrl={slot.previewUrl}
+              selectedFileName={slot.fileName}
+              secondaryActions={
+                <>
+                  <SmallActionButton disabled={index === 0 || !hasImage} icon={<ArrowUp className="size-4" aria-hidden="true" />} onClick={() => moveUp(index)} title="Flyt billedet en plads op">
+                    Op
+                  </SmallActionButton>
+                  <SmallActionButton disabled={index === gallery.length - 1 || !hasImage} icon={<ArrowDown className="size-4" aria-hidden="true" />} onClick={() => moveDown(index)} title="Flyt billedet en plads ned">
+                    Ned
+                  </SmallActionButton>
+                  <SmallActionButton disabled={!hasImage} icon={<Repeat2 className="size-4" aria-hidden="true" />} onClick={() => swapWithProfile(index)} title="Byt dette billede med profilbilledet">
+                    Profil
+                  </SmallActionButton>
+                </>
+              }
+              title={`Stemningsbillede ${index + 1}`}
+              unsupportedMessage={slot.message}
+            />
+            <input name="gallery_image_paths" type="hidden" value={slot.path} />
+          </div>
+        );
+      })}
     </div>
   );
 }

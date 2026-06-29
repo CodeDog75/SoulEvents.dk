@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   ArrowRight,
   Bell,
@@ -22,13 +21,15 @@ import {
   Ticket,
   XCircle,
 } from "lucide-react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
-import { requestFacilitatorProfileClosureAction, sendFacilitatorAdminMessageAction } from "@/app/facilitator/actions";
+import { markFacilitatorAdminMessagesReadAction, requestFacilitatorProfileClosureAction, sendFacilitatorAdminMessageAction } from "@/app/facilitator/actions";
 import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { FacilitatorProfilePreview } from "@/components/facilitator/facilitator-profile-preview";
 import { requireRole } from "@/lib/auth/roles";
+import { draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -97,26 +98,36 @@ function statusClass(status: string) {
   return statusStyles[status] ?? "bg-stone-100 text-stone-700";
 }
 
-function CreateEventCtaCard() {
+function CreateEventCtaCard({
+  draftCount,
+  maxDraftEvents,
+}: {
+  draftCount: number;
+  maxDraftEvents: number;
+}) {
+  const hasReachedDraftLimit = draftCount >= maxDraftEvents;
+
   return (
-    <div className="w-full rounded-[24px] border border-[#D8CBE4] bg-[#F4F0F7] p-5 shadow-[0_10px_30px_rgba(122,93,145,0.10)] md:max-w-[280px] md:p-6">
-      <div className="hidden items-start justify-between gap-4 md:flex">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold text-[#2F2437]">🌿 Invitér til en oplevelse</h2>
-          <p className="mt-1 text-sm leading-6 text-[#6E6475]">Skab et event og invitér mennesker ind i nærvær, fællesskab og udvikling.</p>
-        </div>
-        <span className="grid size-11 shrink-0 place-items-center rounded-full border border-[#D8CBE4] bg-white text-[#7A5D91]">
-          <CalendarPlus className="size-5" aria-hidden="true" />
-        </span>
+    <div className="w-full rounded-[24px] border border-[#D8CBE4] bg-[#F4F0F7] p-5 shadow-[0_10px_30px_rgba(122,93,145,0.10)] md:max-w-[320px] md:p-6">
+      <div className="hidden md:block">
+        <h2 className="text-2xl font-semibold leading-tight text-[#2F2437]">🌿 Invitér til en oplevelse</h2>
+        <p className="mt-3 text-sm leading-6 text-[#6E6475]">Skab et event og invitér mennesker ind i nærvær, fællesskab og udvikling.</p>
       </div>
-      <p className="mb-3 text-center text-sm font-medium text-[#6E6475] md:hidden">Skab et event og invitér mennesker ind i nærvær, fællesskab og udvikling.</p>
-      <Link
-        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285] hover:shadow-[0_8px_18px_rgba(122,93,145,0.18)] md:mt-5 md:h-11 md:w-auto md:px-5"
-        href="/facilitator/events"
-      >
-        <CalendarPlus className="size-4" aria-hidden="true" />
-        Opret event
-      </Link>
+      <p className="mb-3 text-center text-xs font-medium leading-5 text-[#6E6475] md:hidden">Skab et event og invitér mennesker ind i nærvær, fællesskab og udvikling.</p>
+      {hasReachedDraftLimit ? (
+        <div className="mt-4 rounded-[18px] border border-[#D8CBE4] bg-white/80 p-4 text-sm leading-6 text-[#6E6475]">
+          <p className="font-semibold text-[#2F2437]">Grænsen for kladder er nået</p>
+          <p className="mt-1">{draftLimitMessage(maxDraftEvents)}</p>
+        </div>
+      ) : (
+        <Link
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285] hover:shadow-[0_8px_18px_rgba(122,93,145,0.18)] md:mt-6"
+          href="/facilitator/events"
+        >
+          <CalendarPlus className="size-4" aria-hidden="true" />
+          Opret event
+        </Link>
+      )}
     </div>
   );
 }
@@ -125,10 +136,14 @@ function DashboardHeader({
   name,
   profileStatus,
   hostReferenceId,
+  draftCount,
+  maxDraftEvents,
 }: {
   name: string | null;
   profileStatus: string;
   hostReferenceId?: string | null;
+  draftCount: number;
+  maxDraftEvents: number;
 }) {
   const statusText =
     profileStatus === "approved"
@@ -165,7 +180,7 @@ function DashboardHeader({
             ) : null}
           </div>
         </div>
-        <CreateEventCtaCard />
+        <CreateEventCtaCard draftCount={draftCount} maxDraftEvents={maxDraftEvents} />
       </div>
     </section>
   );
@@ -459,18 +474,22 @@ function InsightCard({ events }: { events: any[] }) {
   );
 }
 
-function MessageStatusLabel({ status }: { status: string }) {
+function MessageStatusLabel({ status, type }: { status: string; type?: string }) {
+  if (type === "admin_reply" && status === "unread") {
+    return "Ny besked";
+  }
+
   const labels: Record<string, string> = {
     handled: "Behandlet",
-    read: "Læst",
+    read: "Set af administrationen",
     unread: "Afventer svar",
   };
 
   return labels[status] ?? status;
 }
 
-function AdminMessageCta({ count }: { count: number }) {
-  if (count === 0) {
+function AdminMessageCta({ unreadCount }: { unreadCount: number }) {
+  if (unreadCount === 0) {
     return null;
   }
 
@@ -483,13 +502,15 @@ function AdminMessageCta({ count }: { count: number }) {
         <span className="relative grid size-12 shrink-0 place-items-center rounded-full bg-[#F4F0F7] text-[#7A5D91]">
           <Bell className="size-5" aria-hidden="true" />
           <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-[#B56F8A] text-[11px] font-bold text-white">
-            {count}
+            {unreadCount}
           </span>
         </span>
         <span className="min-w-0">
-          <span className="block font-semibold text-[#2F2437]">Beskeder med SoulEvents administration</span>
+          <span className="block font-semibold text-[#2F2437]">
+            {unreadCount === 1 ? "Ny besked fra SoulEvents administration" : "Nye beskeder fra SoulEvents administration"}
+          </span>
           <span className="mt-1 block text-sm leading-5 text-[#6E6475]">
-            Se dialogen og dine seneste beskeder.
+            Åbn dialogen og marker beskeden som læst.
           </span>
         </span>
       </span>
@@ -498,7 +519,7 @@ function AdminMessageCta({ count }: { count: number }) {
   );
 }
 
-function SettingsPanel({ adminMessages }: { adminMessages: any[] }) {
+function SettingsPanel({ adminMessages, unreadMessageCount }: { adminMessages: any[]; unreadMessageCount: number }) {
   return (
     <details className="rounded-[18px] border border-[#E5DDEA] bg-white/70 shadow-soft" id="beskeder-admin" open>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#6E6475] transition hover:text-[#7A5D91]">
@@ -531,7 +552,13 @@ function SettingsPanel({ adminMessages }: { adminMessages: any[] }) {
           <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Pause</p>
           <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Sæt profil på pause</h2>
           <p className="mt-2 text-sm leading-6 text-[#6E6475]">
-            Hvis du ønsker en pause, skjuler vi din offentlige profil og sender en besked til admin. Profilen kan genåbnes, hvis du fortryder. Ønsker du at få slettet alle dine data, så skriv det i kommentarfeltet.
+            Har du brug for en pause, kan du midlertidigt skjule din profil på SoulEvents.
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[#6E6475]">
+            Din offentlige profil og dine kommende events bliver skjult, og SoulEvents får besked om ønsket. Du kan altid genaktivere din profil senere, hvis du ønsker at vende tilbage.
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[#6E6475]">
+            Ønsker du i stedet at få slettet din profil og dine data, kan du skrive det i kommentarfeltet nedenfor.
           </p>
           <label className="mt-4 grid gap-2 text-sm font-semibold text-[#2F2437]">
             Kommentar (valgfri)
@@ -549,18 +576,35 @@ function SettingsPanel({ adminMessages }: { adminMessages: any[] }) {
 
       {adminMessages.length > 0 ? (
         <section className="mt-5 rounded-[20px] bg-[#F4F0F7] p-5">
-          <h2 className="font-semibold text-[#2F2437]">Dine seneste beskeder med SoulEvents administration</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-[#2F2437]">Dine seneste beskeder med SoulEvents administration</h2>
+              <p className="mt-1 text-sm leading-6 text-[#6E6475]">
+                {unreadMessageCount > 0 ? "Du har " + unreadMessageCount + " ulæst besked." : "Alle viste beskeder er markeret som læst."}
+              </p>
+            </div>
+            {unreadMessageCount > 0 ? (
+              <form action={markFacilitatorAdminMessagesReadAction}>
+                <button className="inline-flex h-10 items-center justify-center rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white" type="submit">
+                  Marker som læst
+                </button>
+              </form>
+            ) : null}
+          </div>
           <div className="mt-4 grid gap-3">
             {adminMessages.map((item) => (
               <article className="rounded-[16px] bg-white p-4 text-sm" key={item.id}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-semibold text-[#2F2437]">{item.subject}</p>
                   <span className="rounded-full bg-[#FAF7F2] px-3 py-1 text-xs font-semibold text-[#6E6475]">
-                    <MessageStatusLabel status={item.status} />
+                    <MessageStatusLabel status={item.status} type={item.type} />
                   </span>
                 </div>
                 <p className="mt-1 text-xs font-semibold text-[#8B7F93]">
                   Sendt {formatDateTime(item.created_at)}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-[#6E6475]">
+                  {item.facilitator_read_at ? "Læst af dig " + formatDateTime(item.facilitator_read_at) : "Ikke markeret som læst af dig endnu"}
                 </p>
                 <p className="mt-2 leading-6 text-[#6E6475]">{item.message}</p>
               </article>
@@ -578,7 +622,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, status, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, offers_services, service_description, service_other_title, facilitator_categories(category_id, categories(name, color_hex)), facilitator_tags(tag_id), facilitator_images(image_path, alt_text, sort_order), facilitator_service_titles(service_title_id, service_titles(name, is_active))",
+      "id, status, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, offers_services, service_description, service_other_title, is_active_host, is_experienced_host, facilitator_categories(category_id, categories(name, color_hex)), facilitator_tags(tag_id, tags(name)), facilitator_images(image_path, alt_text, sort_order), facilitator_service_titles(service_title_id, service_titles(name, is_active))",
     )
     .eq("profile_id", profile.id)
     .single();
@@ -600,6 +644,15 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           .filter((title: any) => Boolean(title?.name))
           .map((title: { name: string }) => title.name) ?? []
       : [];
+  const tagNames =
+    facilitatorProfile?.facilitator_tags
+      ?.map((row: any) => (Array.isArray(row.tags) ? row.tags[0] : row.tags))
+      .filter((tag: any) => Boolean(tag?.name))
+      .map((tag: { name: string }) => tag.name) ?? [];
+  const profileBadges = [
+    facilitatorProfile?.is_experienced_host ? "experienced" : null,
+    facilitatorProfile?.is_active_host ? "active" : null,
+  ].filter(Boolean) as Array<"experienced" | "active">;
 
   const [{ data: events }, { count: reminderSubscriberCount }, { data: adminMessages }, { count: bookingCount }, { data: recentBookings }] =
     facilitatorProfile
@@ -616,7 +669,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .eq("status", "active"),
           supabase
             .from("facilitator_admin_messages")
-            .select("id, subject, message, type, status, created_at")
+            .select("id, subject, message, type, status, created_at, facilitator_read_at")
             .eq("facilitator_id", facilitatorProfile.id)
             .order("created_at", { ascending: false })
             .limit(3),
@@ -645,6 +698,11 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
 
   const now = new Date();
   const eventRows = (events ?? []) as any[];
+  const limitStatus = facilitatorProfile
+    ? await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id)
+    : { activeCount: 0, draftCount: 0, maxActiveEvents: 10, maxDraftEvents: 5 };
+  const messageRows = (adminMessages ?? []) as any[];
+  const unreadMessageCount = messageRows.filter((item) => !item.facilitator_read_at).length;
   const activeEvents = eventRows.filter((event) => ["active", "sold_out", "pending_review"].includes(event.status) && new Date(event.starts_at) >= now);
   const completedEvents = eventRows.filter((event) => event.status === "completed" || new Date(event.starts_at) < now);
   const draftEvents = eventRows.filter((event) => event.status === "draft");
@@ -681,7 +739,13 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
         <div className="min-w-0 space-y-6">
           <AuthMessage message={message} />
 
-          <DashboardHeader name={profile.full_name} profileStatus={status} hostReferenceId={hostReferenceId} />
+          <DashboardHeader
+            name={profile.full_name}
+            profileStatus={status}
+            hostReferenceId={hostReferenceId}
+            draftCount={limitStatus.draftCount}
+            maxDraftEvents={limitStatus.maxDraftEvents}
+          />
 
           <section className="grid gap-3 sm:grid-cols-2">
             <StatsCard href="#aktive-events" icon={CalendarCheck2} label="Aktive events" value={activeEvents.length} tone="lavender" />
@@ -690,7 +754,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             <StatsCard href="/facilitator/bookings" icon={Ticket} label="Tilmeldinger" value={bookingCount ?? 0} tone="rose" />
           </section>
 
-          <AdminMessageCta count={(adminMessages ?? []).length} />
+          <AdminMessageCta unreadCount={unreadMessageCount} />
 
           <ActivityFeed items={activityItems} />
 
@@ -714,18 +778,20 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
 
         <aside className="w-full space-y-4 lg:sticky lg:top-6 lg:self-start">
           <FacilitatorProfilePreview
+            badges={profileBadges}
             categories={categoryNames.map((category) => ({
               colorHex: category.color_hex,
               name: category.name,
             }))}
             editHref="/facilitator/profile"
+            fullProfileHref={status === "approved" && facilitatorProfile?.id ? "/facilitators/" + facilitatorProfile.id : null}
             city={facilitatorProfile?.city}
             introText="Sådan møder deltagerne dig på SoulEvents.dk."
             moodImages={moodImages}
             profileImageUrl={profileImageUrl}
             profileName={profileName}
             serviceDescription={facilitatorProfile?.offers_services ? facilitatorProfile.service_description : null}
-            serviceTitles={serviceTitleNames}
+            serviceTitles={[...serviceTitleNames, ...tagNames]}
             title="Din profilvisning"
             shortDescription={facilitatorProfile?.short_description}
           />
@@ -744,7 +810,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
         </aside>
 
         <section className="lg:col-span-2">
-          <SettingsPanel adminMessages={(adminMessages ?? []) as any[]} />
+          <SettingsPanel adminMessages={messageRows} unreadMessageCount={unreadMessageCount} />
         </section>
       </section>
     </main>
