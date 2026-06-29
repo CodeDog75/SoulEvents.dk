@@ -374,7 +374,7 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
   const { data: logoSetting } = await supabase.from("site_settings").select("value").eq("key", "brand_logo_path").maybeSingle();
   const logoPath = logoSetting?.value ?? null;
   const logoUrl = logoPath ? supabase.storage.from("media").getPublicUrl(logoPath).data.publicUrl : null;
-  const [{ data: tiles }, { data: categories }, { data: heroImages }] = await Promise.all([
+  const [{ data: tiles }, { data: categories }, { data: heroImages, error: heroImagesError }] = await Promise.all([
     supabase.from("homepage_tiles").select("*").order("sort_order"),
     supabase.from("main_categories").select("id, name").eq("is_active", true).order("sort_order"),
     supabase.from("hero_images").select("*").order("scope").order("sort_order"),
@@ -434,12 +434,24 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Hero-billeder</p>
             <h2 className="text-2xl font-semibold text-midnight">Stemningsbilleder til forside og hovedkategorier</h2>
             <p className="max-w-3xl text-sm leading-6 text-ink/68">
-              Upload flere billeder, vælg hvilke der er aktive, og lad SoulEvents vise ét roligt stemningsbillede pr. besøg.
+              Upload op til 5 forsidebilleder, vælg hvilke der er aktive, og lad SoulEvents vise ét roligt stemningsbillede pr. besøg.
             </p>
           </div>
 
+          {heroImagesError && (
+            <div className="rounded-md border border-terracotta/30 bg-terracotta/10 px-4 py-3 text-sm font-semibold leading-6 text-terracotta">
+              Hero-billeder mangler databaseopsætning. Kør migrationen til hero_images i Supabase, før billeder kan gemmes.
+            </div>
+          )}
+
           <div className="grid gap-4">
-            <HeroImageForm categories={categoriesList} scope="homepage" title="Tilføj hero-billede til forsiden" />
+            {homepageHeroImages.length < 5 ? (
+              <HeroImageForm categories={categoriesList} scope="homepage" title="Tilføj hero-billede til forsiden" />
+            ) : (
+              <div className="rounded-card border border-sage-700/20 bg-sage-50 p-5 text-sm font-semibold leading-6 text-sage-700 shadow-soft">
+                Du har allerede 5 hero-billeder til forsiden. Slet et eksisterende billede, før du uploader et nyt.
+              </div>
+            )}
             <HeroImageForm categories={categoriesList} scope="main_category" title="Tilføj hero-billede til hovedkategori" />
           </div>
 

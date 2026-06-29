@@ -266,6 +266,23 @@ export async function upsertHeroImageAction(formData: FormData) {
   }
 
   const supabase = createAdminClient();
+
+  if (!id && scope === "homepage") {
+    const { count, error: countError } = await supabase
+      .from("hero_images")
+      .select("id", { count: "exact", head: true })
+      .eq("scope", "homepage");
+
+    if (countError) {
+      console.error("Hero image count failed", { error: countError });
+      heroGo("Hero-billeder mangler databaseopsætning. Kør migrationen til hero_images i Supabase først.");
+    }
+
+    if ((count ?? 0) >= 5) {
+      heroGo("Du kan have op til 5 hero-billeder på forsiden. Slet et eksisterende billede, før du uploader et nyt.");
+    }
+  }
+
   const payload = {
     scope,
     main_category_id: mainCategoryId,
