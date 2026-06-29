@@ -18,6 +18,10 @@ function heroGo(message: string): never {
   redirect("/admin/homepage?message=" + encodeURIComponent(message) + "#hero-images");
 }
 
+function reflectionGo(message: string): never {
+  redirect("/admin/homepage?reflection_message=" + encodeURIComponent(message) + "#weekly-reflection");
+}
+
 function sortOrder(formData: FormData) {
   const value = Number(getString(formData, "sort_order"));
   return Number.isFinite(value) ? value : 0;
@@ -367,4 +371,66 @@ export async function useHomepageHeroImageAction(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/admin/homepage");
   heroGo("Hero-billedet vises nu på forsiden.");
+}
+
+export async function upsertWeeklyReflectionAction(formData: FormData) {
+  await requireRole("admin");
+
+  const id = getOptionalString(formData, "id");
+  const title = getString(formData, "title") || "Ugens refleksion";
+  const reflectionText = getString(formData, "reflection_text");
+  const author = getOptionalString(formData, "author");
+  const backgroundColor = getString(formData, "background_color") || "#FAF6EF";
+  const isActive = formData.get("is_active") === "on";
+  const startDate = getOptionalString(formData, "start_date");
+  const endDate = getOptionalString(formData, "end_date");
+
+  if (!reflectionText) {
+    reflectionGo("Skriv en refleksionstekst først.");
+  }
+
+  if (!/^#[0-9A-Fa-f]{6}$/.test(backgroundColor)) {
+    reflectionGo("Vælg en gyldig baggrundsfarve.");
+  }
+
+  if (startDate && endDate && endDate < startDate) {
+    reflectionGo("Slutdato skal ligge efter startdato.");
+  }
+
+  const supabase = createAdminClient();
+
+  if (isActive) {
+    const { error: deactivateError } = await supabase
+      .from("weekly_reflections")
+      .update({ is_active: false })
+      .neq("id", id ?? "00000000-0000-0000-0000-000000000000");
+
+    if (deactivateError) {
+      console.error("Weekly reflection deactivate failed", { error: deactivateError, id });
+      reflectionGo("Refleksionen kunne ikke aktiveres. Tjek at migrationen er kørt.");
+    }
+  }
+
+  const payload = {
+    title,
+    reflection_text: reflectionText,
+    author,
+    background_color: backgroundColor,
+    is_active: isActive,
+    start_date: startDate,
+    end_date: endDate,
+  };
+
+  const result = id
+    ? await supabase.from("weekly_reflections").update(payload).eq("id", id)
+    : await supabase.from("weekly_reflections").insert(payload);
+
+  if (result.error) {
+    console.error("Weekly reflection save failed", { error: result.error, id });
+    reflectionGo("Refleksionen kunne ikke gemmes. Kør migrationen til weekly_reflections i Supabase først.");
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin/homepage");
+  reflectionGo("Ugens refleksion er gemt.");
 }

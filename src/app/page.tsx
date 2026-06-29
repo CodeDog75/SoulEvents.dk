@@ -392,6 +392,15 @@ type HeroImage = {
   alt_text: string | null;
 };
 
+type WeeklyReflection = {
+  title: string;
+  reflection_text: string;
+  author: string | null;
+  background_color: string;
+  start_date?: string | null;
+  end_date?: string | null;
+};
+
 function pickRandomItem<T>(items: T[]) {
   if (items.length === 0) {
     return null;
@@ -425,6 +434,42 @@ async function getHomepageHeroImage() {
   return {
     imageUrl: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,
     altText: image.alt_text,
+  };
+}
+
+async function getActiveWeeklyReflection() {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    return null;
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("weekly_reflections")
+    .select("title, reflection_text, author, background_color, start_date, end_date")
+    .eq("is_active", true)
+    .order("updated_at", { ascending: false })
+    .limit(5);
+
+  if (error || !data || data.length === 0) {
+    return null;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const reflection = (data as WeeklyReflection[]).find((item) => {
+    const hasStarted = !item.start_date || item.start_date <= today;
+    const hasNotEnded = !item.end_date || item.end_date >= today;
+    return hasStarted && hasNotEnded;
+  });
+
+  if (!reflection?.reflection_text?.trim()) {
+    return null;
+  }
+
+  return {
+    title: reflection.title?.trim() || "Ugens refleksion",
+    reflectionText: reflection.reflection_text.trim(),
+    author: reflection.author?.trim() || null,
+    backgroundColor: reflection.background_color || "#FAF6EF",
   };
 }
 
@@ -1011,6 +1056,7 @@ export default async function Home({ searchParams }: HomeProps) {
   const params = searchParams ? await searchParams : {};
   const homeTiles = await getHomeTiles();
   const homeHeroImage = await getHomepageHeroImage();
+  const weeklyReflection = await getActiveWeeklyReflection();
   const homepageAds = await getHomepageAds();
   const discoveryTiles = [
     ...homeTiles.filter(
@@ -1469,6 +1515,27 @@ export default async function Home({ searchParams }: HomeProps) {
           </div>
         </div>
       </section>
+
+      {weeklyReflection && (
+        <section className="bg-[#FAF6EF] px-5 py-12 sm:px-8 sm:py-14" aria-label={weeklyReflection.title}>
+          <div className="mx-auto max-w-[1200px]">
+            <figure
+              className="rounded-[30px] border border-white/70 p-7 shadow-[0_18px_50px_rgba(47,38,51,0.10)] sm:p-10"
+              style={{ backgroundColor: weeklyReflection.backgroundColor }}
+            >
+              <figcaption className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">
+                🌿 {weeklyReflection.title}
+              </figcaption>
+              <blockquote className="mt-5 max-w-4xl whitespace-pre-line font-serif text-3xl font-medium leading-tight text-[#2F2633] sm:text-4xl">
+                &ldquo;{weeklyReflection.reflectionText}&rdquo;
+              </blockquote>
+              {weeklyReflection.author && (
+                <p className="mt-5 text-base font-semibold text-[#2F2633]/68">- {weeklyReflection.author}</p>
+              )}
+            </figure>
+          </div>
+        </section>
+      )}
 
       <SiteFooterLogin />
     </main>

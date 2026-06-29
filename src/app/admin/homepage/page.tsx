@@ -4,6 +4,7 @@ import {
   deleteHeroImageAction,
   deleteHomepageTileAction,
   updateSiteLogoAction,
+  upsertWeeklyReflectionAction,
   upsertHeroImageAction,
   upsertHomepageTileAction,
   useHomepageHeroImageAction,
@@ -17,7 +18,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 type AdminHomepagePageProps = {
-  searchParams: Promise<{ message?: string; logo_message?: string }>;
+  searchParams: Promise<{ message?: string; logo_message?: string; reflection_message?: string }>;
 };
 
 type Tile = {
@@ -46,6 +47,17 @@ type HeroImage = {
   alt_text: string | null;
   is_active: boolean;
   sort_order: number;
+};
+
+type WeeklyReflection = {
+  id: string;
+  title: string;
+  reflection_text: string;
+  author: string | null;
+  background_color: string;
+  is_active: boolean;
+  start_date: string | null;
+  end_date: string | null;
 };
 
 function TileStatus({ active }: { active: boolean }) {
@@ -253,6 +265,98 @@ function LogoForm({ logoPath, logoUrl }: { logoPath: string | null; logoUrl: str
   );
 }
 
+function WeeklyReflectionForm({ reflection }: { reflection?: WeeklyReflection }) {
+  return (
+    <section className="overflow-hidden rounded-card border border-midnight/10 bg-white shadow-soft" id="weekly-reflection">
+      <div className="border-b border-midnight/10 bg-[#FAF6EF] px-5 py-4 sm:px-6">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Ugens refleksion</p>
+        <h2 className="mt-1 text-xl font-semibold text-midnight">Rediger refleksion på forsiden</h2>
+      </div>
+
+      <form action={upsertWeeklyReflectionAction} className="grid gap-5 p-5 sm:p-6">
+        <input name="id" type="hidden" value={reflection?.id ?? ""} />
+
+        <label className="grid gap-2 text-sm font-medium text-ink/72">
+          Overskrift
+          <input
+            className="h-11 w-full rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+            defaultValue={reflection?.title ?? "Ugens refleksion"}
+            maxLength={80}
+            name="title"
+          />
+        </label>
+
+        <label className="grid gap-2 text-sm font-medium text-ink/72">
+          Refleksionstekst
+          <textarea
+            className="min-h-36 w-full rounded-md border border-midnight/15 px-3 py-3 text-base leading-7 outline-none transition focus:border-sage-700"
+            defaultValue={reflection?.reflection_text ?? ""}
+            maxLength={600}
+            name="reflection_text"
+            placeholder="Skriv en kort refleksion eller et citat"
+            required
+          />
+        </label>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="grid gap-2 text-sm font-medium text-ink/72">
+            Forfatter (valgfri)
+            <input
+              className="h-11 w-full rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+              defaultValue={reflection?.author ?? ""}
+              maxLength={80}
+              name="author"
+              placeholder="SoulEvents"
+            />
+          </label>
+
+          <label className="grid gap-2 text-sm font-medium text-ink/72">
+            Baggrundsfarve
+            <input
+              className="h-11 w-full rounded-md border border-midnight/15 px-2 py-1 outline-none transition focus:border-sage-700"
+              defaultValue={reflection?.background_color ?? "#FAF6EF"}
+              name="background_color"
+              type="color"
+            />
+          </label>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="grid gap-2 text-sm font-medium text-ink/72">
+            Startdato (valgfri)
+            <input
+              className="h-11 w-full rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+              defaultValue={reflection?.start_date ?? ""}
+              name="start_date"
+              type="date"
+            />
+          </label>
+
+          <label className="grid gap-2 text-sm font-medium text-ink/72">
+            Slutdato (valgfri)
+            <input
+              className="h-11 w-full rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+              defaultValue={reflection?.end_date ?? ""}
+              name="end_date"
+              type="date"
+            />
+          </label>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm font-semibold text-midnight">
+          <input className="size-4 accent-sage-700" defaultChecked={reflection?.is_active ?? false} name="is_active" type="checkbox" />
+          Refleksionen er aktiv
+        </label>
+
+        <button className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700 sm:w-fit" type="submit">
+          <Save className="size-4" aria-hidden="true" />
+          Gem refleksion
+        </button>
+      </form>
+    </section>
+  );
+}
+
 function TileForm({ tile, title }: { tile?: Tile; title: string }) {
   const active = tile?.is_active ?? true;
   const isNew = !tile;
@@ -369,15 +473,16 @@ function TileForm({ tile, title }: { tile?: Tile; title: string }) {
 }
 
 export default async function AdminHomepagePage({ searchParams }: AdminHomepagePageProps) {
-  const [{ message, logo_message: logoMessage }] = await Promise.all([searchParams, requireRole("admin")]);
+  const [{ message, logo_message: logoMessage, reflection_message: reflectionMessage }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = createAdminClient();
   const { data: logoSetting } = await supabase.from("site_settings").select("value").eq("key", "brand_logo_path").maybeSingle();
   const logoPath = logoSetting?.value ?? null;
   const logoUrl = logoPath ? supabase.storage.from("media").getPublicUrl(logoPath).data.publicUrl : null;
-  const [{ data: tiles }, { data: categories }, { data: heroImages, error: heroImagesError }] = await Promise.all([
+  const [{ data: tiles }, { data: categories }, { data: heroImages, error: heroImagesError }, { data: weeklyReflections, error: weeklyReflectionError }] = await Promise.all([
     supabase.from("homepage_tiles").select("*").order("sort_order"),
     supabase.from("main_categories").select("id, name").eq("is_active", true).order("sort_order"),
     supabase.from("hero_images").select("*").order("scope").order("sort_order"),
+    supabase.from("weekly_reflections").select("*").order("is_active", { ascending: false }).order("updated_at", { ascending: false }).limit(1),
   ]);
   const tilesWithImages =
     tiles?.map((tile) => ({
@@ -392,6 +497,7 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
     })) ?? [];
   const homepageHeroImages = heroImagesWithUrls.filter((heroImage) => heroImage.scope === "homepage") as HeroImage[];
   const categoryHeroImages = heroImagesWithUrls.filter((heroImage) => heroImage.scope === "main_category") as HeroImage[];
+  const weeklyReflection = weeklyReflections?.[0] as WeeklyReflection | undefined;
   const knownCategoryIds = new Set(categoriesList.map((category) => category.id));
   const categoryHeroImagesByCategoryId = new Map<string, HeroImage[]>();
 
@@ -427,6 +533,7 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
         <AuthMessage message={message} />
         <AuthMessage message={logoMessage} />
+        <AuthMessage message={reflectionMessage} />
 
         <section className="rounded-card border border-midnight/10 bg-white p-5 shadow-soft sm:p-6">
           <div className="grid gap-2">
@@ -439,6 +546,14 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
         </section>
 
         <LogoForm logoPath={logoPath} logoUrl={logoUrl} />
+
+        {weeklyReflectionError ? (
+          <section className="rounded-card border border-terracotta/30 bg-terracotta/10 p-5 text-sm font-semibold leading-6 text-terracotta shadow-soft" id="weekly-reflection">
+            Ugens refleksion mangler databaseopsætning. Kør migrationen til weekly_reflections i Supabase først.
+          </section>
+        ) : (
+          <WeeklyReflectionForm reflection={weeklyReflection} />
+        )}
 
         <section className="grid gap-5 rounded-card border border-midnight/10 bg-white p-5 shadow-soft sm:p-6" id="hero-images">
           <div className="grid gap-2">
