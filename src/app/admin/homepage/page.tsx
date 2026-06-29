@@ -6,6 +6,7 @@ import {
   updateSiteLogoAction,
   upsertHeroImageAction,
   upsertHomepageTileAction,
+  useHomepageHeroImageAction,
 } from "@/app/admin/homepage/actions";
 import { HomepageImageUploadPreview } from "@/components/admin/homepage-image-upload-preview";
 import { BrandLogo } from "@/components/brand-logo";
@@ -176,13 +177,26 @@ function HeroImageForm({
       </form>
 
       {heroImage && (
-        <form action={deleteHeroImageAction} className="border-t border-midnight/10 bg-white px-5 py-4 sm:px-6">
-          <input name="id" type="hidden" value={heroImage.id} />
-          <button className="inline-flex h-9 items-center gap-2 rounded-md border border-terracotta/30 bg-white px-3 text-sm font-semibold text-terracotta transition hover:bg-terracotta hover:text-white" type="submit">
-            <Trash2 className="size-4" aria-hidden="true" />
-            Slet hero-billede
-          </button>
-        </form>
+        <div className="flex flex-wrap gap-3 border-t border-midnight/10 bg-white px-5 py-4 sm:px-6">
+          {!isCategoryHero && (
+            <form action={useHomepageHeroImageAction}>
+              <input name="id" type="hidden" value={heroImage.id} />
+              <button
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-sage-700/25 bg-white px-3 text-sm font-semibold text-sage-700 transition hover:bg-sage-700 hover:text-white"
+                type="submit"
+              >
+                Brug som forsidebillede
+              </button>
+            </form>
+          )}
+          <form action={deleteHeroImageAction}>
+            <input name="id" type="hidden" value={heroImage.id} />
+            <button className="inline-flex h-9 items-center gap-2 rounded-md border border-terracotta/30 bg-white px-3 text-sm font-semibold text-terracotta transition hover:bg-terracotta hover:text-white" type="submit">
+              <Trash2 className="size-4" aria-hidden="true" />
+              Slet hero-billede
+            </button>
+          </form>
+        </div>
       )}
     </details>
   );

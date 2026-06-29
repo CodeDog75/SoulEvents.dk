@@ -223,7 +223,7 @@ export function HomeEventSearchForm({
               type="search"
             />
             <button
-              className="grid size-11 shrink-0 place-items-center rounded-full bg-[#FAF6EF] text-[#7A4EAB] transition hover:bg-[#EDE4F7] md:bg-[#7A4EAB] md:text-white"
+              className="grid size-11 shrink-0 place-items-center rounded-full bg-[#7A4EAB] text-white shadow-soft transition hover:bg-[#6C4499]"
               type="submit"
             >
               <SlidersHorizontal className="size-5" aria-hidden="true" />
@@ -245,7 +245,7 @@ export function HomeEventSearchForm({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto] md:mt-0">
+          <div className="mt-4 grid gap-2 md:mt-0 md:grid-cols-[1fr_auto]">
             <label className="sr-only" htmlFor="home-area-select">
               Vælg område
             </label>
@@ -262,7 +262,7 @@ export function HomeEventSearchForm({
               ))}
             </select>
             <button
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/20 bg-white/86 px-4 py-3 text-sm font-semibold text-[#7A4EAB] transition hover:-translate-y-0.5 hover:border-[#7A4EAB]/40"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/20 bg-white/86 px-4 py-3 text-sm font-semibold text-[#7A4EAB] transition hover:border-[#7A4EAB]/40"
               onClick={findNearby}
               type="button"
             >
@@ -270,13 +270,6 @@ export function HomeEventSearchForm({
               Find nær mig
             </button>
           </div>
-
-          <button
-            className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-button bg-[#7A4EAB] px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift md:hidden"
-            type="submit"
-          >
-            Søg i valgt område
-          </button>
 
           {locationMessage && (
             <div className="mt-3 rounded-xl border border-[#7A4EAB]/20 bg-[#FAF6EF]/80 px-4 py-3 md:col-span-2">
@@ -298,7 +291,7 @@ export function HomeEventSearchForm({
         </div>
 
         {sortedExperienceGroups.length > 0 ? (
-          <div className="-mx-4 mt-3 flex gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 lg:grid-cols-4">
+          <div className="mt-3 flex w-full max-w-full gap-3 overflow-x-auto overscroll-x-contain pb-2 sm:grid sm:grid-cols-2 sm:gap-3 sm:overflow-visible lg:grid-cols-4">
             {sortedExperienceGroups.map((group) => renderExperienceGroupCard(group))}
           </div>
         ) : (

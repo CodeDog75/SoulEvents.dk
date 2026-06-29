@@ -2,7 +2,6 @@
 import {
   CalendarDays,
   Mail,
-  Menu,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
@@ -14,6 +13,7 @@ import { HomeEventSearchForm } from "@/components/events/home-event-search-form"
 import { PublicEventList, type PublicEvent } from "@/components/events/public-event-list";
 import { HomeDiscoveryTiles } from "@/components/home/home-discovery-tiles";
 import { HomeInspirationSections } from "@/components/home/home-inspiration-sections";
+import { MobileHomeMenu } from "@/components/home/mobile-home-menu";
 import { PublicFacilitatorCarousel } from "@/components/facilitator/public-facilitator-carousel";
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import { env } from "@/lib/env";
@@ -1187,16 +1187,16 @@ export default async function Home({ searchParams }: HomeProps) {
     <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
       <section className="relative overflow-hidden bg-[#FAF6EF] pb-8 md:bg-[linear-gradient(180deg,#FAF6EF_0%,#F7F0FA_58%,#FAF6EF_100%)] md:pb-10">
         <div
-          className="absolute inset-x-0 top-0 h-[470px] bg-cover bg-center md:hidden"
+          className="absolute inset-x-0 top-0 h-[520px] bg-cover bg-center md:hidden"
           style={{ backgroundImage: "url('" + (homeHeroImage?.imageUrl ?? homeTileFallbackImages.fallback) + "')" }}
           aria-hidden="true"
         />
         <div
-          className="absolute inset-x-0 top-0 h-[470px] bg-[linear-gradient(90deg,rgba(250,246,239,0.82)_0%,rgba(250,246,239,0.34)_54%,rgba(250,246,239,0.08)_100%)] md:hidden"
+          className="absolute inset-x-0 top-0 h-[520px] bg-[linear-gradient(90deg,rgba(250,246,239,0.84)_0%,rgba(250,246,239,0.34)_55%,rgba(250,246,239,0.06)_100%)] md:hidden"
           aria-hidden="true"
         />
         <div
-          className="absolute inset-x-0 top-0 h-[520px] bg-[linear-gradient(180deg,rgba(250,246,239,0.28)_0%,rgba(250,246,239,0.04)_52%,#FAF6EF_92%)] md:hidden"
+          className="absolute inset-x-0 top-0 h-[610px] bg-[linear-gradient(180deg,rgba(250,246,239,0.24)_0%,rgba(250,246,239,0.02)_48%,rgba(250,246,239,0.92)_86%,#FAF6EF_100%)] md:hidden"
           aria-hidden="true"
         />
         <div className="absolute left-1/2 top-8 hidden h-72 w-72 -translate-x-1/2 rounded-full bg-white/50 blur-3xl md:block" aria-hidden="true" />
@@ -1235,38 +1235,13 @@ export default async function Home({ searchParams }: HomeProps) {
               </Link>
             </nav>
 
-            <details className="group relative md:hidden">
-              <summary className="grid size-12 cursor-pointer list-none place-items-center rounded-full bg-white/88 text-[#2F2633] shadow-soft backdrop-blur marker:hidden">
-                <Menu className="size-6" aria-hidden="true" />
-                <span className="sr-only">Åbn menu</span>
-              </summary>
-              <nav className="absolute right-0 top-14 grid w-64 gap-1 rounded-[22px] border border-white/80 bg-white/95 p-3 text-base font-semibold text-[#2F2633] shadow-lift backdrop-blur">
-                <a className="rounded-2xl px-4 py-3 transition hover:bg-[#FAF6EF]" href="#find-events">
-                  Events
-                </a>
-                <a className="rounded-2xl px-4 py-3 transition hover:bg-[#FAF6EF]" href="#map">
-                  Kort
-                </a>
-                <Link className="rounded-2xl px-4 py-3 transition hover:bg-[#FAF6EF]" href="/facilitators">
-                  Arrangører
-                </Link>
-                <Link className="rounded-2xl px-4 py-3 transition hover:bg-[#FAF6EF]" href="/inspiration">
-                  Inspiration
-                </Link>
-                <a className="rounded-2xl px-4 py-3 transition hover:bg-[#FAF6EF]" href="#categories">
-                  Kategorier
-                </a>
-                <Link className="rounded-2xl px-4 py-3 transition hover:bg-[#FAF6EF]" href="/auth/login">
-                  Login
-                </Link>
-              </nav>
-            </details>
+            <MobileHomeMenu />
           </div>
         </header>
 
         <div className="relative z-10 mx-auto grid max-w-[1200px] gap-4 px-4 pb-7 pt-1 sm:gap-6 sm:px-8 sm:pb-8 md:pt-3">
-          <section className="min-h-[330px] pt-20 md:hidden">
-            <h1 className="max-w-[18rem] font-serif text-[2.9rem] font-semibold leading-[0.98] text-[#2F2633] drop-shadow-[0_2px_16px_rgba(255,255,255,0.55)]">
+          <section className="min-h-[365px] pt-24 md:hidden">
+            <h1 className="max-w-[19rem] font-serif text-[2.95rem] font-semibold leading-[0.98] text-[#2F2633] drop-shadow-[0_2px_16px_rgba(255,255,255,0.55)]">
               Oplevelser der nærer krop, sind og sjæl
             </h1>
           </section>
@@ -1291,7 +1266,7 @@ export default async function Home({ searchParams }: HomeProps) {
             />
           </section>
 
-          <div className="-mt-20 max-w-5xl md:mt-0" id="find-events">
+          <div className="-mt-24 max-w-5xl md:mt-0" id="find-events">
             <div className="mb-3 hidden max-w-2xl md:block">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Find din næste oplevelse</p>
               <h2 className="mt-1 text-2xl font-medium leading-tight text-[#2F2633] sm:text-4xl">Søg efter det, der passer til dig</h2>

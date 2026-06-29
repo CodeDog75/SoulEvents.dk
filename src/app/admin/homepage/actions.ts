@@ -298,3 +298,36 @@ export async function deleteHeroImageAction(formData: FormData) {
   revalidatePath("/categories/[slug]", "page");
   heroGo("Hero-billedet er slettet.");
 }
+
+export async function useHomepageHeroImageAction(formData: FormData) {
+  await requireRole("admin");
+
+  const id = getString(formData, "id");
+  if (!id) {
+    heroGo("Hero-billedet mangler ID.");
+  }
+
+  const supabase = createAdminClient();
+  const { error: deactivateError } = await supabase
+    .from("hero_images")
+    .update({ is_active: false })
+    .eq("scope", "homepage");
+
+  if (deactivateError) {
+    heroGo("Forsidebillederne kunne ikke opdateres.");
+  }
+
+  const { error: activateError } = await supabase
+    .from("hero_images")
+    .update({ is_active: true })
+    .eq("id", id)
+    .eq("scope", "homepage");
+
+  if (activateError) {
+    heroGo("Hero-billedet kunne ikke vælges som forsidebillede.");
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin/homepage");
+  heroGo("Hero-billedet vises nu på forsiden.");
+}
