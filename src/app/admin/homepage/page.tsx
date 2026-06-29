@@ -12,7 +12,7 @@ import { HomepageImageUploadPreview } from "@/components/admin/homepage-image-up
 import { BrandLogo } from "@/components/brand-logo";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -370,7 +370,7 @@ function TileForm({ tile, title }: { tile?: Tile; title: string }) {
 
 export default async function AdminHomepagePage({ searchParams }: AdminHomepagePageProps) {
   const [{ message, logo_message: logoMessage }] = await Promise.all([searchParams, requireRole("admin")]);
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data: logoSetting } = await supabase.from("site_settings").select("value").eq("key", "brand_logo_path").maybeSingle();
   const logoPath = logoSetting?.value ?? null;
   const logoUrl = logoPath ? supabase.storage.from("media").getPublicUrl(logoPath).data.publicUrl : null;
@@ -438,7 +438,7 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
             </p>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4">
             <HeroImageForm categories={categoriesList} scope="homepage" title="Tilføj hero-billede til forsiden" />
             <HeroImageForm categories={categoriesList} scope="main_category" title="Tilføj hero-billede til hovedkategori" />
           </div>
