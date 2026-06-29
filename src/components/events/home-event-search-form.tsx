@@ -234,13 +234,13 @@ export function HomeEventSearchForm({
       <input name="latitude" type="hidden" defaultValue={selected.latitude} />
       <input name="longitude" type="hidden" defaultValue={selected.longitude} />
 
-      <section className="grid min-w-0 gap-2.5 md:rounded-card md:border md:border-[#EDE4F7] md:bg-white/88 md:p-0 md:shadow-soft">
-        <section className="rounded-[24px] border border-white/80 bg-white p-1.5 shadow-[0_16px_38px_rgba(47,38,51,0.14)] md:rounded-[22px] md:border-[#7A4EAB]/12 md:bg-white/70 md:shadow-none">
-          <label className="flex min-h-14 items-center gap-3 rounded-[20px] bg-white px-3 text-sm font-semibold text-[#2F2633] md:min-h-12 md:rounded-input md:border md:border-[#7A4EAB]/15 md:px-4">
+      <section className="grid min-w-0 gap-2.5 md:rounded-[28px] md:border md:border-white/80 md:bg-white/90 md:p-2 md:shadow-[0_20px_60px_rgba(47,38,51,0.16)]">
+        <section className="rounded-[24px] border border-white/80 bg-white p-1.5 shadow-[0_16px_38px_rgba(47,38,51,0.14)] md:rounded-[24px] md:border-[#7A4EAB]/12 md:bg-white md:p-2 md:shadow-[0_14px_34px_rgba(47,38,51,0.10)]">
+          <label className="flex min-h-14 items-center gap-3 rounded-[20px] bg-white px-3 text-sm font-semibold text-[#2F2633] md:min-h-16 md:rounded-[20px] md:border md:border-[#7A4EAB]/15 md:px-5">
             <Search className="size-5 shrink-0 text-[#7A4EAB]" aria-hidden="true" />
             <span className="sr-only">Hvad søger du?</span>
             <input
-              className="min-w-0 flex-1 bg-transparent text-base font-medium outline-none placeholder:text-[#2F2633]/68 md:text-sm"
+              className="min-w-0 flex-1 bg-transparent text-base font-medium outline-none placeholder:text-[#2F2633]/68 md:text-[15px]"
               name="q"
               onChange={(event) => setQuery(event.currentTarget.value)}
               placeholder="Hvad søger du?"
@@ -262,7 +262,7 @@ export function HomeEventSearchForm({
               </button>
             )}
             <button
-              className="grid size-10 shrink-0 place-items-center rounded-full bg-[#7A4EAB] text-white shadow-soft transition hover:bg-[#6C4499]"
+              className="grid size-10 shrink-0 place-items-center rounded-full bg-[#7A4EAB] text-white shadow-soft transition hover:bg-[#6C4499] md:size-12"
               type="submit"
             >
               <Search className="size-4" aria-hidden="true" />
