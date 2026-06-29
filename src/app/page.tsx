@@ -1183,7 +1183,7 @@ export default async function Home({ searchParams }: HomeProps) {
         />
         <div className="absolute left-1/2 top-8 hidden h-72 w-72 -translate-x-1/2 rounded-full bg-white/50 blur-3xl md:block" aria-hidden="true" />
 
-        <header className="relative z-10">
+        <header className="relative z-20 md:absolute md:inset-x-0 md:top-0">
           <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 sm:px-8 md:py-5">
             <Link aria-label="SoulEvents.dk forside" className="inline-flex items-center gap-2.5" href="/">
               <BrandLogo className="h-12 w-12 sm:h-16 sm:w-16 md:h-28 md:w-28 lg:h-32 lg:w-32" priority />
@@ -1221,7 +1221,7 @@ export default async function Home({ searchParams }: HomeProps) {
           </div>
         </header>
 
-        <div className="relative z-10 mx-auto grid max-w-[1200px] min-w-0 gap-3 px-4 pb-6 pt-1 sm:gap-6 sm:px-8 sm:pb-8 md:pt-3">
+        <div className="relative z-10 mx-auto grid max-w-[1200px] min-w-0 gap-3 px-4 pb-6 pt-1 sm:gap-6 sm:px-8 sm:pb-8 md:pt-0">
           <section className="min-h-[265px] pt-16 md:hidden">
             <h1 className="max-w-[20rem] font-serif text-[2.22rem] font-semibold leading-[1.02] text-[#2F2633] drop-shadow-[0_2px_16px_rgba(255,255,255,0.55)]">
               Oplevelser der nærer krop, sind og sjæl
@@ -1229,12 +1229,12 @@ export default async function Home({ searchParams }: HomeProps) {
           </section>
 
           <section
-            className="relative hidden min-h-[540px] overflow-hidden rounded-[32px] border border-white/75 bg-[#D8C1A2] bg-cover bg-center shadow-[0_22px_70px_rgba(47,38,51,0.16)] md:block lg:min-h-[580px] xl:min-h-[620px]"
+            className="relative hidden min-h-[540px] overflow-hidden bg-[#FAF6EF] bg-cover bg-center md:block lg:min-h-[580px] xl:min-h-[620px]"
             style={{ backgroundImage: "url('" + (homeHeroImage?.imageUrl ?? homeTileFallbackImages.fallback) + "')" }}
           >
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(250,246,239,0.92)_0%,rgba(250,246,239,0.72)_34%,rgba(250,246,239,0.20)_66%,rgba(250,246,239,0.02)_100%)]" aria-hidden="true" />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(47,38,51,0.02)_0%,rgba(47,38,51,0.04)_58%,rgba(250,246,239,0.70)_100%)]" aria-hidden="true" />
-            <div className="relative flex min-h-[540px] max-w-[760px] flex-col justify-center px-9 py-16 lg:min-h-[580px] lg:px-12 xl:min-h-[620px]">
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,#FAF6EF_0%,rgba(250,246,239,0.92)_9%,rgba(250,246,239,0.55)_42%,rgba(250,246,239,0.12)_72%,#FAF6EF_100%)]" aria-hidden="true" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(250,246,239,0.28)_0%,rgba(250,246,239,0.03)_46%,rgba(250,246,239,0.82)_86%,#FAF6EF_100%)]" aria-hidden="true" />
+            <div className="relative flex min-h-[540px] max-w-[760px] flex-col justify-center px-9 pb-16 pt-40 lg:min-h-[580px] lg:px-12 xl:min-h-[620px]">
               <p className="inline-flex w-max items-center gap-2 rounded-full bg-white/72 px-3 py-1.5 text-xs font-semibold text-[#2F2633] shadow-soft backdrop-blur sm:text-sm">
                 <Sparkles className="size-4 text-[#7A4EAB]" aria-hidden="true" />
                 SoulEvents.dk
@@ -1248,7 +1248,7 @@ export default async function Home({ searchParams }: HomeProps) {
             </div>
           </section>
 
-          <div className="-mt-16 min-w-0 w-full md:-mt-20" id="find-events">
+          <div className="-mt-16 min-w-0 w-full md:mt-4" id="find-events">
             <div className="mb-3 hidden max-w-2xl md:block">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Find din næste oplevelse</p>
               <h2 className="mt-1 text-2xl font-medium leading-tight text-[#2F2633] sm:text-4xl">Søg efter det, der passer til dig</h2>
