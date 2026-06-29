@@ -234,7 +234,7 @@ export function HomeEventSearchForm({
       <input name="latitude" type="hidden" defaultValue={selected.latitude} />
       <input name="longitude" type="hidden" defaultValue={selected.longitude} />
 
-      <section className="grid min-w-0 gap-2.5 md:rounded-card md:border md:border-[#EDE4F7] md:bg-white/88 md:p-5 md:shadow-soft">
+      <section className="grid min-w-0 gap-2.5 md:rounded-card md:border md:border-[#EDE4F7] md:bg-white/88 md:p-0 md:shadow-soft">
         <section className="rounded-[24px] border border-white/80 bg-white p-1.5 shadow-[0_16px_38px_rgba(47,38,51,0.14)] md:rounded-[22px] md:border-[#7A4EAB]/12 md:bg-white/70 md:shadow-none">
           <label className="flex min-h-14 items-center gap-3 rounded-[20px] bg-white px-3 text-sm font-semibold text-[#2F2633] md:min-h-12 md:rounded-input md:border md:border-[#7A4EAB]/15 md:px-4">
             <Search className="size-5 shrink-0 text-[#7A4EAB]" aria-hidden="true" />

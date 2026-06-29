@@ -1248,7 +1248,7 @@ export default async function Home({ searchParams }: HomeProps) {
             />
           </section>
 
-          <div className="-mt-16 min-w-0 max-w-5xl md:mt-0" id="find-events">
+          <div className="-mt-16 min-w-0 w-full md:mt-0" id="find-events">
             <div className="mb-3 hidden max-w-2xl md:block">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Find din næste oplevelse</p>
               <h2 className="mt-1 text-2xl font-medium leading-tight text-[#2F2633] sm:text-4xl">Søg efter det, der passer til dig</h2>
