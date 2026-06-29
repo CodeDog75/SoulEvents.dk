@@ -96,12 +96,15 @@ export function HomeEventSearchForm({
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
                 src={group.imageUrl ?? ""}
               />
+              <span className="absolute bottom-3 right-3 hidden rounded-full bg-[#EDE4F7]/92 px-3 py-1 text-xs font-bold text-[#2F2633] shadow-soft backdrop-blur sm:inline-flex">
+                {eventCount} {eventCount === 1 ? "event" : "events"}
+              </span>
             </span>
             <span className="grid gap-1 p-3.5">
               <span className="block break-words text-base font-bold leading-tight text-[#2F2633] sm:font-serif sm:text-xl sm:font-semibold">
                 {group.name}
               </span>
-              <span className="block text-sm font-semibold text-[#7A4EAB]">
+              <span className="block text-sm font-semibold text-[#7A4EAB] sm:hidden">
                 {eventCount} {eventCount === 1 ? "event" : "events"}
               </span>
             </span>

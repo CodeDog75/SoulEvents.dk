@@ -11,7 +11,6 @@ import { EventMap } from "@/components/events/event-map";
 import { EventCarouselSection, FacilitatorCarouselSection } from "@/components/events/event-carousel-section";
 import { HomeEventSearchForm } from "@/components/events/home-event-search-form";
 import { PublicEventList, type PublicEvent } from "@/components/events/public-event-list";
-import { HomeDiscoveryTiles } from "@/components/home/home-discovery-tiles";
 import { HomeInspirationSections } from "@/components/home/home-inspiration-sections";
 import { MobileHomeMenu } from "@/components/home/mobile-home-menu";
 import { PublicFacilitatorCarousel } from "@/components/facilitator/public-facilitator-carousel";
@@ -353,39 +352,9 @@ function distanceInKm(from: { latitude: number; longitude: number }, to: { latit
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-
-
 const homeTileFallbackImages = {
-  nearby: "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=900&q=80",
-  map: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80",
-  online: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80",
-  facilitators: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=900&q=80",
-  allEvents: "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=900&q=80",
-  meditation: "https://images.unsplash.com/photo-1545389336-cf090694435e?auto=format&fit=crop&w=900&q=80",
-  sound: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?auto=format&fit=crop&w=900&q=80",
-  body: "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=900&q=80",
-  sauna: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=900&q=80",
-  ceremony: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=900&q=80",
   fallback: "https://images.unsplash.com/photo-1490730141103-6cac27aaab94?auto=format&fit=crop&w=900&q=80",
 };
-
-function getHomeTileFallbackImage(tile: { id?: string | null; title?: string | null; tile_type?: string | null }) {
-  const id = (tile.id ?? "").toLowerCase();
-  const title = (tile.title ?? "").toLowerCase();
-
-  if (id.includes("nearby") || title.includes("nær")) return homeTileFallbackImages.nearby;
-  if (id.includes("map") || title.includes("kort")) return homeTileFallbackImages.map;
-  if (id.includes("online") || title.includes("online")) return homeTileFallbackImages.online;
-  if (id.includes("facilitator") || title.includes("arrangør")) return homeTileFallbackImages.facilitators;
-  if (id.includes("all-events") || title.includes("alle events")) return homeTileFallbackImages.allEvents;
-  if (id.includes("meditation") || title.includes("meditation") || title.includes("nærvær")) return homeTileFallbackImages.meditation;
-  if (id.includes("sound") || title.includes("lyd") || title.includes("musik") || title.includes("lydbad")) return homeTileFallbackImages.sound;
-  if (id.includes("body") || title.includes("bevægelse") || title.includes("yoga") || title.includes("krop")) return homeTileFallbackImages.body;
-  if (title.includes("sauna") || title.includes("velvære")) return homeTileFallbackImages.sauna;
-  if (title.includes("ceremoni") || title.includes("ritual")) return homeTileFallbackImages.ceremony;
-
-  return homeTileFallbackImages.fallback;
-}
 
 type HeroImage = {
   image_path: string;
@@ -471,43 +440,6 @@ async function getActiveWeeklyReflection() {
     author: reflection.author?.trim() || null,
     backgroundColor: reflection.background_color || "#FAF6EF",
   };
-}
-
-const fallbackHomeTiles = [
-  { id: "nearby", title: "Events nær dig", description: "Find oplevelser tæt på din aktuelle placering.", href: "/#events", imageUrl: homeTileFallbackImages.nearby, tileType: "nearby" as const },
-  { id: "map", title: "Alle events på kort", description: "Udforsk events visuelt på kortet.", href: "/#map", imageUrl: homeTileFallbackImages.map, tileType: "navigation" as const },
-  { id: "online", title: "Online events", description: "Find events du kan deltage i hjemmefra.", href: "/?format=online#events", imageUrl: homeTileFallbackImages.online, tileType: "navigation" as const },
-  { id: "facilitators", title: "Arrangører", description: "Gå på opdagelse blandt SoulEvents arrangører.", href: "/facilitators", imageUrl: homeTileFallbackImages.facilitators, tileType: "navigation" as const },
-  { id: "all-events", title: "Alle events", description: "Se kommende events i kronologisk rækkefølge.", href: "/#events", imageUrl: homeTileFallbackImages.allEvents, tileType: "navigation" as const },
-  { id: "meditation", title: "Meditation & Nærvær", description: "Rolige events med meditation og fordybelse.", href: "/?category_label=Meditation#events", imageUrl: homeTileFallbackImages.meditation, tileType: "category" as const },
-  { id: "sound", title: "Lyd & Musik", description: "Lydbade, kirtan og musikalske oplevelser.", href: "/?category_label=Lydbad#events", imageUrl: homeTileFallbackImages.sound, tileType: "category" as const },
-  { id: "body", title: "Bevægelse & Krop", description: "Yoga, breathwork, dans og kropslige praksisser.", href: "/?category_label=Yoga#events", imageUrl: homeTileFallbackImages.body, tileType: "category" as const },
-];
-
-async function getHomeTiles() {
-  if (!env.supabaseUrl || !env.supabaseAnonKey) {
-    return fallbackHomeTiles;
-  }
-
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("homepage_tiles")
-    .select("id, title, description, image_path, href, tile_type")
-    .eq("is_active", true)
-    .order("sort_order");
-
-  if (error || !data || data.length === 0) {
-    return fallbackHomeTiles;
-  }
-
-  return data.map((tile) => ({
-    id: tile.id,
-    title: tile.title,
-    description: tile.description,
-    href: tile.href,
-    imageUrl: tile.image_path ? supabase.storage.from("media").getPublicUrl(tile.image_path).data.publicUrl : getHomeTileFallbackImage(tile),
-    tileType: tile.tile_type,
-  }));
 }
 
 async function getSearchEvents(selected: {
@@ -1054,23 +986,9 @@ async function getHomepageAds() {
 
 export default async function Home({ searchParams }: HomeProps) {
   const params = searchParams ? await searchParams : {};
-  const homeTiles = await getHomeTiles();
   const homeHeroImage = await getHomepageHeroImage();
   const weeklyReflection = await getActiveWeeklyReflection();
   const homepageAds = await getHomepageAds();
-  const discoveryTiles = [
-    ...homeTiles.filter(
-      (tile) => tile.tileType !== "category" && tile.id !== "become-host" && tile.href !== "/auth/signup",
-    ),
-    {
-      id: "become-host",
-      title: "Del dine events",
-      description: "Del det, du skaber, med mennesker der aktivt søger nærvær, fællesskab og udvikling.",
-      href: "/auth/signup",
-      imageUrl: homeTileFallbackImages.facilitators,
-      tileType: "navigation" as const,
-    },
-  ];
   const facilitatorQuery = (params.facilitator_q ?? params.q ?? "").trim();
   const selected = {
     q: params.q?.trim() ?? "",
@@ -1266,7 +1184,7 @@ export default async function Home({ searchParams }: HomeProps) {
         <div className="absolute left-1/2 top-8 hidden h-72 w-72 -translate-x-1/2 rounded-full bg-white/50 blur-3xl md:block" aria-hidden="true" />
 
         <header className="relative z-10">
-          <div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-3 sm:px-8 md:py-5">
+          <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 sm:px-8 md:py-5">
             <Link aria-label="SoulEvents.dk forside" className="inline-flex items-center gap-2.5" href="/">
               <BrandLogo className="h-12 w-12 sm:h-16 sm:w-16 md:h-28 md:w-28 lg:h-32 lg:w-32" priority />
               <span className="font-serif text-xl font-semibold leading-none text-[#2F2633] md:hidden">SoulEvents</span>
@@ -1468,17 +1386,6 @@ export default async function Home({ searchParams }: HomeProps) {
           </div>
         </section>
       )}
-
-      <section className="bg-white py-12 sm:py-12" id="categories">
-        <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
-          <div className="mb-4 max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Kategorier og inspiration</p>
-            <h2 className="mt-1 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Gå på opdagelse</h2>
-          </div>
-          <HomeDiscoveryTiles tiles={discoveryTiles} />
-        </div>
-      </section>
-
 
       {facilitatorQuery && <PublicFacilitatorCarousel facilitators={facilitatorCards} query={facilitatorQuery} />}
 

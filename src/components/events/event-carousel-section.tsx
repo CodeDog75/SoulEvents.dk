@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
-import { CalendarDays, MapPinned, Ticket, UserRound } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, MapPinned, Ticket, UserRound } from "lucide-react";
 import type { PublicEvent } from "@/components/events/public-event-list";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
 
@@ -137,17 +140,82 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
 }
 
 export function EventCarouselSection({ events, href, title }: EventCarouselSectionProps) {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  function updateScrollState() {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    setCanScrollLeft(scroller.scrollLeft > 4);
+    setCanScrollRight(scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 4);
+  }
+
+  function scrollCards(direction: "left" | "right") {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    const firstCard = scroller.querySelector<HTMLElement>("a");
+    const scrollDistance = firstCard ? firstCard.offsetWidth + 16 : 340;
+    scroller.scrollBy({
+      left: direction === "left" ? -scrollDistance : scrollDistance,
+      behavior: "smooth",
+    });
+  }
+
+  useEffect(() => {
+    updateScrollState();
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+
+    scroller.addEventListener("scroll", updateScrollState, { passive: true });
+    window.addEventListener("resize", updateScrollState);
+
+    return () => {
+      scroller.removeEventListener("scroll", updateScrollState);
+      window.removeEventListener("resize", updateScrollState);
+    };
+  }, [events.length]);
+
   if (events.length === 0) return null;
 
   return (
     <section className="grid gap-3">
       <div className="flex items-end justify-between gap-4">
-        <h2 className="text-3xl font-medium leading-tight text-[#2F2633] sm:text-4xl">{title}</h2>
-        <Link className="shrink-0 text-sm font-semibold text-[#7A4EAB] transition hover:text-olive" href={href}>
-          Se alle
-        </Link>
+        <div>
+          <span className="mb-3 inline-flex rounded-full bg-[#EDE4F7] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#7A4EAB]">
+            Aktuelle oplevelser
+          </span>
+          <h2 className="text-3xl font-medium leading-tight text-[#2F2633] sm:text-4xl">{title}</h2>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="hidden items-center gap-2 sm:flex" aria-label="Naviger i eventrækken">
+            <button
+              aria-label={"Scroll " + title + " mod venstre"}
+              className="grid size-10 place-items-center rounded-full border border-[#7A4EAB]/20 bg-white text-[#7A4EAB] shadow-soft transition hover:border-[#7A4EAB]/40 disabled:cursor-not-allowed disabled:opacity-35"
+              disabled={!canScrollLeft}
+              onClick={() => scrollCards("left")}
+              type="button"
+            >
+              <ChevronLeft className="size-5" aria-hidden="true" />
+            </button>
+            <button
+              aria-label={"Scroll " + title + " mod højre"}
+              className="grid size-10 place-items-center rounded-full border border-[#7A4EAB]/20 bg-white text-[#7A4EAB] shadow-soft transition hover:border-[#7A4EAB]/40 disabled:cursor-not-allowed disabled:opacity-35"
+              disabled={!canScrollRight}
+              onClick={() => scrollCards("right")}
+              type="button"
+            >
+              <ChevronRight className="size-5" aria-hidden="true" />
+            </button>
+          </div>
+          <Link className="text-sm font-semibold text-[#7A4EAB] transition hover:text-olive" href={href}>
+            Se alle
+          </Link>
+        </div>
       </div>
-      <div className="-mx-5 flex snap-x gap-4 overflow-x-auto px-5 pb-3 sm:-mx-8 sm:px-8">
+      <div ref={scrollerRef} className="-mx-5 flex snap-x gap-4 overflow-x-auto px-5 pb-3 sm:-mx-8 sm:px-8">
         {events.map((event) => (
           <EventCardVisual event={event} key={event.id} />
         ))}
