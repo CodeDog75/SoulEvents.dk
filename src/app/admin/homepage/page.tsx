@@ -97,29 +97,22 @@ function HeroImageForm({
         <input name="image_path" type="hidden" value={heroImage?.image_path ?? ""} />
         <input name="scope" type="hidden" value={scope} />
 
-        <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-          <div className="grid content-start gap-3">
-            <div className="aspect-[3/2] overflow-hidden rounded-[22px] border border-midnight/10 bg-[#F4EFE8]">
-              {heroImage?.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img alt={heroImage.alt_text ?? "Hero-billede"} className="h-full w-full object-cover" src={heroImage.image_url} />
-              ) : (
-                <div className="grid h-full place-items-center px-6 text-center text-sm font-semibold text-ink/55">
-                  Upload et stemningsbillede i 3:2-format
-                </div>
-              )}
-            </div>
-            <p className="text-xs leading-5 text-ink/55">
-              Anbefalet format: ca. 2400 x 1600 px. JPG, PNG eller WEBP op til 10 MB.
-            </p>
-          </div>
+        <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(280px,420px)_minmax(0,1fr)]">
+          <HomepageImageUploadPreview
+            helpText="Anbefalet format: ca. 2400 x 1600 px. JPG, PNG eller WebP op til 10 MB."
+            imagePath={heroImage?.image_path ?? null}
+            imageUrl={heroImage?.image_url ?? null}
+            inputName="hero_image"
+            label={heroImage ? "Udskift hero-billede" : "Upload hero-billede"}
+            previewAspectClassName="aspect-[3/2]"
+          />
 
-          <div className="grid gap-4">
+          <div className="grid min-w-0 gap-4">
             {isCategoryHero && (
               <label className="grid gap-2 text-sm font-medium text-ink/72">
                 Hovedkategori
                 <select
-                  className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+                  className="h-11 w-full min-w-0 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
                   defaultValue={heroImage?.main_category_id ?? ""}
                   name="main_category_id"
                   required
@@ -137,7 +130,7 @@ function HeroImageForm({
             <label className="grid gap-2 text-sm font-medium text-ink/72">
               Alternativ tekst
               <input
-                className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+                className="h-11 w-full min-w-0 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
                 defaultValue={heroImage?.alt_text ?? ""}
                 maxLength={160}
                 name="alt_text"
@@ -149,7 +142,7 @@ function HeroImageForm({
               <label className="grid gap-2 text-sm font-medium text-ink/72">
                 Sortering
                 <input
-                  className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+                  className="h-11 w-full min-w-0 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
                   defaultValue={heroImage?.sort_order ?? 0}
                   name="sort_order"
                   type="number"
@@ -160,11 +153,6 @@ function HeroImageForm({
                 Billedet er aktivt
               </label>
             </div>
-
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
-              {heroImage ? "Udskift billede" : "Upload billede"}
-              <input accept="image/jpeg,image/png,image/webp" className="rounded-md border border-midnight/15 bg-white px-3 py-2 text-sm" name="hero_image" type="file" />
-            </label>
 
             <div className="flex flex-wrap items-center gap-3">
               <button className="inline-flex h-10 w-fit items-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700" type="submit">

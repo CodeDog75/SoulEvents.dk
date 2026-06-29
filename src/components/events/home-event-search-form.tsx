@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LocateFixed, MapPin, Search, SlidersHorizontal } from "lucide-react";
+import { LocateFixed, MapPin, Search } from "lucide-react";
 import type { FormEvent } from "react";
 import { useRef, useState } from "react";
 
@@ -199,6 +199,13 @@ export function HomeEventSearchForm({
     );
   }
 
+  function submitCurrentSearch() {
+    const form = formRef.current;
+    if (form) {
+      goToResults(form);
+    }
+  }
+
   return (
     <form
       action="/#events"
@@ -226,7 +233,7 @@ export function HomeEventSearchForm({
               className="grid size-10 shrink-0 place-items-center rounded-full bg-[#7A4EAB] text-white shadow-soft transition hover:bg-[#6C4499]"
               type="submit"
             >
-              <SlidersHorizontal className="size-4" aria-hidden="true" />
+              <Search className="size-4" aria-hidden="true" />
               <span className="sr-only">Søg events</span>
             </button>
           </label>
@@ -254,6 +261,7 @@ export function HomeEventSearchForm({
               defaultValue={selected.area}
               id="home-area-select"
               name="area"
+              onChange={submitCurrentSearch}
             >
               {areaOptions.map((option) => (
                 <option key={option.label} value={option.value}>
