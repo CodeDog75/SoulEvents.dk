@@ -88,29 +88,59 @@ export function HomeEventSearchForm({
 
   function renderExperienceGroupCard(group: (typeof sortedExperienceGroups)[number]) {
     const eventCount = experienceGroupEventCounts[group.id] ?? 0;
+    const hasHeroImage = Boolean(group.imageUrl);
 
     return (
       <Link
-        className="group grid min-h-[112px] w-[145px] shrink-0 content-between rounded-[20px] border border-[#E9DDF2] bg-white/94 p-3.5 shadow-[0_10px_26px_rgba(47,38,51,0.06)] transition duration-300 hover:-translate-y-0.5 hover:border-[#7A4EAB]/30 hover:shadow-[0_14px_34px_rgba(122,78,171,0.11)] sm:w-auto sm:p-4"
+        className={
+          "group w-[178px] shrink-0 overflow-hidden rounded-[22px] border border-[#E9DDF2] bg-white shadow-[0_10px_26px_rgba(47,38,51,0.06)] transition duration-300 hover:-translate-y-0.5 hover:border-[#7A4EAB]/30 hover:shadow-[0_18px_40px_rgba(122,78,171,0.14)] sm:w-auto" +
+          (hasHeroImage ? " min-h-[232px]" : " grid min-h-[144px] content-between p-3.5 sm:p-4")
+        }
         href={categoryHref(group.slug)}
         key={group.id}
       >
-        <span className="grid gap-2">
-          <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#FAF6EF] text-xl shadow-soft" aria-hidden="true">
-            {categoryEmoji(group.name)}
-          </span>
-          <span className="min-w-0">
-            <span className="block break-words text-base font-bold leading-tight text-[#2F2633] sm:font-serif sm:text-xl sm:font-semibold">
-              {group.name}
+        {hasHeroImage ? (
+          <>
+            <span className="relative block aspect-[4/3] overflow-hidden bg-[#FAF6EF]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                alt=""
+                className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                src={group.imageUrl ?? ""}
+              />
+              <span className="absolute left-3 bottom-3 grid size-10 place-items-center rounded-2xl bg-white/94 text-xl shadow-soft" aria-hidden="true">
+                {categoryEmoji(group.name)}
+              </span>
             </span>
-            <span className="mt-1 block text-sm font-semibold text-[#2F2633]/62">
-              {eventCount} {eventCount === 1 ? "event" : "events"}
+            <span className="grid gap-1 p-3.5">
+              <span className="block break-words text-base font-bold leading-tight text-[#2F2633] sm:font-serif sm:text-xl sm:font-semibold">
+                {group.name}
+              </span>
+              <span className="block text-sm font-semibold text-[#7A4EAB]">
+                {eventCount} {eventCount === 1 ? "event" : "events"}
+              </span>
             </span>
-          </span>
-        </span>
-        <span className="mt-3 hidden text-sm font-semibold text-[#7A4EAB] transition group-hover:text-[#2F2633] sm:inline-flex">
-          Se events
-        </span>
+          </>
+        ) : (
+          <>
+            <span className="grid gap-2">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#FAF6EF] text-xl shadow-soft" aria-hidden="true">
+                {categoryEmoji(group.name)}
+              </span>
+              <span className="min-w-0">
+                <span className="block break-words text-base font-bold leading-tight text-[#2F2633] sm:font-serif sm:text-xl sm:font-semibold">
+                  {group.name}
+                </span>
+                <span className="mt-1 block text-sm font-semibold text-[#2F2633]/62">
+                  {eventCount} {eventCount === 1 ? "event" : "events"}
+                </span>
+              </span>
+            </span>
+            <span className="mt-3 hidden text-sm font-semibold text-[#7A4EAB] transition group-hover:text-[#2F2633] sm:inline-flex">
+              Se events
+            </span>
+          </>
+        )}
       </Link>
     );
   }

@@ -608,16 +608,32 @@ async function getExperienceGroups() {
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("main_categories")
-    .select(
-      "id, name, slug, description, color_hex, image_path, sort_order, subcategory_main_categories(subcategories(id, name, sort_order, is_active))",
-    )
-    .eq("is_active", true)
-    .order("sort_order");
+  const [{ data, error }, { data: heroImages }] = await Promise.all([
+    supabase
+      .from("main_categories")
+      .select(
+        "id, name, slug, description, color_hex, image_path, sort_order, subcategory_main_categories(subcategories(id, name, sort_order, is_active))",
+      )
+      .eq("is_active", true)
+      .order("sort_order"),
+    supabase
+      .from("hero_images")
+      .select("main_category_id, image_path, sort_order")
+      .eq("scope", "main_category")
+      .eq("is_active", true)
+      .order("sort_order"),
+  ]);
 
   if (error || !data) {
     return [];
+  }
+
+  const heroImageByCategoryId = new Map<string, string>();
+
+  for (const heroImage of heroImages ?? []) {
+    if (heroImage.main_category_id && heroImage.image_path && !heroImageByCategoryId.has(heroImage.main_category_id)) {
+      heroImageByCategoryId.set(heroImage.main_category_id, heroImage.image_path);
+    }
   }
 
   return data.map((mainCategory: any) => {
@@ -632,13 +648,15 @@ async function getExperienceGroups() {
           value: subcategory.name,
         })) ?? [];
 
+    const heroImagePath = heroImageByCategoryId.get(mainCategory.id) ?? mainCategory.image_path;
+
     return {
       id: mainCategory.id,
       name: mainCategory.name,
       slug: mainCategory.slug,
       description: mainCategory.description,
       colorHex: mainCategory.color_hex || "#7A4EAB",
-      imageUrl: mainCategory.image_path ? supabase.storage.from("media").getPublicUrl(mainCategory.image_path).data.publicUrl : null,
+      imageUrl: heroImagePath ? supabase.storage.from("media").getPublicUrl(heroImagePath).data.publicUrl : null,
       subcategories,
     };
   });
