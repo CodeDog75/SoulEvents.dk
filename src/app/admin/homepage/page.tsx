@@ -92,7 +92,7 @@ function HeroImageForm({
         </div>
       </summary>
 
-      <form action={upsertHeroImageAction} className="grid gap-5 p-5 sm:p-6" encType="multipart/form-data">
+      <form action={upsertHeroImageAction} className="grid gap-5 p-5 sm:p-6">
         <input name="id" type="hidden" value={heroImage?.id ?? ""} />
         <input name="image_path" type="hidden" value={heroImage?.image_path ?? ""} />
         <input name="scope" type="hidden" value={scope} />
