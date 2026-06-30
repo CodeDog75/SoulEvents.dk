@@ -17,7 +17,7 @@ export function SiteFooterLogin() {
           <Link className="transition hover:text-rose" href="/contact">
             Kontakt
           </Link>
-          <Link className="transition hover:text-rose" href="/legal/privatlivspolitik">
+          <Link className="transition hover:text-rose" href="/privacy">
             Privatlivspolitik
           </Link>
           <Link className="transition hover:text-rose" href="/auth/login">
