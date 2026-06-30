@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useId, useState } from "react";
 import { updateFacilitatorProfileAction } from "@/app/facilitator/profile/actions";
 import { ProfileImageManager } from "@/components/facilitator/profile-image-manager";
+import { inferRegionSlug } from "@/lib/regions/infer-region";
 
 type Region = {
   id: string;
   name: string;
+  slug: string;
 };
 
 type Category = {
@@ -249,6 +251,10 @@ export function ProfileForm({
   const longDescriptionMaximum = 2000;
   const serviceDescriptionMaximum = 500;
   const shortDescriptionMissing = Math.max(shortDescriptionMinimum - shortDescription.trim().length, 0);
+  const inferredRegionSlug = inferRegionSlug({ city, postalCode });
+  const selectedRegion =
+    regions.find((region) => region.slug === inferredRegionSlug) ??
+    regions.find((region) => region.id === facilitatorProfile.region_id);
 
   async function fetchPostalCodeCity(normalizedPostalCode: string) {
     try {
@@ -460,23 +466,13 @@ export function ProfileForm({
             />
           </label>
 
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span className="flex flex-wrap items-center gap-2">
-              Region
-            </span>
-            <select
-              className="h-11 rounded-md border border-midnight/15 bg-white px-3 text-base outline-none transition focus:border-sage-700"
-              defaultValue={value(facilitatorProfile.region_id)}
-              name="region_id"
-            >
-              <option value="">Vælg region</option>
-              {regions.map((region) => (
-                <option key={region.id} value={region.id}>
-                  {region.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="grid gap-2 text-sm font-medium text-ink/72">
+            <span className="flex flex-wrap items-center gap-2">Område</span>
+            <input name="region_id" type="hidden" value={selectedRegion?.id ?? ""} />
+            <div className="flex min-h-11 items-center rounded-md border border-[#D7C4F0] bg-[#F8F3FF] px-3 text-base text-ink">
+              {selectedRegion?.name ?? "Område beregnes automatisk ud fra postnummer"}
+            </div>
+          </div>
 
           <p className="rounded-md bg-sage-50 p-3 text-sm leading-6 text-ink/65">
             Kortplacering oprettes automatisk ud fra postnummer og by. Hvis du udfylder adresse, bliver placeringen

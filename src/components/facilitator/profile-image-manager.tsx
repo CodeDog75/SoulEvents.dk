@@ -269,7 +269,7 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
 
   return (
     <div className="grid gap-4 md:col-span-2 sm:grid-cols-2 xl:grid-cols-4">
-      <div className="grid content-start gap-3 rounded-[22px] bg-sage-50 p-3">
+      <div className="grid content-start gap-3 rounded-[22px] border border-lavender/30 bg-lavender/15 p-3 shadow-[0_18px_45px_rgba(126,87,166,0.12)]">
         <div className="min-h-10">
           <p className="text-sm font-semibold text-ink/80">Profilbillede</p>
           <p className="mt-0.5 text-xs text-ink/50">Vises øverst på din offentlige profil</p>

@@ -30,8 +30,17 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         : "Brug din konto som administrator eller arrangør.";
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[#fbfaf7] px-4 py-10">
-      <section className="w-full max-w-md rounded-md border border-midnight/10 bg-white p-6 shadow-soft">
+    <main className="min-h-screen bg-[#fbfaf7] px-4 py-10">
+      <div className="mx-auto mb-5 flex w-full max-w-md justify-end">
+        <Link
+          className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#7A4EAB]/15 bg-white/85 px-4 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:border-[#7A4EAB]/35 hover:bg-[#EDE4F7]/70"
+          href="/"
+        >
+          Tilbage til forsiden
+        </Link>
+      </div>
+
+      <section className="mx-auto w-full max-w-md rounded-md border border-midnight/10 bg-white p-6 shadow-soft">
         <Link className="mb-8 flex items-center gap-3" href="/">
           <BrandLogo className="h-32 w-32" priority />
           <div>

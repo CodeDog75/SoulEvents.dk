@@ -29,7 +29,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     { data: serviceRows },
   ] = await Promise.all([
     supabase.from("facilitator_profiles").select("*").eq("profile_id", profile.id).single(),
-    supabase.from("regions").select("id, name").order("sort_order"),
+    supabase.from("regions").select("id, name, slug").order("sort_order"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
     supabase
       .from("facilitator_profiles")

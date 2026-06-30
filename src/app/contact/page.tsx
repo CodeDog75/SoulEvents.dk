@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Mail, MessageCircle } from "lucide-react";
+import { ArrowLeft, Mail } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { ContactForm } from "@/components/contact/contact-form";
 import { SiteFooterLogin } from "@/components/site-footer-login";
@@ -52,12 +52,14 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
           <ContactForm />
           <div className="grid gap-3 text-sm leading-6 text-ink/70">
             <p className="flex items-start gap-3 rounded-[18px] bg-white/70 p-4">
-              <MessageCircle className="mt-0.5 size-5 shrink-0 text-[#7A4EAB]" aria-hidden="true" />
-              Vi vender tilbage hurtigst muligt og hjælper dig videre på en rolig og ordentlig måde.
-            </p>
-            <p className="flex items-start gap-3 rounded-[18px] bg-white/70 p-4">
               <Mail className="mt-0.5 size-5 shrink-0 text-[#7A4EAB]" aria-hidden="true" />
-              Du kan også skrive direkte til kontakt@soulevents.dk.
+              <span>
+                Du kan også sende en e-mail til{" "}
+                <a className="font-semibold text-[#7A4EAB] hover:text-[#D8A7B1]" href="mailto:hej@soulevents.dk">
+                  hej@soulevents.dk
+                </a>
+                .
+              </span>
             </p>
           </div>
         </div>

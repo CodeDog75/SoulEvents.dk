@@ -165,7 +165,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   const addressLine = getOptionalString(formData, "address_line");
   const postalCode = getOptionalString(formData, "postal_code");
   const city = getOptionalString(formData, "city");
-  let regionId = getOptionalString(formData, "region_id");
+  let regionId: string | null = null;
   const categoryIds = getAllStrings(formData, "category_ids");
   const tagIds = getAllStrings(formData, "tag_ids");
   const offersServices = formData.get("offers_services") === "on";
@@ -178,7 +178,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     .slice(0, 3)
     .map((item) => (typeof item === "string" ? item.trim() : ""));
 
-  if (!fullName) {
+  if ((section === "all" || section === "contact") && !fullName) {
     profileRedirect("Dit rigtige navn skal udfyldes.");
   }
 
@@ -219,7 +219,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     profileRedirect("Kort præsentation skal være mindst 20 tegn.");
   }
 
-  if (section === "all" && (!postalCode || !city)) {
+  if ((section === "all" || section === "location") && (!postalCode || !city)) {
     profileRedirect("Postnummer og by skal udfyldes.");
   }
 
@@ -253,13 +253,11 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     shortDescription: existingProfile?.short_description ?? "",
   });
 
-  if (!regionId) {
-    const inferredSlug = inferRegionSlug({ city, postalCode });
+  const inferredSlug = inferRegionSlug({ city, postalCode });
 
-    if (inferredSlug) {
-      const { data: inferredRegion } = await supabase.from("regions").select("id").eq("slug", inferredSlug).maybeSingle();
-      regionId = inferredRegion?.id ?? null;
-    }
+  if (inferredSlug) {
+    const { data: inferredRegion } = await supabase.from("regions").select("id").eq("slug", inferredSlug).maybeSingle();
+    regionId = inferredRegion?.id ?? null;
   }
 
   if (section === "all" || section === "contact") {
