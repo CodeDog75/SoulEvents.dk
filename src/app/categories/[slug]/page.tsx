@@ -183,46 +183,46 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
 
   return (
     <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
-      <header className="border-b border-[#EDE4F7] bg-white/90">
-        <div className="mx-auto flex max-w-[1200px] items-center justify-between px-5 py-6 sm:px-8 sm:py-7">
+      <section
+        className="relative overflow-hidden bg-[#FAF6EF] bg-cover bg-center"
+        style={{
+          background: mainCategoryImageUrl
+            ? "linear-gradient(90deg, rgba(250,246,239,0.92) 0%, rgba(250,246,239,0.56) 42%, rgba(250,246,239,0.08) 72%, rgba(250,246,239,0.84) 100%), linear-gradient(180deg, rgba(250,246,239,0.12) 0%, rgba(47,38,51,0.12) 48%, #FAF6EF 100%), url('" +
+              mainCategoryImageUrl +
+              "') center/cover"
+            : "radial-gradient(circle at 18% 12%, rgba(237,228,247,0.92) 0%, rgba(255,255,255,0.84) 34%, transparent 62%), radial-gradient(circle at center, rgba(255,255,255,0.96) 0%, " +
+              (mainCategory.color_hex || "#7A4EAB") +
+              "18 52%, " +
+              (mainCategory.color_hex || "#7A4EAB") +
+              "38 100%)",
+        }}
+      >
+        <div className="mx-auto flex max-w-[1200px] items-center justify-between px-5 py-4 sm:px-8 sm:py-5">
           <Link aria-label="SoulEvents.dk forside" href="/">
-            <BrandLogo className="h-32 w-32 sm:h-36 sm:w-36" priority />
+            <BrandLogo className="h-20 w-20 sm:h-28 sm:w-28 md:h-32 md:w-32" priority />
           </Link>
-          <Link className="inline-flex h-11 items-center gap-2 rounded-button border border-[#7A4EAB]/15 bg-white px-4 text-sm font-semibold text-[#7A4EAB]" href="/">
+          <Link className="inline-flex h-11 items-center gap-2 rounded-button border border-white/70 bg-white/88 px-4 text-sm font-semibold text-[#7A4EAB] shadow-soft backdrop-blur" href="/">
             <ArrowLeft className="size-4" aria-hidden="true" />
             Forsiden
           </Link>
         </div>
-      </header>
 
-      <section className="mx-auto max-w-[1200px] px-5 py-10 sm:px-8 sm:py-14">
-        <section
-          className="relative overflow-hidden rounded-[30px] border border-[#D9C5EA] p-8 shadow-soft sm:p-10"
-          style={{
-            background: mainCategoryImageUrl
-              ? "linear-gradient(120deg, rgba(47,38,51,0.84), rgba(47,38,51,0.58)), url('" + mainCategoryImageUrl + "') center/cover"
-              : "radial-gradient(circle at 18% 12%, rgba(237,228,247,0.92) 0%, rgba(255,255,255,0.84) 34%, transparent 62%), radial-gradient(circle at center, rgba(255,255,255,0.96) 0%, " +
-                (mainCategory.color_hex || "#7A4EAB") +
-                "18 52%, " +
-                (mainCategory.color_hex || "#7A4EAB") +
-                "38 100%)",
-          }}
-        >
-          <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#EDE4F7]/28 blur-3xl sm:h-96 sm:w-96" aria-hidden="true" />
-          <div className="pointer-events-none absolute -left-24 bottom-[-120px] h-72 w-72 rounded-full bg-[#D8A7B1]/16 blur-3xl" aria-hidden="true" />
-          <p className={"relative z-10 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-soft " + (mainCategoryImageUrl ? "bg-white/95 text-[#2F1642]" : "bg-white/78 text-[#7A4EAB]")}>
-            <Sparkles className="size-4" aria-hidden="true" />
+        <div className="mx-auto max-w-[1200px] px-5 pb-12 pt-6 sm:px-8 sm:pb-16 sm:pt-8">
+          <p className="inline-flex items-center gap-2 rounded-full bg-white/88 px-4 py-2 text-sm font-semibold text-[#2F1642] shadow-soft backdrop-blur">
+            <Sparkles className="size-4 text-[#7A4EAB]" aria-hidden="true" />
             Hovedkategori
           </p>
-          <h1 className={"relative z-10 mt-5 max-w-4xl font-serif text-4xl font-medium leading-tight sm:text-6xl " + (mainCategoryImageUrl ? "text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : "text-[#2F1642]")}>
+          <h1 className="mt-5 max-w-4xl font-serif text-4xl font-medium leading-tight text-[#2F1642] sm:text-6xl">
             {mainCategory.name}
           </h1>
           {mainCategory.description && (
-            <p className={"relative z-10 mt-4 max-w-3xl text-base leading-7 sm:text-lg " + (mainCategoryImageUrl ? "font-semibold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]" : "text-[#2F2633]/72")}>{mainCategory.description}</p>
+            <p className="mt-4 max-w-3xl text-base font-semibold leading-7 text-[#2F2633] sm:text-lg">{mainCategory.description}</p>
           )}
-        </section>
+        </div>
+      </section>
 
-        <section className="mt-8 rounded-card border border-[#EDE4F7] bg-white/88 p-5 shadow-soft">
+      <section className="mx-auto max-w-[1200px] px-5 pb-10 pt-5 sm:px-8 sm:pb-14 sm:pt-6">
+        <section className="rounded-card border border-[#EDE4F7] bg-white/88 p-5 shadow-soft">
           <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Område</p>
           <h2 className="mt-2 text-2xl font-medium text-[#2F2633]">Hvor vil du lede?</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/64">

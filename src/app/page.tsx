@@ -1248,7 +1248,7 @@ export default async function Home({ searchParams }: HomeProps) {
             </div>
           </section>
 
-          <div className="-mt-16 min-w-0 w-full md:-mt-36" id="find-events">
+          <div className="relative z-20 -mt-16 min-w-0 w-full md:-mt-28" id="find-events">
             <HomeEventSearchForm
               categoryEventCounts={categoryEventCounts}
               experienceGroupEventCounts={homepageExperienceGroupCounts}

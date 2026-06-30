@@ -234,8 +234,8 @@ export function HomeEventSearchForm({
       <input name="latitude" type="hidden" defaultValue={selected.latitude} />
       <input name="longitude" type="hidden" defaultValue={selected.longitude} />
 
-      <section className="grid min-w-0 gap-2.5 md:rounded-[28px] md:border md:border-white/80 md:bg-white/90 md:p-2 md:shadow-[0_20px_60px_rgba(47,38,51,0.16)]">
-        <section className="rounded-[24px] border border-white/80 bg-white p-1.5 shadow-[0_16px_38px_rgba(47,38,51,0.14)] md:rounded-[24px] md:border-[#7A4EAB]/12 md:bg-white md:p-2 md:shadow-[0_14px_34px_rgba(47,38,51,0.10)]">
+      <section className="grid min-w-0 gap-2.5">
+        <section className="rounded-[24px] border border-white/80 bg-white p-1.5 shadow-[0_16px_38px_rgba(47,38,51,0.14)] md:p-2 md:shadow-[0_18px_44px_rgba(47,38,51,0.14)]">
           <label className="flex min-h-14 items-center gap-3 rounded-[20px] bg-white px-3 text-sm font-semibold text-[#2F2633] md:min-h-16 md:rounded-[20px] md:border md:border-[#7A4EAB]/15 md:px-5">
             <Search className="size-5 shrink-0 text-[#7A4EAB]" aria-hidden="true" />
             <span className="sr-only">Hvad søger du?</span>
@@ -271,7 +271,7 @@ export function HomeEventSearchForm({
           </label>
         </section>
 
-        <section className="rounded-[22px] bg-white/95 p-3 shadow-[0_12px_28px_rgba(47,38,51,0.08)] md:grid md:grid-cols-[1fr_auto] md:items-center md:gap-4 md:rounded-[22px] md:border md:border-[#7A4EAB]/12 md:shadow-none">
+        <section className="rounded-[22px] bg-white/95 p-3 shadow-[0_12px_28px_rgba(47,38,51,0.08)] md:grid md:grid-cols-[1fr_auto] md:items-center md:gap-4 md:p-4 md:shadow-[0_16px_38px_rgba(47,38,51,0.10)]">
           <div className="flex items-center gap-2.5">
             <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[#F4ECFA] text-[#7A4EAB]" aria-hidden="true">
               <MapPin className="size-5" />
