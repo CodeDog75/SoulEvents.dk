@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -115,9 +116,22 @@ export async function signInWithSocialProviderAction(formData: FormData) {
 
   const supabase = await createClient();
   const appUrl = await getRequestAppUrl();
+  const cookieStore = await cookies();
+  const callbackUrl = new URL("/auth/callback", appUrl);
+  callbackUrl.searchParams.set("flow", "oauth");
+  callbackUrl.searchParams.set("provider", provider);
+  callbackUrl.searchParams.set("mode", mode);
+  cookieStore.set("soulevents_oauth_flow", provider, {
+    httpOnly: true,
+    maxAge: 10 * 60,
+    path: "/",
+    sameSite: "lax",
+    secure: appUrl.startsWith("https://"),
+  });
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     options: {
-      redirectTo: `${appUrl}/auth/callback?flow=oauth&mode=${mode}`,
+      redirectTo: callbackUrl.toString(),
       queryParams: provider === "google" ? { access_type: "offline", prompt: "consent" } : undefined,
     },
     provider,

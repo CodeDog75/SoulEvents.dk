@@ -44,6 +44,22 @@ export async function getCurrentProfile() {
     .maybeSingle();
 
   if (!existingProfile) {
+    const { data: emailProfile } = user.email
+      ? await admin
+          .from("profiles")
+          .select("id, role, full_name, email, phone")
+          .eq("email", user.email)
+          .maybeSingle()
+      : { data: null };
+
+    if (emailProfile) {
+      if (emailProfile.role === "facilitator") {
+        await ensureFacilitatorProfileExists(admin, emailProfile.id);
+      }
+
+      return emailProfile as AuthProfile;
+    }
+
     const role = (user.user_metadata?.role === "admin" ? "admin" : "facilitator") satisfies AppRole;
     const { data: repairedProfile, error: repairError } = await admin
       .from("profiles")

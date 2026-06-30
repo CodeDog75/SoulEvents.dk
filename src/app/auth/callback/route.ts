@@ -5,6 +5,15 @@ import { createClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/types/database";
 
 export const dynamic = "force-dynamic";
+const oauthFlowCookie = "soulevents_oauth_flow";
+
+function redirectAndClearOAuthCookie(response: NextResponse, shouldClear: boolean) {
+  if (shouldClear) {
+    response.cookies.delete(oauthFlowCookie);
+  }
+
+  return response;
+}
 
 function confirmationRedirect(requestUrl: URL, message: string, confirmation: "expired" | "needed" = "needed") {
   const searchParams = new URLSearchParams({
@@ -21,6 +30,12 @@ function confirmedRedirect(requestUrl: URL, params?: Record<string, string>) {
   const path = searchParams.size > 0 ? `/auth/confirmed?${searchParams.toString()}` : "/auth/confirmed";
 
   return NextResponse.redirect(new URL(path, getAppUrl(requestUrl.origin)));
+}
+
+function loginErrorRedirect(requestUrl: URL, message: string) {
+  const searchParams = new URLSearchParams({ message });
+
+  return NextResponse.redirect(new URL(`/auth/login?${searchParams.toString()}`, getAppUrl(requestUrl.origin)));
 }
 
 function isExpiredOrInvalidLink(errorText: string) {
@@ -95,7 +110,7 @@ async function ensureOAuthProfile(user: {
   const admin = createAdminClient();
   const { data: existingProfile, error: profileLookupError } = await admin
     .from("profiles")
-    .select("id, role")
+    .select("id, role, full_name, email, phone")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -103,10 +118,27 @@ async function ensureOAuthProfile(user: {
     return { error: profileLookupError, isNewProfile: false, needsProfileCompletion: true, role: "facilitator" as AppRole };
   }
 
-  const role = (existingProfile?.role ?? (user.user_metadata?.role === "admin" ? "admin" : "facilitator")) as AppRole;
-  const isNewProfile = !existingProfile;
+  let appProfile = existingProfile;
 
-  if (!existingProfile) {
+  if (!appProfile && user.email) {
+    const { data: emailProfile, error: emailProfileError } = await admin
+      .from("profiles")
+      .select("id, role, full_name, email, phone")
+      .eq("email", user.email)
+      .maybeSingle();
+
+    if (emailProfileError) {
+      return { error: emailProfileError, isNewProfile: false, needsProfileCompletion: true, role: "facilitator" as AppRole };
+    }
+
+    appProfile = emailProfile;
+  }
+
+  const role = (appProfile?.role ?? (user.user_metadata?.role === "admin" ? "admin" : "facilitator")) as AppRole;
+  const isNewProfile = !appProfile;
+  const appProfileId = appProfile?.id ?? user.id;
+
+  if (!appProfile) {
     const { error: profileError } = await admin.from("profiles").insert({
       email: user.email || "",
       full_name: userDisplayName(user),
@@ -126,7 +158,7 @@ async function ensureOAuthProfile(user: {
     const { data: facilitatorProfile, error: facilitatorLookupError } = await admin
       .from("facilitator_profiles")
       .select("id, company_name, short_description, postal_code, city, facilitator_categories(category_id)")
-      .eq("profile_id", user.id)
+      .eq("profile_id", appProfileId)
       .maybeSingle();
 
     if (facilitatorLookupError) {
@@ -135,7 +167,7 @@ async function ensureOAuthProfile(user: {
 
     if (!facilitatorProfile) {
       const { error: facilitatorError } = await admin.from("facilitator_profiles").insert({
-        profile_id: user.id,
+        profile_id: appProfileId,
         status: "pending",
       });
 
@@ -152,10 +184,12 @@ async function ensureOAuthProfile(user: {
 
 function oauthRedirectFor(requestUrl: URL, input: { isNewProfile: boolean; needsProfileCompletion: boolean; role: AppRole }) {
   if (input.role === "admin") {
+    console.info("OAuth callback redirecting admin to /admin");
     return NextResponse.redirect(new URL("/admin", getAppUrl(requestUrl.origin)));
   }
 
   if (input.needsProfileCompletion) {
+    console.info("OAuth callback redirecting facilitator to /facilitator/profile");
     const profileUrl = new URL("/facilitator/profile", getAppUrl(requestUrl.origin));
 
     if (input.isNewProfile) {
@@ -168,6 +202,7 @@ function oauthRedirectFor(requestUrl: URL, input: { isNewProfile: boolean; needs
     return NextResponse.redirect(profileUrl);
   }
 
+  console.info("OAuth callback redirecting facilitator to /facilitator");
   return NextResponse.redirect(new URL("/facilitator", getAppUrl(requestUrl.origin)));
 }
 
@@ -178,14 +213,28 @@ export async function GET(request: NextRequest) {
   const errorDescription = requestUrl.searchParams.get("error_description");
   const flow = requestUrl.searchParams.get("flow");
   const next = requestUrl.searchParams.get("next") ?? "/dashboard";
+  const hasOAuthCookie = Boolean(request.cookies.get(oauthFlowCookie)?.value);
+  const isOAuthFlow = flow === "oauth" || hasOAuthCookie;
 
   if (error) {
     const errorText = `${error} ${errorDescription ?? ""}`;
-    const message = isExpiredOrInvalidLink(errorText)
-      ? "Bekræftelseslinket er udløbet eller er allerede brugt. Skriv din e-mailadresse herunder, så sender vi et nyt link."
-      : "E-mailbekræftelsen kunne ikke gennemføres. Prøv det nyeste link fra din indbakke, eller send en ny bekræftelsesmail.";
+    console.error("Auth callback returned an error", errorText);
 
-    return confirmationRedirect(requestUrl, message, isExpiredOrInvalidLink(errorText) ? "expired" : "needed");
+    if (isOAuthFlow || !isExpiredOrInvalidLink(errorText)) {
+      return redirectAndClearOAuthCookie(
+        loginErrorRedirect(
+          requestUrl,
+          "Google-login kunne ikke gennemføres. Hvis du allerede har en SoulEvents-konto med samme e-mail, så log ind med e-mail og adgangskode denne gang.",
+        ),
+        hasOAuthCookie,
+      );
+    }
+
+    return confirmationRedirect(
+      requestUrl,
+      "Bekræftelseslinket er udløbet eller er allerede brugt. Skriv din e-mailadresse herunder, så sender vi et nyt link.",
+      "expired",
+    );
   }
 
   if (code) {
@@ -194,6 +243,16 @@ export async function GET(request: NextRequest) {
 
     if (exchangeError) {
       console.error("Auth callback session exchange failed", exchangeError);
+
+      if (isOAuthFlow) {
+        return redirectAndClearOAuthCookie(
+          loginErrorRedirect(
+            requestUrl,
+            "Google-login kunne ikke gennemføres. Prøv igen, eller log ind med e-mail og adgangskode.",
+          ),
+          hasOAuthCookie,
+        );
+      }
 
       if (!isExpiredOrInvalidLink(exchangeError.message)) {
         return confirmedRedirect(requestUrl, {
@@ -213,20 +272,65 @@ export async function GET(request: NextRequest) {
 
     if (!user) {
       console.error("Auth callback completed without a session user");
+      if (isOAuthFlow) {
+        return redirectAndClearOAuthCookie(
+          loginErrorRedirect(requestUrl, "Google-login kunne ikke gennemføres. Prøv igen."),
+          hasOAuthCookie,
+        );
+      }
+
       return confirmationRedirect(requestUrl, "Login kunne ikke gennemføres. Prøv igen.");
     }
 
-    if (flow === "oauth" || isOAuthUser(user)) {
+    if (isOAuthFlow || isOAuthUser(user)) {
       const { error: profileError, isNewProfile, needsProfileCompletion, role } = await ensureOAuthProfile(user);
 
       if (profileError) {
         console.error("OAuth profile preparation failed", profileError);
-        return confirmationRedirect(requestUrl, "Login lykkedes, men profilen kunne ikke gøres klar. Prøv igen om lidt.");
+        return redirectAndClearOAuthCookie(
+          loginErrorRedirect(requestUrl, "Login lykkedes, men profilen kunne ikke gøres klar. Prøv igen om lidt."),
+          hasOAuthCookie,
+        );
       }
 
-      return oauthRedirectFor(requestUrl, { isNewProfile, needsProfileCompletion, role });
+      return redirectAndClearOAuthCookie(
+        oauthRedirectFor(requestUrl, { isNewProfile, needsProfileCompletion, role }),
+        hasOAuthCookie,
+      );
     }
   } else {
+    if (isOAuthFlow) {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { error: profileError, isNewProfile, needsProfileCompletion, role } = await ensureOAuthProfile(user);
+
+        if (profileError) {
+          console.error("OAuth profile preparation failed without callback code", profileError);
+          return redirectAndClearOAuthCookie(
+            loginErrorRedirect(requestUrl, "Login lykkedes, men profilen kunne ikke gøres klar. Prøv igen om lidt."),
+            hasOAuthCookie,
+          );
+        }
+
+        return redirectAndClearOAuthCookie(
+          oauthRedirectFor(requestUrl, { isNewProfile, needsProfileCompletion, role }),
+          hasOAuthCookie,
+        );
+      }
+
+      return redirectAndClearOAuthCookie(
+        loginErrorRedirect(
+          requestUrl,
+          "Google-login kunne ikke gennemføres. Prøv igen, eller log ind med e-mail og adgangskode.",
+        ),
+        hasOAuthCookie,
+      );
+    }
+
     return confirmationRedirect(
       requestUrl,
       "Bekræftelseslinket mangler en kode. Åbn det nyeste link fra din indbakke, eller send en ny bekræftelsesmail herunder.",

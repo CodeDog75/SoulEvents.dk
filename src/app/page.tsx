@@ -5,6 +5,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { PartnerAdCarousel } from "@/components/ads/partner-ad-carousel";
 import { BrandLogo } from "@/components/brand-logo";
 import { EventMap } from "@/components/events/event-map";
@@ -46,6 +47,9 @@ type HomeProps = {
     longitude?: string;
     format?: string;
     country?: string;
+    code?: string;
+    error?: string;
+    error_description?: string;
     facilitator_q?: string;
   }>;
 };
@@ -986,6 +990,33 @@ async function getHomepageAds() {
 
 export default async function Home({ searchParams }: HomeProps) {
   const params = searchParams ? await searchParams : {};
+
+  if (params.code || params.error) {
+    const callbackParams = new URLSearchParams();
+
+    if (params.code) {
+      callbackParams.set("code", params.code);
+    }
+
+    if (params.error) {
+      callbackParams.set("error", params.error);
+    }
+
+    if (params.error_description) {
+      callbackParams.set("error_description", params.error_description);
+    }
+
+    for (const key of ["flow", "provider", "mode", "next"]) {
+      const value = params[key as keyof typeof params];
+
+      if (typeof value === "string" && value) {
+        callbackParams.set(key, value);
+      }
+    }
+
+    redirect(`/auth/callback?${callbackParams.toString()}`);
+  }
+
   const homeHeroImage = await getHomepageHeroImage();
   const weeklyReflection = await getActiveWeeklyReflection();
   const homepageAds = await getHomepageAds();
