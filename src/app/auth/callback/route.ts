@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAppUrl } from "@/lib/app-url";
 import { createClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/types/database";
 
@@ -9,9 +10,10 @@ function confirmationRedirect(requestUrl: URL, message: string, confirmation: "e
   const searchParams = new URLSearchParams({
     confirmation,
     message,
+    status: "error",
   });
 
-  return NextResponse.redirect(new URL(`/auth/login?${searchParams.toString()}`, requestUrl.origin));
+  return NextResponse.redirect(new URL(`/auth/confirmed?${searchParams.toString()}`, getAppUrl(requestUrl.origin)));
 }
 
 function isExpiredOrInvalidLink(errorText: string) {
@@ -143,12 +145,12 @@ export async function GET(request: NextRequest) {
       }
 
       if (isNewProfile && role === "facilitator") {
-        const profileUrl = new URL("/facilitator/profile", requestUrl.origin);
+        const profileUrl = new URL("/facilitator/profile", getAppUrl(requestUrl.origin));
         profileUrl.searchParams.set("message", "Velkommen til SoulEvents. Færdiggør din profil, så vi kan gøre den klar til godkendelse.");
         return NextResponse.redirect(profileUrl);
       }
 
-      return NextResponse.redirect(new URL(role === "admin" ? "/admin" : "/dashboard", requestUrl.origin));
+      return NextResponse.redirect(new URL(role === "admin" ? "/admin" : "/dashboard", getAppUrl(requestUrl.origin)));
     }
   } else {
     return confirmationRedirect(
@@ -157,7 +159,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const successUrl = new URL(next, requestUrl.origin);
-  successUrl.searchParams.set("message", "E-mailen er bekræftet. Du kan nu logge ind på SoulEvents.");
+  const successUrl = new URL("/auth/confirmed", getAppUrl(requestUrl.origin));
+  successUrl.searchParams.set("next", next);
   return NextResponse.redirect(successUrl);
 }

@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { env } from "@/lib/env";
+import { getAppUrl } from "@/lib/app-url";
 import { createClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/types/database";
 
@@ -21,6 +22,15 @@ function authRedirect(path: string, message: string): never {
 function authRedirectWithParams(path: string, params: Record<string, string>): never {
   const searchParams = new URLSearchParams(params);
   redirect(`${path}?${searchParams.toString()}`);
+}
+
+async function getRequestAppUrl() {
+  const headerList = await headers();
+  const host = headerList.get("x-forwarded-host") || headerList.get("host");
+  const proto = headerList.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+  const requestOrigin = host ? `${proto}://${host}` : undefined;
+
+  return getAppUrl(requestOrigin);
 }
 
 async function getAuthUserByEmail(email: string) {
@@ -104,7 +114,7 @@ export async function signInWithSocialProviderAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const appUrl = env.appUrl || "http://localhost:3001";
+  const appUrl = await getRequestAppUrl();
   const { data, error } = await supabase.auth.signInWithOAuth({
     options: {
       redirectTo: `${appUrl}/auth/callback?flow=oauth&mode=${mode}`,
@@ -186,10 +196,11 @@ export async function resendConfirmationAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const appUrl = await getRequestAppUrl();
   const { error } = await supabase.auth.resend({
     email,
     options: {
-      emailRedirectTo: `${env.appUrl || "http://localhost:3001"}/auth/callback`,
+      emailRedirectTo: `${appUrl}/auth/callback`,
     },
     type: "signup",
   });
@@ -226,8 +237,9 @@ export async function requestPasswordResetAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const appUrl = await getRequestAppUrl();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: (env.appUrl || "http://localhost:3001") + "/auth/callback?next=/auth/update-password",
+    redirectTo: `${appUrl}/auth/callback?next=/auth/update-password`,
   });
 
   if (error) {
@@ -302,11 +314,12 @@ export async function signUpFacilitatorAction(formData: FormData) {
 
 
   const supabase = await createClient();
+  const appUrl = await getRequestAppUrl();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      emailRedirectTo: `${env.appUrl || "http://localhost:3001"}/auth/callback`,
+      emailRedirectTo: `${appUrl}/auth/callback`,
       data: {
         full_name: fullName,
         role: "facilitator",
