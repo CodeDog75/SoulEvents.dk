@@ -16,6 +16,24 @@ function getString(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function getSafeOrigin(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    const url = new URL(value);
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return "";
+    }
+
+    return url.origin;
+  } catch {
+    return "";
+  }
+}
+
 function authRedirect(path: string, message: string): never {
   redirect(`${path}?message=${encodeURIComponent(message)}`);
 }
@@ -108,6 +126,7 @@ async function ensureStoredUserProfile(user: {
 export async function signInWithSocialProviderAction(formData: FormData) {
   const provider = getString(formData, "provider") as SocialAuthProvider;
   const mode = getString(formData, "mode") === "signup" ? "signup" : "login";
+  const browserOrigin = getSafeOrigin(getString(formData, "origin"));
   const allowedProviders: SocialAuthProvider[] = ["apple", "facebook", "google"];
 
   if (!allowedProviders.includes(provider)) {
@@ -115,7 +134,7 @@ export async function signInWithSocialProviderAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const appUrl = await getRequestAppUrl();
+  const appUrl = browserOrigin || (await getRequestAppUrl());
   const cookieStore = await cookies();
   const callbackUrl = new URL("/auth/callback", appUrl);
   callbackUrl.searchParams.set("flow", "oauth");

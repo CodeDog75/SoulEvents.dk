@@ -1,3 +1,5 @@
+"use client";
+
 import { signInWithSocialProviderAction } from "@/app/auth/actions";
 
 type SocialAuthButtonsProps = {
@@ -59,8 +61,16 @@ export function SocialAuthButtons({ mode }: SocialAuthButtonsProps) {
         <form action={signInWithSocialProviderAction} key={provider.provider}>
           <input name="provider" type="hidden" value={provider.provider} />
           <input name="mode" type="hidden" value={mode} />
+          <input name="origin" type="hidden" />
           <button
             className="inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-2xl border border-[#7A4EAB]/12 bg-white px-4 text-sm font-semibold text-[#2F2633] shadow-[0_10px_28px_rgba(47,38,51,0.07)] transition hover:-translate-y-0.5 hover:border-[#7A4EAB]/25 hover:shadow-soft"
+            onClick={(event) => {
+              const originInput = event.currentTarget.form?.elements.namedItem("origin");
+
+              if (originInput instanceof HTMLInputElement) {
+                originInput.value = window.location.origin;
+              }
+            }}
             type="submit"
           >
             {provider.icon}
