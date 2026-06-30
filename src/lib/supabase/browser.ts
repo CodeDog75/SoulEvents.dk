@@ -1,10 +1,12 @@
 import { createBrowserClient } from "@supabase/ssr";
-import { env } from "@/lib/env";
 
 export function createClient() {
-  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error("Supabase browser credentials are missing.");
   }
 
-  return createBrowserClient(env.supabaseUrl, env.supabaseAnonKey);
+  return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }
