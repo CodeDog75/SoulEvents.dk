@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import type { AppRole } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +25,85 @@ function isExpiredOrInvalidLink(errorText: string) {
   );
 }
 
+function userDisplayName(user: {
+  email?: string;
+  user_metadata?: {
+    full_name?: string;
+    name?: string;
+  };
+}) {
+  return user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Arrangør";
+}
+
+async function ensureOAuthProfile(user: {
+  id: string;
+  email?: string;
+  user_metadata?: {
+    full_name?: string;
+    name?: string;
+    role?: string;
+  };
+}) {
+  const admin = createAdminClient();
+  const { data: existingProfile, error: profileLookupError } = await admin
+    .from("profiles")
+    .select("id, role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileLookupError) {
+    return { error: profileLookupError, isNewProfile: false, role: "facilitator" as AppRole };
+  }
+
+  const role = (existingProfile?.role ?? (user.user_metadata?.role === "admin" ? "admin" : "facilitator")) as AppRole;
+  const isNewProfile = !existingProfile;
+
+  if (!existingProfile) {
+    const { error: profileError } = await admin.from("profiles").insert({
+      email: user.email || "",
+      full_name: userDisplayName(user),
+      id: user.id,
+      phone: null,
+      role,
+    });
+
+    if (profileError) {
+      return { error: profileError, isNewProfile, role };
+    }
+  }
+
+  if (role === "facilitator") {
+    const { data: facilitatorProfile, error: facilitatorLookupError } = await admin
+      .from("facilitator_profiles")
+      .select("id")
+      .eq("profile_id", user.id)
+      .maybeSingle();
+
+    if (facilitatorLookupError) {
+      return { error: facilitatorLookupError, isNewProfile, role };
+    }
+
+    if (!facilitatorProfile) {
+      const { error: facilitatorError } = await admin.from("facilitator_profiles").insert({
+        profile_id: user.id,
+        status: "pending",
+      });
+
+      if (facilitatorError) {
+        return { error: facilitatorError, isNewProfile, role };
+      }
+    }
+  }
+
+  return { error: null, isNewProfile, role };
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const error = requestUrl.searchParams.get("error");
   const errorDescription = requestUrl.searchParams.get("error_description");
+  const flow = requestUrl.searchParams.get("flow");
   const next = requestUrl.searchParams.get("next") ?? "/dashboard";
 
   if (error) {
@@ -49,6 +125,30 @@ export async function GET(request: NextRequest) {
         : "E-mailbekræftelsen kunne ikke gemmes i browseren. Prøv det nyeste link fra din indbakke, eller send en ny bekræftelsesmail.";
 
       return confirmationRedirect(requestUrl, message, isExpiredOrInvalidLink(exchangeError.message) ? "expired" : "needed");
+    }
+
+    if (flow === "oauth") {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        return confirmationRedirect(requestUrl, "Login kunne ikke gennemføres. Prøv igen.");
+      }
+
+      const { error: profileError, isNewProfile, role } = await ensureOAuthProfile(user);
+
+      if (profileError) {
+        return confirmationRedirect(requestUrl, "Login lykkedes, men profilen kunne ikke gøres klar. Prøv igen om lidt.");
+      }
+
+      if (isNewProfile && role === "facilitator") {
+        const profileUrl = new URL("/facilitator/profile", requestUrl.origin);
+        profileUrl.searchParams.set("message", "Velkommen til SoulEvents. Færdiggør din profil, så vi kan gøre den klar til godkendelse.");
+        return NextResponse.redirect(profileUrl);
+      }
+
+      return NextResponse.redirect(new URL(role === "admin" ? "/admin" : "/dashboard", requestUrl.origin));
     }
   } else {
     return confirmationRedirect(

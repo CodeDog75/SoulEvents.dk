@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
+import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { resendConfirmationAction, signInAction } from "@/app/auth/actions";
 
 type LoginPageProps = {
@@ -47,6 +48,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <AuthMessage message={message} />
         </div>
 
+        <div className="mt-6">
+          <SocialAuthButtons mode="login" />
+        </div>
+
+        <div className="my-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#2F2633]/42">
+          <span className="h-px flex-1 bg-[#EDE4F7]" />
+          eller
+          <span className="h-px flex-1 bg-[#EDE4F7]" />
+        </div>
+
         <form action={signInAction} className="mt-6 grid gap-4">
           <label className="grid gap-2 text-sm font-medium text-ink/72">
             E-mail
@@ -71,13 +82,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             />
           </label>
 
-                    <div className="flex justify-end">
+          <div className="flex justify-end">
             <Link className="text-sm font-semibold text-sage-700 hover:text-terracotta" href="/auth/forgot-password">
               Glemt adgangskode?
             </Link>
           </div>
 
-<button
+          <button
             className="mt-2 h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700"
             type="submit"
           >

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
 import { SignupForm } from "@/components/auth/signup-form";
+import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { createClient } from "@/lib/supabase/server";
 
 type SignUpPageProps = {
@@ -33,7 +34,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
         </Link>
       </div>
       <section className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
-        <aside className="rounded-[1.75rem] border border-[#EDE4F7] bg-white/80 p-6 shadow-soft sm:p-8">
+        <aside className="order-1 rounded-[1.75rem] border border-[#EDE4F7] bg-white/80 p-6 shadow-soft sm:p-8 lg:col-start-1 lg:row-start-1">
           <Link className="mb-8 flex items-center gap-3" href="/">
             <BrandLogo className="h-28 w-28 sm:h-36 sm:w-36" priority />
             <div>
@@ -53,36 +54,15 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
             nærvær og balance i hverdagen.
           </p>
 
-          <section className="mt-5 rounded-[1.25rem] border border-[#D8A7B1]/35 bg-[#D8A7B1]/14 p-5">
-            <h2 className="text-lg font-semibold text-[#2F2633]">💜 Gratis og uden binding</h2>
-            <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
-              Det er gratis at oprette en arrangørprofil på SoulEvents.dk, og det er gratis at oprette events. Du har altid fuld kontrol over dine oplysninger og kan redigere dine oplysninger eller sætte din profil på pause, når du ønsker det.
-            </p>
-          </section>
-
-          <section className="mt-5 rounded-[1.25rem] border border-[#EDE4F7] bg-white/75 p-5">
-            <h2 className="text-lg font-semibold text-[#2F2633]">Dansk udviklet med nærvær</h2>
-            <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
-              SoulEvents er dansk udviklet med fokus på tryghed, fællesskab og enkelhed. Du er altid velkommen til at
-              skrive til SoulEvents.dk, hvis du ønsker at høre mere, inden du opretter din profil.
-            </p>
-            <Link
-              className="mt-4 inline-flex min-h-10 items-center justify-center rounded-full border border-[#7A4EAB]/25 px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#EDE4F7]"
-              href="/#contact"
-            >
-              Skriv til SoulEvents.dk
-            </Link>
-          </section>
-
-          <section className="mt-5 rounded-[1.25rem] border border-[#A8BFA3]/35 bg-[#A8BFA3]/14 p-5">
-            <h2 className="text-lg font-semibold text-[#2F2633]">Hvem er SoulEvents for?</h2>
-            <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
-              SoulEvents er for dig, der inviterer mennesker ind i fællesskaber, oplevelser og udviklingsrum. Her finder du plads til alt fra yoga, meditation og saunagus til healing, ceremonier, retreats, musik, naturoplevelser og andre aktiviteter, der skaber nærvær, balance og forbindelse.
-            </p>
-          </section>
+          <Link
+            className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6D439C]"
+            href="#signup-form"
+          >
+            Opret profil nu
+          </Link>
         </aside>
 
-        <section className="rounded-[1.75rem] border border-[#EDE4F7] bg-white p-5 shadow-soft sm:p-8">
+        <section className="order-2 rounded-[1.75rem] border border-[#EDE4F7] bg-white p-5 shadow-soft sm:p-8 lg:col-start-2 lg:row-span-4 lg:row-start-1" id="signup-form">
           <div className="mb-6">
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Opret profil</p>
             <h2 className="mt-2 text-2xl font-semibold text-[#2F2633]">Dine loginoplysninger</h2>
@@ -92,6 +72,16 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           </div>
 
           <AuthMessage message={message} />
+
+          <div className="mt-6">
+            <SocialAuthButtons mode="signup" />
+          </div>
+
+          <div className="my-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#2F2633]/42">
+            <span className="h-px flex-1 bg-[#EDE4F7]" />
+            eller
+            <span className="h-px flex-1 bg-[#EDE4F7]" />
+          </div>
 
           {rateLimitMessage && (
             <div className="mt-4 rounded-2xl border border-[#F0DEC0] bg-[#FFF6E8] p-4 text-sm text-[#2F2633]/75">
@@ -168,6 +158,37 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
               Log ind
             </Link>
           </p>
+        </section>
+
+        <section className="order-3 rounded-[1.25rem] border border-[#D8A7B1]/35 bg-[#D8A7B1]/14 p-5 lg:col-start-1 lg:row-start-2">
+          <h2 className="text-lg font-semibold text-[#2F2633]">💜 Gratis og uden binding</h2>
+          <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
+            Det er gratis at oprette en arrangørprofil på SoulEvents.dk, og det er gratis at oprette events. Du har altid fuld kontrol over dine oplysninger og kan redigere dine oplysninger eller sætte din profil på pause, når du ønsker det.
+          </p>
+        </section>
+
+        <section className="order-4 rounded-[1.25rem] border border-[#A8BFA3]/35 bg-[#A8BFA3]/14 p-5 lg:col-start-1 lg:row-start-3">
+          <h2 className="text-lg font-semibold text-[#2F2633]">Hvem er SoulEvents for?</h2>
+          <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
+            SoulEvents er for dig, der inviterer mennesker ind i fællesskaber, oplevelser og udviklingsrum. Her finder du plads til alt fra yoga, meditation og saunagus til healing, ceremonier, retreats, musik, naturoplevelser og andre aktiviteter, der skaber nærvær, balance og forbindelse.
+          </p>
+          <h2 className="mt-5 text-lg font-semibold text-[#2F2633]">Dansk udviklet med nærvær</h2>
+          <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
+            SoulEvents er dansk udviklet med fokus på tryghed, fællesskab og enkelhed.
+          </p>
+        </section>
+
+        <section className="order-5 rounded-[1.25rem] border border-[#EDE4F7] bg-white/75 p-5 lg:col-start-1 lg:row-start-4">
+          <h2 className="text-lg font-semibold text-[#2F2633]">Kontakt SoulEvents</h2>
+          <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
+            Du er altid velkommen til at skrive til SoulEvents.dk, hvis du ønsker at høre mere, inden du opretter din profil.
+          </p>
+          <Link
+            className="mt-4 inline-flex min-h-10 items-center justify-center rounded-full border border-[#7A4EAB]/25 px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#EDE4F7]"
+            href="/#contact"
+          >
+            Skriv til SoulEvents.dk
+          </Link>
         </section>
       </section>
     </main>

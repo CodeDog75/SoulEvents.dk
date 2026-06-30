@@ -7,6 +7,8 @@ import { env } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/types/database";
 
+type SocialAuthProvider = "apple" | "facebook" | "google";
+
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
@@ -39,7 +41,10 @@ async function ensureStoredUserProfile(user: {
   id: string;
   email?: string;
   user_metadata?: {
+    avatar_url?: string;
     full_name?: string;
+    name?: string;
+    picture?: string;
     role?: string;
   };
 }) {
@@ -51,7 +56,7 @@ async function ensureStoredUserProfile(user: {
     const { error: profileError } = await admin.from("profiles").insert({
       id: user.id,
       role,
-      full_name: user.user_metadata?.full_name || user.email || "Bruger",
+      full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Bruger",
       email: user.email || "",
       phone: null,
     });
@@ -87,6 +92,35 @@ async function ensureStoredUserProfile(user: {
   }
 
   return null;
+}
+
+export async function signInWithSocialProviderAction(formData: FormData) {
+  const provider = getString(formData, "provider") as SocialAuthProvider;
+  const mode = getString(formData, "mode") === "signup" ? "signup" : "login";
+  const allowedProviders: SocialAuthProvider[] = ["apple", "facebook", "google"];
+
+  if (!allowedProviders.includes(provider)) {
+    authRedirect(mode === "signup" ? "/auth/signup" : "/auth/login", "Loginmetoden kunne ikke genkendes.");
+  }
+
+  const supabase = await createClient();
+  const appUrl = env.appUrl || "http://localhost:3001";
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    options: {
+      redirectTo: `${appUrl}/auth/callback?flow=oauth&mode=${mode}`,
+      queryParams: provider === "google" ? { access_type: "offline", prompt: "consent" } : undefined,
+    },
+    provider,
+  });
+
+  if (error || !data.url) {
+    authRedirect(
+      mode === "signup" ? "/auth/signup" : "/auth/login",
+      "Login med " + provider + " kunne ikke startes lige nu. Prøv igen om lidt.",
+    );
+  }
+
+  redirect(data.url);
 }
 
 export async function signInAction(formData: FormData) {
