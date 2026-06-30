@@ -6,6 +6,7 @@ type ConfirmedPageProps = {
   searchParams: Promise<{
     message?: string;
     next?: string;
+    session?: string;
     status?: string;
   }>;
 };
@@ -13,9 +14,10 @@ type ConfirmedPageProps = {
 export const dynamic = "force-dynamic";
 
 export default async function ConfirmedPage({ searchParams }: ConfirmedPageProps) {
-  const { message, next, status } = await searchParams;
+  const { message, next, session, status } = await searchParams;
   const profile = await getCurrentProfile();
   const isError = status === "error";
+  const needsLogin = session === "missing";
   const primaryHref = profile
     ? profile.role === "facilitator"
       ? "/facilitator/profile"
@@ -52,6 +54,11 @@ export default async function ConfirmedPage({ searchParams }: ConfirmedPageProps
               <p className="mt-4 text-base leading-7 text-[#2F2633]/72">
                 Velkommen til SoulEvents. Du kan nu logge ind og færdiggøre din arrangørprofil.
               </p>
+              {needsLogin ? (
+                <p className="mt-4 rounded-2xl border border-[#EDE4F7] bg-white p-4 text-sm leading-6 text-[#2F2633]/70">
+                  Din e-mail er bekræftet. Af sikkerhedshensyn skal du blot logge ind igen, før du fortsætter.
+                </p>
+              ) : null}
               <p className="mt-4 text-base leading-7 text-[#2F2633]/72">
                 For at blive godkendt som arrangør skal du færdiggøre din profil med beskrivelse,
                 kontaktoplysninger og relevante billeder. Når profilen er klar, gennemgår SoulEvents den og giver dig

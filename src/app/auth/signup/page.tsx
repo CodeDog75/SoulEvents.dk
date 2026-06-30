@@ -33,8 +33,8 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           Tilbage til forsiden
         </Link>
       </div>
-      <section className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start">
-        <aside className="order-1 rounded-[1.75rem] border border-[#EDE4F7] bg-white/80 p-6 shadow-soft sm:p-8 lg:col-start-1 lg:row-start-1">
+      <section className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-2 lg:items-stretch">
+        <aside className="order-1 rounded-[1.75rem] border border-[#EDE4F7] bg-white/80 p-6 shadow-soft sm:p-8 lg:col-start-1 lg:row-start-1 lg:flex lg:h-full lg:flex-col lg:justify-center lg:p-10">
           <Link className="mb-8 flex items-center gap-3" href="/">
             <BrandLogo className="h-28 w-28 sm:h-36 sm:w-36" priority />
             <div>
@@ -62,7 +62,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           </Link>
         </aside>
 
-        <section className="order-2 rounded-[1.75rem] border border-[#EDE4F7] bg-white p-5 shadow-soft sm:p-8 lg:col-start-2 lg:row-span-4 lg:row-start-1" id="signup-form">
+        <section className="order-2 rounded-[1.75rem] border border-[#EDE4F7] bg-white p-5 shadow-soft sm:p-8 lg:col-start-2 lg:row-start-1 lg:p-10" id="signup-form">
           <div className="mb-6">
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Opret profil</p>
             <h2 className="mt-2 text-2xl font-semibold text-[#2F2633]">Dine loginoplysninger</h2>
@@ -151,7 +151,6 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
             </p>
           </section>
 
-
           <p className="mt-6 text-sm text-[#2F2633]/66">
             Har du allerede en konto?{" "}
             <Link className="font-semibold text-[#7A4EAB] hover:text-[#D8A7B1]" href="/auth/login">
@@ -160,14 +159,14 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           </p>
         </section>
 
-        <section className="order-3 rounded-[1.25rem] border border-[#D8A7B1]/35 bg-[#D8A7B1]/14 p-5 lg:col-start-1 lg:row-start-2">
+        <section className="order-3 rounded-[1.25rem] border border-[#D8A7B1]/35 bg-[#D8A7B1]/14 p-5 lg:col-start-1 lg:row-start-2 lg:p-7">
           <h2 className="text-lg font-semibold text-[#2F2633]">💜 Gratis og uden binding</h2>
           <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
             Det er gratis at oprette en arrangørprofil på SoulEvents.dk, og det er gratis at oprette events. Du har altid fuld kontrol over dine oplysninger og kan redigere dine oplysninger eller sætte din profil på pause, når du ønsker det.
           </p>
         </section>
 
-        <section className="order-4 rounded-[1.25rem] border border-[#A8BFA3]/35 bg-[#A8BFA3]/14 p-5 lg:col-start-1 lg:row-start-3">
+        <section className="order-4 rounded-[1.25rem] border border-[#A8BFA3]/35 bg-[#A8BFA3]/14 p-5 lg:col-start-2 lg:row-start-2 lg:p-7">
           <h2 className="text-lg font-semibold text-[#2F2633]">Hvem er SoulEvents for?</h2>
           <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
             SoulEvents er for dig, der inviterer mennesker ind i fællesskaber, oplevelser og udviklingsrum. Her finder du plads til alt fra yoga, meditation og saunagus til healing, ceremonier, retreats, musik, naturoplevelser og andre aktiviteter, der skaber nærvær, balance og forbindelse.
@@ -178,7 +177,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           </p>
         </section>
 
-        <section className="order-5 rounded-[1.25rem] border border-[#EDE4F7] bg-white/75 p-5 lg:col-start-1 lg:row-start-4">
+        <section className="order-5 rounded-[1.25rem] border border-[#EDE4F7] bg-white/75 p-5 lg:col-span-2 lg:row-start-3 lg:p-7">
           <h2 className="text-lg font-semibold text-[#2F2633]">Kontakt SoulEvents</h2>
           <p className="mt-2 text-sm leading-6 text-[#2F2633]/72">
             Du er altid velkommen til at skrive til SoulEvents.dk, hvis du ønsker at høre mere, inden du opretter din profil.

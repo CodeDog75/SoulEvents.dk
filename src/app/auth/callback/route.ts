@@ -16,6 +16,13 @@ function confirmationRedirect(requestUrl: URL, message: string, confirmation: "e
   return NextResponse.redirect(new URL(`/auth/confirmed?${searchParams.toString()}`, getAppUrl(requestUrl.origin)));
 }
 
+function confirmedRedirect(requestUrl: URL, params?: Record<string, string>) {
+  const searchParams = new URLSearchParams(params);
+  const path = searchParams.size > 0 ? `/auth/confirmed?${searchParams.toString()}` : "/auth/confirmed";
+
+  return NextResponse.redirect(new URL(path, getAppUrl(requestUrl.origin)));
+}
+
 function isExpiredOrInvalidLink(errorText: string) {
   const normalized = errorText.toLowerCase();
 
@@ -122,9 +129,14 @@ export async function GET(request: NextRequest) {
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (exchangeError) {
-      const message = isExpiredOrInvalidLink(exchangeError.message)
-        ? "Bekræftelseslinket er udløbet eller er allerede brugt. Skriv din e-mailadresse herunder, så sender vi et nyt link."
-        : "E-mailbekræftelsen kunne ikke gemmes i browseren. Prøv det nyeste link fra din indbakke, eller send en ny bekræftelsesmail.";
+      if (!isExpiredOrInvalidLink(exchangeError.message)) {
+        return confirmedRedirect(requestUrl, {
+          session: "missing",
+        });
+      }
+
+      const message =
+        "Bekræftelseslinket er udløbet eller er allerede brugt. Skriv din e-mailadresse herunder, så sender vi et nyt link.";
 
       return confirmationRedirect(requestUrl, message, isExpiredOrInvalidLink(exchangeError.message) ? "expired" : "needed");
     }
@@ -159,7 +171,5 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const successUrl = new URL("/auth/confirmed", getAppUrl(requestUrl.origin));
-  successUrl.searchParams.set("next", next);
-  return NextResponse.redirect(successUrl);
+  return confirmedRedirect(requestUrl, { next });
 }

@@ -121,7 +121,21 @@ export function SignupForm({ documents, restoreValues = false }: SignupFormProps
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
-          Telefon
+          <span className="flex items-center gap-2">
+            Telefon
+            <span className="group relative inline-flex">
+              <button
+                aria-label="Telefonnummer er valgfrit"
+                className="grid size-6 place-items-center rounded-full border border-[#4B5645]/25 bg-[#FAF6EF] text-xs font-semibold text-[#4B5645]"
+                type="button"
+              >
+                i
+              </button>
+              <span className="pointer-events-none absolute left-1/2 top-8 z-10 hidden w-56 -translate-x-1/2 rounded-2xl border border-[#EDE4F7] bg-white p-3 text-xs font-medium leading-5 text-[#2F2633]/70 shadow-soft group-hover:block group-focus-within:block">
+                Valgfrit. Indtast præcis 8 cifre uden landekode.
+              </span>
+            </span>
+          </span>
           <input
             autoComplete="tel"
             className="h-12 min-w-0 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
@@ -135,7 +149,6 @@ export function SignupForm({ documents, restoreValues = false }: SignupFormProps
             type="text"
             value={values.phone}
           />
-          <span className="text-xs leading-5 text-[#2F2633]/52">Valgfrit. Indtast præcis 8 cifre uden landekode.</span>
         </label>
       </div>
 
