@@ -1,10 +1,13 @@
 "use client";
 
-import { signInWithSocialProviderAction } from "@/app/auth/actions";
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/browser";
 
 type SocialAuthButtonsProps = {
   mode: "login" | "signup";
 };
+
+type SocialAuthProvider = "apple" | "facebook" | "google";
 
 const providers = [
   {
@@ -55,29 +58,61 @@ const providers = [
 ] as const;
 
 export function SocialAuthButtons({ mode }: SocialAuthButtonsProps) {
+  const [error, setError] = useState("");
+  const [pendingProvider, setPendingProvider] = useState<SocialAuthProvider | null>(null);
+
+  async function startSocialLogin(provider: SocialAuthProvider) {
+    setError("");
+    setPendingProvider(provider);
+
+    try {
+      const callbackUrl = new URL("/auth/callback", window.location.origin);
+      callbackUrl.searchParams.set("flow", "oauth");
+      callbackUrl.searchParams.set("provider", provider);
+      callbackUrl.searchParams.set("mode", mode);
+
+      const supabase = createClient();
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
+        options: {
+          redirectTo: callbackUrl.toString(),
+          queryParams: provider === "google" ? { access_type: "offline", prompt: "select_account" } : undefined,
+        },
+        provider,
+      });
+
+      if (signInError) {
+        setError(`Login med ${provider} kunne ikke startes lige nu. Prøv igen om lidt.`);
+        setPendingProvider(null);
+      }
+    } catch (loginError) {
+      console.error("Social login could not start", loginError);
+      setError("Login kunne ikke startes lige nu. Prøv igen om lidt.");
+      setPendingProvider(null);
+    }
+  }
+
   return (
     <section aria-label="Social login" className="grid gap-3">
       {providers.map((provider) => (
-        <form action={signInWithSocialProviderAction} key={provider.provider}>
-          <input name="provider" type="hidden" value={provider.provider} />
-          <input name="mode" type="hidden" value={mode} />
-          <input name="origin" type="hidden" />
+        <div key={provider.provider}>
           <button
+            aria-busy={pendingProvider === provider.provider}
             className="inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-2xl border border-[#7A4EAB]/12 bg-white px-4 text-sm font-semibold text-[#2F2633] shadow-[0_10px_28px_rgba(47,38,51,0.07)] transition hover:-translate-y-0.5 hover:border-[#7A4EAB]/25 hover:shadow-soft"
-            onClick={(event) => {
-              const originInput = event.currentTarget.form?.elements.namedItem("origin");
-
-              if (originInput instanceof HTMLInputElement) {
-                originInput.value = window.location.origin;
-              }
-            }}
-            type="submit"
+            disabled={Boolean(pendingProvider)}
+            onClick={() => startSocialLogin(provider.provider)}
+            type="button"
           >
             {provider.icon}
-            {provider.label}
+            {pendingProvider === provider.provider ? "Sender dig videre..." : provider.label}
           </button>
-        </form>
+        </div>
       ))}
+
+      {error ? (
+        <p className="rounded-2xl border border-[#D8A7B1]/35 bg-[#FFF8F6] px-4 py-3 text-sm leading-6 text-[#8A3342]">
+          {error}
+        </p>
+      ) : null}
 
       <p className="text-xs leading-5 text-[#2F2633]/58">
         Vi henter kun de oplysninger, du vælger at dele, f.eks. navn, e-mail og profilbillede.

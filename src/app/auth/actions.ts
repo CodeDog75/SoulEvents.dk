@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -9,29 +8,9 @@ import { getAppUrl } from "@/lib/app-url";
 import { createClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/types/database";
 
-type SocialAuthProvider = "apple" | "facebook" | "google";
-
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
-}
-
-function getSafeOrigin(value: string) {
-  if (!value) {
-    return "";
-  }
-
-  try {
-    const url = new URL(value);
-
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return "";
-    }
-
-    return url.origin;
-  } catch {
-    return "";
-  }
 }
 
 function authRedirect(path: string, message: string): never {
@@ -121,49 +100,6 @@ async function ensureStoredUserProfile(user: {
   }
 
   return null;
-}
-
-export async function signInWithSocialProviderAction(formData: FormData) {
-  const provider = getString(formData, "provider") as SocialAuthProvider;
-  const mode = getString(formData, "mode") === "signup" ? "signup" : "login";
-  const browserOrigin = getSafeOrigin(getString(formData, "origin"));
-  const allowedProviders: SocialAuthProvider[] = ["apple", "facebook", "google"];
-
-  if (!allowedProviders.includes(provider)) {
-    authRedirect(mode === "signup" ? "/auth/signup" : "/auth/login", "Loginmetoden kunne ikke genkendes.");
-  }
-
-  const supabase = await createClient();
-  const appUrl = browserOrigin || (await getRequestAppUrl());
-  const cookieStore = await cookies();
-  const callbackUrl = new URL("/auth/callback", appUrl);
-  callbackUrl.searchParams.set("flow", "oauth");
-  callbackUrl.searchParams.set("provider", provider);
-  callbackUrl.searchParams.set("mode", mode);
-  cookieStore.set("soulevents_oauth_flow", provider, {
-    httpOnly: true,
-    maxAge: 10 * 60,
-    path: "/",
-    sameSite: "lax",
-    secure: appUrl.startsWith("https://"),
-  });
-
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    options: {
-      redirectTo: callbackUrl.toString(),
-      queryParams: provider === "google" ? { access_type: "offline", prompt: "consent" } : undefined,
-    },
-    provider,
-  });
-
-  if (error || !data.url) {
-    authRedirect(
-      mode === "signup" ? "/auth/signup" : "/auth/login",
-      "Login med " + provider + " kunne ikke startes lige nu. Prøv igen om lidt.",
-    );
-  }
-
-  redirect(data.url);
 }
 
 export async function signInAction(formData: FormData) {
