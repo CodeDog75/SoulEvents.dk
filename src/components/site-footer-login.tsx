@@ -20,6 +20,9 @@ export function SiteFooterLogin() {
           <Link className="transition hover:text-rose" href="/privacy">
             Privatlivspolitik
           </Link>
+          <Link className="transition hover:text-rose" href="/terms">
+            Vilkår
+          </Link>
           <Link className="transition hover:text-rose" href="/auth/login">
             Log ind
           </Link>
