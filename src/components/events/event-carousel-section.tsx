@@ -215,10 +215,36 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
           </Link>
         </div>
       </div>
-      <div ref={scrollerRef} className="-mx-5 flex snap-x gap-4 overflow-x-auto px-5 pb-3 sm:-mx-8 sm:px-8">
-        {events.map((event) => (
-          <EventCardVisual event={event} key={event.id} />
-        ))}
+      <div className="relative">
+        {canScrollLeft && (
+          <button
+            aria-label={"Scroll " + title + " mod venstre"}
+            className="absolute bottom-3 left-0 top-0 z-10 hidden w-16 items-center justify-start bg-gradient-to-r from-white via-white/82 to-transparent pl-2 text-[#7A4EAB] transition hover:text-olive sm:flex"
+            onClick={() => scrollCards("left")}
+            type="button"
+          >
+            <span className="grid size-11 place-items-center rounded-full bg-white shadow-lift">
+              <ChevronLeft className="size-6" aria-hidden="true" />
+            </span>
+          </button>
+        )}
+        {canScrollRight && (
+          <button
+            aria-label={"Scroll " + title + " mod højre"}
+            className="absolute bottom-3 right-0 top-0 z-10 hidden w-16 items-center justify-end bg-gradient-to-l from-white via-white/82 to-transparent pr-2 text-[#7A4EAB] transition hover:text-olive sm:flex"
+            onClick={() => scrollCards("right")}
+            type="button"
+          >
+            <span className="grid size-11 place-items-center rounded-full bg-white shadow-lift">
+              <ChevronRight className="size-6" aria-hidden="true" />
+            </span>
+          </button>
+        )}
+        <div ref={scrollerRef} className="-mx-5 flex snap-x gap-4 overflow-x-auto px-5 pb-3 sm:-mx-8 sm:px-8">
+          {events.map((event) => (
+            <EventCardVisual event={event} key={event.id} />
+          ))}
+        </div>
       </div>
     </section>
   );

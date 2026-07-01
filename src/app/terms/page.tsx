@@ -40,13 +40,13 @@ export default function TermsPage() {
   return (
     <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
       <section className="mx-auto max-w-[1100px] px-5 py-8 sm:px-8 sm:py-12">
-        <Link className="inline-flex items-center gap-2 text-sm font-semibold text-olive transition hover:text-rose" href="/">
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          Tilbage til forsiden
-        </Link>
-
         <div className="mt-8 rounded-[28px] bg-white p-6 shadow-soft sm:p-8 lg:p-10">
-          <div className="grid gap-8 lg:grid-cols-[0.75fr_1.25fr] lg:items-center">
+          <Link className="inline-flex items-center gap-2 text-sm font-semibold text-olive transition hover:text-rose" href="/">
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            Tilbage til forsiden
+          </Link>
+
+          <div className="mt-8 grid gap-8 lg:grid-cols-[0.75fr_1.25fr] lg:items-center">
             <div className="flex items-center gap-5">
               <BrandLogo className="h-24 w-24 sm:h-32 sm:w-32" priority />
               <div>

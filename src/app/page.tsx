@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Fragment } from "react";
 import { PartnerAdCarousel } from "@/components/ads/partner-ad-carousel";
 import { BrandLogo } from "@/components/brand-logo";
 import { EventMap } from "@/components/events/event-map";
@@ -782,6 +783,7 @@ function LocalServiceProviderSection({ providers }: { providers: LocalServicePro
           >
             <div className="flex items-start gap-3">
               {provider.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img alt="" className="size-14 rounded-full object-cover" src={provider.imageUrl} />
               ) : (
                 <span className="flex size-14 items-center justify-center rounded-full bg-[#EDE4F7] text-lg font-semibold text-[#7A4EAB]">
@@ -948,7 +950,7 @@ async function getHomeFacilitators(queryText: string) {
 }
 
 
-async function getHomepageAds() {
+async function getHomepageAds(placement: "middle" | "bottom") {
   if (!env.supabaseUrl || !env.supabaseServiceRoleKey) {
     return [];
   }
@@ -962,9 +964,10 @@ async function getHomepageAds() {
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .from("ads")
-    .select("id, title, image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count")
+    .select("id, title, image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count, homepage_placement")
     .eq("is_active", true)
     .eq("show_on_homepage", true)
+    .eq("homepage_placement", placement)
     .or("starts_at.is.null,starts_at.lte." + nowIso)
     .or("ends_at.is.null,ends_at.gte." + nowIso)
     .order("priority", { ascending: true })
@@ -1019,7 +1022,10 @@ export default async function Home({ searchParams }: HomeProps) {
 
   const homeHeroImage = await getHomepageHeroImage();
   const weeklyReflection = await getActiveWeeklyReflection();
-  const homepageAds = await getHomepageAds();
+  const [homepageMiddleAds, homepageBottomAds] = await Promise.all([
+    getHomepageAds("middle"),
+    getHomepageAds("bottom"),
+  ]);
   const facilitatorQuery = (params.facilitator_q ?? params.q ?? "").trim();
   const selected = {
     q: params.q?.trim() ?? "",
@@ -1298,8 +1304,13 @@ export default async function Home({ searchParams }: HomeProps) {
               <h2 className="mt-1 text-4xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Find dit næste event</h2>
             </div>
 
-            {homepageEventSections.map((section) => (
-              <EventCarouselSection events={section.events} href={section.href} key={section.title} title={section.title} />
+            {homepageEventSections.map((section, index) => (
+              <Fragment key={section.title}>
+                <EventCarouselSection events={section.events} href={section.href} title={section.title} />
+                {index === 1 && homepageMiddleAds.length > 0 ? (
+                  <PartnerAdCarousel ads={homepageMiddleAds} className="py-1" />
+                ) : null}
+              </Fragment>
             ))}
           </div>
         </section>
@@ -1421,10 +1432,10 @@ export default async function Home({ searchParams }: HomeProps) {
         newFacilitators={newFacilitators}
       />
 
-      {homepageAds.length > 0 && (
+      {homepageBottomAds.length > 0 && (
         <section className="bg-white py-12 sm:py-14" aria-label="Partnerindhold">
           <div className="mx-auto max-w-[1200px] px-5 sm:px-8">
-            <PartnerAdCarousel ads={homepageAds} />
+            <PartnerAdCarousel ads={homepageBottomAds} />
           </div>
         </section>
       )}

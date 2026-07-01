@@ -167,30 +167,41 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     <main className="min-h-screen bg-cream">
       <header className="bg-white shadow-soft">
         <div className="mx-auto max-w-[1400px] px-5 py-5 sm:px-8">
-          <nav className="mb-6 flex flex-wrap gap-2" aria-label="Tilbage-navigation">
-            {viewer?.role === "admin" && adminReturn ? (
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-start gap-4">
+              {facilitatorImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  alt={`Profilbillede for ${facilitatorName}`}
+                  className="size-20 shrink-0 rounded-[22px] object-cover shadow-soft sm:size-28"
+                  src={facilitatorImageUrl}
+                />
+              ) : (
+                <BrandLogo className="h-20 w-20 shrink-0 sm:h-28 sm:w-28" priority />
+              )}
+              <div className="min-w-0 pt-1">
+                <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Event af {facilitatorName}</p>
+                <h1 className="mt-1 break-words text-3xl font-medium leading-tight text-olive sm:text-4xl">{event.title}</h1>
+              </div>
+            </div>
+            <nav className="flex shrink-0 flex-wrap gap-2 sm:justify-end" aria-label="Tilbage-navigation">
+              {viewer?.role === "admin" && adminReturn ? (
+                <Link
+                  className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
+                  href={adminReturn}
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  Tilbage til admin
+                </Link>
+              ) : null}
               <Link
                 className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
-                href={adminReturn}
+                href="/"
               >
                 <ArrowLeft className="size-4" aria-hidden="true" />
-                Tilbage til admin
+                Tilbage til forsiden
               </Link>
-            ) : null}
-            <Link
-              className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
-              href="/"
-            >
-              <ArrowLeft className="size-4" aria-hidden="true" />
-              Tilbage til forsiden
-            </Link>
-          </nav>
-          <div className="flex items-start gap-4">
-            <BrandLogo className="h-20 w-20 shrink-0 sm:h-28 sm:w-28" priority />
-            <div className="min-w-0 pt-1">
-              <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Event</p>
-              <h1 className="mt-1 break-words text-3xl font-medium leading-tight text-olive sm:text-4xl">{event.title}</h1>
-            </div>
+            </nav>
           </div>
         </div>
       </header>

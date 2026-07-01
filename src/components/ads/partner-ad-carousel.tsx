@@ -17,6 +17,7 @@ export type PartnerAd = {
 
 type PartnerAdCarouselProps = {
   ads: PartnerAd[];
+  className?: string;
 };
 
 function safeSeconds(value: number) {
@@ -32,7 +33,7 @@ function isExternalUrl(url: string | null) {
   return Boolean(url && /^https?:\/\//i.test(url));
 }
 
-export function PartnerAdCarousel({ ads }: PartnerAdCarouselProps) {
+export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const visibleAds = useMemo(() => ads, [ads]);
@@ -54,7 +55,7 @@ export function PartnerAdCarousel({ ads }: PartnerAdCarouselProps) {
 
   const content = (
     <article
-      className="group relative overflow-hidden rounded-[28px] border border-[#EDE4F7] bg-[#F6F1E7] shadow-soft transition hover:shadow-lift"
+      className="group relative overflow-hidden rounded-[18px] border border-[#EDE4F7] bg-[#F6F1E7] shadow-soft transition hover:shadow-lift"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -71,6 +72,7 @@ export function PartnerAdCarousel({ ads }: PartnerAdCarouselProps) {
             src={activeAd.imageUrl}
           />
         ) : activeAd.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img alt={activeAd.altText} className="h-full w-full object-cover" src={activeAd.imageUrl} />
         ) : (
           <div className="h-full w-full bg-gradient-to-br from-[#2F2633] via-[#7A4EAB] to-[#D8A7B1]" />
@@ -108,7 +110,7 @@ export function PartnerAdCarousel({ ads }: PartnerAdCarouselProps) {
   );
 
   return (
-    <section className="mt-8" aria-label="Partnerindhold fra SoulEvents.dk">
+    <section className={className} aria-label="Partnerindhold fra SoulEvents.dk">
       {activeAd.targetUrl ? (
         <a aria-label={"Se partnerindhold: " + activeAd.title} href={"/ads/" + activeAd.id + "/click"} rel={opensInNewTab ? "noopener noreferrer" : undefined} target={opensInNewTab ? "_blank" : undefined}>
           {content}

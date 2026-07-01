@@ -65,6 +65,7 @@ export function ContactForm() {
           placeholder="Kan udfyldes, hvis du ønsker at blive ringet op"
           type="tel"
         />
+        <span className="text-xs font-medium text-ink/60">Valgfrit. Du kan bruge +, mellemrum og cifre.</span>
       </label>
 
       <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">

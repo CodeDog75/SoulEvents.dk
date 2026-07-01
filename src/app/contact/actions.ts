@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { env } from "@/lib/env";
 import { escapeHtml, sendLoggedEmail } from "@/lib/email/resend-mail";
 
-const CONTACT_EMAIL = "kontakt@soulevents.dk";
+const CONTACT_EMAIL = "hej@soulevents.dk";
 
 export type ContactFormState = {
   status: "idle" | "success" | "error";
@@ -28,13 +28,32 @@ function readContactForm(formData: FormData) {
   return { email, message, name, phone };
 }
 
+function phoneDigitCount(phone: string) {
+  return phone.replace(/\D/g, "").length;
+}
+
+function isValidOptionalPhone(phone: string) {
+  if (!phone) return true;
+  if (!/^[+\d\s]+$/.test(phone)) return false;
+
+  const digits = phoneDigitCount(phone);
+  return digits >= 8 && digits <= 15;
+}
+
 function validateContactForm(formData: FormData): ContactFormState | null {
-  const { email, message, name } = readContactForm(formData);
+  const { email, message, name, phone } = readContactForm(formData);
 
   if (!name || !email || !message || message.length > 500 || !email.includes("@")) {
     return {
       status: "error",
       message: "Udfyld navn, e-mail og besked. Beskeden må højst være 500 tegn.",
+    };
+  }
+
+  if (!isValidOptionalPhone(phone)) {
+    return {
+      status: "error",
+      message: "Telefonnummeret skal indeholde 8-15 cifre. Du må gerne bruge + og mellemrum.",
     };
   }
 
@@ -56,7 +75,7 @@ async function sendContactMessage(formData: FormData) {
   const safePhone = phone ? escapeHtml(phone) : "Ikke oplyst";
   const safeMessage = escapeHtml(message).replace(/\n/g, "<br />");
 
-  await sendLoggedEmail({
+  const sent = await sendLoggedEmail({
     type: "contact_form",
     to: CONTACT_EMAIL,
     replyTo: email,
@@ -78,6 +97,10 @@ Telefon: ${phone || "Ikke oplyst"}
 Besked:
 ${message}`,
   });
+
+  if (!sent) {
+    throw new Error("Contact message could not be sent.");
+  }
 }
 
 export async function sendContactMessageStateAction(

@@ -384,6 +384,13 @@ export function HomeEventSearchForm({
             </label>
           </section>
 
+          <button
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-button bg-[#7A4EAB] px-6 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6C4499] hover:shadow-lift sm:w-fit"
+            type="submit"
+          >
+            <Search className="size-4" aria-hidden="true" />
+            Søg
+          </button>
         </div>
       </details>
     </form>

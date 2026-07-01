@@ -30,6 +30,7 @@ type Ad = {
   is_active: boolean;
   show_on_category_pages: boolean;
   show_on_homepage: boolean;
+  homepage_placement: "middle" | "bottom";
   show_in_newsletter: boolean;
   show_title_on_banner: boolean;
   show_sponsor_on_banner: boolean;
@@ -111,6 +112,7 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
             {ad && <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/60 shadow-soft">Ref. {ad.ad_reference_id || "afventer"}</span>}
             {ad && <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/60 shadow-soft">Klik: {ad.clicks_count ?? 0}</span>}
             {ad?.show_on_homepage && <span className="rounded-full bg-[#EDE4F7] px-3 py-1 text-xs font-semibold text-[#7A4EAB] shadow-soft">Vises: Forside</span>}
+            {ad?.show_on_homepage && <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/60 shadow-soft">Placering: {ad.homepage_placement === "middle" ? "Midten" : "Nederst"}</span>}
             {ad?.show_on_category_pages && <span className="rounded-full bg-sage-50 px-3 py-1 text-xs font-semibold text-sage-700 shadow-soft">Vises: Kategorier</span>}
             {ad && !ad.show_on_homepage && !ad.show_on_category_pages && <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-600 shadow-soft">Ingen offentlig placering</span>}
             <span className="rounded-full border border-midnight/10 bg-white px-3 py-1 text-xs font-semibold text-ink/60">Klik for at åbne/lukke</span>
@@ -168,6 +170,17 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
               <div className="mt-4 grid gap-3 rounded-md bg-[#FAF6EF] p-4">
                 <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.is_active ?? true} name="is_active" type="checkbox" /> Reklamen er aktiv</label>
                 <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_on_homepage ?? false} name="show_on_homepage" type="checkbox" /> Vis på forsiden</label>
+                <label className="grid gap-2 text-sm font-semibold text-midnight">
+                  Forsideplacering
+                  <select
+                    className="h-11 rounded-md border border-midnight/15 bg-white px-3 text-base font-semibold outline-none transition focus:border-sage-700"
+                    defaultValue={ad?.homepage_placement ?? "bottom"}
+                    name="homepage_placement"
+                  >
+                    <option value="middle">Midten - mellem Nye events og Sauna & Velvære</option>
+                    <option value="bottom">Nederst - almindeligt banner</option>
+                  </select>
+                </label>
                 <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_on_category_pages ?? false} name="show_on_category_pages" type="checkbox" /> Vis også på hovedkategorisider</label>
                 <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_in_newsletter ?? false} name="show_in_newsletter" type="checkbox" /> Reklame i nyhedsbrev/påmindelsesmails</label>
                 <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_title_on_banner ?? true} name="show_title_on_banner" type="checkbox" /> Vis titel på banner</label>

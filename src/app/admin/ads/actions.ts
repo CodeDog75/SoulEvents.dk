@@ -21,6 +21,11 @@ function dateValue(formData: FormData, name: string) {
   return new Date(value + "T00:00:00").toISOString();
 }
 
+function homepagePlacementValue(formData: FormData) {
+  const value = getOptionalString(formData, "homepage_placement");
+  return value === "middle" ? "middle" : "bottom";
+}
+
 function extensionFromFile(file: File) {
   const fromName = file.name.split(".").pop()?.toLowerCase();
   if (fromName && ["jpg", "jpeg", "png", "webp", "mp4"].includes(fromName)) {
@@ -109,6 +114,7 @@ export async function upsertAdAction(formData: FormData) {
     is_active: formData.get("is_active") === "on",
     show_on_category_pages: showOnCategoryPages,
     show_on_homepage: showOnHomepage,
+    homepage_placement: homepagePlacementValue(formData),
     show_in_newsletter: formData.get("show_in_newsletter") === "on",
     show_title_on_banner: formData.get("show_title_on_banner") === "on",
     show_sponsor_on_banner: formData.get("show_sponsor_on_banner") === "on",

@@ -64,7 +64,7 @@ async function logEmail(input: {
 
 export async function sendLoggedEmail(input: SendLoggedEmailInput) {
   if (!input.to) {
-    return;
+    return false;
   }
 
   if (!env.resendApiKey || !env.resendFromEmail) {
@@ -77,7 +77,7 @@ export async function sendLoggedEmail(input: SendLoggedEmailInput) {
       status: "failed",
       errorMessage: "Resend miljøvariabler mangler.",
     });
-    return;
+    return false;
   }
 
   try {
@@ -101,7 +101,7 @@ export async function sendLoggedEmail(input: SendLoggedEmailInput) {
         status: "failed",
         errorMessage: result.error.message,
       });
-      return;
+      return false;
     }
 
     await logEmail({
@@ -114,6 +114,7 @@ export async function sendLoggedEmail(input: SendLoggedEmailInput) {
       resendMessageId: result.data?.id ?? null,
       sentAt: new Date().toISOString(),
     });
+    return true;
   } catch (error) {
     await logEmail({
       type: input.type,
@@ -124,5 +125,6 @@ export async function sendLoggedEmail(input: SendLoggedEmailInput) {
       status: "failed",
       errorMessage: error instanceof Error ? error.message : "Ukendt mailfejl.",
     });
+    return false;
   }
 }
