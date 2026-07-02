@@ -85,7 +85,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
 
   let query = supabase
     .from("events")
-    .select("id, title, status, starts_at, created_at, updated_at, city, event_format, facilitator_profiles(company_name, profiles(full_name, email)), regions(name), event_categories(categories(name))")
+    .select("id, title, status, starts_at, created_at, updated_at, city, event_format, facilitator_profiles(status, company_name, profiles(full_name, email)), regions(name), event_categories(categories(name))")
     .order("created_at", { ascending: false })
     .limit(queryText ? 300 : 80);
 
@@ -178,6 +178,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
               {events.map((event: any) => {
                 const facilitator = Array.isArray(event.facilitator_profiles) ? event.facilitator_profiles[0] : event.facilitator_profiles;
                 const profile = Array.isArray(facilitator?.profiles) ? facilitator.profiles[0] : facilitator?.profiles;
+                const facilitatorApproved = facilitator?.status === "approved";
                 const categories =
                   event.event_categories
                     ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories)?.name)
@@ -202,6 +203,11 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                       <p className="mt-1 text-sm text-ink/64">
                         {facilitator?.company_name || profile?.full_name || "Arrangør"} · {profile?.email || "Ingen e-mail"}
                       </p>
+                      {!facilitatorApproved && event.status !== "active" ? (
+                        <p className="mt-2 text-sm font-semibold text-[#8A6A2E]">
+                          Arrangøren skal godkendes, før eventet kan godkendes.
+                        </p>
+                      ) : null}
                       <p className="mt-2 text-sm text-ink/72">
                         Eventdato: {formatDateTime(event.starts_at)}
                         {event.city ? " · " + event.city : ""}
@@ -221,11 +227,22 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                         <Eye className="size-4" aria-hidden="true" />
                         Vis
                       </Link>
-                      {event.status !== "active" && (
+                      {event.status !== "active" && facilitatorApproved && (
                         <EventStatusButton eventId={event.id} status="active">
                           <Check className="size-4" aria-hidden="true" />
                           Godkend
                         </EventStatusButton>
+                      )}
+                      {event.status !== "active" && !facilitatorApproved && (
+                        <button
+                          className="inline-flex h-9 cursor-not-allowed items-center gap-2 rounded-md border border-[#E8D6A8] bg-[#FFF8E8] px-3 text-sm font-semibold text-[#8A6A2E]"
+                          disabled
+                          title="Arrangøren skal godkendes først"
+                          type="button"
+                        >
+                          <Clock3 className="size-4" aria-hidden="true" />
+                          Arrangør afventer
+                        </button>
                       )}
                       {event.status !== "pending_review" && (
                         <EventStatusButton eventId={event.id} status="pending_review">

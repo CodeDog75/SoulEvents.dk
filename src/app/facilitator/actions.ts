@@ -44,17 +44,20 @@ export async function sendFacilitatorAdminMessageAction(formData: FormData) {
     facilitator_id: facilitator.id,
     profile_id: profile.id,
     type: "message",
+    status: "unread",
     subject,
     message,
     facilitator_read_at: now,
   });
 
   if (error) {
+    console.error("sendFacilitatorAdminMessageAction failed", error);
     go("Beskeden kunne ikke sendes. Prøv igen.");
   }
 
   revalidatePath("/facilitator");
   revalidatePath("/admin");
+  revalidatePath("/admin/messages");
   go("Beskeden er sendt til admin.");
 }
 
@@ -78,12 +81,14 @@ export async function requestFacilitatorProfileClosureAction(formData: FormData)
     facilitator_id: facilitator.id,
     profile_id: profile.id,
     type: "closure_request",
+    status: "unread",
     subject: "Anmodning om at sætte arrangørprofil på pause",
     message,
     facilitator_read_at: now,
   });
 
   if (messageError) {
+    console.error("requestFacilitatorProfileClosureAction failed", messageError);
     go("Anmodningen kunne ikke sendes. Prøv igen.");
   }
 
@@ -91,6 +96,7 @@ export async function requestFacilitatorProfileClosureAction(formData: FormData)
 
   revalidatePath("/facilitator");
   revalidatePath("/admin");
+  revalidatePath("/admin/messages");
   go("Din arrangørprofil er sat på pause, og admin har fået besked om din anmodning.");
 }
 

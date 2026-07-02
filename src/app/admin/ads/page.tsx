@@ -76,6 +76,10 @@ function campaignStatus(ad: Ad) {
   return { label: "Aktiv", className: "bg-sage-50 text-sage-700" };
 }
 
+function isCurrentlyActiveAd(ad: Ad) {
+  return campaignStatus(ad).label === "Aktiv";
+}
+
 function AdPreview({ ad }: { ad?: Ad }) {
   return (
     <div className="overflow-hidden rounded-[22px] border border-midnight/10 bg-[#F6F1E7] shadow-soft">
@@ -99,8 +103,8 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
   const formId = "ad-form-" + (ad?.id ?? "new");
 
   return (
-    <details className={"overflow-hidden rounded-card border shadow-soft " + (ad && !ad.is_active ? "border-stone-300 bg-stone-50/80 opacity-80" : "border-midnight/10 bg-white")}>
-      <summary className="cursor-pointer list-none border-b border-midnight/10 bg-[#FAF6EF] px-5 py-4 marker:hidden sm:px-6">
+    <details className={"overflow-hidden rounded-card border shadow-soft " + (ad && isCurrentlyActiveAd(ad) ? "border-sage-700/25 bg-sage-50/70" : ad && !ad.is_active ? "border-stone-300 bg-stone-50/80 opacity-80" : "border-midnight/10 bg-white")}>
+      <summary className={"cursor-pointer list-none border-b border-midnight/10 px-5 py-4 marker:hidden sm:px-6 " + (ad && isCurrentlyActiveAd(ad) ? "bg-sage-50" : "bg-[#FAF6EF]")}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">{ad ? "Rediger reklame" : "Ny reklame"}</p>
@@ -148,7 +152,18 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
             <section className="rounded-md border border-midnight/10 p-4">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-sage-700">Indhold</h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2 text-sm font-medium text-ink/72">Titel/navn<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.title ?? ""} name="title" required maxLength={80} /></label>
+                <div className="grid gap-3">
+                  <label className="grid gap-2 text-sm font-medium text-ink/72">Titel/navn<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.title ?? ""} name="title" required maxLength={80} /></label>
+                  <label className="flex items-start gap-2 rounded-md bg-[#FAF6EF] p-3 text-sm font-semibold text-midnight">
+                    <input className="mt-1 size-4 shrink-0 accent-sage-700" defaultChecked={ad?.show_title_on_banner ?? true} name="show_title_on_banner" type="checkbox" />
+                    <span>
+                      Vis titel oven på banner
+                      <span className="block pt-1 text-xs font-medium leading-5 text-ink/55">
+                        Fjern markeringen, hvis billedet eller videoen allerede indeholder teksten.
+                      </span>
+                    </span>
+                  </label>
+                </div>
                 <label className="grid gap-2 text-sm font-medium text-ink/72">Sponsor / partnernavn<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.sponsor_name ?? ""} name="sponsor_name" maxLength={80} /></label>
                 <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2">Link ved klik (valgfrit)<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.target_url ?? ""} name="target_url" placeholder="https://... eller /artikler/..." maxLength={300} /><span className="text-xs leading-5 text-ink/55">Hvis feltet er tomt, vises reklamen uden klik-link.</span></label>
                 <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2">Alt-tekst til billede<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.alt_text ?? ""} name="alt_text" placeholder="Kort beskrivelse af billedet" maxLength={160} /></label>
@@ -183,7 +198,6 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
                 </label>
                 <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_on_category_pages ?? false} name="show_on_category_pages" type="checkbox" /> Vis også på hovedkategorisider</label>
                 <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_in_newsletter ?? false} name="show_in_newsletter" type="checkbox" /> Reklame i nyhedsbrev/påmindelsesmails</label>
-                <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_title_on_banner ?? true} name="show_title_on_banner" type="checkbox" /> Vis titel på banner</label>
                 <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_sponsor_on_banner ?? true} name="show_sponsor_on_banner" type="checkbox" /> Vis partnernavn på banner</label>
               </div>
 
@@ -229,8 +243,14 @@ export default async function AdminAdsPage({ searchParams }: AdminAdsPageProps) 
     loadError = error instanceof Error ? error.message : "Reklamer kunne ikke hentes.";
   }
 
-  const adsWithImages = ads.map((ad) => ({ ...ad, image_url: publicMediaUrl(ad.image_path) }));
-  const activeCount = adsWithImages.filter((ad) => campaignStatus(ad).label === "Aktiv").length;
+  const adsWithImages = ads
+    .map((ad) => ({ ...ad, image_url: publicMediaUrl(ad.image_path) }))
+    .sort((a, b) => {
+      const activeDifference = Number(isCurrentlyActiveAd(b)) - Number(isCurrentlyActiveAd(a));
+      if (activeDifference !== 0) return activeDifference;
+      return (a.priority ?? 100) - (b.priority ?? 100);
+    });
+  const activeCount = adsWithImages.filter(isCurrentlyActiveAd).length;
   const newsletterCount = adsWithImages.filter((ad) => ad.show_in_newsletter).length;
   const totalClicks = adsWithImages.reduce((sum, ad) => sum + (ad.clicks_count ?? 0), 0);
 

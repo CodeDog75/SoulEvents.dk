@@ -9,12 +9,13 @@ export const dynamic = "force-dynamic";
 
 type FacilitatorBookingsPageProps = {
   searchParams: Promise<{
+    event?: string;
     message?: string;
   }>;
 };
 
 export default async function FacilitatorBookingsPage({ searchParams }: FacilitatorBookingsPageProps) {
-  const [{ message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const [{ event, message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
   const supabase = await createClient();
 
   const { data: facilitatorProfile } = await supabase
@@ -23,14 +24,17 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
     .eq("profile_id", profile.id)
     .single();
 
-  const { data: bookings } = facilitatorProfile
-    ? await supabase
+  const bookingsQuery = facilitatorProfile
+    ? supabase
         .from("bookings")
         .select(
-          "id, status, participant_name, participant_email, participant_phone, seats, message, event_title_snapshot, event_starts_at_snapshot, booking_value_cents, commission_cents, created_at",
+          "id, event_id, status, participant_name, participant_email, participant_phone, seats, message, event_title_snapshot, event_starts_at_snapshot, booking_value_cents, commission_cents, created_at",
         )
         .eq("facilitator_id", facilitatorProfile.id)
-        .order("created_at", { ascending: false })
+    : null;
+
+  const { data: bookings } = bookingsQuery
+    ? await (event ? bookingsQuery.eq("event_id", event) : bookingsQuery).order("created_at", { ascending: false })
     : { data: [] };
 
   return (

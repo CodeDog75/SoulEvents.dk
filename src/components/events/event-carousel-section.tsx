@@ -190,40 +190,20 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
           <h2 className="text-3xl font-medium leading-tight text-[#2F2633] sm:text-4xl">{title}</h2>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <div className="hidden items-center gap-2 sm:flex" aria-label="Naviger i eventrækken">
-            <button
-              aria-label={"Scroll " + title + " mod venstre"}
-              className="grid size-10 place-items-center rounded-full border border-[#7A4EAB]/20 bg-white text-[#7A4EAB] shadow-soft transition hover:border-[#7A4EAB]/40 disabled:cursor-not-allowed disabled:opacity-35"
-              disabled={!canScrollLeft}
-              onClick={() => scrollCards("left")}
-              type="button"
-            >
-              <ChevronLeft className="size-5" aria-hidden="true" />
-            </button>
-            <button
-              aria-label={"Scroll " + title + " mod højre"}
-              className="grid size-10 place-items-center rounded-full border border-[#7A4EAB]/20 bg-white text-[#7A4EAB] shadow-soft transition hover:border-[#7A4EAB]/40 disabled:cursor-not-allowed disabled:opacity-35"
-              disabled={!canScrollRight}
-              onClick={() => scrollCards("right")}
-              type="button"
-            >
-              <ChevronRight className="size-5" aria-hidden="true" />
-            </button>
-          </div>
           <Link className="text-sm font-semibold text-[#7A4EAB] transition hover:text-olive" href={href}>
             Se alle
           </Link>
         </div>
       </div>
-      <div className="relative">
+      <div className="relative sm:overflow-hidden">
         {canScrollLeft && (
           <button
             aria-label={"Scroll " + title + " mod venstre"}
-            className="absolute bottom-3 left-0 top-0 z-10 hidden w-16 items-center justify-start bg-gradient-to-r from-white via-white/82 to-transparent pl-2 text-[#7A4EAB] transition hover:text-olive sm:flex"
+            className="absolute bottom-3 left-0 top-0 z-20 hidden w-24 items-center justify-start bg-gradient-to-r from-white via-white/90 to-transparent pl-3 text-[#7A4EAB] transition hover:text-olive sm:flex"
             onClick={() => scrollCards("left")}
             type="button"
           >
-            <span className="grid size-11 place-items-center rounded-full bg-white shadow-lift">
+            <span className="grid size-12 place-items-center rounded-full border border-[#7A4EAB]/20 bg-white shadow-lift">
               <ChevronLeft className="size-6" aria-hidden="true" />
             </span>
           </button>
@@ -231,16 +211,16 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
         {canScrollRight && (
           <button
             aria-label={"Scroll " + title + " mod højre"}
-            className="absolute bottom-3 right-0 top-0 z-10 hidden w-16 items-center justify-end bg-gradient-to-l from-white via-white/82 to-transparent pr-2 text-[#7A4EAB] transition hover:text-olive sm:flex"
+            className="absolute bottom-3 right-0 top-0 z-20 hidden w-24 items-center justify-end bg-gradient-to-l from-white via-white/90 to-transparent pr-3 text-[#7A4EAB] transition hover:text-olive sm:flex"
             onClick={() => scrollCards("right")}
             type="button"
           >
-            <span className="grid size-11 place-items-center rounded-full bg-white shadow-lift">
+            <span className="grid size-12 place-items-center rounded-full border border-[#7A4EAB]/20 bg-white shadow-lift">
               <ChevronRight className="size-6" aria-hidden="true" />
             </span>
           </button>
         )}
-        <div ref={scrollerRef} className="-mx-5 flex snap-x gap-4 overflow-x-auto px-5 pb-3 sm:-mx-8 sm:px-8">
+        <div ref={scrollerRef} className="-mx-5 flex snap-x gap-4 overflow-x-auto px-5 pb-3 sm:mx-0 sm:px-0">
           {events.map((event) => (
             <EventCardVisual event={event} key={event.id} />
           ))}

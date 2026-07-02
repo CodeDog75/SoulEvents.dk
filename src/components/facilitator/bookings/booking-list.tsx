@@ -4,6 +4,7 @@ import type { BookingStatus } from "@/types/database";
 
 type BookingRow = {
   id: string;
+  event_id: string;
   status: BookingStatus;
   participant_name: string;
   participant_email: string;

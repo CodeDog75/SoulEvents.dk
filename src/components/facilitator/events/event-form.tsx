@@ -6,7 +6,7 @@ import {
   ArrowRight,
   CalendarPlus,
   CheckCircle2,
-  Clock3,
+  ChevronDown,
   Eye,
   HeartHandshake,
   ImagePlus,
@@ -232,6 +232,11 @@ function openNativePicker(input: HTMLInputElement) {
 const eventDraftStorageKey = "soulevents:event-form-draft:v1";
 const maxEventDescriptionLength = 2000;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
+const timeOptions = Array.from({ length: 96 }, (_, index) => {
+  const hour = String(Math.floor(index / 4)).padStart(2, "0");
+  const minute = String((index % 4) * 15).padStart(2, "0");
+  return `${hour}:${minute}`;
+});
 
 
 function getEventImageMessage(message: string) {
@@ -243,12 +248,13 @@ function getEventImageMessage(message: string) {
   return "";
 }
 
-const quarterHourOptions = Array.from({ length: 96 }, (_, index) => {
-  const totalMinutes = index * 15;
-  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
-  const minutes = String(totalMinutes % 60).padStart(2, "0");
-  return hours + ":" + minutes;
-});
+function normalizeTimeOption(timeValue: string | undefined, fallback: string) {
+  if (timeValue && timeOptions.includes(timeValue)) {
+    return timeValue;
+  }
+
+  return fallback;
+}
 
 function TimeSelect({
   label,
@@ -265,6 +271,7 @@ function TimeSelect({
   value?: string;
   onChange?: (value: string) => void;
 }) {
+  const currentValue = normalizeTimeOption(selectedValue, defaultValue);
 
   return (
     <label className="grid gap-2 text-sm font-medium text-ink/72">
@@ -274,19 +281,19 @@ function TimeSelect({
       </span>
       <div className="relative">
         <select
-          className={"h-12 w-full min-w-0 cursor-pointer appearance-none rounded-card border py-0 pl-4 pr-12 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(selectedValue ?? defaultValue)}
+          className={"h-12 w-full min-w-0 cursor-pointer appearance-none rounded-card border py-0 pl-4 pr-11 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(currentValue)}
           name={name}
           onChange={(event) => onChange?.(event.target.value)}
           required={required}
-          value={selectedValue ?? defaultValue}
+          value={currentValue}
         >
-          {quarterHourOptions.map((time) => (
-            <option key={time} value={time}>
-              {time}
+          {timeOptions.map((timeOption) => (
+            <option key={timeOption} value={timeOption}>
+              {timeOption}
             </option>
           ))}
         </select>
-        <Clock3 className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-midnight/70" aria-hidden="true" />
+        <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-midnight/70" aria-hidden="true" />
       </div>
     </label>
   );
@@ -646,6 +653,10 @@ export function EventForm({
   const [postalCode, setPostalCode] = useState(value(draftEvent?.postal_code ?? facilitator.postalCode));
   const [city, setCity] = useState(value(draftEvent?.city ?? facilitator.city));
   const [country, setCountry] = useState(value(draftEvent?.country ?? "Danmark") || "Danmark");
+  const [isForeignLocation, setIsForeignLocation] = useState(() => {
+    const initialCountry = value(draftEvent?.country);
+    return Boolean(initialCountry && initialCountry.trim().toLowerCase() !== "danmark");
+  });
   const [regionId, setRegionId] = useState(value(draftEvent?.region_id ?? facilitator.regionId));
   const [postalCodeMessage, setPostalCodeMessage] = useState("");
   const [eventFormat, setEventFormat] = useState<"physical" | "online">(draftEvent?.event_format === "online" ? "online" : "physical");
@@ -656,7 +667,7 @@ export function EventForm({
   );
   const [isFree, setIsFree] = useState((draftEvent?.price_cents ?? 0) === 0);
   const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState<string[]>(draftEvent?.mainCategoryIds ?? []);
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(draftEvent?.tagIds ?? []);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>((draftEvent?.tagIds ?? []).slice(0, 3));
   const [categoryLimitMessage, setCategoryLimitMessage] = useState("");
   const [capacityValue, setCapacityValue] = useState(String(draftEvent?.capacity ?? 12));
   const [highlightedMissingKey, setHighlightedMissingKey] = useState("");
@@ -684,7 +695,7 @@ export function EventForm({
   const [, setFormVersion] = useState(0);
   const showAddress = hasChosenEventFormat && eventFormat === "physical";
   const showOnline = hasChosenEventFormat && eventFormat === "online";
-  const isDanishPhysicalEvent = showAddress && country.trim().toLowerCase() === "danmark";
+  const isDanishPhysicalEvent = showAddress && !isForeignLocation;
   const selectedRegionName = regions.find((region) => region.id === regionId)?.name ?? "";
   const currentCoverImageUrl = coverPreviewUrl || draftEvent?.coverImageUrl || "";
   const hasExistingCoverImage = Boolean(draftEvent?.coverImageUrl || draftEvent?.cover_image_path);
@@ -1118,7 +1129,7 @@ export function EventForm({
   }
 
   function handlePostalCodeChange(nextValue: string) {
-    if (country.trim().toLowerCase() !== "danmark") {
+    if (isForeignLocation) {
       setPostalCode(nextValue);
       setPostalCodeMessage("");
       return;
@@ -1158,7 +1169,7 @@ export function EventForm({
       }
 
       if (current.length >= 3) {
-        setCategoryLimitMessage("Du kan vælge op til 3 kategorier og op til 4 tags.");
+        setCategoryLimitMessage("Du kan vælge op til 3 kategorier og op til 3 tags.");
         return current;
       }
 
@@ -1178,8 +1189,8 @@ export function EventForm({
         return current;
       }
 
-      if (current.length >= 4) {
-        setCategoryLimitMessage("Du kan vælge op til 3 kategorier og op til 4 tags.");
+      if (current.length >= 3) {
+        setCategoryLimitMessage("Du kan vælge op til 3 kategorier og op til 3 tags.");
         return current;
       }
 
@@ -1249,7 +1260,8 @@ export function EventForm({
     if (index === 1) {
       if (!hasChosenEventFormat) return "missing";
       if (eventFormat === "online") return isValidHttpUrl(text("online_url_or_note")) ? "complete" : "missing";
-      return text("address_line").length > 0 && postalCode.length === 4 && city.trim().length > 0 && country.trim().length > 0 ? "complete" : "missing";
+      const hasValidPostalCode = isDanishPhysicalEvent ? postalCode.length === 4 : postalCode.trim().length > 0;
+      return text("address_line").length > 0 && hasValidPostalCode && city.trim().length > 0 && country.trim().length > 0 ? "complete" : "missing";
     }
 
     if (index === 2) {
@@ -1434,6 +1446,7 @@ export function EventForm({
           endTime,
           eventFormat: String(formData.get("event_format") || eventFormat),
           hasChosenEventFormat,
+          isForeignLocation,
           priceMode,
           isFree,
           sendOnlineLinkLater,
@@ -1465,7 +1478,7 @@ export function EventForm({
     }
 
     for (const [name, values] of Object.entries(fields) as Array<[string, string[]]>) {
-      if (options.keepEventFormat && name === "event_format") {
+      if ((options.keepEventFormat && name === "event_format") || name === "tag_ids") {
         continue;
       }
 
@@ -1502,7 +1515,13 @@ export function EventForm({
     setEndTime(draft.state?.endTime ?? "21:00");
     setPostalCode(draft.state?.postalCode ?? "");
     setCity(draft.state?.city ?? "");
-    setCountry(draft.state?.country ?? "Danmark");
+    const restoredCountry = draft.state?.country ?? "Danmark";
+    setCountry(restoredCountry);
+    setIsForeignLocation(
+      typeof draft.state?.isForeignLocation === "boolean"
+        ? draft.state.isForeignLocation
+        : String(restoredCountry).trim().toLowerCase() !== "danmark",
+    );
     setRegionId(draft.state?.regionId ?? "");
     setEventFormat(draft.state?.eventFormat === "online" ? "online" : "physical");
     setHasChosenEventFormat(Boolean(draft.state?.hasChosenEventFormat));
@@ -1511,7 +1530,10 @@ export function EventForm({
     setSendOnlineLinkLater(Boolean(draft.state?.sendOnlineLinkLater));
     setCapacityValue(draft.state?.capacityValue ?? String(draftEvent?.capacity ?? 12));
     setSelectedMainCategoryIds(Array.isArray(draft.state?.selectedMainCategoryIds) ? draft.state.selectedMainCategoryIds : []);
-    setSelectedTagIds(Array.isArray(draft.state?.selectedTagIds) ? draft.state.selectedTagIds : []);
+    const restoredTagIds = Array.isArray(draft.state?.selectedTagIds)
+      ? draft.state.selectedTagIds.filter((tagId: unknown): tagId is string => typeof tagId === "string")
+      : [];
+    setSelectedTagIds(restoredTagIds.length <= 3 ? restoredTagIds : []);
 
     window.requestAnimationFrame(() => {
       applyDraftFields(draft.fields ?? {});
@@ -1569,7 +1591,7 @@ export function EventForm({
   useEffect(() => {
     const timeout = window.setTimeout(writeDraft, 350);
     return () => window.clearTimeout(timeout);
-  }, [capacityValue, city, country, endDate, endTime, eventFormat, hasChosenEventFormat, priceMode, isFree, postalCode, regionId, selectedMainCategoryIds, selectedTagIds, startDate, startTime]);
+  }, [capacityValue, city, country, endDate, endTime, eventFormat, hasChosenEventFormat, isForeignLocation, priceMode, isFree, postalCode, regionId, selectedMainCategoryIds, selectedTagIds, startDate, startTime]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -1577,7 +1599,7 @@ export function EventForm({
       refreshFormValidationState();
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [capacityValue, city, country, endDate, endTime, eventFormat, hasChosenEventFormat, isFree, postalCode, priceValue, regionId, selectedMainCategoryIds, selectedTagIds, startDate, startTime]);
+  }, [capacityValue, city, country, endDate, endTime, eventFormat, hasChosenEventFormat, isForeignLocation, isFree, postalCode, priceValue, regionId, selectedMainCategoryIds, selectedTagIds, startDate, startTime]);
 
   function renderStepAccordionHeader(index: number) {
     const step = steps[index];
@@ -1708,6 +1730,90 @@ export function EventForm({
   const hasReachedActiveLimit = Boolean(activeLimitMessage);
   const activeLimitBlocksSubmit = hasReachedActiveLimit && !isEditingPublishedEvent;
   const canPublish = missingInvitationItems.length === 0 && !activeLimitBlocksSubmit;
+
+  function renderSubmitPanel() {
+    return (
+      <section className="grid gap-3 rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:p-5" id="event-submit-panel">
+        <div
+          className={
+            "rounded-card border px-4 py-3 text-sm leading-6 " +
+            (canPublish
+              ? "border-[#CFE3C8] bg-[#F3F7F0] text-[#4F6F48]"
+              : "border-[#D8CBE4] bg-[#F4F0F7] text-[#6E5A86]")
+          }
+        >
+          <p className="font-semibold">
+            {canPublish
+              ? isEditingPublishedEvent
+                ? "Ændringerne er klar"
+                : "Din invitation er klar"
+              : activeLimitBlocksSubmit
+                ? "Grænsen for aktive events er nået"
+                : "Din invitation er næsten klar"}
+          </p>
+          {canPublish ? (
+            <p>
+              {isEditingPublishedEvent
+                ? "Du kan nu gemme ændringerne på eventet."
+                : "Du kan nu gøre eventet synligt på SoulEvents."}
+            </p>
+          ) : activeLimitBlocksSubmit ? (
+            <p className="mt-2">{activeLimitMessage}</p>
+          ) : (
+            <div className="mt-2">
+              <p>Udfyld først:</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {missingInvitationItems.map((item) => (
+                  <button
+                    className="rounded-full border border-[#D8CBE4] bg-white px-3 py-1 text-xs font-semibold text-[#7A5D91] transition hover:border-[#7A5D91]"
+                    key={item.key}
+                    onClick={() => guideToMissingItem(item)}
+                    type="button"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button
+            className={
+              "inline-flex h-11 items-center justify-center gap-2 rounded-button px-5 text-sm font-semibold shadow-soft transition " +
+              (canPublish
+                ? "bg-[#7A5D91] text-white hover:bg-[#6E5285]"
+                : "bg-[#D8CBE4] text-white shadow-none")
+            }
+            name="status"
+            disabled={activeLimitBlocksSubmit}
+            type="submit"
+            value={primarySubmitStatus}
+          >
+            {canPublish
+              ? isEditingPublishedEvent
+                ? "Gem ændringer"
+                : "Gør event offentlig"
+              : activeLimitBlocksSubmit
+                ? "Grænsen er nået"
+                : "Fuldfør eventet for at gøre det offentligt"}
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </button>
+          {!isEditingPublishedEvent ? (
+            <button
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/30 bg-white px-5 text-sm font-semibold text-[#7A4EAB]"
+              name="status"
+              type="submit"
+              value="draft"
+            >
+              <Save className="size-4" aria-hidden="true" />
+              Gem kladde
+            </button>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <form
@@ -1904,9 +2010,11 @@ export function EventForm({
                 Land<span className="ml-1 text-[#B56F8A]">*</span>
               </span>
               <input
-                className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(country)}
+                className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(country, { auto: isDanishPhysicalEvent })}
                 name="country"
                 onChange={(event) => setCountry(event.target.value)}
+                placeholder={isForeignLocation ? "Fx Sverige, Spanien eller Indonesien" : undefined}
+                readOnly={isDanishPhysicalEvent}
                 required
                 value={country}
               />
@@ -1923,6 +2031,39 @@ export function EventForm({
             ) : (
               <TextInput label="Region / område" name="foreign_region" placeholder="Fx Skåne, Mallorca eller Bali" help="Valgfrit. Bruges kun som ekstra lokationshjælp ved events uden for Danmark." maxLength={80} />
             )}
+
+            <label className="flex items-start gap-3 rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4 text-sm text-ink/72 md:col-span-2">
+              <input
+                checked={isForeignLocation}
+                className="mt-1 size-4 accent-[#7A4EAB]"
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setIsForeignLocation(checked);
+                  setPostalCodeMessage("");
+                  if (checked) {
+                    setCountry("");
+                    setRegionId("");
+                  } else {
+                    setCountry("Danmark");
+                    if (postalCode.length === 4) {
+                      setRegionFromPostalCode(postalCode);
+                    }
+                  }
+                  window.setTimeout(() => {
+                    writeDraft();
+                    showPreview();
+                    refreshFormValidationState();
+                  }, 0);
+                }}
+                type="checkbox"
+              />
+              <span>
+                <span className="block font-semibold text-ink">Lokation udenfor Danmark</span>
+                <span className="mt-1 block leading-6">
+                  Brug denne, hvis eventet foregår i udlandet. Så kan adresse, postnummer og område udfyldes frit.
+                </span>
+              </span>
+            </label>
           </div>
         ) : null}
         {showOnline ? (
@@ -2083,7 +2224,7 @@ export function EventForm({
         ))}
         <div>
           <h2 className="text-lg font-semibold text-midnight">Vælg 1-3 kategorier, som bedst beskriver dit event.</h2>
-          <p className="mt-1 text-sm leading-6 text-ink/60">Du kan vælge op til 3 kategorier og op til 4 tags.</p>
+          <p className="mt-1 text-sm leading-6 text-ink/60">Du kan vælge op til 3 kategorier og op til 3 tags.</p>
           {categoryLimitMessage ? (
             <p className="mt-3 rounded-card border border-[#E8D2CC] bg-[#FFF8F6] px-4 py-3 text-sm font-semibold text-[#8B5B68]">
               {categoryLimitMessage}
@@ -2197,86 +2338,11 @@ export function EventForm({
                 </div>
               </div>
             </div>
-            <div className="grid gap-2 border-t border-[#E5D4F7] bg-[#FAF6EF] p-4">
-              <div
-                className={
-                  "rounded-card border px-4 py-3 text-sm leading-6 " +
-                  (canPublish
-                    ? "border-[#CFE3C8] bg-[#F3F7F0] text-[#4F6F48]"
-                    : "border-[#D8CBE4] bg-[#F4F0F7] text-[#6E5A86]")
-                }
-              >
-                <p className="font-semibold">
-                  {canPublish
-                    ? isEditingPublishedEvent
-                      ? "Ændringerne er klar"
-                      : "Din invitation er klar"
-                    : activeLimitBlocksSubmit
-                      ? "Grænsen for aktive events er nået"
-                      : "Din invitation er næsten klar"}
-                </p>
-                {canPublish ? (
-                  <p>
-                    {isEditingPublishedEvent
-                      ? "Du kan nu gemme ændringerne på eventet."
-                      : "Du kan nu gøre eventet synligt på SoulEvents."}
-                  </p>
-                ) : activeLimitBlocksSubmit ? (
-                  <p className="mt-2">{activeLimitMessage}</p>
-                ) : (
-                  <div className="mt-2">
-                    <p>Udfyld først:</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {missingInvitationItems.map((item) => (
-                        <button
-                          className="rounded-full border border-[#D8CBE4] bg-white px-3 py-1 text-xs font-semibold text-[#7A5D91] transition hover:border-[#7A5D91]"
-                          key={item.key}
-                          onClick={() => guideToMissingItem(item)}
-                          type="button"
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <button
-                className={
-                  "inline-flex h-11 items-center justify-center gap-2 rounded-button px-5 text-sm font-semibold shadow-soft transition " +
-                  (canPublish
-                    ? "bg-[#7A5D91] text-white hover:bg-[#6E5285]"
-                    : "bg-[#D8CBE4] text-white shadow-none")
-                }
-                name="status"
-                disabled={activeLimitBlocksSubmit}
-                type="submit"
-                value={primarySubmitStatus}
-              >
-                {canPublish
-                  ? isEditingPublishedEvent
-                    ? "Gem ændringer"
-                    : "Gør event offentlig"
-                  : activeLimitBlocksSubmit
-                    ? "Grænsen er nået"
-                    : "Fuldfør eventet for at gøre det offentligt"}
-                <ArrowRight className="size-4" aria-hidden="true" />
-              </button>
-              {!isEditingPublishedEvent ? (
-                <button
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-button border border-[#7A4EAB]/30 bg-white px-5 text-sm font-semibold text-[#7A4EAB]"
-                  name="status"
-                  type="submit"
-                  value="draft"
-                >
-                  <Save className="size-4" aria-hidden="true" />
-                  Gem kladde
-                </button>
-              ) : null}
-            </div>
           </div>
         </aside>
       </div>
+
+      {renderSubmitPanel()}
 
       {coverCrop ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-midnight/45 px-4 py-6 backdrop-blur-sm">

@@ -12,7 +12,6 @@ import {
   Inbox,
   Leaf,
   Mail,
-  MessageCircle,
   PauseCircle,
   PencilLine,
   RotateCcw,
@@ -49,6 +48,23 @@ type MoodImage = {
   image_path: string;
   alt_text: string | null;
   sort_order: number;
+};
+
+type ProfileReadiness = {
+  isComplete: boolean;
+  label: string;
+  message: string;
+  missingItems: string[];
+  tone: "building" | "ready" | "paused";
+};
+
+type DashboardAction = {
+  description: string;
+  href: string;
+  icon: React.ElementType;
+  isDisabled?: boolean;
+  label: string;
+  title: string;
 };
 
 const statusLabels: Record<string, string> = {
@@ -98,34 +114,139 @@ function statusClass(status: string) {
   return statusStyles[status] ?? "bg-stone-100 text-stone-700";
 }
 
-function CreateEventCtaCard({
-  draftCount,
-  maxDraftEvents,
+function getProfileReadiness({
+  categoryCount,
+  facilitatorProfile,
 }: {
-  draftCount: number;
+  categoryCount: number;
+  facilitatorProfile: any;
+}): ProfileReadiness {
+  const missingItems = [];
+  const shortDescription = facilitatorProfile?.short_description?.trim() ?? "";
+
+  if (!facilitatorProfile?.company_name?.trim()) {
+    missingItems.push("Profilnavn");
+  }
+
+  if (shortDescription.length < 20) {
+    missingItems.push("Kort præsentation");
+  }
+
+  if (!facilitatorProfile?.profile_image_path) {
+    missingItems.push("Profilbillede");
+  }
+
+  if (!facilitatorProfile?.postal_code?.trim() || !facilitatorProfile?.city?.trim()) {
+    missingItems.push("Postnummer og by");
+  }
+
+  if (categoryCount === 0) {
+    missingItems.push("Mindst én kategori");
+  }
+
+  if (facilitatorProfile?.status === "disabled") {
+    return {
+      isComplete: missingItems.length === 0,
+      label: "Profil på pause",
+      message: "Din profil er midlertidigt skjult. Du kan redigere den og kontakte SoulEvents, når du vil være synlig igen.",
+      missingItems,
+      tone: "paused",
+    };
+  }
+
+  if (missingItems.length > 0) {
+    return {
+      isComplete: false,
+      label: "Profil under opbygning",
+      message: "Der mangler nogle få oplysninger, før du kan oprette og offentliggøre events.",
+      missingItems,
+      tone: "building",
+    };
+  }
+
+  return {
+    isComplete: true,
+    label: facilitatorProfile?.status === "approved" ? "Profil klar og synlig" : "Profil klar",
+    message:
+      facilitatorProfile?.status === "approved"
+        ? "Din profil er synlig på SoulEvents. Du kan nu holde fokus på events, tilmeldinger og deltagere."
+        : "Din profil indeholder de nødvendige oplysninger. Mens vi gennemgår den, kan du gøre dit første event klar.",
+    missingItems: [],
+    tone: "ready",
+  };
+}
+
+function getDashboardAction({
+  draftEvents,
+  maxDraftEvents,
+  profileReadiness,
+}: {
+  draftEvents: any[];
   maxDraftEvents: number;
-}) {
-  const hasReachedDraftLimit = draftCount >= maxDraftEvents;
+  profileReadiness: ProfileReadiness;
+}): DashboardAction {
+  if (profileReadiness.tone === "paused") {
+    return {
+      description: "Din profil er på pause. Rediger profilen eller kontakt SoulEvents, når du ønsker at vende tilbage.",
+      href: "/facilitator/profile",
+      icon: PauseCircle,
+      label: "Ret profil",
+      title: "Profilen er på pause",
+    };
+  }
+
+  if (!profileReadiness.isComplete) {
+    return {
+      description: "Start med de oplysninger, der mangler, så dashboardet kan åbne næste skridt for dig.",
+      href: "/facilitator/profile",
+      icon: PencilLine,
+      label: "Færdiggør profil",
+      title: "Næste skridt er din profil",
+    };
+  }
+
+  if (draftEvents.length >= maxDraftEvents) {
+    return {
+      description: draftLimitMessage(maxDraftEvents),
+      href: "/facilitator/events",
+      icon: CalendarPlus,
+      isDisabled: true,
+      label: "Kladdegrænse nået",
+      title: "Grænsen for kladder er nået",
+    };
+  }
+
+  return {
+    description: "Skab et nyt event og invitér mennesker ind i nærvær, fællesskab og udvikling.",
+    href: "/facilitator/events",
+    icon: CalendarPlus,
+    label: "Opret event",
+    title: "Invitér til en oplevelse",
+  };
+}
+
+function DashboardActionCard({ action }: { action: DashboardAction }) {
+  const Icon = action.icon;
 
   return (
     <div className="w-full rounded-[24px] border border-[#D8CBE4] bg-[#F4F0F7] p-5 shadow-[0_10px_30px_rgba(122,93,145,0.10)] md:max-w-[320px] md:p-6">
       <div className="hidden md:block">
-        <h2 className="text-2xl font-semibold leading-tight text-[#2F2437]">🌿 Invitér til en oplevelse</h2>
-        <p className="mt-3 text-sm leading-6 text-[#6E6475]">Skab et event og invitér mennesker ind i nærvær, fællesskab og udvikling.</p>
+        <h2 className="text-2xl font-semibold leading-tight text-[#2F2437]">🌿 {action.title}</h2>
+        <p className="mt-3 text-sm leading-6 text-[#6E6475]">{action.description}</p>
       </div>
-      <p className="mb-3 text-center text-xs font-medium leading-5 text-[#6E6475] md:hidden">Skab et event og invitér mennesker ind i nærvær, fællesskab og udvikling.</p>
-      {hasReachedDraftLimit ? (
+      <p className="mb-3 text-center text-xs font-medium leading-5 text-[#6E6475] md:hidden">{action.description}</p>
+      {action.isDisabled ? (
         <div className="mt-4 rounded-[18px] border border-[#D8CBE4] bg-white/80 p-4 text-sm leading-6 text-[#6E6475]">
-          <p className="font-semibold text-[#2F2437]">Grænsen for kladder er nået</p>
-          <p className="mt-1">{draftLimitMessage(maxDraftEvents)}</p>
+          <p className="font-semibold text-[#2F2437]">{action.title}</p>
+          <p className="mt-1">{action.description}</p>
         </div>
       ) : (
         <Link
           className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285] hover:shadow-[0_8px_18px_rgba(122,93,145,0.18)] md:mt-6"
-          href="/facilitator/events"
+          href={action.href}
         >
-          <CalendarPlus className="size-4" aria-hidden="true" />
-          Opret event
+          <Icon className="size-4" aria-hidden="true" />
+          {action.label}
         </Link>
       )}
     </div>
@@ -134,23 +255,21 @@ function CreateEventCtaCard({
 
 function DashboardHeader({
   name,
-  profileStatus,
   hostReferenceId,
-  draftCount,
-  maxDraftEvents,
+  profileReadiness,
+  primaryAction,
 }: {
   name: string | null;
-  profileStatus: string;
   hostReferenceId?: string | null;
-  draftCount: number;
-  maxDraftEvents: number;
+  profileReadiness: ProfileReadiness;
+  primaryAction: DashboardAction;
 }) {
-  const statusText =
-    profileStatus === "approved"
-      ? "Din profil er synlig"
-      : profileStatus === "disabled"
-        ? "Din profil er sat på pause"
-        : "Din profil afventer godkendelse";
+  const statusClassName =
+    profileReadiness.tone === "ready"
+      ? "bg-[#DDE8D7] text-[#4E6A45]"
+      : profileReadiness.tone === "paused"
+        ? "bg-[#F4E7C8] text-[#7A6235]"
+        : "bg-[#FFF7E8] text-[#8A6A2E]";
 
   return (
     <section className="overflow-hidden rounded-[28px] border border-[#E5DDEA] bg-white p-6 shadow-soft sm:p-8">
@@ -161,17 +280,14 @@ function DashboardHeader({
             Hej {name || "og velkommen"} 🌿
           </h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-[#6E6475]">
-            Her er dit overblik over dine events, tilmeldinger og din profil på SoulEvents.dk.
+            {profileReadiness.isComplete
+              ? "Du er godt i gang. Dashboardet viser det næste naturlige skridt for dig."
+              : "Velkommen til SoulEvents. Lad os gøre din profil klar, så deltagere trygt kan møde dig."}
           </p>
           <div className="mt-4 flex flex-wrap gap-2 text-sm font-semibold">
-            <span
-              className={
-                "inline-flex items-center gap-2 rounded-full px-4 py-2 " +
-                (profileStatus === "disabled" ? "bg-[#F4E7C8] text-[#7A6235]" : "bg-[#DDE8D7] text-[#4E6A45]")
-              }
-            >
+            <span className={"inline-flex items-center gap-2 rounded-full px-4 py-2 " + statusClassName}>
               <CheckCircle2 className="size-4" aria-hidden="true" />
-              {statusText}
+              {profileReadiness.label}
             </span>
             {hostReferenceId ? (
               <span className="inline-flex items-center rounded-full bg-[#F4F0F7] px-4 py-2 text-[#6E5A86]">
@@ -179,9 +295,44 @@ function DashboardHeader({
               </span>
             ) : null}
           </div>
+          <div className="mt-5 rounded-[20px] bg-[#FAF7F2] p-4 text-sm leading-6 text-[#6E6475]">
+            <p className="font-semibold text-[#2F2437]">{profileReadiness.message}</p>
+            {profileReadiness.missingItems.length > 0 ? (
+              <div className="mt-3">
+                <p className="font-semibold text-[#2F2437]">Du mangler kun:</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {profileReadiness.missingItems.map((item) => (
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#8A6A2E] shadow-sm" key={item}>
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
-        <CreateEventCtaCard draftCount={draftCount} maxDraftEvents={maxDraftEvents} />
+        <DashboardActionCard action={primaryAction} />
       </div>
+    </section>
+  );
+}
+
+function ProfileStatusPanel({ profileReadiness }: { profileReadiness: ProfileReadiness }) {
+  const toneClass =
+    profileReadiness.tone === "ready"
+      ? "border-[#C7DDBC] bg-[#F4FAF1] text-[#4E6A45]"
+      : profileReadiness.tone === "paused"
+        ? "border-[#E6D4A8] bg-[#FFF8E8] text-[#7A6235]"
+        : "border-[#E8D6A8] bg-[#FFF9EC] text-[#8A6A2E]";
+
+  return (
+    <section className={"rounded-[24px] border p-4 shadow-soft " + toneClass}>
+      <p className="text-xs font-semibold uppercase tracking-wide opacity-80">Profilstatus</p>
+      <div className="mt-2 flex items-center gap-2">
+        <CheckCircle2 className="size-5 shrink-0" aria-hidden="true" />
+        <p className="font-semibold">{profileReadiness.label}</p>
+      </div>
+      <p className="mt-2 text-sm leading-6 opacity-90">{profileReadiness.message}</p>
     </section>
   );
 }
@@ -332,7 +483,7 @@ function EventCard({ event }: { event: any }) {
         </Link>
         <Link
           className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#E5DDEA] bg-white px-4 text-sm font-semibold text-[#2F2437] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
-          href="/facilitator/bookings"
+          href={"/facilitator/bookings?event=" + event.id}
         >
           <Inbox className="size-4" aria-hidden="true" />
           Se tilmeldinger
@@ -706,6 +857,17 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const activeEvents = eventRows.filter((event) => ["active", "sold_out", "pending_review"].includes(event.status) && new Date(event.starts_at) >= now);
   const completedEvents = eventRows.filter((event) => event.status === "completed" || new Date(event.starts_at) < now);
   const draftEvents = eventRows.filter((event) => event.status === "draft");
+  const profileReadiness = getProfileReadiness({
+    categoryCount: categoryNames.length,
+    facilitatorProfile,
+  });
+  const primaryAction = getDashboardAction({
+    draftEvents,
+    maxDraftEvents: limitStatus.maxDraftEvents,
+    profileReadiness,
+  });
+  const hasDashboardActivity = activeEvents.length > 0 || draftEvents.length > 0 || completedEvents.length > 0 || (bookingCount ?? 0) > 0;
+  const showPerformanceDashboard = profileReadiness.isComplete && hasDashboardActivity;
   const activityItems = [
     ...((recentBookings ?? []) as any[]).map((booking) => {
       const bookingEvent = first(booking.events);
@@ -741,42 +903,66 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
 
           <DashboardHeader
             name={profile.full_name}
-            profileStatus={status}
             hostReferenceId={hostReferenceId}
-            draftCount={limitStatus.draftCount}
-            maxDraftEvents={limitStatus.maxDraftEvents}
+            profileReadiness={profileReadiness}
+            primaryAction={primaryAction}
           />
 
-          <section className="grid gap-3 sm:grid-cols-2">
-            <StatsCard href="#aktive-events" icon={CalendarCheck2} label="Aktive events" value={activeEvents.length} tone="lavender" />
-            <StatsCard href="#kladder" icon={CalendarDays} label="Kladder" value={draftEvents.length} tone="sage" />
-            <StatsCard href="#tidligere-events" icon={Clock3} label="Afholdte events" value={completedEvents.length} tone="cream" />
-            <StatsCard href="/facilitator/bookings" icon={Ticket} label="Tilmeldinger" value={bookingCount ?? 0} tone="rose" />
-          </section>
+          {showPerformanceDashboard ? (
+            <section className="grid gap-3 sm:grid-cols-2">
+              <StatsCard href="#aktive-events" icon={CalendarCheck2} label="Aktive events" value={activeEvents.length} tone="lavender" />
+              <StatsCard href="#kladder" icon={CalendarDays} label="Kladder" value={draftEvents.length} tone="sage" />
+              <StatsCard href="#tidligere-events" icon={Clock3} label="Afholdte events" value={completedEvents.length} tone="cream" />
+              <StatsCard href="/facilitator/bookings" icon={Ticket} label="Tilmeldinger" value={bookingCount ?? 0} tone="rose" />
+            </section>
+          ) : profileReadiness.isComplete ? (
+            <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Næste skridt</p>
+              <h2 className="mt-2 text-2xl font-semibold text-[#2F2437]">Din profil er klar</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6E6475]">
+                Fantastisk. Nu er du klar til at invitere mennesker til dit første event, mens SoulEvents gennemgår din profil.
+              </p>
+              <Link
+                className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285]"
+                href="/facilitator/events"
+              >
+                <CalendarPlus className="size-4" aria-hidden="true" />
+                Opret event
+              </Link>
+            </section>
+          ) : null}
 
           <AdminMessageCta unreadCount={unreadMessageCount} />
 
-          <ActivityFeed items={activityItems} />
+          {showPerformanceDashboard ? <ActivityFeed items={activityItems} /> : null}
 
-          {draftEvents.length > 0 ? (
+          {profileReadiness.isComplete && draftEvents.length > 0 ? (
             <EventSection id="kladder" title="Kladder" text="Events du kan åbne og gøre færdige i dit eget tempo." events={draftEvents} />
           ) : null}
 
-          <EventSection id="aktive-events" title="Dine aktive events" text="Kommende events og events, der er ved at blive gjort klar." events={activeEvents} />
+          {profileReadiness.isComplete ? (
+            <EventSection id="aktive-events" title="Dine aktive events" text="Kommende events og events, der er ved at blive gjort klar." events={activeEvents} />
+          ) : null}
 
-          <MilestoneCard
-            activeEventCount={activeEvents.length}
-            completedEventCount={completedEvents.length}
-            reminderSubscriberCount={reminderSubscriberCount ?? 0}
-          />
+          {showPerformanceDashboard ? (
+            <MilestoneCard
+              activeEventCount={activeEvents.length}
+              completedEventCount={completedEvents.length}
+              reminderSubscriberCount={reminderSubscriberCount ?? 0}
+            />
+          ) : null}
 
-          <InsightCard events={eventRows} />
+          {showPerformanceDashboard ? <InsightCard events={eventRows} /> : null}
 
-          <EventSection id="tidligere-events" title="Tidligere events" text="En rolig historik over events, du allerede har afholdt." events={completedEvents.slice(0, 6)} />
+          {showPerformanceDashboard ? (
+            <EventSection id="tidligere-events" title="Tidligere events" text="En rolig historik over events, du allerede har afholdt." events={completedEvents.slice(0, 6)} />
+          ) : null}
 
         </div>
 
-        <aside className="w-full space-y-4 lg:sticky lg:top-6 lg:self-start">
+        <aside className="w-full space-y-4 lg:self-start">
+          <ProfileStatusPanel profileReadiness={profileReadiness} />
+
           <FacilitatorProfilePreview
             badges={profileBadges}
             categories={categoryNames.map((category) => ({

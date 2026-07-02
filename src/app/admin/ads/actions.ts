@@ -26,6 +26,11 @@ function homepagePlacementValue(formData: FormData) {
   return value === "middle" ? "middle" : "bottom";
 }
 
+function isMissingHomepagePlacementError(error: { message?: string; details?: string; code?: string } | null | undefined) {
+  const text = [error?.message, error?.details, error?.code].filter(Boolean).join(" ").toLowerCase();
+  return text.includes("homepage_placement") || text.includes("schema cache");
+}
+
 function extensionFromFile(file: File) {
   const fromName = file.name.split(".").pop()?.toLowerCase();
   if (fromName && ["jpg", "jpeg", "png", "webp", "mp4"].includes(fromName)) {
@@ -121,9 +126,17 @@ export async function upsertAdAction(formData: FormData) {
     admin_note: getOptionalString(formData, "admin_note"),
   };
 
-  const result = id
+  let result = id
     ? await supabase.from("ads").update(payload).eq("id", id).select("id").single()
     : await supabase.from("ads").insert(payload).select("id").single();
+
+  if (result.error && isMissingHomepagePlacementError(result.error)) {
+    const legacyPayload: Partial<typeof payload> = { ...payload };
+    delete legacyPayload.homepage_placement;
+    result = id
+      ? await supabase.from("ads").update(legacyPayload).eq("id", id).select("id").single()
+      : await supabase.from("ads").insert(legacyPayload).select("id").single();
+  }
 
   if (result.error || !result.data) {
     go("Reklamen kunne ikke gemmes. Tjek at database-migrationen er kørt.");

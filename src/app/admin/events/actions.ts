@@ -25,13 +25,23 @@ export async function updateAdminEventStatusAction(formData: FormData) {
   }
 
   const supabase = createAdminClient();
-  const { data: event } = await supabase.from("events").select("id, facilitator_id, status").eq("id", eventId).maybeSingle();
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, facilitator_id, status, facilitator_profiles(status)")
+    .eq("id", eventId)
+    .maybeSingle();
 
   if (!event) {
     go("Eventet kunne ikke findes.");
   }
 
   if (status === "active") {
+    const facilitator = Array.isArray(event.facilitator_profiles) ? event.facilitator_profiles[0] : event.facilitator_profiles;
+
+    if (facilitator?.status !== "approved") {
+      go("Eventet kan først godkendes, når arrangøren er godkendt.");
+    }
+
     const limitStatus = await getFacilitatorEventLimitStatus(supabase, event.facilitator_id, {
       excludeEventId: event.id,
     });

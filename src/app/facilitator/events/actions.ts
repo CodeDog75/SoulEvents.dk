@@ -40,7 +40,7 @@ type EventUpdateSnapshot = {
 async function getAutoApproveEvents(supabase: AdminClient, facilitatorId: string) {
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("auto_approve_events")
+    .select("auto_approve_events, status")
     .eq("id", facilitatorId)
     .maybeSingle();
 
@@ -48,7 +48,7 @@ async function getAutoApproveEvents(supabase: AdminClient, facilitatorId: string
     return false;
   }
 
-  return Boolean(data?.auto_approve_events);
+  return data?.status === "approved" && Boolean(data?.auto_approve_events);
 }
 
 function eventsRedirect(message: string): never {
@@ -524,12 +524,16 @@ export async function createEventAction(formData: FormData) {
     eventsRedirect("Maks. antal deltagere er 500.");
   }
 
-  if (mainCategoryIds.length > 3 || categoryIds.length > 3 || tagIds.length > 4) {
-    eventsRedirect("Du kan vælge op til 3 kategorier og op til 4 tags.");
+  if (mainCategoryIds.length > 3 || categoryIds.length > 3 || tagIds.length > 3) {
+    eventsRedirect("Du kan vælge op til 3 kategorier og op til 3 tags.");
   }
 
   if (!isDraft && eventFormat === "physical" && (!addressLine || !postalCode || !city || !country)) {
     eventsRedirect("Adresse, postnummer, by og land skal udfyldes for fysiske events.");
+  }
+
+  if (!isDraft && isDanishPhysicalEvent && postalCode && !/^\d{4}$/.test(postalCode)) {
+    eventsRedirect("Danske events skal have et postnummer på 4 cifre.");
   }
 
   if (!isDraft && eventFormat === "online" && !onlineUrlOrNote) {

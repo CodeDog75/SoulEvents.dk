@@ -45,8 +45,8 @@ export function UserRoleTable({ currentProfileId, users }: UserRoleTableProps) {
   return (
     <section className="overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
       <div className="border-b border-midnight/10 px-5 py-4">
-        <h2 className="text-lg font-semibold text-midnight">Brugere og roller</h2>
-        <p className="mt-1 text-sm text-ink/64">Styr hvem der har adgang til adminpanelet.</p>
+        <h2 className="text-lg font-semibold text-midnight">Arrangører og admin</h2>
+        <p className="mt-1 text-sm text-ink/64">Styr hvem der har adgang til adminpanelet, og hvem der er arrangør.</p>
       </div>
 
       <div className="divide-y divide-midnight/10">

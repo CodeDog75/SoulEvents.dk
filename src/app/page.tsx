@@ -187,6 +187,14 @@ function getMainCategoryFallbackKeys(categoryName: string) {
     keys.add("Personlig Udvikling");
   }
 
+  if (["retreat", "rejse", "rejser"].some((label) => name.includes(label))) {
+    keys.add("Retreats & Rejser");
+  }
+
+  if (["uddannelse", "uddannelser"].some((label) => name.includes(label))) {
+    keys.add("Uddannelse");
+  }
+
   return [...keys];
 }
 
@@ -290,11 +298,6 @@ function experienceGroupHasEvents(
 function eventMatchesAnyLabel(event: PublicEvent, labels: string[]) {
   const haystack = getEventCategoryNames(event).join(" ").toLowerCase();
   return labels.some((label) => haystack.includes(label.toLowerCase()));
-}
-
-function categoryPageHref(experienceGroups: Array<{ slug: string; name: string }>, fallback: string, labels: string[]) {
-  const group = experienceGroups.find((item) => labels.some((label) => item.name.toLowerCase().includes(label.toLowerCase())));
-  return group ? "/categories/" + group.slug : fallback;
 }
 
 function textMatches(
@@ -962,23 +965,9 @@ async function getHomepageAds(placement: "middle" | "bottom") {
     return [];
   }
   const nowIso = new Date().toISOString();
-  const { data, error } = await supabase
-    .from("ads")
-    .select("id, title, image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count, homepage_placement")
-    .eq("is_active", true)
-    .eq("show_on_homepage", true)
-    .eq("homepage_placement", placement)
-    .or("starts_at.is.null,starts_at.lte." + nowIso)
-    .or("ends_at.is.null,ends_at.gte." + nowIso)
-    .order("priority", { ascending: true })
-    .order("created_at", { ascending: false });
 
-  if (error || !data) {
-    return [];
-  }
-
-  return data
-    .map((ad: any) => ({
+  const mapAds = (ads: any[]) =>
+    ads.map((ad: any) => ({
       id: ad.id,
       title: ad.title,
       imageUrl: publicMediaUrl(ad.image_path),
@@ -989,6 +978,41 @@ async function getHomepageAds(placement: "middle" | "bottom") {
       showTitle: ad.show_title_on_banner ?? true,
       showSponsor: ad.show_sponsor_on_banner ?? true,
     }));
+
+  const applyActiveHomepageFilters = (query: any) =>
+    query
+      .eq("is_active", true)
+      .eq("show_on_homepage", true)
+      .or("starts_at.is.null,starts_at.lte." + nowIso)
+      .or("ends_at.is.null,ends_at.gte." + nowIso)
+      .order("priority", { ascending: true })
+      .order("created_at", { ascending: false });
+
+  const { data, error } = await applyActiveHomepageFilters(
+    supabase
+      .from("ads")
+      .select("id, title, image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count, homepage_placement"),
+  ).eq("homepage_placement", placement);
+
+  if (!error && data) {
+    return mapAds(data);
+  }
+
+  if (placement !== "bottom") {
+    return [];
+  }
+
+  const { data: fallbackData, error: fallbackError } = await applyActiveHomepageFilters(
+    supabase
+      .from("ads")
+      .select("id, title, image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count"),
+  );
+
+  if (fallbackError || !fallbackData) {
+    return [];
+  }
+
+  return mapAds(fallbackData);
 }
 
 export default async function Home({ searchParams }: HomeProps) {
@@ -1109,22 +1133,22 @@ export default async function Home({ searchParams }: HomeProps) {
     { title: "Nye events", href: "/events", events: newHomepageEvents.slice(0, 10) },
     {
       title: "Sauna & Velvære",
-      href: categoryPageHref(experienceGroups, "/?category_label=Saunagus#events", ["Sauna", "Velvære"]),
+      href: "/?category_label=Saunagus#events",
       events: saunaEvents.slice(0, 10),
     },
     {
       title: "Yoga",
-      href: categoryPageHref(experienceGroups, "/?category_label=Yoga#events", ["Yoga", "Bevægelse", "Krop"]),
+      href: "/?category_label=Yoga#events",
       events: yogaEvents.slice(0, 10),
     },
     {
       title: "Meditation",
-      href: categoryPageHref(experienceGroups, "/?category_label=Meditation#events", ["Meditation", "Nærvær"]),
+      href: "/?category_label=Meditation#events",
       events: meditationEvents.slice(0, 10),
     },
     {
       title: "Retreats & Rejser",
-      href: categoryPageHref(experienceGroups, "/?category_label=Retreat#events", ["Retreat", "Rejse"]),
+      href: "/?category_label=Retreat#events",
       events: retreatEvents.slice(0, 10),
     },
     { title: "Online events", href: "/?format=online#events", events: onlineHomepageEvents.slice(0, 10) },

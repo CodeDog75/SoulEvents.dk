@@ -31,22 +31,18 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <main className="min-h-screen bg-[#fbfaf7] px-4 py-10">
-      <div className="mx-auto mb-5 flex w-full max-w-md justify-end">
-        <Link
-          className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#7A4EAB]/15 bg-white/85 px-4 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:border-[#7A4EAB]/35 hover:bg-[#EDE4F7]/70"
-          href="/"
-        >
-          Tilbage til forsiden
-        </Link>
-      </div>
-
       <section className="mx-auto w-full max-w-md rounded-md border border-midnight/10 bg-white p-6 shadow-soft">
-        <Link className="mb-8 flex items-center gap-3" href="/">
-          <BrandLogo className="h-32 w-32" priority />
-          <div>
-            <p className="text-sm text-ink/65">{title}</p>
-          </div>
-        </Link>
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <Link aria-label="SoulEvents forside" className="shrink-0" href="/">
+            <BrandLogo className="h-28 w-28 sm:h-32 sm:w-32" priority />
+          </Link>
+          <Link
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#7A4EAB]/15 bg-white/85 px-4 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:border-[#7A4EAB]/35 hover:bg-[#EDE4F7]/70"
+            href="/"
+          >
+            Tilbage til forsiden
+          </Link>
+        </div>
 
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-midnight">{title}</h1>

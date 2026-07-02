@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Search, ShieldCheck } from "lucide-react";
 import { transferAdminByEmailAction } from "@/app/admin/users/actions";
 import { UserRoleTable } from "@/components/admin/users/user-role-table";
 import { AuthMessage } from "@/components/auth/auth-message";
@@ -11,16 +11,27 @@ export const dynamic = "force-dynamic";
 type AdminUsersPageProps = {
   searchParams: Promise<{
     message?: string;
+    q?: string;
   }>;
 };
 
 export default async function AdminUsersPage({ searchParams }: AdminUsersPageProps) {
-  const [{ message }, profile] = await Promise.all([searchParams, requireRole("admin")]);
+  const [{ message, q }, profile] = await Promise.all([searchParams, requireRole("admin")]);
+  const queryText = (q ?? "").trim().toLowerCase();
   const supabase = createAdminClient();
   const { data: users } = await supabase
     .from("profiles")
     .select("id, role, full_name, email, phone, created_at")
     .order("created_at", { ascending: false });
+
+  const visibleUsers = (users ?? []).filter((user) => {
+    if (!queryText) return true;
+    return [user.full_name, user.email, user.phone, user.role]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(queryText);
+  });
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -28,7 +39,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Administrator</p>
-            <h1 className="text-xl font-semibold text-midnight">Brugere og roller</h1>
+            <h1 className="text-xl font-semibold text-midnight">Arrangører og admin</h1>
           </div>
           <Link
             className="inline-flex h-10 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta"
@@ -42,6 +53,29 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
         <AuthMessage message={message} />
+
+        <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+          <form action="/admin/users" className="grid gap-2">
+            <label className="text-sm font-semibold text-midnight" htmlFor="admin-user-search">
+              Søg arrangør eller admin
+            </label>
+            <div className="flex min-w-0 gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink/45" aria-hidden="true" />
+                <input
+                  className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
+                  defaultValue={q ?? ""}
+                  id="admin-user-search"
+                  name="q"
+                  placeholder="Søg navn, e-mail, telefon eller rolle"
+                />
+              </div>
+              <button className="h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">
+                Søg
+              </button>
+            </div>
+          </form>
+        </section>
 
         <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
           <div className="flex items-start gap-3">
@@ -81,7 +115,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
           </form>
         </section>
 
-        <UserRoleTable currentProfileId={profile.id} users={(users ?? []) as never} />
+        <UserRoleTable currentProfileId={profile.id} users={visibleUsers as never} />
       </section>
     </main>
   );

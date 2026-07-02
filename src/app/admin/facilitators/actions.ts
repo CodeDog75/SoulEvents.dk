@@ -13,6 +13,10 @@ function adminRedirect(message: string): never {
   redirect(`/admin?message=${encodeURIComponent(message)}`);
 }
 
+function adminMessageRedirect(message: string): never {
+  redirect(`/admin/messages?message=${encodeURIComponent(message)}`);
+}
+
 function adminFacilitatorEditRedirect(facilitatorId: string, message: string): never {
   redirect(`/admin/facilitators/${facilitatorId}/edit?message=${encodeURIComponent(message)}`);
 }
@@ -26,7 +30,7 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
   const message = getString(formData, "message");
 
   if (!originalMessageId || !facilitatorId || !message || message.length > 500) {
-    adminRedirect("Skriv et svar på højst 500 tegn.");
+    adminMessageRedirect("Skriv et svar på højst 500 tegn.");
   }
 
   const supabase = createAdminClient();
@@ -37,7 +41,7 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
     .single();
 
   if (!facilitator?.profile_id) {
-    adminRedirect("Arrangøren kunne ikke findes.");
+    adminMessageRedirect("Arrangøren kunne ikke findes.");
   }
 
   const { error } = await supabase.from("facilitator_admin_messages").insert({
@@ -51,7 +55,7 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
   });
 
   if (error) {
-    adminRedirect("Svaret kunne ikke sendes. Kør eventuelt den nyeste Supabase-migration og prøv igen.");
+    adminMessageRedirect("Svaret kunne ikke sendes. Kør eventuelt den nyeste Supabase-migration og prøv igen.");
   }
 
   await supabase
@@ -60,8 +64,9 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
     .eq("id", originalMessageId);
 
   revalidatePath("/admin");
+  revalidatePath("/admin/messages");
   revalidatePath("/facilitator");
-  redirect("/admin?message=" + encodeURIComponent("Svaret er sendt til arrangøren.") + "#admin-messages");
+  adminMessageRedirect("Svaret er sendt til arrangøren.");
 }
 
 export async function archiveFacilitatorAdminMessageAction(formData: FormData) {
@@ -70,7 +75,7 @@ export async function archiveFacilitatorAdminMessageAction(formData: FormData) {
   const messageId = getString(formData, "message_id");
 
   if (!messageId) {
-    adminRedirect("Beskeden kunne ikke arkiveres.");
+    adminMessageRedirect("Beskeden kunne ikke arkiveres.");
   }
 
   const supabase = createAdminClient();
@@ -80,11 +85,12 @@ export async function archiveFacilitatorAdminMessageAction(formData: FormData) {
     .eq("id", messageId);
 
   if (error) {
-    adminRedirect("Beskeden kunne ikke arkiveres.");
+    adminMessageRedirect("Beskeden kunne ikke arkiveres.");
   }
 
   revalidatePath("/admin");
-  redirect("/admin?message=" + encodeURIComponent("Beskeden er arkiveret.") + "#admin-messages");
+  revalidatePath("/admin/messages");
+  adminMessageRedirect("Beskeden er arkiveret.");
 }
 
 export async function updateFacilitatorStatusAction(formData: FormData) {
