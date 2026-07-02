@@ -61,11 +61,11 @@ export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProp
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
-      <div className="relative aspect-[16/7] min-h-[180px] sm:aspect-[16/5]">
+      <div className="relative h-[360px] min-[390px]:h-[390px] min-[430px]:h-[420px] md:h-[440px] lg:h-auto lg:aspect-[16/5]">
         {activeAd.imageUrl && isVideoAd(activeAd.imageUrl) ? (
           <video
             autoPlay
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover object-center"
             loop
             muted
             playsInline
@@ -73,7 +73,7 @@ export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProp
           />
         ) : activeAd.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img alt={activeAd.altText} className="h-full w-full object-cover" src={activeAd.imageUrl} />
+          <img alt={activeAd.altText} className="h-full w-full object-cover object-center" src={activeAd.imageUrl} />
         ) : (
           <div className="h-full w-full bg-gradient-to-br from-[#2F2633] via-[#7A4EAB] to-[#D8A7B1]" />
         )}
@@ -91,7 +91,7 @@ export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProp
           )}
         </div>
         {activeAd.targetUrl && (
-          <span className="absolute right-4 top-4 inline-flex size-11 items-center justify-center rounded-full bg-white/88 text-[#7A4EAB] shadow-soft transition group-hover:bg-white">
+          <span className="absolute right-3 top-3 inline-flex size-9 items-center justify-center rounded-full bg-white/88 text-[#7A4EAB] shadow-soft transition group-hover:bg-white sm:right-4 sm:top-4 sm:size-11">
             <ExternalLink className="size-4" aria-hidden="true" />
           </span>
         )}
