@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Megaphone, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, Megaphone, RotateCcw, Save, Trash2 } from "lucide-react";
 import { deleteAdAction, upsertAdAction } from "@/app/admin/ads/actions";
 import { AdFormCategoryGuard } from "@/components/admin/ads/ad-form-category-guard";
+import { AdPreviewTabs } from "@/components/admin/ads/ad-preview-tabs";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -19,6 +20,8 @@ type Ad = {
   title: string;
   image_path: string | null;
   image_url?: string | null;
+  mobile_image_path: string | null;
+  mobile_image_url?: string | null;
   ad_reference_id?: string | null;
   alt_text: string | null;
   sponsor_name: string | null;
@@ -64,10 +67,6 @@ function publicMediaUrl(imagePath: string | null) {
   return supabaseUrl.replace(/\/$/, "") + "/storage/v1/object/public/media/" + encodedPath;
 }
 
-function isVideoMedia(path: string | null) {
-  return Boolean(path && /\.mp4($|[?#])/i.test(path));
-}
-
 function campaignStatus(ad: Ad) {
   if (!ad.is_active) return { label: "Deaktiveret", className: "bg-stone-100 text-stone-600" };
   const now = new Date();
@@ -78,23 +77,6 @@ function campaignStatus(ad: Ad) {
 
 function isCurrentlyActiveAd(ad: Ad) {
   return campaignStatus(ad).label === "Aktiv";
-}
-
-function AdPreview({ ad }: { ad?: Ad }) {
-  return (
-    <div className="overflow-hidden rounded-[22px] border border-midnight/10 bg-[#F6F1E7] shadow-soft">
-      {ad?.image_url && isVideoMedia(ad.image_path) ? (
-        <video autoPlay className="aspect-[16/6] w-full object-cover" loop muted playsInline src={ad.image_url} />
-      ) : ad?.image_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img alt={ad.alt_text || ad.title} className="aspect-[16/6] w-full object-cover" src={ad.image_url} />
-      ) : (
-        <div className="grid aspect-[16/6] place-items-center bg-gradient-to-br from-[#2F2633] via-[#7A4EAB] to-[#D8A7B1] px-6 text-center text-sm font-semibold text-white">
-          Upload billede eller MP4
-        </div>
-      )}
-    </div>
-  );
 }
 
 function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCategory[]; title: string }) {
@@ -127,98 +109,176 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
       <form action={upsertAdAction} className="p-5 sm:p-6" id={formId}>
         <input name="id" type="hidden" value={ad?.id ?? ""} />
         <input name="image_path" type="hidden" value={ad?.image_path ?? ""} />
+        <input name="mobile_image_path" type="hidden" value={ad?.mobile_image_path ?? ""} />
         <AdFormCategoryGuard formId={formId} />
 
-        <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
-          <aside className="grid content-start gap-4">
-            <AdPreview ad={ad} />
-            <section className="rounded-md border border-midnight/10 bg-[#FAF6EF] p-4">
-              <h3 className="text-sm font-semibold text-midnight">Medie</h3>
-              <label className="mt-3 grid gap-2 text-sm font-semibold text-ink/72">
-                Vælg reklamebillede
-                <input accept="image/png,image/jpeg,image/webp,video/mp4" className="block w-full text-sm text-ink/70 file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-3 file:py-2 file:text-sm file:font-semibold file:text-sage-700" name="image_file" type="file" />
-              </label>
-              <p className="mt-2 text-xs leading-5 text-ink/55">Anbefalet banner: 1600 x 500 px. Brug helst WebP, ellers JPG eller PNG under 1-2 MB. MP4 kan bruges som kort video uden lyd, helst 5-10 sekunder og under 8-12 MB, maksimum 30 MB.</p>
-              {ad?.image_path && (
-                <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-ink/70">
-                  <input className="size-4 accent-terracotta" name="remove_image" type="checkbox" />
-                  Fjern nuværende billede
-                </label>
-              )}
-            </section>
-          </aside>
+        <div className="grid gap-6">
+          <AdPreviewTabs
+            altText={ad?.alt_text}
+            desktopPath={ad?.image_path}
+            desktopUrl={ad?.image_url}
+            mobilePath={ad?.mobile_image_path}
+            mobileUrl={ad?.mobile_image_url}
+            showSponsor={ad?.show_sponsor_on_banner ?? true}
+            showTitle={ad?.show_title_on_banner ?? true}
+            sponsorName={ad?.sponsor_name}
+            title={ad?.title ?? title}
+          />
 
-          <div className="min-w-0 grid gap-5">
-            <section className="rounded-md border border-midnight/10 p-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-sage-700">Indhold</h3>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div className="grid gap-3">
-                  <label className="grid gap-2 text-sm font-medium text-ink/72">Titel/navn<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.title ?? ""} name="title" required maxLength={80} /></label>
-                  <label className="flex items-start gap-2 rounded-md bg-[#FAF6EF] p-3 text-sm font-semibold text-midnight">
-                    <input className="mt-1 size-4 shrink-0 accent-sage-700" defaultChecked={ad?.show_title_on_banner ?? true} name="show_title_on_banner" type="checkbox" />
-                    <span>
-                      Vis titel oven på banner
-                      <span className="block pt-1 text-xs font-medium leading-5 text-ink/55">
-                        Fjern markeringen, hvis billedet eller videoen allerede indeholder teksten.
-                      </span>
-                    </span>
+          <section className="rounded-card border border-midnight/10 bg-white p-5 shadow-soft" data-ad-media-section="true">
+            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Bannere</p>
+            <h3 className="mt-1 text-xl font-semibold text-midnight">Desktop- og mobilbanner</h3>
+            <div className="mt-5 grid gap-5 lg:grid-cols-2">
+              <div className="rounded-md border border-midnight/10 bg-[#FAF6EF] p-4">
+                <label className="grid gap-2 text-sm font-semibold text-ink/72">
+                  Desktopbanner
+                  <input accept="image/png,image/jpeg,image/webp,video/mp4" className="block w-full text-sm text-ink/70 file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-3 file:py-2 file:text-sm file:font-semibold file:text-sage-700" name="image_file" type="file" />
+                </label>
+                <p className="mt-2 text-xs leading-5 text-ink/55">Anbefalet: 1600 x 600 px. Bruges på desktop.</p>
+                {ad?.image_path && (
+                  <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-terracotta">
+                    <input className="size-4 accent-terracotta" name="remove_image" type="checkbox" />
+                    Fjern nuværende desktopbanner
                   </label>
-                </div>
-                <label className="grid gap-2 text-sm font-medium text-ink/72">Sponsor / partnernavn<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.sponsor_name ?? ""} name="sponsor_name" maxLength={80} /></label>
-                <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2">Link ved klik (valgfrit)<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.target_url ?? ""} name="target_url" placeholder="https://... eller /artikler/..." maxLength={300} /><span className="text-xs leading-5 text-ink/55">Hvis feltet er tomt, vises reklamen uden klik-link.</span></label>
-                <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2">Alt-tekst til billede<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.alt_text ?? ""} name="alt_text" placeholder="Kort beskrivelse af billedet" maxLength={160} /></label>
+                )}
               </div>
-            </section>
-
-            <section className="rounded-md border border-midnight/10 p-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-sage-700">Visning</h3><p className="mt-2 text-sm leading-6 text-ink/60">Hvis flere reklamer vises samme sted, skifter de automatisk i et roligt tempo. Står én reklame alene, vises den statisk.</p>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2 text-sm font-medium text-ink/72">Prioritet<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.priority ?? 100} name="priority" type="number" /></label>
-                <label className="grid gap-2 text-sm font-medium text-ink/72">Startdato<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={dateInputValue(ad?.starts_at ?? null)} name="starts_at" type="date" /></label>
-                <label className="grid gap-2 text-sm font-medium text-ink/72">Slutdato<input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={dateInputValue(ad?.ends_at ?? null)} name="ends_at" type="date" /></label>
-              </div>
-              {ad && <div className="mt-4 grid gap-2 rounded-md bg-[#FAF6EF] p-3 text-sm text-ink/70 sm:grid-cols-2"><span className="inline-flex items-center gap-2"><CalendarDays className="size-4" aria-hidden="true" /> Start: {formatDate(ad.starts_at)}</span><span className="inline-flex items-center gap-2"><CalendarDays className="size-4" aria-hidden="true" /> Slut: {formatDate(ad.ends_at)}</span></div>}
-            </section>
-
-            <section className="rounded-md border border-midnight/10 p-4">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-sage-700">Placering</h3>
-              <div className="mt-4 grid gap-3 rounded-md bg-[#FAF6EF] p-4">
-                <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.is_active ?? true} name="is_active" type="checkbox" /> Reklamen er aktiv</label>
-                <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_on_homepage ?? false} name="show_on_homepage" type="checkbox" /> Vis på forsiden</label>
-                <label className="grid gap-2 text-sm font-semibold text-midnight">
-                  Forsideplacering
-                  <select
-                    className="h-11 rounded-md border border-midnight/15 bg-white px-3 text-base font-semibold outline-none transition focus:border-sage-700"
-                    defaultValue={ad?.homepage_placement ?? "bottom"}
-                    name="homepage_placement"
-                  >
-                    <option value="middle">Midten - mellem Nye events og Sauna & Velvære</option>
-                    <option value="bottom">Nederst - almindeligt banner</option>
-                  </select>
+              <div className="rounded-md border border-midnight/10 bg-[#FAF6EF] p-4">
+                <label className="grid gap-2 text-sm font-semibold text-ink/72">
+                  Mobilbanner
+                  <input accept="image/png,image/jpeg,image/webp,video/mp4" className="block w-full text-sm text-ink/70 file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-3 file:py-2 file:text-sm file:font-semibold file:text-sage-700" name="mobile_image_file" type="file" />
                 </label>
-                <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_on_category_pages ?? false} name="show_on_category_pages" type="checkbox" /> Vis også på hovedkategorisider</label>
-                <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_in_newsletter ?? false} name="show_in_newsletter" type="checkbox" /> Reklame i nyhedsbrev/påmindelsesmails</label>
-                <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_sponsor_on_banner ?? true} name="show_sponsor_on_banner" type="checkbox" /> Vis partnernavn på banner</label>
+                <p className="mt-2 text-xs leading-5 text-ink/55">Anbefalet: 1200 x 1200 px. Hvis tomt, bruges desktopbanner som fallback.</p>
+                {ad?.mobile_image_path && (
+                  <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-terracotta">
+                    <input className="size-4 accent-terracotta" name="remove_mobile_image" type="checkbox" />
+                    Fjern nuværende mobilbanner
+                  </label>
+                )}
               </div>
+            </div>
+          </section>
 
-              <fieldset className="mt-4 grid gap-2 rounded-md border border-midnight/10 p-4">
-                <legend className="px-1 text-sm font-semibold text-midnight">Hovedkategorier hvor reklamen må vises, hvis hovedkategorisider er valgt</legend>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {mainCategories.map((category) => <label className="flex items-center gap-2 rounded-md bg-[#FAF6EF] px-3 py-2 text-sm font-semibold text-ink/76" key={category.id}><input className="size-4 accent-[#7A4EAB]" defaultChecked={Boolean(ad && selectedCategoryIds.has(category.id))} name="main_category_ids" type="checkbox" value={category.id} />{category.name}</label>)}
-                </div>
-              </fieldset>
-            </section>
+          <section className="rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
+            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Indhold</p>
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium text-ink/72">
+                Titel/navn
+                <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.title ?? ""} maxLength={80} name="title" required />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-ink/72">
+                Sponsor / partnernavn
+                <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.sponsor_name ?? ""} maxLength={80} name="sponsor_name" />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2">
+                Link ved klik
+                <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.target_url ?? ""} maxLength={300} name="target_url" placeholder="https://... eller /kontakt" />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2">
+                Alt-tekst
+                <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.alt_text ?? ""} maxLength={160} name="alt_text" placeholder="Kort beskrivelse af billedet" />
+              </label>
+              <div className="grid gap-3 rounded-md bg-[#FAF6EF] p-4 md:col-span-2">
+                <label className="flex items-start gap-2 text-sm font-semibold text-midnight">
+                  <input className="mt-1 size-4 shrink-0 accent-sage-700" defaultChecked={ad?.show_title_on_banner ?? true} name="show_title_on_banner" type="checkbox" />
+                  Vis titel oven på banner
+                </label>
+                <label className="flex items-start gap-2 text-sm font-semibold text-midnight">
+                  <input className="mt-1 size-4 shrink-0 accent-sage-700" defaultChecked={ad?.show_sponsor_on_banner ?? true} name="show_sponsor_on_banner" type="checkbox" />
+                  Vis partnernavn på banner
+                </label>
+              </div>
+            </div>
+          </section>
 
-            <section className="rounded-md border border-midnight/10 p-4">
-              <label className="grid gap-2 text-sm font-medium text-ink/72">Intern note til admin<textarea className="min-h-24 rounded-md border border-midnight/15 p-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.admin_note ?? ""} name="admin_note" maxLength={1000} /></label>
-            </section>
+          <section className="rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
+            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Periode og prioritet</p>
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
+              <label className="grid gap-2 text-sm font-medium text-ink/72">
+                Startdato
+                <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={dateInputValue(ad?.starts_at ?? null)} name="starts_at" type="date" />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-ink/72">
+                Slutdato
+                <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={dateInputValue(ad?.ends_at ?? null)} name="ends_at" type="date" />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-ink/72">
+                Prioritet
+                <input className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.priority ?? 100} name="priority" type="number" />
+              </label>
+            </div>
+            <div className="mt-4 rounded-md bg-[#FAF6EF] p-3 text-sm text-ink/70">
+              <span className="inline-flex items-center gap-2">
+                <CalendarDays className="size-4" aria-hidden="true" />
+                Vises fra {formatDate(ad?.starts_at ?? null)} til {formatDate(ad?.ends_at ?? null)}
+              </span>
+            </div>
+          </section>
 
-            <button className="inline-flex h-10 w-fit items-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700" type="submit"><Save className="size-4" aria-hidden="true" />Gem reklame</button>
-          </div>
+          <section className="rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
+            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Placering</p>
+            <div className="mt-5 grid gap-3 rounded-md bg-[#FAF6EF] p-4">
+              <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.is_active ?? true} name="is_active" type="checkbox" /> Aktiv</label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_on_homepage ?? false} name="show_on_homepage" type="checkbox" /> Vis på forsiden</label>
+              <label className="grid gap-2 text-sm font-semibold text-midnight">
+                Forsideplacering
+                <select className="h-11 rounded-md border border-midnight/15 bg-white px-3 text-base font-semibold outline-none transition focus:border-sage-700" defaultValue={ad?.homepage_placement ?? "bottom"} name="homepage_placement">
+                  <option value="middle">Midten</option>
+                  <option value="bottom">Nederst</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_on_category_pages ?? false} name="show_on_category_pages" type="checkbox" /> Vis på hovedkategorisider</label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-midnight"><input className="size-4 accent-sage-700" defaultChecked={ad?.show_in_newsletter ?? false} name="show_in_newsletter" type="checkbox" /> Vis i nyhedsbrev/påmindelser</label>
+            </div>
+          </section>
+
+          <section className="rounded-card border border-midnight/10 bg-white p-5 shadow-soft" data-ad-categories-section hidden={!ad?.show_on_category_pages}>
+            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Hovedkategorier</p>
+            <p className="mt-2 text-sm leading-6 text-ink/60">Vælg hvilke hovedkategorisider reklamen må vises på.</p>
+            <fieldset className="mt-4 grid gap-2 rounded-md border border-midnight/10 p-4">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {mainCategories.map((category) => (
+                  <label className="flex items-center gap-2 rounded-md bg-[#FAF6EF] px-3 py-2 text-sm font-semibold text-ink/76" key={category.id}>
+                    <input className="size-4 accent-[#7A4EAB]" defaultChecked={Boolean(ad && selectedCategoryIds.has(category.id))} name="main_category_ids" type="checkbox" value={category.id} />
+                    {category.name}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </section>
+
+          <details className="rounded-card border border-midnight/10 bg-white shadow-soft">
+            <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold uppercase tracking-wide text-sage-700 marker:hidden">
+              Intern note
+            </summary>
+            <div className="border-t border-midnight/10 p-5">
+              <label className="grid gap-2 text-sm font-medium text-ink/72">
+                Intern note til admin
+                <textarea className="min-h-24 rounded-md border border-midnight/15 p-3 text-base outline-none transition focus:border-sage-700" defaultValue={ad?.admin_note ?? ""} maxLength={1000} name="admin_note" />
+              </label>
+            </div>
+          </details>
         </div>
       </form>
 
-      {ad && <form action={deleteAdAction} className="border-t border-midnight/10 bg-white px-5 py-4 sm:px-6"><input name="id" type="hidden" value={ad.id} /><button className="inline-flex h-9 items-center gap-2 rounded-md border border-terracotta/30 bg-white px-3 text-sm font-semibold text-terracotta transition hover:bg-terracotta hover:text-white" type="submit"><Trash2 className="size-4" aria-hidden="true" />Slet reklame</button></form>}
+      <div className="sticky bottom-0 z-20 flex flex-col gap-3 border-t border-midnight/10 bg-white/95 px-5 py-4 shadow-soft backdrop-blur sm:flex-row sm:items-center sm:justify-end sm:px-6">
+        <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-midnight/15 bg-white px-4 text-sm font-semibold text-ink/70 transition hover:border-sage-700 hover:text-sage-700" form={formId} type="reset">
+          <RotateCcw className="size-4" aria-hidden="true" />
+          Fortryd ændringer
+        </button>
+        {ad && (
+          <form action={deleteAdAction}>
+            <input name="id" type="hidden" value={ad.id} />
+            <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-terracotta/30 bg-white px-4 text-sm font-semibold text-terracotta transition hover:bg-terracotta hover:text-white sm:w-auto" type="submit">
+              <Trash2 className="size-4" aria-hidden="true" />
+              Slet reklame
+            </button>
+          </form>
+        )}
+        <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-midnight px-5 text-sm font-semibold text-white transition hover:bg-sage-700" form={formId} type="submit">
+          <Save className="size-4" aria-hidden="true" />
+          Gem reklame
+        </button>
+      </div>
     </details>
   );
 }
@@ -244,7 +304,7 @@ export default async function AdminAdsPage({ searchParams }: AdminAdsPageProps) 
   }
 
   const adsWithImages = ads
-    .map((ad) => ({ ...ad, image_url: publicMediaUrl(ad.image_path) }))
+    .map((ad) => ({ ...ad, image_url: publicMediaUrl(ad.image_path), mobile_image_url: publicMediaUrl(ad.mobile_image_path) }))
     .sort((a, b) => {
       const activeDifference = Number(isCurrentlyActiveAd(b)) - Number(isCurrentlyActiveAd(a));
       if (activeDifference !== 0) return activeDifference;

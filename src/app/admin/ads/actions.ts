@@ -21,6 +21,16 @@ function dateValue(formData: FormData, name: string) {
   return new Date(value + "T00:00:00").toISOString();
 }
 
+function isInvalidDateRange(startsAt: string | null, endsAt: string | null) {
+  if (!startsAt || !endsAt) return false;
+  return new Date(endsAt).getTime() < new Date(startsAt).getTime();
+}
+
+function isValidAdUrl(value: string | null) {
+  if (!value) return true;
+  return /^https?:\/\//i.test(value) || /^\/(?!\/)/.test(value);
+}
+
 function homepagePlacementValue(formData: FormData) {
   const value = getOptionalString(formData, "homepage_placement");
   return value === "middle" ? "middle" : "bottom";
@@ -46,11 +56,23 @@ function isAllowedAdMedia(file: File) {
   return file.type.startsWith("image/") || file.type === "video/mp4";
 }
 
-async function uploadAdMedia(formData: FormData, currentImagePath: string | null) {
-  const removeImage = formData.get("remove_image") === "on";
+async function uploadAdMedia(
+  formData: FormData,
+  currentImagePath: string | null,
+  {
+    fileField,
+    removeField,
+    pathPrefix,
+  }: {
+    fileField: string;
+    removeField: string;
+    pathPrefix: string;
+  },
+) {
+  const removeImage = formData.get(removeField) === "on";
   if (removeImage) return null;
 
-  const file = formData.get("image_file");
+  const file = formData.get(fileField);
   if (!(file instanceof File) || file.size === 0) return currentImagePath;
 
   if (!isAllowedAdMedia(file)) {
@@ -71,7 +93,7 @@ async function uploadAdMedia(formData: FormData, currentImagePath: string | null
     .replace(/(^-|-$)/g, "")
     .slice(0, 60);
 
-  const imagePath = "ads/" + Date.now() + "-" + (safeName || "partner") + "." + extensionFromFile(file);
+  const imagePath = "ads/" + pathPrefix + "-" + Date.now() + "-" + (safeName || "partner") + "." + extensionFromFile(file);
   const supabase = createAdminClient();
   const { error } = await supabase.storage.from("media").upload(imagePath, file, {
     cacheControl: "31536000",
@@ -92,11 +114,21 @@ export async function upsertAdAction(formData: FormData) {
   const id = getOptionalString(formData, "id");
   const title = getString(formData, "title");
   const currentImagePath = getOptionalString(formData, "image_path");
+  const currentMobileImagePath = getOptionalString(formData, "mobile_image_path");
   const showOnHomepage = formData.get("show_on_homepage") === "on";
   const showOnCategoryPages = formData.get("show_on_category_pages") === "on";
   const categoryIds = formData.getAll("main_category_ids").map(String).filter(Boolean);
+  const targetUrl = getOptionalString(formData, "target_url");
+  const startsAt = dateValue(formData, "starts_at");
+  const endsAt = dateValue(formData, "ends_at");
 
   if (!title) go("Titel er påkrævet.");
+  if (!isValidAdUrl(targetUrl)) {
+    go("Link skal starte med https:// eller være et internt link som /kontakt.");
+  }
+  if (isInvalidDateRange(startsAt, endsAt)) {
+    go("Slutdato skal være efter startdato.");
+  }
   if (!showOnHomepage && !showOnCategoryPages) {
     go("Vælg mindst én placering: forsiden eller hovedkategorisider.");
   }
@@ -104,18 +136,31 @@ export async function upsertAdAction(formData: FormData) {
     go("Vælg mindst én hovedkategori - kun fordi du har valgt, at reklamen også skal vises på hovedkategorisider.");
   }
 
-  const imagePath = await uploadAdMedia(formData, currentImagePath || null);
+  const imagePath = await uploadAdMedia(formData, currentImagePath || null, {
+    fileField: "image_file",
+    removeField: "remove_image",
+    pathPrefix: "desktop",
+  });
+  if (!imagePath) {
+    go("Desktopbanner er påkrævet. Upload et banner i 1600 x 600-format.");
+  }
+  const mobileImagePath = await uploadAdMedia(formData, currentMobileImagePath || null, {
+    fileField: "mobile_image_file",
+    removeField: "remove_mobile_image",
+    pathPrefix: "mobile",
+  });
   const supabase = createAdminClient();
   const payload = {
     title,
     image_path: imagePath,
+    mobile_image_path: mobileImagePath,
     alt_text: getOptionalString(formData, "alt_text") || title,
     sponsor_name: getOptionalString(formData, "sponsor_name"),
-    target_url: getOptionalString(formData, "target_url"),
+    target_url: targetUrl,
     priority: numberFrom(formData, "priority", 100),
     display_seconds: 10,
-    starts_at: dateValue(formData, "starts_at"),
-    ends_at: dateValue(formData, "ends_at"),
+    starts_at: startsAt,
+    ends_at: endsAt,
     is_active: formData.get("is_active") === "on",
     show_on_category_pages: showOnCategoryPages,
     show_on_homepage: showOnHomepage,
