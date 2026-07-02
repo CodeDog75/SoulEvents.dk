@@ -137,7 +137,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                 className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
                 defaultValue={q ?? ""}
                 name="q"
-                placeholder="Søg eventtitel, arrangør, by, kategori eller e-mail"
+                placeholder="Søg eventtitel, arrangør/kaldenavn, by, kategori eller e-mail"
               />
             </label>
             <button className="h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">

@@ -19,14 +19,53 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
   const [{ message, q }, profile] = await Promise.all([searchParams, requireRole("admin")]);
   const queryText = (q ?? "").trim().toLowerCase();
   const supabase = createAdminClient();
-  const { data: users } = await supabase
-    .from("profiles")
-    .select("id, role, full_name, email, phone, created_at")
-    .order("created_at", { ascending: false });
+  const [{ data: users }, { data: facilitators }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, role, full_name, email, phone, created_at")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("facilitator_profiles")
+      .select("id, profile_id, host_reference_id, status, company_name, short_description, city, postal_code, website_url, facilitator_categories(categories(name))"),
+  ]);
 
-  const visibleUsers = (users ?? []).filter((user) => {
+  const facilitatorByProfileId = new Map((facilitators ?? []).map((facilitator) => [facilitator.profile_id, facilitator]));
+  const enrichedUsers = (users ?? []).map((user) => {
+    const facilitator = facilitatorByProfileId.get(user.id);
+    const categories =
+      facilitator?.facilitator_categories
+        ?.map((row) => (Array.isArray(row.categories) ? row.categories[0] : row.categories)?.name)
+        .filter(Boolean) ?? [];
+
+    return {
+      ...user,
+      facilitator_categories: categories,
+      facilitator_city: facilitator?.city ?? null,
+      facilitator_company_name: facilitator?.company_name ?? null,
+      facilitator_host_reference_id: facilitator?.host_reference_id ?? null,
+      facilitator_postal_code: facilitator?.postal_code ?? null,
+      facilitator_short_description: facilitator?.short_description ?? null,
+      facilitator_status: facilitator?.status ?? null,
+      facilitator_website_url: facilitator?.website_url ?? null,
+    };
+  });
+
+  const visibleUsers = enrichedUsers.filter((user) => {
     if (!queryText) return true;
-    return [user.full_name, user.email, user.phone, user.role]
+    return [
+      user.full_name,
+      user.email,
+      user.phone,
+      user.role,
+      user.facilitator_company_name,
+      user.facilitator_host_reference_id,
+      user.facilitator_status,
+      user.facilitator_city,
+      user.facilitator_postal_code,
+      user.facilitator_short_description,
+      user.facilitator_website_url,
+      user.facilitator_categories.join(" "),
+    ]
       .filter(Boolean)
       .join(" ")
       .toLowerCase()
@@ -67,7 +106,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                   defaultValue={q ?? ""}
                   id="admin-user-search"
                   name="q"
-                  placeholder="Søg navn, e-mail, telefon eller rolle"
+                  placeholder="Søg navn, kaldenavn, e-mail, telefon, by eller medlemsnummer"
                 />
               </div>
               <button className="h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">

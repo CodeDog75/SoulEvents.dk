@@ -20,30 +20,17 @@ import {
   UserCog,
   UsersRound,
 } from "lucide-react";
-import { FacilitatorApprovalTable } from "@/components/admin/facilitator-approval-table";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { updateFacilitatorStatusAction } from "@/app/admin/facilitators/actions";
 import { requireRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
-import type { FacilitatorStatus } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
 type AdminPageProps = {
-  searchParams: Promise<{ status?: string; q?: string; message?: string }>;
+  searchParams: Promise<{ message?: string }>;
 };
-
-const statuses: Array<{ label: string; value: "all" | FacilitatorStatus }> = [
-  { label: "Alle", value: "all" },
-  { label: "Afventer", value: "pending" },
-  { label: "Godkendt", value: "approved" },
-  { label: "Deaktiveret", value: "disabled" },
-];
-
-function normalizeStatus(status?: string) {
-  return statuses.some((item) => item.value === status) ? (status as "all" | FacilitatorStatus) : "all";
-}
 
 function formatNumber(value: number | null | undefined) {
   return new Intl.NumberFormat("da-DK").format(value ?? 0);
@@ -55,26 +42,14 @@ function formatDateTime(value: string | null | undefined) {
 }
 
 export default async function AdminPage({ searchParams }: AdminPageProps) {
-  const [{ status, q, message }, profile] = await Promise.all([searchParams, requireRole("admin")]);
-  const selectedStatus = normalizeStatus(status);
-  const organizerSearchText = (q ?? "").trim().toLowerCase();
+  const [{ message }, profile] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = await createClient();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  let facilitatorQuery = supabase
-    .from("facilitator_profiles")
-    .select("id, host_reference_id, status, company_name, short_description, city, postal_code, website_url, created_at, auto_approve_events, is_active_host, is_experienced_host, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name))")
-    .order("created_at", { ascending: false });
-
-  if (selectedStatus !== "all") {
-    facilitatorQuery = facilitatorQuery.eq("status", selectedStatus);
-  }
-
   const [
-    { data: facilitators },
     { count: activeFacilitators },
     { count: pendingFacilitators },
     { count: upcomingEvents },
@@ -87,7 +62,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { data: latestBookings },
     { count: openAdminMessages },
   ] = await Promise.all([
-    facilitatorQuery.limit(organizerSearchText ? 200 : 20),
     supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "approved"),
     supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "active").gte("starts_at", today.toISOString()),
@@ -104,42 +78,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       .in("type", ["message", "closure_request"])
       .in("status", ["unread", "read"]),
   ]);
-
-  const visibleFacilitators = (facilitators ?? []).filter((facilitator: any) => {
-    if (!organizerSearchText) return true;
-    const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
-    const categories =
-      facilitator.facilitator_categories
-        ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories)?.name)
-        .filter(Boolean)
-        .join(" ") ?? "";
-
-    return [
-      facilitator.host_reference_id,
-      facilitator.company_name,
-      facilitator.short_description,
-      facilitator.city,
-      facilitator.postal_code,
-      facilitator.website_url,
-      facilitator.regions?.name,
-      profile?.full_name,
-      profile?.email,
-      profile?.phone,
-      categories,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase()
-      .includes(organizerSearchText);
-  });
-
-  function adminStatusHref(value: "all" | FacilitatorStatus) {
-    const params = new URLSearchParams();
-    if (value !== "all") params.set("status", value);
-    if (q?.trim()) params.set("q", q.trim());
-    const queryString = params.toString();
-    return "/admin" + (queryString ? "?" + queryString : "");
-  }
 
   const stats = [
     { label: "Aktive arrangører", value: formatNumber(activeFacilitators), icon: UsersRound },
@@ -186,71 +124,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <AuthMessage message={message} />
 
-        <section className="mt-5 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <form action="/admin" className="grid gap-2">
-              {selectedStatus !== "all" && <input name="status" type="hidden" value={selectedStatus} />}
-              <label className="text-sm font-semibold text-midnight" htmlFor="admin-organizer-search">
-                Søg arrangører
-              </label>
-              <div className="flex min-w-0 gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink/45" aria-hidden="true" />
-                  <input
-                    className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
-                    defaultValue={q ?? ""}
-                    id="admin-organizer-search"
-                    name="q"
-                    placeholder="Søg navn, firma, e-mail, by, kategori eller medlemsnummer"
-                  />
-                </div>
-                <button className="h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">
-                  Søg
-                </button>
-              </div>
-            </form>
-
-            <form action="/admin/events" className="grid gap-2">
-              <label className="text-sm font-semibold text-midnight" htmlFor="admin-event-search">
-                Søg events
-              </label>
-              <div className="flex min-w-0 gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink/45" aria-hidden="true" />
-                  <input
-                    className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
-                    id="admin-event-search"
-                    name="q"
-                    placeholder="Søg eventtitel, arrangør, by, kategori eller e-mail"
-                  />
-                </div>
-                <button className="h-11 rounded-md bg-sage-700 px-4 text-sm font-semibold text-white" type="submit">
-                  Søg
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            {statuses.map((item) => {
-              const active = item.value === selectedStatus;
-              return (
-                <Link
-                  className={
-                    active
-                      ? "rounded-md bg-midnight px-3 py-2 text-sm font-semibold text-white"
-                      : "rounded-md border border-midnight/10 bg-white px-3 py-2 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta"
-                  }
-                  href={adminStatusHref(item.value)}
-                  key={item.value}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-
         <div className="mt-5 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
           {stats.map((stat) => (
             <article className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft" key={stat.label}>
@@ -272,7 +145,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             </div>
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="#admin-facilitators">
+            <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="#admin-new-facilitators">
               <p className="font-semibold text-midnight">Nye arrangører</p>
               <p className="mt-1 text-sm text-ink/64">Profiler der afventer godkendelse.</p>
               <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">{formatNumber(pendingFacilitators)}</span>
@@ -410,9 +283,57 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           </p>
         </section>
 
-        <div id="admin-facilitators" className="scroll-mt-24">
-          <FacilitatorApprovalTable facilitators={visibleFacilitators as never} />
-        </div>
+        <section className="scroll-mt-24 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Søgning</p>
+            <h2 className="mt-1 font-serif text-2xl font-semibold text-midnight">Find arrangør eller event</h2>
+            <p className="mt-2 text-sm leading-6 text-ink/64">
+              Søgningen åbner resultaterne på en separat side, så dashboardet forbliver ryddeligt.
+            </p>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <form action="/admin/users" className="grid gap-2">
+              <label className="text-sm font-semibold text-midnight" htmlFor="admin-organizer-search">
+                Søg arrangør eller admin
+              </label>
+              <div className="flex min-w-0 gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink/45" aria-hidden="true" />
+                  <input
+                    className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
+                    id="admin-organizer-search"
+                    name="q"
+                    placeholder="Søg navn, kaldenavn, firma, e-mail, by eller medlemsnummer"
+                  />
+                </div>
+                <button className="h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">
+                  Søg
+                </button>
+              </div>
+            </form>
+
+            <form action="/admin/events" className="grid gap-2">
+              <label className="text-sm font-semibold text-midnight" htmlFor="admin-event-search">
+                Søg events
+              </label>
+              <div className="flex min-w-0 gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink/45" aria-hidden="true" />
+                  <input
+                    className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
+                    id="admin-event-search"
+                    name="q"
+                    placeholder="Søg eventtitel, arrangør/kaldenavn, by, kategori eller e-mail"
+                  />
+                </div>
+                <button className="h-11 rounded-md bg-sage-700 px-4 text-sm font-semibold text-white" type="submit">
+                  Søg
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
       </section>
     </main>
   );

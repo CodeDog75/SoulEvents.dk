@@ -9,6 +9,12 @@ type UserRow = {
   email: string;
   phone: string | null;
   created_at: string;
+  facilitator_categories?: string[];
+  facilitator_city?: string | null;
+  facilitator_company_name?: string | null;
+  facilitator_host_reference_id?: string | null;
+  facilitator_postal_code?: string | null;
+  facilitator_status?: string | null;
 };
 
 type UserRoleTableProps = {
@@ -66,12 +72,32 @@ export function UserRoleTable({ currentProfileId, users }: UserRoleTableProps) {
                     Dig
                   </span>
                 )}
+                {user.facilitator_host_reference_id && (
+                  <span className="rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-sage-700">
+                    {user.facilitator_host_reference_id}
+                  </span>
+                )}
+                {user.facilitator_status && (
+                  <span className="rounded-md bg-midnight/10 px-2.5 py-1 text-xs font-semibold text-midnight">
+                    {user.facilitator_status}
+                  </span>
+                )}
               </div>
-              <h3 className="mt-3 text-lg font-semibold text-midnight">{user.full_name || "Uden navn"}</h3>
+              <h3 className="mt-3 text-lg font-semibold text-midnight">
+                {user.facilitator_company_name || user.full_name || "Uden navn"}
+              </h3>
+              {user.facilitator_company_name && user.full_name ? (
+                <p className="mt-1 text-sm font-semibold text-ink/64">{user.full_name}</p>
+              ) : null}
               <p className="mt-1 text-sm text-ink/64">
                 {user.email}
                 {user.phone ? ` · ${user.phone}` : ""}
               </p>
+              {user.facilitator_city || user.facilitator_categories?.length ? (
+                <p className="mt-2 text-xs text-ink/52">
+                  {[user.facilitator_city, user.facilitator_categories?.join(", ")].filter(Boolean).join(" · ")}
+                </p>
+              ) : null}
               <p className="mt-2 text-xs text-ink/52">
                 Oprettet {new Intl.DateTimeFormat("da-DK").format(new Date(user.created_at))}
               </p>
