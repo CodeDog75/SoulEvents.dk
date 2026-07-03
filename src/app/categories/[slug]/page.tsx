@@ -58,6 +58,10 @@ async function getCategoryHeroImage(
   mainCategoryId: string,
   fallbackImagePath: string | null,
 ) {
+  if (fallbackImagePath) {
+    return supabase.storage.from("media").getPublicUrl(fallbackImagePath).data.publicUrl;
+  }
+
   const { data: categoryHeroImages } = await supabase
     .from("hero_images")
     .select("image_path, alt_text")
@@ -71,7 +75,7 @@ async function getCategoryHeroImage(
     return supabase.storage.from("media").getPublicUrl(categoryHero.image_path).data.publicUrl;
   }
 
-  return fallbackImagePath ? supabase.storage.from("media").getPublicUrl(fallbackImagePath).data.publicUrl : null;
+  return null;
 }
 
 export default async function MainCategoryPage({ params, searchParams }: CategoryPageProps) {

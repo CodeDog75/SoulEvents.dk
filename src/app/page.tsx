@@ -633,7 +633,7 @@ async function getExperienceGroups() {
           value: subcategory.name,
         })) ?? [];
 
-    const heroImagePath = heroImageByCategoryId.get(mainCategory.id) ?? mainCategory.image_path;
+    const heroImagePath = mainCategory.image_path ?? heroImageByCategoryId.get(mainCategory.id);
 
     return {
       id: mainCategory.id,

@@ -6,7 +6,6 @@ import { requireRole } from "@/lib/auth/roles";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { createSlug } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
 function go(message: string): never {
   redirect("/admin/category-architecture?message=" + encodeURIComponent(message));
@@ -147,7 +146,11 @@ async function saveBasic(table: "main_categories" | "subcategories" | "tags", fo
     }
   }
 
+  revalidatePath("/");
   revalidatePath("/admin/category-architecture");
+  if (table === "main_categories") {
+    revalidatePath("/categories/" + slug);
+  }
   go("Gemt.");
 }
 
