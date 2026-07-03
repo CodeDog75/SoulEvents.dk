@@ -60,6 +60,13 @@ type WeeklyReflection = {
   end_date: string | null;
 };
 
+const weeklyReflectionGradientOptions = [
+  { value: "gradient:lavender-cream", label: "Lavendel til creme" },
+  { value: "gradient:sage-sand", label: "Salvie til varm sand" },
+  { value: "gradient:dusty-purple-beige", label: "Støvet lilla til lys beige" },
+  { value: "gradient:warm-grey-cream", label: "Varm grå til creme" },
+];
+
 function TileStatus({ active }: { active: boolean }) {
   return active ? (
     <span className="inline-flex h-8 items-center rounded-full bg-sage-50 px-3 text-xs font-bold uppercase tracking-wide text-sage-700 shadow-soft">
@@ -266,6 +273,9 @@ function LogoForm({ logoPath, logoUrl }: { logoPath: string | null; logoUrl: str
 }
 
 function WeeklyReflectionForm({ reflection }: { reflection?: WeeklyReflection }) {
+  const currentBackground = reflection?.background_color ?? "#FAF6EF";
+  const usesGradient = currentBackground.startsWith("gradient:");
+
   return (
     <section className="overflow-hidden rounded-card border border-midnight/10 bg-white shadow-soft" id="weekly-reflection">
       <div className="border-b border-midnight/10 bg-[#FAF6EF] px-5 py-4 sm:px-6">
@@ -310,15 +320,43 @@ function WeeklyReflectionForm({ reflection }: { reflection?: WeeklyReflection })
             />
           </label>
 
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            Baggrundsfarve
-            <input
-              className="h-11 w-full rounded-md border border-midnight/15 px-2 py-1 outline-none transition focus:border-sage-700"
-              defaultValue={reflection?.background_color ?? "#FAF6EF"}
-              name="background_color"
-              type="color"
-            />
-          </label>
+          <div className="grid gap-3 rounded-md border border-midnight/10 bg-[#FAF6EF] p-4">
+            <p className="text-sm font-semibold text-midnight">Baggrund</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-ink/72">
+                <input className="size-4 accent-sage-700" defaultChecked={!usesGradient} name="background_mode" type="radio" value="solid" />
+                Ensfarvet
+              </label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-ink/72">
+                <input className="size-4 accent-sage-700" defaultChecked={usesGradient} name="background_mode" type="radio" value="gradient" />
+                Diskret gradient
+              </label>
+            </div>
+            <label className="grid gap-2 text-sm font-medium text-ink/72">
+              Ensfarvet baggrund
+              <input
+                className="h-11 w-full rounded-md border border-midnight/15 px-2 py-1 outline-none transition focus:border-sage-700"
+                defaultValue={usesGradient ? "#FAF6EF" : currentBackground}
+                name="background_color"
+                type="color"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-ink/72">
+              Gradient
+              <select
+                className="h-11 w-full rounded-md border border-midnight/15 bg-white px-3 text-base outline-none transition focus:border-sage-700"
+                defaultValue={usesGradient ? currentBackground : "gradient:lavender-cream"}
+                name="background_gradient"
+              >
+                {weeklyReflectionGradientOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="text-xs leading-5 text-ink/55">Vælg ensfarvet for et helt roligt udtryk eller gradient for en blød, levende baggrund uden billeder.</p>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">

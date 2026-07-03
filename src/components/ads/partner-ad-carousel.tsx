@@ -7,6 +7,7 @@ export type PartnerAd = {
   id: string;
   title: string;
   imageUrl: string | null;
+  mobileImageUrl?: string | null;
   altText: string;
   targetUrl: string | null;
   displaySeconds: number;
@@ -33,6 +34,27 @@ function isExternalUrl(url: string | null) {
   return Boolean(url && /^https?:\/\//i.test(url));
 }
 
+function AdMedia({
+  altText,
+  className,
+  url,
+}: {
+  altText: string;
+  className: string;
+  url: string | null;
+}) {
+  if (!url) {
+    return <div className="h-full w-full bg-gradient-to-br from-[#2F2633] via-[#7A4EAB] to-[#D8A7B1]" />;
+  }
+
+  if (isVideoAd(url)) {
+    return <video autoPlay className={className} loop muted playsInline src={url} />;
+  }
+
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img alt={altText} className={className} src={url} />;
+}
+
 export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -52,6 +74,10 @@ export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProp
   if (!activeAd) return null;
 
   const opensInNewTab = isExternalUrl(activeAd.targetUrl);
+  const mobileMediaUrl = activeAd.mobileImageUrl || activeAd.imageUrl;
+  const mobileMediaClass = activeAd.mobileImageUrl
+    ? "h-full w-full object-cover object-center"
+    : "h-full w-full object-contain object-center";
 
   const content = (
     <article
@@ -61,31 +87,22 @@ export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProp
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
-      <div className="relative h-[360px] min-[390px]:h-[390px] min-[430px]:h-[420px] md:h-[440px] lg:h-auto lg:aspect-[16/5]">
-        {activeAd.imageUrl && isVideoAd(activeAd.imageUrl) ? (
-          <video
-            autoPlay
-            className="h-full w-full object-cover object-center"
-            loop
-            muted
-            playsInline
-            src={activeAd.imageUrl}
-          />
-        ) : activeAd.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img alt={activeAd.altText} className="h-full w-full object-cover object-center" src={activeAd.imageUrl} />
-        ) : (
-          <div className="h-full w-full bg-gradient-to-br from-[#2F2633] via-[#7A4EAB] to-[#D8A7B1]" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#2F2633]/62 via-[#2F2633]/18 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7">
+      <div className="relative aspect-square bg-[#F6F1E7] lg:aspect-[16/5]">
+        <div className="absolute inset-0 lg:hidden">
+          <AdMedia altText={activeAd.altText} className={mobileMediaClass} url={mobileMediaUrl} />
+        </div>
+        <div className="absolute inset-0 hidden lg:block">
+          <AdMedia altText={activeAd.altText} className="h-full w-full object-cover object-center" url={activeAd.imageUrl} />
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#2F2633]/48 via-transparent to-transparent lg:bg-gradient-to-r lg:from-[#2F2633]/62 lg:via-[#2F2633]/18 lg:to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 px-5 pb-4 pt-12 sm:p-7">
           {activeAd.showTitle && (
-            <h2 className="max-w-2xl font-serif text-2xl font-semibold leading-tight text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)] sm:text-4xl">
+            <h2 className="max-w-2xl font-serif text-xl font-semibold leading-tight text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)] sm:text-4xl">
               {activeAd.title}
             </h2>
           )}
           {activeAd.showSponsor && activeAd.sponsorName && (
-            <p className="mt-2 text-sm font-semibold text-white/88 drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]">
+            <p className="mt-3 inline-flex max-w-full items-center rounded-full bg-[#D8C1A2]/95 px-3 py-1.5 text-xs font-bold text-[#2F2633] shadow-soft ring-1 ring-white/55 sm:text-sm">
               {activeAd.sponsorName}
             </p>
           )}

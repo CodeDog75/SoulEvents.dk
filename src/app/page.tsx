@@ -378,6 +378,17 @@ type WeeklyReflection = {
   end_date?: string | null;
 };
 
+const weeklyReflectionGradients: Record<string, string> = {
+  "gradient:lavender-cream": "linear-gradient(135deg, #F1E8F8 0%, #FAF6EF 58%, #FFFDF8 100%)",
+  "gradient:sage-sand": "linear-gradient(135deg, #EEF3EA 0%, #F6F1E7 54%, #D8C1A2 130%)",
+  "gradient:dusty-purple-beige": "linear-gradient(135deg, #E9DFF1 0%, #FAF7F2 52%, #EFE4D6 100%)",
+  "gradient:warm-grey-cream": "linear-gradient(135deg, #ECE8E1 0%, #FAF6EF 60%, #FFFDF8 100%)",
+};
+
+function weeklyReflectionBackground(value: string) {
+  return weeklyReflectionGradients[value] ?? value;
+}
+
 function pickRandomItem<T>(items: T[]) {
   if (items.length === 0) {
     return null;
@@ -971,6 +982,7 @@ async function getHomepageAds(placement: "middle" | "bottom") {
       id: ad.id,
       title: ad.title,
       imageUrl: publicMediaUrl(ad.image_path),
+      mobileImageUrl: publicMediaUrl(ad.mobile_image_path),
       altText: ad.alt_text || ad.title,
       targetUrl: ad.target_url,
       displaySeconds: ad.display_seconds ?? 10,
@@ -991,7 +1003,7 @@ async function getHomepageAds(placement: "middle" | "bottom") {
   const { data, error } = await applyActiveHomepageFilters(
     supabase
       .from("ads")
-      .select("id, title, image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count, homepage_placement"),
+      .select("id, title, image_path, mobile_image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count, homepage_placement"),
   ).eq("homepage_placement", placement);
 
   if (!error && data) {
@@ -1005,7 +1017,7 @@ async function getHomepageAds(placement: "middle" | "bottom") {
   const { data: fallbackData, error: fallbackError } = await applyActiveHomepageFilters(
     supabase
       .from("ads")
-      .select("id, title, image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count"),
+      .select("id, title, image_path, mobile_image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count"),
   );
 
   if (fallbackError || !fallbackData) {
@@ -1046,6 +1058,10 @@ export default async function Home({ searchParams }: HomeProps) {
 
   const homeHeroImage = await getHomepageHeroImage();
   const weeklyReflection = await getActiveWeeklyReflection();
+  const weeklyReflectionParagraphs = weeklyReflection?.reflectionText
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean) ?? [];
   const [homepageMiddleAds, homepageBottomAds] = await Promise.all([
     getHomepageAds("middle"),
     getHomepageAds("bottom"),
@@ -1486,21 +1502,32 @@ export default async function Home({ searchParams }: HomeProps) {
       </section>
 
       {weeklyReflection && (
-        <section className="bg-[#FAF6EF] px-5 py-12 sm:px-8 sm:py-14" aria-label={weeklyReflection.title}>
+        <section className="soulevents-fade-in bg-[#FAF6EF] px-5 py-14 sm:px-8 sm:py-16 lg:py-20" aria-label={weeklyReflection.title}>
           <div className="mx-auto max-w-[1200px]">
             <figure
-              className="rounded-[30px] border border-white/70 p-7 shadow-[0_18px_50px_rgba(47,38,51,0.10)] sm:p-10"
-              style={{ backgroundColor: weeklyReflection.backgroundColor }}
+              className="relative overflow-hidden rounded-[30px] border border-white/75 px-7 py-12 shadow-[0_24px_70px_rgba(47,38,51,0.10)] sm:px-12 sm:py-16 lg:px-16 lg:py-20"
+              style={{ background: weeklyReflectionBackground(weeklyReflection.backgroundColor) }}
             >
-              <figcaption className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">
-                🌿 {weeklyReflection.title}
-              </figcaption>
-              <blockquote className="mt-5 max-w-4xl whitespace-pre-line font-serif text-3xl font-medium leading-tight text-[#2F2633] sm:text-4xl">
-                &ldquo;{weeklyReflection.reflectionText}&rdquo;
-              </blockquote>
-              {weeklyReflection.author && (
-                <p className="mt-5 text-base font-semibold text-[#2F2633]/68">- {weeklyReflection.author}</p>
-              )}
+              <div className="pointer-events-none absolute -right-8 -top-10 hidden size-40 rounded-full border border-white/65 bg-white/20 sm:block" />
+              <div className="pointer-events-none absolute bottom-8 right-8 hidden font-serif text-[11rem] leading-none text-white/30 sm:block">
+                &rdquo;
+              </div>
+              <div className="relative mx-auto max-w-[760px]">
+                <figcaption className="inline-flex items-center rounded-full bg-white/82 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#7A4EAB] shadow-soft">
+                  🌿 {weeklyReflection.title}
+                </figcaption>
+                <blockquote className="mt-8 space-y-6 font-serif text-3xl font-medium leading-[1.18] text-[#2F2633] sm:text-4xl sm:leading-[1.2]">
+                  {weeklyReflectionParagraphs.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </blockquote>
+                {weeklyReflection.author && (
+                  <p className="mt-8 text-sm font-semibold uppercase tracking-[0.16em] text-[#2F2633]/58">- {weeklyReflection.author}</p>
+                )}
+                <p className="mt-10 inline-flex border-t border-[#2F2633]/12 pt-5 text-sm font-semibold text-[#4B5645]">
+                  Tag et øjeblik med dig selv.
+                </p>
+              </div>
             </figure>
           </div>
         </section>

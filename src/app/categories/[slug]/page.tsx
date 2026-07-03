@@ -129,7 +129,7 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
   const adsClient = createAdminClient();
   const { data: categoryAds } = await adsClient
     .from("ads")
-    .select("id, title, image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count, ad_main_categories!inner(main_category_id)")
+    .select("id, title, image_path, mobile_image_path, alt_text, sponsor_name, target_url, priority, display_seconds, show_title_on_banner, show_sponsor_on_banner, clicks_count, ad_main_categories!inner(main_category_id)")
     .eq("is_active", true)
     .eq("show_on_category_pages", true)
     .eq("ad_main_categories.main_category_id", mainCategory.id)
@@ -143,6 +143,7 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
       id: ad.id,
       title: ad.title,
       imageUrl: ad.image_path ? adsClient.storage.from("media").getPublicUrl(ad.image_path).data.publicUrl : null,
+      mobileImageUrl: ad.mobile_image_path ? adsClient.storage.from("media").getPublicUrl(ad.mobile_image_path).data.publicUrl : null,
       altText: ad.alt_text || ad.title,
       targetUrl: ad.target_url,
       displaySeconds: ad.display_seconds ?? 10,

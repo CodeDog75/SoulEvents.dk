@@ -22,6 +22,13 @@ function reflectionGo(message: string): never {
   redirect("/admin/homepage?reflection_message=" + encodeURIComponent(message) + "#weekly-reflection");
 }
 
+const weeklyReflectionGradientValues = new Set([
+  "gradient:lavender-cream",
+  "gradient:sage-sand",
+  "gradient:dusty-purple-beige",
+  "gradient:warm-grey-cream",
+]);
+
 function sortOrder(formData: FormData) {
   const value = Number(getString(formData, "sort_order"));
   return Number.isFinite(value) ? value : 0;
@@ -380,7 +387,10 @@ export async function upsertWeeklyReflectionAction(formData: FormData) {
   const title = getString(formData, "title") || "Ugens refleksion";
   const reflectionText = getString(formData, "reflection_text");
   const author = getOptionalString(formData, "author");
-  const backgroundColor = getString(formData, "background_color") || "#FAF6EF";
+  const backgroundMode = getString(formData, "background_mode");
+  const solidBackgroundColor = getString(formData, "background_color") || "#FAF6EF";
+  const gradientBackgroundColor = getString(formData, "background_gradient");
+  const backgroundColor = backgroundMode === "gradient" ? gradientBackgroundColor : solidBackgroundColor;
   const isActive = formData.get("is_active") === "on";
   const startDate = getOptionalString(formData, "start_date");
   const endDate = getOptionalString(formData, "end_date");
@@ -389,7 +399,11 @@ export async function upsertWeeklyReflectionAction(formData: FormData) {
     reflectionGo("Skriv en refleksionstekst først.");
   }
 
-  if (!/^#[0-9A-Fa-f]{6}$/.test(backgroundColor)) {
+  if (backgroundMode === "gradient" && !weeklyReflectionGradientValues.has(backgroundColor)) {
+    reflectionGo("Vælg en gyldig gradient.");
+  }
+
+  if (backgroundMode !== "gradient" && !/^#[0-9A-Fa-f]{6}$/.test(backgroundColor)) {
     reflectionGo("Vælg en gyldig baggrundsfarve.");
   }
 
