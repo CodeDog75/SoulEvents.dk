@@ -140,12 +140,12 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
 }
 
 export function EventCarouselSection({ events, href, title }: EventCarouselSectionProps) {
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const desktopScrollerRef = useRef<HTMLDivElement | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
   function updateScrollState() {
-    const scroller = scrollerRef.current;
+    const scroller = desktopScrollerRef.current;
     if (!scroller) return;
 
     setCanScrollLeft(scroller.scrollLeft > 4);
@@ -153,7 +153,7 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
   }
 
   function scrollCards(direction: "left" | "right") {
-    const scroller = scrollerRef.current;
+    const scroller = desktopScrollerRef.current;
     if (!scroller) return;
 
     const firstCard = scroller.querySelector<HTMLElement>("a");
@@ -166,7 +166,7 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
 
   useEffect(() => {
     updateScrollState();
-    const scroller = scrollerRef.current;
+    const scroller = desktopScrollerRef.current;
     if (!scroller) return;
 
     scroller.addEventListener("scroll", updateScrollState, { passive: true });
@@ -195,7 +195,13 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
           </Link>
         </div>
       </div>
-      <div className="relative max-w-full [@media(hover:hover)_and_(pointer:fine)]:overflow-hidden">
+      <div className="flex max-w-full snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain pb-4 [touch-action:pan-x_pan-y] [-webkit-overflow-scrolling:touch] md:hidden">
+        {events.map((event) => (
+          <EventCardVisual event={event} key={event.id} />
+        ))}
+      </div>
+
+      <div className="relative hidden max-w-full md:block [@media(hover:hover)_and_(pointer:fine)]:overflow-hidden">
         {canScrollLeft && (
           <button
             aria-label={"Scroll " + title + " mod venstre"}
@@ -221,8 +227,8 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
           </button>
         )}
         <div
-          ref={scrollerRef}
-          className="flex w-full max-w-full snap-x snap-mandatory touch-pan-x gap-4 overflow-x-auto overscroll-x-contain scroll-smooth pb-3 [-webkit-overflow-scrolling:touch]"
+          ref={desktopScrollerRef}
+          className="flex w-full max-w-full snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain scroll-smooth pb-3 [touch-action:pan-x_pan-y] [-webkit-overflow-scrolling:touch]"
         >
           {events.map((event) => (
             <EventCardVisual event={event} key={event.id} />
