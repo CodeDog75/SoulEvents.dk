@@ -195,11 +195,11 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
           </Link>
         </div>
       </div>
-      <div className="relative sm:overflow-hidden">
+      <div className="relative [@media(hover:hover)_and_(pointer:fine)]:overflow-hidden">
         {canScrollLeft && (
           <button
             aria-label={"Scroll " + title + " mod venstre"}
-            className="absolute bottom-3 left-0 top-0 z-20 hidden w-24 items-center justify-start bg-gradient-to-r from-white via-white/90 to-transparent pl-3 text-[#7A4EAB] transition hover:text-olive sm:flex"
+            className="pointer-events-none absolute bottom-3 left-0 top-0 z-20 hidden w-24 items-center justify-start bg-gradient-to-r from-white via-white/90 to-transparent pl-3 text-[#7A4EAB] transition hover:text-olive [@media(hover:hover)_and_(pointer:fine)]:pointer-events-auto [@media(hover:hover)_and_(pointer:fine)]:flex"
             onClick={() => scrollCards("left")}
             type="button"
           >
@@ -211,7 +211,7 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
         {canScrollRight && (
           <button
             aria-label={"Scroll " + title + " mod højre"}
-            className="absolute bottom-3 right-0 top-0 z-20 hidden w-24 items-center justify-end bg-gradient-to-l from-white via-white/90 to-transparent pr-3 text-[#7A4EAB] transition hover:text-olive sm:flex"
+            className="pointer-events-none absolute bottom-3 right-0 top-0 z-20 hidden w-24 items-center justify-end bg-gradient-to-l from-white via-white/90 to-transparent pr-3 text-[#7A4EAB] transition hover:text-olive [@media(hover:hover)_and_(pointer:fine)]:pointer-events-auto [@media(hover:hover)_and_(pointer:fine)]:flex"
             onClick={() => scrollCards("right")}
             type="button"
           >
@@ -220,7 +220,7 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
             </span>
           </button>
         )}
-        <div ref={scrollerRef} className="-mx-5 flex snap-x gap-4 overflow-x-auto px-5 pb-3 sm:mx-0 sm:px-0">
+        <div ref={scrollerRef} className="-mx-5 flex snap-x touch-pan-x gap-4 overflow-x-auto overscroll-x-contain px-5 pb-3 sm:mx-0 sm:px-0">
           {events.map((event) => (
             <EventCardVisual event={event} key={event.id} />
           ))}
