@@ -71,7 +71,7 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
 
   return (
     <Link
-      className="group block min-w-[78vw] max-w-[78vw] snap-start overflow-hidden rounded-[24px] bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[320px] sm:max-w-[320px] lg:min-w-[340px] lg:max-w-[340px]"
+      className="group block min-w-[280px] max-w-[280px] shrink-0 snap-start overflow-hidden rounded-[24px] bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[320px] sm:max-w-[320px] lg:min-w-[340px] lg:max-w-[340px]"
       href={"/events/" + event.id}
     >
       <div
@@ -195,7 +195,7 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
           </Link>
         </div>
       </div>
-      <div className="relative [@media(hover:hover)_and_(pointer:fine)]:overflow-hidden">
+      <div className="relative max-w-full [@media(hover:hover)_and_(pointer:fine)]:overflow-hidden">
         {canScrollLeft && (
           <button
             aria-label={"Scroll " + title + " mod venstre"}
@@ -220,7 +220,10 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
             </span>
           </button>
         )}
-        <div ref={scrollerRef} className="-mx-5 flex snap-x touch-pan-x gap-4 overflow-x-auto overscroll-x-contain px-5 pb-3 sm:mx-0 sm:px-0">
+        <div
+          ref={scrollerRef}
+          className="flex w-full max-w-full snap-x snap-mandatory touch-pan-x gap-4 overflow-x-auto overscroll-x-contain scroll-smooth pb-3 [-webkit-overflow-scrolling:touch]"
+        >
           {events.map((event) => (
             <EventCardVisual event={event} key={event.id} />
           ))}
