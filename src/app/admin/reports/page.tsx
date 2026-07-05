@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, FileText } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";
-import { InvoiceDraftList } from "@/components/admin/reports/invoice-draft-list";
-import { ReportForm } from "@/components/admin/reports/report-form";
 import { requireRole } from "@/lib/auth/roles";
-import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -16,32 +13,6 @@ type AdminReportsPageProps = {
 
 export default async function AdminReportsPage({ searchParams }: AdminReportsPageProps) {
   const [{ message }] = await Promise.all([searchParams, requireRole("admin")]);
-  const supabase = await createClient();
-
-  const [{ data: facilitators }, { data: invoices }] = await Promise.all([
-    supabase
-      .from("facilitator_profiles")
-      .select("id, company_name, profiles(full_name)")
-      .eq("status", "approved")
-      .order("company_name"),
-    supabase
-      .from("invoice_drafts")
-      .select(
-        `
-        id,
-        status,
-        period_start,
-        period_end,
-        total_commission_cents,
-        payment_due_date,
-        payment_reference,
-        created_at,
-        facilitator_profiles(company_name, profiles(full_name)),
-        monthly_reports(total_bookings, total_seats, booking_value_cents)
-      `,
-      )
-      .order("created_at", { ascending: false }),
-  ]);
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -53,7 +24,7 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
             </div>
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Administrator</p>
-              <h1 className="text-xl font-semibold text-midnight">Månedsrapport og fakturakladder</h1>
+              <h1 className="text-xl font-semibold text-midnight">Rapporter og eksport</h1>
             </div>
           </div>
           <Link
@@ -93,8 +64,6 @@ export default async function AdminReportsPage({ searchParams }: AdminReportsPag
             </form>
           </div>
         </section>
-        <ReportForm facilitators={(facilitators ?? []) as never} />
-        <InvoiceDraftList invoices={(invoices ?? []) as never} />
       </section>
     </main>
   );

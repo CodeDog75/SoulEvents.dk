@@ -106,7 +106,7 @@ export async function generateMonthlyReportAction(formData: FormData) {
     .single();
 
   if (invoiceError || !invoice) {
-    reportsRedirect("Fakturakladden kunne ikke oprettes.");
+    reportsRedirect("Rapportkladden kunne ikke oprettes.");
   }
 
   const { error: linesError } = await supabase.from("invoice_draft_lines").insert(
@@ -118,12 +118,12 @@ export async function generateMonthlyReportAction(formData: FormData) {
   );
 
   if (linesError) {
-    reportsRedirect("Fakturakladden blev oprettet, men linjerne kunne ikke gemmes.");
+    reportsRedirect("Rapportkladden blev oprettet, men linjerne kunne ikke gemmes.");
   }
 
   revalidatePath("/admin");
   revalidatePath("/admin/reports");
-  reportsRedirect("Månedsrapport og fakturakladde er oprettet.");
+  reportsRedirect("Månedsrapporten er oprettet.");
 }
 
 export async function approveInvoiceDraftAction(formData: FormData) {
@@ -131,7 +131,7 @@ export async function approveInvoiceDraftAction(formData: FormData) {
   const invoiceId = getString(formData, "invoice_id");
 
   if (!invoiceId) {
-    reportsRedirect("Fakturakladden mangler ID.");
+    reportsRedirect("Rapportkladden mangler ID.");
   }
 
   const supabase = await createClient();
@@ -145,9 +145,9 @@ export async function approveInvoiceDraftAction(formData: FormData) {
     .eq("id", invoiceId);
 
   if (error) {
-    reportsRedirect("Fakturakladden kunne ikke godkendes.");
+    reportsRedirect("Rapportkladden kunne ikke godkendes.");
   }
 
   revalidatePath("/admin/reports");
-  reportsRedirect("Fakturakladden er godkendt.");
+  reportsRedirect("Rapportkladden er godkendt.");
 }

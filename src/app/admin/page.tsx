@@ -101,7 +101,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { href: "/admin/settings", title: "Platformindstillinger", text: "Styr grænser for kladder og aktive events per arrangør.", icon: SlidersHorizontal },
     { href: "/admin/users", title: "Arrangører og admin", text: "Find arrangører og styr adminadgang.", icon: UserCog },
     { href: "/admin/legal", title: "Juridiske dokumenter", text: "Opdater betingelser, privatliv og retningslinjer.", icon: Scale },
-    { href: "/admin/reports", title: "Rapporter og faktura", text: "Månedsrapporter, fakturakladder og Excel-eksport.", icon: FileText },
+    { href: "/admin/reports", title: "Rapporter og eksport", text: "Excel-eksport til statistik, status og dokumentation.", icon: FileText },
   ];
 
   return (

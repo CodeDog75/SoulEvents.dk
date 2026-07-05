@@ -61,10 +61,6 @@ const statusLabels: Record<InvoiceStatus, string> = {
   cancelled: "Annulleret",
 };
 
-function formatMoney(cents: number) {
-  return `${new Intl.NumberFormat("da-DK").format(cents / 100)} kr.`;
-}
-
 function facilitatorName(invoice: InvoiceDraft) {
   const facilitator = Array.isArray(invoice.facilitator_profiles)
     ? invoice.facilitator_profiles[0]
@@ -77,7 +73,7 @@ export function InvoiceDraftList({ invoices }: InvoiceDraftListProps) {
   if (invoices.length === 0) {
     return (
       <section className="rounded-md border border-midnight/10 bg-white p-8 text-center shadow-soft">
-        <h2 className="text-lg font-semibold text-midnight">Ingen fakturakladder endnu</h2>
+        <h2 className="text-lg font-semibold text-midnight">Ingen rapportkladder endnu</h2>
         <p className="mt-2 text-sm text-ink/64">Generér en månedsrapport for at oprette første kladde.</p>
       </section>
     );
@@ -86,8 +82,8 @@ export function InvoiceDraftList({ invoices }: InvoiceDraftListProps) {
   return (
     <section className="overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
       <div className="border-b border-midnight/10 px-5 py-4">
-        <h2 className="text-lg font-semibold text-midnight">Fakturakladder</h2>
-        <p className="mt-1 text-sm text-ink/64">Kladder kan godkendes før afsendelse.</p>
+        <h2 className="text-lg font-semibold text-midnight">Rapportkladder</h2>
+        <p className="mt-1 text-sm text-ink/64">Kladder kan gennemgås før eksport.</p>
       </div>
 
       <div className="divide-y divide-midnight/10">
@@ -109,12 +105,8 @@ export function InvoiceDraftList({ invoices }: InvoiceDraftListProps) {
                 <h3 className="mt-3 text-lg font-semibold text-midnight">{facilitatorName(invoice)}</h3>
                 <div className="mt-3 grid gap-2 text-sm text-ink/72 md:grid-cols-2">
                   <p>
-                    <span className="font-semibold text-midnight">Kommission:</span>{" "}
-                    {formatMoney(invoice.total_commission_cents)}
-                  </p>
-                  <p>
                     <span className="font-semibold text-midnight">Bookingværdi:</span>{" "}
-                    {formatMoney(report?.booking_value_cents ?? 0)}
+                    {`${new Intl.NumberFormat("da-DK").format((report?.booking_value_cents ?? 0) / 100)} kr.`}
                   </p>
                   <p>
                     <span className="font-semibold text-midnight">Tilmeldinger:</span> {report?.total_bookings ?? 0}

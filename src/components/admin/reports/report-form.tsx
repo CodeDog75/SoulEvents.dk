@@ -36,7 +36,7 @@ export function ReportForm({ facilitators }: ReportFormProps) {
         </div>
         <div>
           <h2 className="text-lg font-semibold text-midnight">Generér månedsrapport</h2>
-          <p className="text-sm text-ink/64">Opret rapport og fakturakladde for én arrangør og måned.</p>
+          <p className="text-sm text-ink/64">Opret en intern rapport for én arrangør og måned.</p>
         </div>
       </div>
 
@@ -69,21 +69,12 @@ export function ReportForm({ facilitators }: ReportFormProps) {
         </label>
       </div>
 
-      <label className="mt-4 grid gap-2 text-sm font-medium text-ink/72">
-        Bankoplysninger
-        <textarea
-          className="min-h-24 rounded-md border border-midnight/15 p-3 text-base outline-none transition focus:border-sage-700"
-          name="bank_details"
-          placeholder="Reg.nr., kontonummer eller betalingsoplysninger"
-        />
-      </label>
-
       <button
         className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700"
         type="submit"
       >
         <FilePlus2 className="size-4" aria-hidden="true" />
-        Opret rapport og fakturakladde
+        Opret rapport
       </button>
     </form>
   );

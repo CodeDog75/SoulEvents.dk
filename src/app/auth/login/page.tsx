@@ -24,7 +24,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     loginRole === "admin" ? "Admin-login" : loginRole === "facilitator" ? "Arrangør-login" : "Log ind";
   const description =
     loginRole === "admin"
-      ? "Log ind for at godkende profiler, se dashboard og arbejde med fakturakladder."
+      ? "Log ind for at godkende profiler, se dashboard og administrere SoulEvents."
       : loginRole === "facilitator"
         ? "Log ind for at redigere profil, oprette events og håndtere tilmeldinger."
         : "Brug din konto som administrator eller arrangør.";

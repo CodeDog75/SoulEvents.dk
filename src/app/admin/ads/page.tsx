@@ -91,7 +91,7 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">{ad ? "Rediger reklame" : "Ny reklame"}</p>
             <h2 className="mt-1 text-xl font-semibold text-midnight">{title}</h2>
-            {ad && <p className="mt-1 text-sm text-ink/60">Reference-ID bruges på faktura: <span className="font-semibold text-[#7A4EAB]">{ad.ad_reference_id || "afventer"}</span></p>}
+            {ad && <p className="mt-1 text-sm text-ink/60">Internt reference-ID: <span className="font-semibold text-[#7A4EAB]">{ad.ad_reference_id || "afventer"}</span></p>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {status && <span className={"inline-flex h-8 items-center rounded-full px-3 text-xs font-bold uppercase tracking-wide shadow-soft " + status.className}>Status: {status.label}</span>}
