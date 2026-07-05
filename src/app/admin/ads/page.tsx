@@ -117,6 +117,7 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
             altText={ad?.alt_text}
             desktopPath={ad?.image_path}
             desktopUrl={ad?.image_url}
+            formId={formId}
             mobilePath={ad?.mobile_image_path}
             mobileUrl={ad?.mobile_image_url}
             showSponsor={ad?.show_sponsor_on_banner ?? true}

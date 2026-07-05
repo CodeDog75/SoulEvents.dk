@@ -13,12 +13,13 @@ function isLocalUrl(url: string) {
 export function getAppUrl(fallbackOrigin?: string) {
   const configuredUrl = env.appUrl ? cleanUrl(env.appUrl) : "";
   const requestUrl = fallbackOrigin ? cleanUrl(fallbackOrigin) : "";
+  const isLocalDevelopment = process.env.NODE_ENV === "development" && process.env.VERCEL !== "1";
 
-  if (process.env.NODE_ENV === "development" && requestUrl && isLocalUrl(requestUrl)) {
+  if (isLocalDevelopment && requestUrl && isLocalUrl(requestUrl)) {
     return requestUrl;
   }
 
-  if (configuredUrl && (process.env.NODE_ENV === "development" || !isLocalUrl(configuredUrl))) {
+  if (configuredUrl && (isLocalDevelopment || !isLocalUrl(configuredUrl))) {
     return configuredUrl;
   }
 
@@ -26,9 +27,9 @@ export function getAppUrl(fallbackOrigin?: string) {
     return cleanUrl(`https://${process.env.VERCEL_URL}`);
   }
 
-  if (requestUrl && (process.env.NODE_ENV === "development" || !isLocalUrl(requestUrl))) {
+  if (requestUrl && (isLocalDevelopment || !isLocalUrl(requestUrl))) {
     return requestUrl;
   }
 
-  return process.env.NODE_ENV === "development" ? "http://localhost:3001" : "https://soulevents.dk";
+  return isLocalDevelopment ? "http://localhost:3001" : "https://soulevents.dk";
 }

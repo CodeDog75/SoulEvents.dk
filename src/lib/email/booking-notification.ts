@@ -1,4 +1,4 @@
-import { escapeHtml, formatDate, formatMoney, sendLoggedEmail } from "@/lib/email/resend-mail";
+import { escapeHtml, formatDate, sendLoggedEmail } from "@/lib/email/resend-mail";
 
 type BookingNotificationInput = {
   bookingId: string;
@@ -7,31 +7,21 @@ type BookingNotificationInput = {
   eventStartsAt: string;
   facilitatorEmail: string | null;
   facilitatorName: string;
-  participantName: string;
-  participantEmail: string;
-  participantPhone: string | null;
-  seats: number;
-  message: string | null;
-  bookingValueCents: number;
-  commissionCents: number;
+  bookingsUrl: string;
 };
 
 function buildHtml(input: BookingNotificationInput) {
   const rows = [
     ["Event", input.eventTitle],
     ["Dato", formatDate(input.eventStartsAt)],
-    ["Navn", input.participantName],
-    ["E-mail", input.participantEmail],
-    ["Telefon", input.participantPhone || "Ikke angivet"],
-    ["Antal pladser", String(input.seats)],
-    ["Bookingværdi", formatMoney(input.bookingValueCents)],
-    ["Beregnet kommission", formatMoney(input.commissionCents)],
+    ["Status", "Afventer din bekræftelse"],
   ];
 
   return `
     <div style="font-family: Arial, sans-serif; color: #17243b; line-height: 1.5;">
       <h1 style="font-size: 22px; margin: 0 0 12px;">Ny tilmelding</h1>
-      <p style="margin: 0 0 20px;">Hej ${escapeHtml(input.facilitatorName)}, der er kommet en ny tilmelding.</p>
+      <p style="margin: 0 0 16px;">Hej ${escapeHtml(input.facilitatorName)}, der er kommet en ny tilmelding til dit event.</p>
+      <p style="margin: 0 0 20px;">Log ind på SoulEvents for at se tilmeldingen og bekræfte den.</p>
       <table style="border-collapse: collapse; width: 100%; max-width: 620px;">
         <tbody>
           ${rows
@@ -46,11 +36,9 @@ function buildHtml(input: BookingNotificationInput) {
             .join("")}
         </tbody>
       </table>
-      ${
-        input.message
-          ? `<h2 style="font-size: 16px; margin: 24px 0 8px;">Besked fra deltager</h2><p style="white-space: pre-line; margin: 0;">${escapeHtml(input.message)}</p>`
-          : ""
-      }
+      <p style="margin: 24px 0 0;">
+        <a href="${escapeHtml(input.bookingsUrl)}" style="display: inline-block; border-radius: 999px; background: #4b5645; color: #ffffff; font-weight: 700; padding: 12px 20px; text-decoration: none;">Log ind og behandl tilmeldingen</a>
+      </p>
     </div>
   `;
 }
@@ -63,27 +51,22 @@ function buildText(input: BookingNotificationInput) {
     "",
     `Event: ${input.eventTitle}`,
     `Dato: ${formatDate(input.eventStartsAt)}`,
-    `Navn: ${input.participantName}`,
-    `E-mail: ${input.participantEmail}`,
-    `Telefon: ${input.participantPhone || "Ikke angivet"}`,
-    `Antal pladser: ${input.seats}`,
-    `Bookingværdi: ${formatMoney(input.bookingValueCents)}`,
-    `Beregnet kommission: ${formatMoney(input.commissionCents)}`,
+    "Status: Afventer din bekræftelse",
     "",
-    input.message ? `Besked: ${input.message}` : "",
+    "Log ind på SoulEvents for at se tilmeldingen og bekræfte den:",
+    input.bookingsUrl,
   ].join("\n");
 }
 
 export async function sendBookingNotification(input: BookingNotificationInput) {
   if (!input.facilitatorEmail) {
-    return;
+    return false;
   }
 
   const subject = `Ny tilmelding: ${input.eventTitle}`;
-  await sendLoggedEmail({
+  return sendLoggedEmail({
     type: "booking_created_facilitator",
     to: input.facilitatorEmail,
-    replyTo: input.participantEmail,
     subject,
     html: buildHtml(input),
     text: buildText(input),

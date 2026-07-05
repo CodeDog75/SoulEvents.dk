@@ -1,9 +1,11 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendBookingNotification } from "@/lib/email/booking-notification";
 import { sendParticipantBookingReceipt } from "@/lib/email/participant-booking-receipt";
+import { getAppUrl } from "@/lib/app-url";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -68,7 +70,6 @@ type BookingEventResult = {
 
 type CreatedBookingResult = {
   booking_value_cents: number;
-  commission_cents: number;
   id: string;
 };
 
@@ -163,9 +164,9 @@ export async function createBookingAction(formData: FormData) {
       facilitator_name_snapshot: facilitatorName,
       primary_category_snapshot: primaryCategory?.name ?? null,
       price_per_seat_cents: event.price_cents,
-      commission_rate_bps: 1200,
+      commission_rate_bps: 0,
     })
-    .select("id, booking_value_cents, commission_cents")
+    .select("id, booking_value_cents")
     .single();
 
   const booking = bookingResult as CreatedBookingResult | null;
@@ -177,38 +178,52 @@ export async function createBookingAction(formData: FormData) {
     );
   }
 
-  await sendBookingNotification({
-    bookingId: booking.id,
-    eventId: event.id,
-    eventTitle: event.title,
-    eventStartsAt: event.starts_at,
-    facilitatorEmail: facilitatorUser?.email ?? null,
-    facilitatorName,
-    participantName,
-    participantEmail,
-    participantPhone,
-    seats,
-    message,
-    bookingValueCents: booking.booking_value_cents,
-    commissionCents: booking.commission_cents,
-  });
+  const requestHeaders = await headers();
+  const appUrl = getAppUrl(requestHeaders.get("origin") ?? undefined);
+  const bookingsUrl = appUrl + "/facilitator/bookings?event=" + encodeURIComponent(event.id);
 
-  await sendParticipantBookingReceipt({
-    bookingId: booking.id,
-    eventId: event.id,
-    eventTitle: event.title,
-    eventStartsAt: event.starts_at,
-    facilitatorName,
-    participantName,
-    participantEmail,
-    seats,
-  });
+  const [facilitatorMailSent, participantMailSent] = await Promise.all([
+    sendBookingNotification({
+      bookingId: booking.id,
+      eventId: event.id,
+      eventTitle: event.title,
+      eventStartsAt: event.starts_at,
+      facilitatorEmail: facilitatorUser?.email ?? null,
+      facilitatorName,
+      bookingsUrl,
+    }),
+    sendParticipantBookingReceipt({
+      bookingId: booking.id,
+      eventId: event.id,
+      eventTitle: event.title,
+      eventStartsAt: event.starts_at,
+      facilitatorName,
+      participantName,
+      participantEmail,
+      seats,
+    }),
+  ]);
+
+  if (!facilitatorMailSent || !participantMailSent) {
+    console.error("Booking mail delivery failed", {
+      bookingId: booking.id,
+      eventId: event.id,
+      facilitatorMailSent,
+      participantMailSent,
+    });
+  }
+
+  const successMessage =
+    facilitatorMailSent && participantMailSent
+      ? "Tak. Din tilmelding er registreret. Du modtager en mailkvittering, og arrangøren har fået besked."
+      : "Tak. Din tilmelding er registreret. Mailen kunne ikke sendes lige nu, men tilmeldingen er gemt.";
 
   revalidatePath("/events/" + eventId);
   redirect(
     "/events/" +
       eventId +
       "?booking=sent&message=" +
-      encodeURIComponent("Tak. Din tilmelding er registreret. Du modtager en mailkvittering, og arrangøren har fået besked.") + "#booking-response",
+      encodeURIComponent(successMessage) +
+      "#booking-response",
   );
 }

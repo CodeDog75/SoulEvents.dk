@@ -70,7 +70,7 @@ function buildText(input: ParticipantBookingReceiptInput) {
 }
 
 export async function sendParticipantBookingReceipt(input: ParticipantBookingReceiptInput) {
-  await sendLoggedEmail({
+  return sendLoggedEmail({
     type: "booking_created_participant_receipt",
     to: input.participantEmail,
     subject: "Vi har modtaget din tilmelding: " + input.eventTitle,

@@ -47,6 +47,8 @@ function normalizePhone(value: string) {
 
 export function SignupForm({ documents, restoreValues = false }: SignupFormProps) {
   const [values, setValues] = useState<SignupFormValues>(emptyValues);
+  const [successTarget, setSuccessTarget] = useState("login");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -61,12 +63,23 @@ export function SignupForm({ documents, restoreValues = false }: SignupFormProps
     return () => window.clearTimeout(timeout);
   }, [restoreValues]);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const updateSuccessTarget = () => setSuccessTarget(mediaQuery.matches ? "signup" : "login");
+
+    updateSuccessTarget();
+    mediaQuery.addEventListener("change", updateSuccessTarget);
+
+    return () => mediaQuery.removeEventListener("change", updateSuccessTarget);
+  }, []);
+
   function updateValue<Key extends keyof SignupFormValues>(key: Key, value: SignupFormValues[Key]) {
     setValues((currentValues) => ({ ...currentValues, [key]: value }));
   }
 
   function rememberValues() {
     window.sessionStorage.setItem(signupDraftKey, JSON.stringify(values));
+    setIsSubmitting(true);
   }
 
   return (
@@ -75,6 +88,8 @@ export function SignupForm({ documents, restoreValues = false }: SignupFormProps
       className="mt-6 grid gap-5 [&_input::placeholder]:text-sm [&_input::placeholder]:font-normal [&_input::placeholder]:text-[#2F2633]/42"
       onSubmit={rememberValues}
     >
+      <input name="success_target" type="hidden" value={successTarget} />
+
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
           E-mail *
@@ -167,11 +182,21 @@ export function SignupForm({ documents, restoreValues = false }: SignupFormProps
       </label>
 
       <button
-        className="mt-1 h-12 rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6A4199] hover:shadow-lift"
+        aria-disabled={isSubmitting}
+        className="mt-1 h-12 rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6A4199] hover:shadow-lift disabled:cursor-wait disabled:opacity-75 disabled:hover:translate-y-0 disabled:hover:bg-[#7A4EAB] disabled:hover:shadow-soft"
+        disabled={isSubmitting}
         type="submit"
       >
-        Opret gratis arrangørprofil
+        {isSubmitting ? "Sender..." : "Opret gratis arrangørprofil"}
       </button>
     </form>
   );
+}
+
+export function ClearSignupDraft() {
+  useEffect(() => {
+    window.sessionStorage.removeItem(signupDraftKey);
+  }, []);
+
+  return null;
 }

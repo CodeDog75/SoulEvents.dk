@@ -1,21 +1,23 @@
 import Link from "next/link";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
-import { SignupForm } from "@/components/auth/signup-form";
+import { ClearSignupDraft, SignupForm } from "@/components/auth/signup-form";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { createClient } from "@/lib/supabase/server";
 
 type SignUpPageProps = {
   searchParams: Promise<{
+    created?: string;
     message?: string;
   }>;
 };
 
 export default async function SignUpPage({ searchParams }: SignUpPageProps) {
-  const { message } = await searchParams;
+  const { created, message } = await searchParams;
+  const accountCreated = created === "1";
   const existingAccountMessage = message?.toLowerCase().includes("der findes allerede en konto") ?? false;
   const rateLimitMessage = message?.toLowerCase().includes("for mange mails") ?? false;
-  const shouldRestoreFormValues = Boolean(message) && !message?.toLowerCase().includes("oprettet");
+  const shouldRestoreFormValues = Boolean(message) && !accountCreated && !message?.toLowerCase().includes("oprettet");
   const supabase = await createClient();
   const { data: legalDocuments } = await supabase
     .from("legal_documents")
@@ -71,65 +73,97 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
             </p>
           </div>
 
-          <AuthMessage message={message} />
-
-          <div className="mt-6">
-            <SocialAuthButtons mode="signup" />
-          </div>
-
-          <div className="my-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#2F2633]/42">
-            <span className="h-px flex-1 bg-[#EDE4F7]" />
-            eller
-            <span className="h-px flex-1 bg-[#EDE4F7]" />
-          </div>
-
-          {rateLimitMessage && (
-            <div className="mt-4 rounded-2xl border border-[#F0DEC0] bg-[#FFF6E8] p-4 text-sm text-[#2F2633]/75">
-              <p className="font-semibold text-[#2F2633]">For mange mails på kort tid</p>
-              <p className="mt-1 leading-6">
-                Du kan prøve igen om lidt. Hvis du allerede har oprettet en konto, kan du logge ind eller bruge glemt adgangskode.
+          {accountCreated ? (
+            <section className="mt-6 rounded-[1.5rem] border border-[#A8BFA3]/35 bg-[#F2F8EF] p-5 shadow-soft sm:p-6">
+              <ClearSignupDraft />
+              <p className="inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#4B5645]">
+                Oprettelse modtaget
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <h3 className="mt-4 text-2xl font-semibold text-[#2F2633]">Tak for din oprettelse</h3>
+              <p className="mt-3 text-sm leading-6 text-[#2F2633]/72">
+                Vi har sendt dig en bekræftelsesmail. Klik på linket i mailen for at færdiggøre din arrangørprofil.
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[#2F2633]/72">
+                Tjek også spam eller reklame, hvis mailen ikke dukker op med det samme.
+              </p>
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                 <Link
-                  className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#6D439C]"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6D439C]"
                   href="/auth/login"
                 >
                   Gå til login
                 </Link>
                 <Link
-                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#7A4EAB]/25 bg-white px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#EDE4F7]"
-                  href="/auth/forgot-password"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#7A4EAB]/25 bg-white px-5 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#EDE4F7]"
+                  href="/"
                 >
-                  Glemt adgangskode?
+                  Til forsiden
                 </Link>
               </div>
-            </div>
-          )}
+            </section>
+          ) : (
+            <>
+              <AuthMessage message={message} />
 
-          {existingAccountMessage && (
-            <div className="mt-4 rounded-2xl border border-[#EDE4F7] bg-[#FAF6EF] p-4 text-sm text-[#2F2633]/75">
-              <p className="font-semibold text-[#2F2633]">Har du allerede en profil?</p>
-              <p className="mt-1 leading-6">
-                Log ind med din e-mail, eller få tilsendt et link til ny adgangskode, hvis du ikke kan huske den.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Link
-                  className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#6D439C]"
-                  href="/auth/login"
-                >
-                  Gå til login
-                </Link>
-                <Link
-                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#7A4EAB]/25 bg-white px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#EDE4F7]"
-                  href="/auth/forgot-password"
-                >
-                  Glemt adgangskode?
-                </Link>
+              <div className="mt-6">
+                <SocialAuthButtons mode="signup" />
               </div>
-            </div>
-          )}
 
-          <SignupForm documents={legalDocuments ?? []} restoreValues={shouldRestoreFormValues} />
+              <div className="my-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#2F2633]/42">
+                <span className="h-px flex-1 bg-[#EDE4F7]" />
+                eller
+                <span className="h-px flex-1 bg-[#EDE4F7]" />
+              </div>
+
+              {rateLimitMessage && (
+                <div className="mt-4 rounded-2xl border border-[#F0DEC0] bg-[#FFF6E8] p-4 text-sm text-[#2F2633]/75">
+                  <p className="font-semibold text-[#2F2633]">For mange mails på kort tid</p>
+                  <p className="mt-1 leading-6">
+                    Du kan prøve igen om lidt. Hvis du allerede har oprettet en konto, kan du logge ind eller bruge glemt adgangskode.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Link
+                      className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#6D439C]"
+                      href="/auth/login"
+                    >
+                      Gå til login
+                    </Link>
+                    <Link
+                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#7A4EAB]/25 bg-white px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#EDE4F7]"
+                      href="/auth/forgot-password"
+                    >
+                      Glemt adgangskode?
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {existingAccountMessage && (
+                <div className="mt-4 rounded-2xl border border-[#EDE4F7] bg-[#FAF6EF] p-4 text-sm text-[#2F2633]/75">
+                  <p className="font-semibold text-[#2F2633]">Har du allerede en profil?</p>
+                  <p className="mt-1 leading-6">
+                    Log ind med din e-mail, eller få tilsendt et link til ny adgangskode, hvis du ikke kan huske den.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Link
+                      className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#6D439C]"
+                      href="/auth/login"
+                    >
+                      Gå til login
+                    </Link>
+                    <Link
+                      className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#7A4EAB]/25 bg-white px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#EDE4F7]"
+                      href="/auth/forgot-password"
+                    >
+                      Glemt adgangskode?
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              <SignupForm documents={legalDocuments ?? []} restoreValues={shouldRestoreFormValues} />
+            </>
+          )}
 
           <section className="mt-7 rounded-[1.25rem] border border-[#EDE4F7] bg-[#FAF6EF] p-5">
             <h2 className="text-xl font-semibold text-[#2F2633]">Når din profil er oprettet 💜</h2>

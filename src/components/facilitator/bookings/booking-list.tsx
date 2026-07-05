@@ -14,7 +14,6 @@ type BookingRow = {
   event_title_snapshot: string;
   event_starts_at_snapshot: string;
   booking_value_cents: number;
-  commission_cents: number;
   created_at: string;
 };
 
@@ -111,10 +110,6 @@ export function BookingList({ bookings }: BookingListProps) {
                 <p>
                   <span className="font-semibold text-midnight">Bookingværdi:</span>{" "}
                   {formatMoney(booking.booking_value_cents)}
-                </p>
-                <p>
-                  <span className="font-semibold text-midnight">Kommission:</span>{" "}
-                  {formatMoney(booking.commission_cents)}
                 </p>
               </div>
 

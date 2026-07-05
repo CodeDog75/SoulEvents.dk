@@ -253,6 +253,7 @@ export async function signUpFacilitatorAction(formData: FormData) {
   const email = getString(formData, "email").toLowerCase();
   const phone = getString(formData, "phone");
   const password = getString(formData, "password");
+  const successTarget = getString(formData, "success_target");
   const acceptedTerms = formData.get("accepted_terms") === "on";
 
   const phoneDigits = phone.replace(/\D/g, "");
@@ -357,6 +358,11 @@ export async function signUpFacilitatorAction(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
+
+  if (successTarget === "signup") {
+    redirect("/auth/signup?created=1");
+  }
+
   authRedirect(
     "/auth/login",
     "Din konto er oprettet. Tjek din indbakke og bekræft e-mailen via linket. Tjek også spam/reklame. Når e-mailen er bekræftet, kan du logge ind, færdiggøre profilen og oprette dit første event, mens vi gennemgår arrangørprofilen.",

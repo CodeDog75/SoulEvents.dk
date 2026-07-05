@@ -28,7 +28,7 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
     ? supabase
         .from("bookings")
         .select(
-          "id, event_id, status, participant_name, participant_email, participant_phone, seats, message, event_title_snapshot, event_starts_at_snapshot, booking_value_cents, commission_cents, created_at",
+          "id, event_id, status, participant_name, participant_email, participant_phone, seats, message, event_title_snapshot, event_starts_at_snapshot, booking_value_cents, created_at",
         )
         .eq("facilitator_id", facilitatorProfile.id)
     : null;

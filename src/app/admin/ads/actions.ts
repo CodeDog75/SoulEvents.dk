@@ -36,9 +36,32 @@ function homepagePlacementValue(formData: FormData) {
   return value === "middle" ? "middle" : "bottom";
 }
 
-function isMissingHomepagePlacementError(error: { message?: string; details?: string; code?: string } | null | undefined) {
+const optionalAdColumns = [
+  "mobile_image_path",
+  "show_on_homepage",
+  "homepage_placement",
+  "show_in_newsletter",
+  "show_title_on_banner",
+  "show_sponsor_on_banner",
+  "admin_note",
+] as const;
+
+function adErrorText(error: { message?: string; details?: string; code?: string } | null | undefined) {
   const text = [error?.message, error?.details, error?.code].filter(Boolean).join(" ").toLowerCase();
-  return text.includes("homepage_placement") || text.includes("schema cache");
+  return text;
+}
+
+function isMissingOptionalAdColumnError(error: { message?: string; details?: string; code?: string } | null | undefined) {
+  const text = adErrorText(error);
+  return text.includes("schema cache") || optionalAdColumns.some((column) => text.includes(column));
+}
+
+function legacyAdPayload(payload: Record<string, unknown>) {
+  const nextPayload = { ...payload };
+  optionalAdColumns.forEach((column) => {
+    delete nextPayload[column];
+  });
+  return nextPayload;
 }
 
 function extensionFromFile(file: File) {
@@ -175,12 +198,31 @@ export async function upsertAdAction(formData: FormData) {
     ? await supabase.from("ads").update(payload).eq("id", id).select("id").single()
     : await supabase.from("ads").insert(payload).select("id").single();
 
-  if (result.error && isMissingHomepagePlacementError(result.error)) {
-    const legacyPayload: Partial<typeof payload> = { ...payload };
-    delete legacyPayload.homepage_placement;
+  if (result.error) {
+    console.error("Ad save failed", {
+      code: result.error.code,
+      details: result.error.details,
+      hint: result.error.hint,
+      message: result.error.message,
+      payloadColumns: Object.keys(payload),
+    });
+  }
+
+  if (result.error && isMissingOptionalAdColumnError(result.error)) {
+    const retryPayload = legacyAdPayload(payload);
     result = id
-      ? await supabase.from("ads").update(legacyPayload).eq("id", id).select("id").single()
-      : await supabase.from("ads").insert(legacyPayload).select("id").single();
+      ? await supabase.from("ads").update(retryPayload).eq("id", id).select("id").single()
+      : await supabase.from("ads").insert(retryPayload).select("id").single();
+
+    if (result.error) {
+      console.error("Ad legacy save failed", {
+        code: result.error.code,
+        details: result.error.details,
+        hint: result.error.hint,
+        message: result.error.message,
+        payloadColumns: Object.keys(retryPayload),
+      });
+    }
   }
 
   if (result.error || !result.data) {
