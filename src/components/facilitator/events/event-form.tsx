@@ -238,6 +238,21 @@ const timeOptions = Array.from({ length: 96 }, (_, index) => {
   return `${hour}:${minute}`;
 });
 
+function formatLocalDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function formatLocalTimeInputValue(date: Date) {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${hours}:${minutes}`;
+}
+
 
 function getEventImageMessage(message: string) {
   const normalized = message.toLowerCase();
@@ -627,10 +642,10 @@ export function EventForm({
   const tomorrow = tomorrowDate.toISOString().slice(0, 10);
   const draftStart = draftEvent?.starts_at ? new Date(draftEvent.starts_at) : null;
   const draftEnd = draftEvent?.ends_at ? new Date(draftEvent.ends_at) : null;
-  const draftStartDate = draftStart ? draftStart.toISOString().slice(0, 10) : tomorrow;
-  const draftEndDate = draftEnd ? draftEnd.toISOString().slice(0, 10) : draftStartDate;
-  const draftStartTime = draftStart ? draftStart.toISOString().slice(11, 16) : "19:00";
-  const draftEndTime = draftEnd ? draftEnd.toISOString().slice(11, 16) : "21:00";
+  const draftStartDate = draftStart ? formatLocalDateInputValue(draftStart) : tomorrow;
+  const draftEndDate = draftEnd ? formatLocalDateInputValue(draftEnd) : draftStartDate;
+  const draftStartTime = draftStart ? formatLocalTimeInputValue(draftStart) : "19:00";
+  const draftEndTime = draftEnd ? formatLocalTimeInputValue(draftEnd) : "21:00";
   const formRef = useRef<HTMLFormElement | null>(null);
   const coverFileInputRef = useRef<HTMLInputElement | null>(null);
   const cropDragRef = useRef<{
