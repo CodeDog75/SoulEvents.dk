@@ -5,6 +5,12 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAppUrl } from "@/lib/app-url";
+import {
+  assertRateLimit,
+  isRateLimitExceededError,
+  RATE_LIMIT_MESSAGE,
+  type RateLimitAction,
+} from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/types/database";
 
@@ -20,6 +26,26 @@ function authRedirect(path: string, message: string): never {
 function authRedirectWithParams(path: string, params: Record<string, string>): never {
   const searchParams = new URLSearchParams(params);
   redirect(`${path}?${searchParams.toString()}`);
+}
+
+async function enforceAuthRateLimit(
+  action: RateLimitAction,
+  path: string,
+  params?: Record<string, string>,
+) {
+  try {
+    await assertRateLimit(action);
+  } catch (error) {
+    if (isRateLimitExceededError(error)) {
+      authRedirectWithParams(path, {
+        ...(params ?? {}),
+        message: RATE_LIMIT_MESSAGE,
+        status: "429",
+      });
+    }
+
+    throw error;
+  }
 }
 
 async function getRequestAppUrl() {
@@ -110,6 +136,8 @@ export async function signInAction(formData: FormData) {
     authRedirect("/auth/login", "Udfyld både e-mail og adgangskode.");
   }
 
+  await enforceAuthRateLimit("auth:login", "/auth/login");
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   const errorMessage = error?.message.toLowerCase() ?? "";
@@ -158,6 +186,11 @@ export async function resendConfirmationAction(formData: FormData) {
     });
   }
 
+  await enforceAuthRateLimit("auth:resend-verification", "/auth/login", {
+    confirmation: "needed",
+    email,
+  });
+
   const authUser = await getAuthUserByEmail(email);
 
   if (authUser?.email_confirmed_at) {
@@ -204,6 +237,8 @@ export async function requestPasswordResetAction(formData: FormData) {
   if (!email) {
     authRedirect("/auth/forgot-password", "Skriv din e-mailadresse.");
   }
+
+  await enforceAuthRateLimit("auth:password-reset", "/auth/forgot-password");
 
   const supabase = await createClient();
   const appUrl = await getRequestAppUrl();
@@ -273,6 +308,9 @@ export async function signUpFacilitatorAction(formData: FormData) {
   if (!acceptedTerms) {
     authRedirect("/auth/signup", "Du skal acceptere betingelserne for at fortsætte.");
   }
+
+  await enforceAuthRateLimit("auth:signup", "/auth/signup");
+
   const existingUser = await getAuthUserByEmail(email);
 
   if (existingUser) {
