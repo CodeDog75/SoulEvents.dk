@@ -24,17 +24,28 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
     .eq("profile_id", profile.id)
     .single();
 
-  const bookingsQuery = facilitatorProfile
-    ? supabase
+  const nowIso = new Date().toISOString();
+  const { data: eventOptions } = facilitatorProfile
+    ? await supabase
+        .from("events")
+        .select("id, title, starts_at, status, capacity, bookings(id, status, seats)")
+        .eq("facilitator_id", facilitatorProfile.id)
+        .in("status", ["active", "sold_out"])
+        .gte("starts_at", nowIso)
+        .order("starts_at", { ascending: true })
+    : { data: [] };
+
+  const selectedEvent = (eventOptions ?? []).find((eventOption) => eventOption.id === event) ?? null;
+
+  const { data: bookings } = selectedEvent && facilitatorProfile
+    ? await supabase
         .from("bookings")
         .select(
           "id, event_id, status, participant_name, participant_email, participant_phone, seats, message, event_title_snapshot, event_starts_at_snapshot, booking_value_cents, created_at",
         )
         .eq("facilitator_id", facilitatorProfile.id)
-    : null;
-
-  const { data: bookings } = bookingsQuery
-    ? await (event ? bookingsQuery.eq("event_id", event) : bookingsQuery).order("created_at", { ascending: false })
+        .eq("event_id", selectedEvent.id)
+        .order("created_at", { ascending: false })
     : { data: [] };
 
   return (
@@ -62,7 +73,11 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
         <AuthMessage message={message} />
-        <BookingList bookings={(bookings ?? []) as never} />
+        <BookingList
+          bookings={(bookings ?? []) as never}
+          eventOptions={(eventOptions ?? []) as never}
+          selectedEventId={selectedEvent?.id ?? null}
+        />
       </section>
     </main>
   );
