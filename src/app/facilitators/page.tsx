@@ -69,7 +69,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
       .eq("status", "approved"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
     supabase.from("regions").select("slug, name").order("sort_order"),
-    supabase.from("events").select("id, facilitator_id").eq("status", "active").gte("starts_at", new Date().toISOString()),
+    supabase.from("events").select("id, facilitator_id").in("status", ["active", "sold_out"]).gte("starts_at", new Date().toISOString()),
   ]);
 
   const eventCounts = new Map<string, number>();

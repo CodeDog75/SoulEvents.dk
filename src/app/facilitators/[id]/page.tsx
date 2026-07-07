@@ -107,10 +107,10 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   const { data: events } = await supabase
     .from("events")
     .select(
-      "id, title, short_description, starts_at, city, price_cents, capacity, event_format, facilitator_profiles!inner(status, company_name, profiles(full_name)), regions(name), event_categories(categories(name, color_hex))",
+      "id, status, title, short_description, starts_at, city, price_cents, capacity, event_format, facilitator_profiles!inner(status, company_name, profiles(full_name)), regions(name), event_categories(categories(name, color_hex))",
     )
     .eq("facilitator_id", id)
-    .eq("status", "active")
+    .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
     .gte("starts_at", new Date().toISOString())
     .order("starts_at", { ascending: true });

@@ -111,6 +111,9 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
           {event.event_format === "online" && (
             <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-ink/70 shadow-soft">Online</span>
           )}
+          {event.status === "sold_out" && (
+            <span className="rounded-full bg-midnight px-3 py-1 text-xs font-semibold text-white shadow-soft">Udsolgt</span>
+          )}
         </div>
       </div>
 

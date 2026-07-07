@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendParticipantBookingResponse } from "@/lib/email/participant-booking-response";
+import { syncEventCapacityStatus } from "@/lib/events/capacity";
 import { getString } from "@/lib/forms/form-data";
 import { requireRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -18,6 +19,11 @@ function bookingsRedirect(message: string, eventId?: string | null): never {
   }
 
   redirect(`/facilitator/bookings?${params.toString()}`);
+}
+
+function getSeats(formData: FormData) {
+  const seats = Number(getString(formData, "seats"));
+  return Number.isInteger(seats) ? seats : 0;
 }
 
 export async function updateBookingStatusAction(formData: FormData) {
@@ -78,6 +84,8 @@ export async function updateBookingStatusAction(formData: FormData) {
     bookingsRedirect("Tilmeldingsstatus kunne ikke opdateres.", booking.event_id);
   }
 
+  await syncEventCapacityStatus(supabase, booking.event_id);
+
   await sendParticipantBookingResponse({
     bookingId: booking.id,
     eventId: booking.event_id,
@@ -91,6 +99,8 @@ export async function updateBookingStatusAction(formData: FormData) {
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/bookings");
+  revalidatePath("/");
+  revalidatePath("/events/" + booking.event_id);
 
   const labels: Record<string, string> = {
     confirmed: "bekræftet",
@@ -98,6 +108,62 @@ export async function updateBookingStatusAction(formData: FormData) {
   };
 
   bookingsRedirect(`Tilmeldingen er ${labels[status]}, og deltageren har fået besked.`, booking.event_id);
+}
+
+export async function updateBookingSeatsAction(formData: FormData) {
+  const profile = await requireRole("facilitator");
+  const bookingId = getString(formData, "booking_id");
+  const currentEventId = getString(formData, "current_event_id");
+  const seats = getSeats(formData);
+
+  if (!bookingId || seats <= 0) {
+    bookingsRedirect("Ugyldigt antal pladser.", currentEventId);
+  }
+
+  const supabase = await createClient();
+  const { data: facilitatorProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .single();
+
+  if (!facilitatorProfile) {
+    bookingsRedirect("Arrangørprofilen mangler.", currentEventId);
+  }
+
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("id, event_id, facilitator_id, status, seats")
+    .eq("id", bookingId)
+    .eq("facilitator_id", facilitatorProfile.id)
+    .single();
+
+  if (!booking) {
+    bookingsRedirect("Tilmeldingen kunne ikke findes.", currentEventId);
+  }
+
+  if (!["pending", "confirmed"].includes(booking.status)) {
+    bookingsRedirect("Kun aktive tilmeldinger kan justeres.", booking.event_id);
+  }
+
+  if (seats >= booking.seats) {
+    bookingsRedirect("Antal pladser kan kun sænkes her.", booking.event_id);
+  }
+
+  const { error } = await supabase.from("bookings").update({ seats }).eq("id", booking.id);
+
+  if (error) {
+    bookingsRedirect("Antal pladser kunne ikke opdateres.", booking.event_id);
+  }
+
+  await syncEventCapacityStatus(supabase, booking.event_id);
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/bookings");
+  revalidatePath("/");
+  revalidatePath("/events/" + booking.event_id);
+
+  bookingsRedirect("Antal pladser er opdateret.", booking.event_id);
 }
 
 export async function markEventSoldOutAction(formData: FormData) {

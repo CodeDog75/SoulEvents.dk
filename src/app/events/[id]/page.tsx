@@ -120,7 +120,9 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const facilitatorProfile = Array.isArray(event.facilitator_profiles)
     ? event.facilitator_profiles[0]
     : event.facilitator_profiles;
-  const isPublicEvent = event.status === "active" && facilitatorProfile?.status === "approved";
+  const isPublishedEvent = ["active", "sold_out"].includes(event.status);
+  const isSoldOut = event.status === "sold_out";
+  const isPublicEvent = isPublishedEvent && facilitatorProfile?.status === "approved";
   const canPreviewEvent = viewer?.role === "admin" || viewer?.id === facilitatorProfile?.profile_id;
 
   if (!isPublicEvent && !canPreviewEvent) {
@@ -143,7 +145,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
   );
   const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør";
-  const isBookable = isPublicEvent;
+  const isBookable = isPublicEvent && !isSoldOut;
   const facilitatorImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
@@ -246,6 +248,11 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             </div>
             <div className="p-8 sm:p-10">
             <div className="flex flex-wrap gap-2">
+              {isSoldOut && (
+                <span className="rounded-full bg-midnight px-3 py-1 text-xs font-semibold text-white">
+                  Udsolgt
+                </span>
+              )}
               {categories.map((category) => (
                 <span
                   className="rounded-full px-3 py-1 text-xs font-semibold text-white"
@@ -401,7 +408,14 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             startsAt={event.starts_at}
           />
 
-          {isBookable ? (
+          {isSoldOut ? (
+            <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
+              <h2 className="text-3xl font-medium text-olive">Udsolgt</h2>
+              <p className="mt-3 text-sm leading-6 text-ink/70">
+                Der er desværre ikke flere ledige pladser til dette event.
+              </p>
+            </section>
+          ) : isBookable ? (
             <BookingForm availableSeats={availableSeats} eventId={event.id} message={message} messageVariant={messageVariant} />
           ) : (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">

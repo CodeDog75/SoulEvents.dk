@@ -36,6 +36,7 @@ function validOptionalPhone(value: string | null) {
 
 const eventSelect = [
   "id,",
+  "status,",
   "title,",
   "starts_at,",
   "price_cents,",
@@ -65,6 +66,7 @@ type BookingEventResult = {
   id: string;
   price_cents: number;
   starts_at: string;
+  status: string;
   title: string;
 };
 
@@ -119,7 +121,7 @@ export async function createBookingAction(formData: FormData) {
     .from("events")
     .select(eventSelect)
     .eq("id", eventId)
-    .eq("status", "active")
+    .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
     .single();
 
@@ -127,6 +129,10 @@ export async function createBookingAction(formData: FormData) {
 
   if (!event) {
     bookingRedirect(eventId, "Eventet kunne ikke findes eller er ikke aktivt.");
+  }
+
+  if (event.status === "sold_out") {
+    bookingRedirect(eventId, "Eventet er udsolgt.");
   }
 
   const adminSupabase = createAdminClient();

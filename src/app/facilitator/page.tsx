@@ -424,7 +424,9 @@ function StatusAction({ eventId, status, children }: { eventId: string; status: 
 function EventCard({ event }: { event: any }) {
   const categories =
     event.event_categories?.map((row: any) => first(row.categories)?.name).filter((name: string | undefined): name is string => Boolean(name)) ?? [];
-  const bookingCount = event.bookings?.length ?? 0;
+  const activeBookings = event.bookings?.filter((booking: any) => ["pending", "confirmed"].includes(booking.status)) ?? [];
+  const bookingCount = activeBookings.length;
+  const reservedSeats = activeBookings.reduce((sum: number, booking: any) => sum + (booking.seats ?? 0), 0);
   const location = event.event_format === "online" ? "Online" : event.city || "Lokation kommer";
   const isDraft = event.status === "draft";
   const isActive = event.status === "active" || event.status === "sold_out";
@@ -455,10 +457,10 @@ function EventCard({ event }: { event: any }) {
           <Leaf className="size-4 text-[#7A5D91]" aria-hidden="true" />
           {location}
         </p>
-        <p className="inline-flex items-center gap-2">
-          <Ticket className="size-4 text-[#7A5D91]" aria-hidden="true" />
-          {bookingCount} tilmeldinger
-        </p>
+        <div>
+          <p className="font-semibold text-[#2F2437]">{reservedSeats} af {event.capacity} pladser reserveret</p>
+          <p className="text-xs text-[#6E6475]">{bookingCount === 1 ? "1 booking" : bookingCount + " bookinger"}</p>
+        </div>
         <p className="inline-flex items-center gap-2">
           <Clock3 className="size-4 text-[#7A5D91]" aria-hidden="true" />
           {statusUpdatedLabel}: {formatDateTime(event.updated_at)}
@@ -810,7 +812,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
       ? await Promise.all([
           supabase
             .from("events")
-            .select("id, title, status, starts_at, created_at, updated_at, city, event_format, price_cents, capacity, event_reference_id, event_categories(categories(name)), bookings(id)")
+            .select("id, title, status, starts_at, created_at, updated_at, city, event_format, price_cents, capacity, event_reference_id, event_categories(categories(name)), bookings(id, status, seats)")
             .eq("facilitator_id", facilitatorProfile.id)
             .order("starts_at", { ascending: false }),
           supabase

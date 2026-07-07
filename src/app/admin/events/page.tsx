@@ -17,6 +17,7 @@ const statuses: Array<{ label: string; value: "all" | EventStatus }> = [
   { label: "Alle", value: "all" },
   { label: "Afventer", value: "pending_review" },
   { label: "Publiceret", value: "active" },
+  { label: "Udsolgt", value: "sold_out" },
   { label: "Kladde", value: "draft" },
   { label: "Afvist", value: "rejected" },
   { label: "Afholdt", value: "completed" },

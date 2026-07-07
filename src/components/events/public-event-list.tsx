@@ -3,6 +3,7 @@ import { CalendarDays, MapPinned, Ticket } from "lucide-react";
 
 export type PublicEvent = {
   id: string;
+  status?: string | null;
   title: string;
   short_description: string;
   starts_at: string;
@@ -214,6 +215,11 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
                 <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-ink/60 shadow-soft">
                   {formatEventFormat(event.event_format)}
                 </span>
+                {event.status === "sold_out" && (
+                  <span className="rounded-full bg-midnight px-2.5 py-1 text-[11px] font-semibold text-white shadow-soft">
+                    Udsolgt
+                  </span>
+                )}
               </div>
             </div>
 
