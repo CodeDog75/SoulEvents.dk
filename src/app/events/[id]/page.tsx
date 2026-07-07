@@ -124,6 +124,16 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const isSoldOut = event.status === "sold_out";
   const isPublicEvent = isPublishedEvent && facilitatorProfile?.status === "approved";
   const canPreviewEvent = viewer?.role === "admin" || viewer?.id === facilitatorProfile?.profile_id;
+  const capacityLabel = isSoldOut
+    ? "Udsolgt"
+    : availableSeats <= 3
+      ? "Få pladser tilbage"
+      : `${availableSeats} ledige pladser`;
+  const capacityBadgeClass = isSoldOut
+    ? "bg-red-50 text-red-800"
+    : availableSeats <= 3
+      ? "bg-[#FFF7E8] text-[#8A6A2E]"
+      : "bg-sage-50 text-sage-700";
 
   if (!isPublicEvent && !canPreviewEvent) {
     notFound();
@@ -374,6 +384,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                 <Ticket className="mt-0.5 size-4 text-midnight" aria-hidden="true" />
                 <span>{formatPrice(event.price_cents)}</span>
               </div>
+              <span className={"w-fit rounded-full px-3 py-1 text-xs font-semibold " + capacityBadgeClass}>{capacityLabel}</span>
               {event.practical_information && (
                 <div className="rounded-md bg-sage-50 p-3">
                   <p className="font-semibold text-olive">Praktisk information til deltagere</p>
