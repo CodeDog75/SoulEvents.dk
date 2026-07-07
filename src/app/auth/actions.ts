@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAppUrl } from "@/lib/app-url";
+import { env } from "@/lib/env";
 import {
   assertRateLimit,
   isRateLimitExceededError,
@@ -55,6 +56,10 @@ async function getRequestAppUrl() {
   const requestOrigin = host ? `${proto}://${host}` : undefined;
 
   return getAppUrl(requestOrigin);
+}
+
+function getCanonicalAppUrl() {
+  return (env.appUrl || "https://www.soulevents.dk").trim().replace(/\/$/, "");
 }
 
 async function getAuthUserByEmail(email: string) {
@@ -241,10 +246,8 @@ export async function requestPasswordResetAction(formData: FormData) {
   await enforceAuthRateLimit("auth:password-reset", "/auth/forgot-password");
 
   const supabase = await createClient();
-  const appUrl = await getRequestAppUrl();
+  const appUrl = getCanonicalAppUrl();
   const redirectTo = `${appUrl}/auth/callback?next=/auth/update-password`;
-
-  console.info("Password reset redirectTo", { appUrl, redirectTo });
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo,
