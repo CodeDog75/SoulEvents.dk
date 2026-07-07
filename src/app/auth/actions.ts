@@ -280,7 +280,7 @@ export async function updatePasswordAction(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
-  authRedirect("/auth/login", "Adgangskoden er opdateret. Du kan logge ind nu.");
+  authRedirect("/auth/login", "Din adgangskode er blevet opdateret.");
 }
 
 export async function signUpFacilitatorAction(formData: FormData) {

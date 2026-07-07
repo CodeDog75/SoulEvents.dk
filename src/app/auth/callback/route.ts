@@ -32,6 +32,12 @@ function confirmedRedirect(requestUrl: URL, params?: Record<string, string>) {
   return NextResponse.redirect(new URL(path, getAppUrl(requestUrl.origin)));
 }
 
+function passwordResetRedirect(requestUrl: URL, message?: string) {
+  const path = message ? `/auth/forgot-password?message=${encodeURIComponent(message)}` : "/auth/update-password";
+
+  return NextResponse.redirect(new URL(path, getAppUrl(requestUrl.origin)));
+}
+
 function loginErrorRedirect(requestUrl: URL, message: string) {
   const searchParams = new URLSearchParams({ message });
 
@@ -213,6 +219,7 @@ export async function GET(request: NextRequest) {
   const errorDescription = requestUrl.searchParams.get("error_description");
   const flow = requestUrl.searchParams.get("flow");
   const next = requestUrl.searchParams.get("next") ?? "/dashboard";
+  const isPasswordResetFlow = next === "/auth/update-password";
   const hasOAuthCookie = Boolean(request.cookies.get(oauthFlowCookie)?.value);
   const isOAuthFlow = flow === "oauth" || hasOAuthCookie;
 
@@ -227,6 +234,13 @@ export async function GET(request: NextRequest) {
           "Google-login kunne ikke gennemføres. Hvis du allerede har en SoulEvents-konto med samme e-mail, så log ind med e-mail og adgangskode denne gang.",
         ),
         hasOAuthCookie,
+      );
+    }
+
+    if (isPasswordResetFlow) {
+      return passwordResetRedirect(
+        requestUrl,
+        "Linket til ny adgangskode er udløbet eller er allerede brugt. Skriv din e-mailadresse, så sender vi et nyt link.",
       );
     }
 
@@ -255,9 +269,20 @@ export async function GET(request: NextRequest) {
       }
 
       if (!isExpiredOrInvalidLink(exchangeError.message)) {
+        if (isPasswordResetFlow) {
+          return passwordResetRedirect(requestUrl, "Linket til ny adgangskode kunne ikke åbnes. Send et nyt link og prøv igen.");
+        }
+
         return confirmedRedirect(requestUrl, {
           session: "missing",
         });
+      }
+
+      if (isPasswordResetFlow) {
+        return passwordResetRedirect(
+          requestUrl,
+          "Linket til ny adgangskode er udløbet eller er allerede brugt. Skriv din e-mailadresse, så sender vi et nyt link.",
+        );
       }
 
       const message =
@@ -279,6 +304,10 @@ export async function GET(request: NextRequest) {
         );
       }
 
+      if (isPasswordResetFlow) {
+        return passwordResetRedirect(requestUrl, "Linket til ny adgangskode kunne ikke åbnes. Send et nyt link og prøv igen.");
+      }
+
       return confirmationRedirect(requestUrl, "Login kunne ikke gennemføres. Prøv igen.");
     }
 
@@ -297,6 +326,10 @@ export async function GET(request: NextRequest) {
         oauthRedirectFor(requestUrl, { isNewProfile, needsProfileCompletion, role }),
         hasOAuthCookie,
       );
+    }
+
+    if (isPasswordResetFlow) {
+      return passwordResetRedirect(requestUrl);
     }
   } else {
     if (isOAuthFlow) {
@@ -328,6 +361,13 @@ export async function GET(request: NextRequest) {
           "Google-login kunne ikke gennemføres. Prøv igen, eller log ind med e-mail og adgangskode.",
         ),
         hasOAuthCookie,
+      );
+    }
+
+    if (isPasswordResetFlow) {
+      return passwordResetRedirect(
+        requestUrl,
+        "Linket til ny adgangskode mangler en kode. Åbn det nyeste link fra din indbakke, eller send et nyt link.",
       );
     }
 
