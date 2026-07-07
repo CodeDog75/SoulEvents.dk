@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAppUrl } from "@/lib/app-url";
+import { env } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/types/database";
 
@@ -36,6 +38,35 @@ function passwordResetRedirect(requestUrl: URL, message?: string) {
   const path = message ? `/auth/forgot-password?message=${encodeURIComponent(message)}` : "/auth/update-password";
 
   return NextResponse.redirect(new URL(path, getAppUrl(requestUrl.origin)));
+}
+
+function createPasswordResetClient(request: NextRequest) {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    throw new Error("Supabase server credentials are missing.");
+  }
+
+  const cookiesToSet: Array<{ name: string; value: string; options: CookieOptions }> = [];
+  const supabase = createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(nextCookies) {
+        cookiesToSet.push(...nextCookies);
+      },
+    },
+  });
+
+  return {
+    supabase,
+    applyCookies(response: NextResponse) {
+      cookiesToSet.forEach(({ name, value, options }) => {
+        response.cookies.set(name, value, options);
+      });
+
+      return response;
+    },
+  };
 }
 
 function loginErrorRedirect(requestUrl: URL, message: string) {
@@ -252,7 +283,8 @@ export async function GET(request: NextRequest) {
   }
 
   if (code) {
-    const supabase = await createClient();
+    const passwordResetClient = isPasswordResetFlow ? createPasswordResetClient(request) : null;
+    const supabase = passwordResetClient?.supabase ?? (await createClient());
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (exchangeError) {
@@ -329,7 +361,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (isPasswordResetFlow) {
-      return passwordResetRedirect(requestUrl);
+      return passwordResetClient?.applyCookies(passwordResetRedirect(requestUrl)) ?? passwordResetRedirect(requestUrl);
     }
   } else {
     if (isOAuthFlow) {
