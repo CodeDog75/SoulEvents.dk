@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ImagePlus, Pencil, Repeat2, Trash2, Upload } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ImagePlus, Pencil, Repeat2, Trash2, Upload } from "lucide-react";
 import { type ChangeEvent, type ReactNode, type Ref, useEffect, useRef, useState } from "react";
 import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
 
@@ -136,7 +136,7 @@ function UploadField({
               </button>
             </div>
           ) : null}
-          {secondaryActions ? <div className="grid grid-cols-3 gap-2 border-t border-midnight/10 pt-2">{secondaryActions}</div> : null}
+          {secondaryActions ? <div className="flex flex-wrap justify-center gap-2 border-t border-midnight/10 pt-2">{secondaryActions}</div> : null}
         </div>
       </div>
 
@@ -157,18 +157,33 @@ function SmallActionButton({
   children,
   disabled,
   icon,
+  iconOnly = false,
   onClick,
   title,
+  variant = "default",
 }: {
-  children: string;
+  children: ReactNode;
   disabled?: boolean;
   icon: ReactNode;
+  iconOnly?: boolean;
   onClick: () => void;
   title: string;
+  variant?: "back" | "default" | "forward";
 }) {
+  const variantClass =
+    variant === "back"
+      ? "border-[#D8CBE4] bg-[#F4F0F7] text-[#6E5A86] hover:border-[#7A5D91] hover:text-[#5B4778]"
+      : variant === "forward"
+        ? "border-sage-700/15 bg-sage-50 text-sage-700 hover:border-sage-700 hover:bg-[#EEF6E8]"
+        : "border-midnight/10 bg-white text-ink/70 hover:border-sage-700 hover:text-sage-700";
+
   return (
     <button
-      className="inline-flex h-9 items-center justify-center gap-1 rounded-md border border-midnight/10 bg-white px-2 text-xs font-semibold text-ink/70 transition hover:border-sage-700 hover:text-sage-700 disabled:cursor-not-allowed disabled:opacity-35"
+      className={
+        "inline-flex h-9 items-center justify-center rounded-md border text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-35 " +
+        variantClass +
+        (iconOnly ? " w-9 px-0" : " gap-1 px-2")
+      }
       disabled={disabled}
       onClick={onClick}
       title={title}
@@ -306,7 +321,7 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
               inputRef={(element: HTMLInputElement | null) => {
                 galleryInputRefs.current[index] = element;
               }}
-          name={`gallery_image_file_${index}`}
+              name={`gallery_image_file_${index}`}
               onClear={() => clearGalleryImage(index)}
               onSelect={(file, previewUrl) => {
                 setGallery((current) => {
@@ -324,19 +339,45 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
               }
               previewUrl={slot.previewUrl}
               selectedFileName={slot.fileName}
-              secondaryActions={
+              secondaryActions={hasImage ? (
                 <>
-                  <SmallActionButton disabled={index === 0 || !hasImage} icon={<ArrowUp className="size-4" aria-hidden="true" />} onClick={() => moveUp(index)} title="Flyt billedet en plads op">
-                    Op
-                  </SmallActionButton>
-                  <SmallActionButton disabled={index === gallery.length - 1 || !hasImage} icon={<ArrowDown className="size-4" aria-hidden="true" />} onClick={() => moveDown(index)} title="Flyt billedet en plads ned">
-                    Ned
-                  </SmallActionButton>
-                  <SmallActionButton disabled={!hasImage} icon={<Repeat2 className="size-4" aria-hidden="true" />} onClick={() => swapWithProfile(index)} title="Byt dette billede med profilbilledet">
+                  {index > 0 ? (
+                    <SmallActionButton
+                      icon={
+                        <>
+                          <ArrowUp className="size-4 md:hidden" aria-hidden="true" />
+                          <ArrowLeft className="hidden size-4 md:block" aria-hidden="true" />
+                        </>
+                      }
+                      iconOnly
+                      onClick={() => moveUp(index)}
+                      title="Flyt billedet tilbage"
+                      variant="back"
+                    >
+                      <span className="sr-only">Flyt billedet tilbage</span>
+                    </SmallActionButton>
+                  ) : null}
+                  {index < gallery.length - 1 ? (
+                    <SmallActionButton
+                      icon={
+                        <>
+                          <ArrowDown className="size-4 md:hidden" aria-hidden="true" />
+                          <ArrowRight className="hidden size-4 md:block" aria-hidden="true" />
+                        </>
+                      }
+                      iconOnly
+                      onClick={() => moveDown(index)}
+                      title="Flyt billedet frem"
+                      variant="forward"
+                    >
+                      <span className="sr-only">Flyt billedet frem</span>
+                    </SmallActionButton>
+                  ) : null}
+                  <SmallActionButton icon={<Repeat2 className="size-4" aria-hidden="true" />} onClick={() => swapWithProfile(index)} title="Byt dette billede med profilbilledet">
                     Profil
                   </SmallActionButton>
                 </>
-              }
+              ) : null}
               title={`Stemningsbillede ${index + 1}`}
               unsupportedMessage={slot.message}
             />
