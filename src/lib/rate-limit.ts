@@ -35,7 +35,7 @@ const RATE_LIMITS: Record<RateLimitAction, RateLimitConfig> = {
     blockSeconds: 10 * 60,
   },
   "auth:password-reset": {
-    limit: 5,
+    limit: 10,
     windowSeconds: 15 * 60,
     blockSeconds: 15 * 60,
   },
