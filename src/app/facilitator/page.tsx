@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
-import { markFacilitatorAdminMessagesReadAction, requestFacilitatorProfileClosureAction, sendFacilitatorAdminMessageAction } from "@/app/facilitator/actions";
+import { requestFacilitatorProfileClosureAction, sendFacilitatorAdminMessageAction } from "@/app/facilitator/actions";
 import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { SignOutButton } from "@/components/auth/sign-out-button";
@@ -786,17 +786,8 @@ function SettingsPanel({ adminMessages, unreadMessageCount }: { adminMessages: a
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="font-semibold text-[#2F2437]">Dine seneste beskeder med SoulEvents administration</h2>
-              <p className="mt-1 text-sm leading-6 text-[#6E6475]">
-                {unreadMessageCount > 0 ? "Du har " + unreadMessageCount + " ulæst besked." : "Alle viste beskeder er markeret som læst."}
-              </p>
+              <p className="mt-1 text-sm leading-6 text-[#6E6475]">Dine seneste beskeder og svar fra SoulEvents administration.</p>
             </div>
-            {unreadMessageCount > 0 ? (
-              <form action={markFacilitatorAdminMessagesReadAction}>
-                <button className="inline-flex h-10 items-center justify-center rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white" type="submit">
-                  Marker som læst
-                </button>
-              </form>
-            ) : null}
           </div>
           <div className="mt-4 grid gap-3">
             {adminMessages.map((item) => (
@@ -809,9 +800,6 @@ function SettingsPanel({ adminMessages, unreadMessageCount }: { adminMessages: a
                 </div>
                 <p className="mt-1 text-xs font-semibold text-[#8B7F93]">
                   Sendt {formatDateTime(item.created_at)}
-                </p>
-                <p className="mt-1 text-xs font-semibold text-[#6E6475]">
-                  {item.facilitator_read_at ? "Læst af dig " + formatDateTime(item.facilitator_read_at) : "Ikke markeret som læst af dig endnu"}
                 </p>
                 <p className="mt-2 leading-6 text-[#6E6475]">{item.message}</p>
               </article>
@@ -877,7 +865,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .eq("status", "active"),
           supabase
             .from("facilitator_admin_messages")
-            .select("id, subject, message, type, status, created_at, facilitator_read_at")
+            .select("id, subject, message, type, status, created_at")
             .eq("facilitator_id", facilitatorProfile.id)
             .order("created_at", { ascending: false })
             .limit(3),
@@ -912,7 +900,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     ? await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id)
     : { activeCount: 0, draftCount: 0, maxActiveEvents: 10, maxDraftEvents: 5 };
   const messageRows = (adminMessages ?? []) as any[];
-  const unreadMessageCount = messageRows.filter((item) => !item.facilitator_read_at).length;
+  const unreadMessageCount = 0;
   const activeEvents = eventRows.filter((event) => ["active", "sold_out", "pending_review"].includes(event.status) && !isPastEvent(event, now));
   const completedEvents = eventRows.filter((event) => isPastEvent(event, now));
   const heldEvents = completedEvents.filter((event) => event.status !== "cancelled");
@@ -1079,7 +1067,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
         </aside>
 
         <section className="lg:col-span-2">
-          <SettingsPanel adminMessages={messageRows} unreadMessageCount={unreadMessageCount} />
+          <SettingsPanel adminMessages={messageRows} unreadMessageCount={0} />
         </section>
       </section>
     </main>

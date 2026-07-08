@@ -51,7 +51,6 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
     status: "unread",
     subject: subject.startsWith("Re:") ? subject : "Re: " + subject,
     message,
-    facilitator_read_at: null,
   });
 
   if (error) {

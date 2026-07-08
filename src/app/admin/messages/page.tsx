@@ -43,63 +43,89 @@ function messageTypeLabel(type: string) {
   return "Besked";
 }
 
+function mailboxFilter(item: any, box: Mailbox) {
+  if (box === "sent") {
+    return item.type === "admin_reply";
+  }
+
+  if (box === "archive") {
+    return ["message", "closure_request"].includes(item.type) && item.status === "handled";
+  }
+
+  return ["message", "closure_request"].includes(item.type) && ["unread", "read"].includes(item.status);
+}
+
+function matchesSearch(item: any, queryText: string) {
+  if (!queryText) return true;
+
+  const facilitator = item.facilitator_profiles;
+  const profile = item.profiles;
+  return [
+    item.subject,
+    item.message,
+    item.type,
+    item.status,
+    facilitator?.company_name,
+    facilitator?.host_reference_id,
+    profile?.full_name,
+    profile?.email,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(queryText);
+}
+
 export default async function AdminMessagesPage({ searchParams }: AdminMessagesPageProps) {
   const [{ box, q, message }] = await Promise.all([searchParams, requireRole("admin")]);
   const selectedBox = normalizeMailbox(box);
   const queryText = (q ?? "").trim().toLowerCase();
   const supabase = createAdminClient();
 
-  let messagesQuery = supabase
+  const { data: messageRows, error: messagesError } = await supabase
     .from("facilitator_admin_messages")
-    .select("id, facilitator_id, subject, message, type, status, created_at, read_at, facilitator_read_at, facilitator_profiles(company_name, host_reference_id, profiles(full_name, email))")
-    .order("created_at", { ascending: false })
-    .limit(queryText ? 300 : 100);
+    .select("id, facilitator_id, profile_id, subject, message, type, status, created_at, read_at")
+    .order("created_at", { ascending: false });
 
-  if (selectedBox === "sent") {
-    messagesQuery = messagesQuery.eq("type", "admin_reply");
-  } else if (selectedBox === "archive") {
-    messagesQuery = messagesQuery.in("type", ["message", "closure_request"]).eq("status", "handled");
-  } else {
-    messagesQuery = messagesQuery.in("type", ["message", "closure_request"]).in("status", ["unread", "read"]);
-  }
+  const rows = (messageRows ?? []) as any[];
+  const facilitatorIds = [...new Set(rows.map((item) => item.facilitator_id).filter(Boolean))];
+  const directProfileIds = rows.map((item) => item.profile_id).filter(Boolean);
 
-  const [
-    { data: rows },
-    { count: inboxCount },
-    { count: sentCount },
-    { count: archiveCount },
-  ] = await Promise.all([
-    messagesQuery,
-    supabase.from("facilitator_admin_messages").select("id", { count: "exact", head: true }).in("type", ["message", "closure_request"]).in("status", ["unread", "read"]),
-    supabase.from("facilitator_admin_messages").select("id", { count: "exact", head: true }).eq("type", "admin_reply"),
-    supabase.from("facilitator_admin_messages").select("id", { count: "exact", head: true }).in("type", ["message", "closure_request"]).eq("status", "handled"),
-  ]);
+  const { data: facilitators } = facilitatorIds.length
+    ? await supabase.from("facilitator_profiles").select("id, profile_id, company_name, host_reference_id").in("id", facilitatorIds)
+    : { data: [] as any[] };
 
-  const counts: Record<Mailbox, number> = {
-    inbox: inboxCount ?? 0,
-    sent: sentCount ?? 0,
-    archive: archiveCount ?? 0,
-  };
-
-  const messages = (rows ?? []).filter((item: any) => {
-    if (!queryText) return true;
-    const facilitator = Array.isArray(item.facilitator_profiles) ? item.facilitator_profiles[0] : item.facilitator_profiles;
-    const profile = Array.isArray(facilitator?.profiles) ? facilitator.profiles[0] : facilitator?.profiles;
-    return [
-      item.subject,
-      item.message,
-      item.type,
-      item.status,
-      facilitator?.company_name,
-      facilitator?.host_reference_id,
-      profile?.full_name,
-      profile?.email,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase()
-      .includes(queryText);
+  const facilitatorById = new Map((facilitators ?? []).map((facilitator: any) => [facilitator.id, facilitator]));
+  const profileIds = [
+    ...new Set([
+      ...directProfileIds,
+      ...(facilitators ?? []).map((facilitator: any) => facilitator.profile_id).filter(Boolean),
+    ]),
+  ];
+  const { data: profiles } = profileIds.length
+    ? await supabase.from("profiles").select("id, full_name, email").in("id", profileIds)
+    : { data: [] as any[] };
+  const profileById = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
+  const enrichedRows = rows.map((item) => {
+    const facilitator = facilitatorById.get(item.facilitator_id) ?? null;
+    return {
+      ...item,
+      facilitator_profiles: facilitator,
+      profiles: profileById.get(facilitator?.profile_id ?? item.profile_id) ?? null,
+    };
   });
+  const rowsByMailbox: Record<Mailbox, any[]> = {
+    inbox: enrichedRows.filter((item) => mailboxFilter(item, "inbox")).filter((item) => matchesSearch(item, queryText)),
+    sent: enrichedRows.filter((item) => mailboxFilter(item, "sent")).filter((item) => matchesSearch(item, queryText)),
+    archive: enrichedRows.filter((item) => mailboxFilter(item, "archive")).filter((item) => matchesSearch(item, queryText)),
+  };
+  const counts: Record<Mailbox, number> = {
+    inbox: rowsByMailbox.inbox.length,
+    sent: rowsByMailbox.sent.length,
+    archive: rowsByMailbox.archive.length,
+  };
+  const messages = rowsByMailbox[selectedBox];
+  const errorMessage = messagesError?.message;
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -121,6 +147,7 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
         <AuthMessage message={message} />
+        <AuthMessage message={errorMessage ? "Beskeder kunne ikke hentes: " + errorMessage : undefined} variant="error" />
 
         <section className="rounded-[26px] border border-midnight/10 bg-white p-5 shadow-soft">
           <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -183,8 +210,8 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
 
           <div className="divide-y divide-midnight/10">
             {messages.map((item: any) => {
-              const facilitator = Array.isArray(item.facilitator_profiles) ? item.facilitator_profiles[0] : item.facilitator_profiles;
-              const profile = Array.isArray(facilitator?.profiles) ? facilitator.profiles[0] : facilitator?.profiles;
+              const facilitator = item.facilitator_profiles;
+              const profile = item.profiles;
               const isIncoming = item.type !== "admin_reply";
               return (
                 <article className="grid gap-4 bg-white p-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]" key={item.id}>
