@@ -135,9 +135,9 @@ function CollectionForm({ collection, tags }: { collection?: HomepageCollection;
   const isNew = !collection;
 
   return (
-    <details className="overflow-hidden rounded-[26px] border border-midnight/10 bg-white shadow-soft" open={isNew}>
+    <details className="min-w-0 overflow-hidden rounded-[26px] border border-midnight/10 bg-white shadow-soft" open={isNew}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 bg-[#FBF6EF] px-5 py-4 sm:px-6">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-[#8758C8]">{isNew ? "Ny sektion" : "Rediger sektion"}</p>
           <h2 className="mt-1 font-serif text-2xl font-semibold text-sage-700">
             {isNew ? "Opret aktuel oplevelse" : collection.title}
@@ -151,11 +151,11 @@ function CollectionForm({ collection, tags }: { collection?: HomepageCollection;
           {collection?.id && <input name="id" type="hidden" value={collection.id} />}
 
           <section className="grid gap-4 rounded-[22px] border border-midnight/10 bg-[#FFFDF9] p-4">
-            <div className="grid gap-4 md:grid-cols-[1.2fr_0.8fr]">
-              <label className="grid gap-2 text-sm font-semibold text-midnight">
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+              <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
                 Overskrift
                 <input
-                  className="rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-base outline-none transition focus:border-[#8B5FC7] focus:ring-2 focus:ring-[#E5D7F7]"
+                  className="w-full min-w-0 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-base outline-none transition focus:border-[#8B5FC7] focus:ring-2 focus:ring-[#E5D7F7]"
                   defaultValue={collection?.title ?? ""}
                   maxLength={90}
                   name="title"
@@ -163,20 +163,20 @@ function CollectionForm({ collection, tags }: { collection?: HomepageCollection;
                   required
                 />
               </label>
-              <label className="grid gap-2 text-sm font-semibold text-midnight">
+              <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
                 Sortering
                 <input
-                  className="rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-base outline-none transition focus:border-[#8B5FC7] focus:ring-2 focus:ring-[#E5D7F7]"
+                  className="w-full min-w-0 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-base outline-none transition focus:border-[#8B5FC7] focus:ring-2 focus:ring-[#E5D7F7]"
                   defaultValue={collection?.sort_order ?? 0}
                   name="sort_order"
                   type="number"
                 />
               </label>
             </div>
-            <label className="grid gap-2 text-sm font-semibold text-midnight">
+            <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
               Beskrivelse <span className="font-normal text-ink/50">Valgfri</span>
               <textarea
-                className="min-h-28 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-base outline-none transition focus:border-[#8B5FC7] focus:ring-2 focus:ring-[#E5D7F7]"
+                className="min-h-28 w-full min-w-0 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-base outline-none transition focus:border-[#8B5FC7] focus:ring-2 focus:ring-[#E5D7F7]"
                 defaultValue={collection?.description ?? ""}
                 maxLength={240}
                 name="description"
@@ -224,10 +224,10 @@ function CollectionForm({ collection, tags }: { collection?: HomepageCollection;
                 Desktop
               </label>
             </div>
-            <label className="grid gap-2 text-sm font-semibold text-midnight">
+            <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
               Udvælgelse
               <select
-                className="rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-base outline-none transition focus:border-[#8B5FC7] focus:ring-2 focus:ring-[#E5D7F7]"
+                className="w-full min-w-0 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-base outline-none transition focus:border-[#8B5FC7] focus:ring-2 focus:ring-[#E5D7F7]"
                 defaultValue={collection?.selection_mode ?? "automatic"}
                 name="selection_mode"
               >
@@ -393,10 +393,12 @@ export default async function AdminCurrentExperiencesPage({ searchParams }: Page
           </div>
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.45fr]">
-          <CollectionForm tags={tags} />
+        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.45fr)]">
+          <div className="min-w-0">
+            <CollectionForm tags={tags} />
+          </div>
 
-          <section className="grid gap-4">
+          <section className="grid min-w-0 gap-4">
             {collections.length ? (
               collections.map((collection) => (
                 <CollectionCard collection={collection} key={collection.id} savedId={params.saved} tags={tags} />
