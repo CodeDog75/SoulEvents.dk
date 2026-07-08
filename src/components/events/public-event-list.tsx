@@ -83,6 +83,17 @@ export type PublicEvent = {
       | Array<{
           name?: string | null;
           slug?: string | null;
+      }>
+      | null;
+  }>;
+  event_tags?: Array<{
+    tag_id?: string | null;
+    tags?:
+      | {
+          name?: string | null;
+        }
+      | Array<{
+          name?: string | null;
         }>
       | null;
   }>;

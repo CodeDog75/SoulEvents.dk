@@ -295,9 +295,74 @@ function experienceGroupHasEvents(
   );
 }
 
-function eventMatchesAnyLabel(event: PublicEvent, labels: string[]) {
-  const haystack = getEventCategoryNames(event).join(" ").toLowerCase();
-  return labels.some((label) => haystack.includes(label.toLowerCase()));
+type HomepageEventCollection = {
+  id: string;
+  selection_mode: "automatic" | "manual";
+  show_on_desktop: boolean;
+  show_on_mobile: boolean;
+  sort_order: number | null;
+  tagIds: string[];
+  title: string;
+};
+
+type HomepageEventSection = {
+  events: PublicEvent[];
+  href: string;
+  showOnDesktop?: boolean;
+  showOnMobile?: boolean;
+  title: string;
+};
+
+async function getHomepageEventCollections(): Promise<HomepageEventCollection[]> {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const [{ data: collections, error: collectionsError }, { data: tagRelations, error: tagsError }] = await Promise.all([
+    supabase
+      .from("homepage_event_collections")
+      .select("id, title, is_active, sort_order, show_on_mobile, show_on_desktop, selection_mode")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: false }),
+    supabase.from("homepage_event_collection_tags").select("collection_id, tag_id"),
+  ]);
+
+  if (collectionsError || !collections) {
+    return [];
+  }
+
+  if (tagsError) {
+    console.error("Homepage event collection tags could not be loaded", tagsError);
+  }
+
+  const tagIdsByCollection = new Map<string, string[]>();
+
+  for (const relation of tagRelations ?? []) {
+    const current = tagIdsByCollection.get(relation.collection_id) ?? [];
+    current.push(relation.tag_id);
+    tagIdsByCollection.set(relation.collection_id, current);
+  }
+
+  return collections.map((collection) => ({
+    id: collection.id,
+    selection_mode: collection.selection_mode === "manual" ? "manual" : "automatic",
+    show_on_desktop: collection.show_on_desktop,
+    show_on_mobile: collection.show_on_mobile,
+    sort_order: collection.sort_order,
+    tagIds: tagIdsByCollection.get(collection.id) ?? [],
+    title: collection.title,
+  }));
+}
+
+function eventMatchesTagIds(event: PublicEvent, tagIds: string[]) {
+  if (tagIds.length === 0) {
+    return false;
+  }
+
+  const selectedTagIds = new Set(tagIds);
+  return Boolean(event.event_tags?.some((tag) => tag.tag_id && selectedTagIds.has(tag.tag_id)));
 }
 
 function textMatches(
@@ -482,7 +547,7 @@ async function getSearchEvents(selected: {
   let query = supabase
     .from("events")
     .select(
-      "id, status, title, short_description, starts_at, created_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, company_name, profiles(full_name)), regions(name), event_categories(categories(id, name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug))",
+      "id, status, title, short_description, starts_at, created_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, company_name, profiles(full_name)), regions(name), event_categories(categories(id, name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug)), event_tags(tag_id, tags(name))",
     )
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
@@ -1134,41 +1199,30 @@ export default async function Home({ searchParams }: HomeProps) {
     getFeaturedHomeFacilitators(),
     getNewHomeFacilitators(),
   ]);
+  const adminHomepageEventCollections = await getHomepageEventCollections();
   const homepageEventPool = uniqueEventsById(upcomingEvents as PublicEvent[]);
   const physicalHomepageEvents = homepageEventPool.filter((event) => event.event_format !== "online");
   const newHomepageEvents = [...homepageEventPool].sort(
     (a, b) => new Date(b.created_at ?? b.starts_at).getTime() - new Date(a.created_at ?? a.starts_at).getTime(),
   );
-  const saunaEvents = homepageEventPool.filter((event) => eventMatchesAnyLabel(event, ["Sauna", "Saunagus", "Velvære"]));
-  const yogaEvents = homepageEventPool.filter((event) => eventMatchesAnyLabel(event, ["Yoga"]));
-  const meditationEvents = homepageEventPool.filter((event) => eventMatchesAnyLabel(event, ["Meditation", "Mindfulness", "Nærvær"]));
-  const retreatEvents = homepageEventPool.filter((event) => eventMatchesAnyLabel(event, ["Retreat", "Rejse", "Rejser"]));
-  const onlineHomepageEvents = homepageEventPool.filter((event) => event.event_format === "online");
-  const homepageEventSections = [
+  const adminHomepageEventSections = adminHomepageEventCollections
+    .filter((collection) => collection.selection_mode === "automatic")
+    .map((collection) => ({
+      events: homepageEventPool.filter((event) => eventMatchesTagIds(event, collection.tagIds)).slice(0, 10),
+      href: "/events",
+      showOnDesktop: collection.show_on_desktop,
+      showOnMobile: collection.show_on_mobile,
+      sortOrder: collection.sort_order ?? 0,
+      title: collection.title,
+    }))
+    .filter((section) => section.events.length > 0)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "da-DK"));
+  const homepageEventSections: HomepageEventSection[] = [
     { title: "Events nær dig", href: "/#find-events", events: physicalHomepageEvents.slice(0, 10) },
     { title: "Nye events", href: "/events", events: newHomepageEvents.slice(0, 10) },
-    {
-      title: "Sauna & Velvære",
-      href: "/?category_label=Saunagus#events",
-      events: saunaEvents.slice(0, 10),
-    },
-    {
-      title: "Yoga",
-      href: "/?category_label=Yoga#events",
-      events: yogaEvents.slice(0, 10),
-    },
-    {
-      title: "Meditation",
-      href: "/?category_label=Meditation#events",
-      events: meditationEvents.slice(0, 10),
-    },
-    {
-      title: "Retreats & Rejser",
-      href: "/?category_label=Retreat#events",
-      events: retreatEvents.slice(0, 10),
-    },
-    { title: "Online events", href: "/?format=online#events", events: onlineHomepageEvents.slice(0, 10) },
+    ...adminHomepageEventSections,
   ];
+  const mobileHiddenHomepageEventSections = new Set(["Events nær dig"]);
   const mapEvents = mapSourceEvents.map((event) => {
     const facilitatorProfile = Array.isArray(event.facilitator_profiles)
       ? event.facilitator_profiles[0]
@@ -1344,14 +1398,22 @@ export default async function Home({ searchParams }: HomeProps) {
               <h2 className="mt-1 text-4xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Find dit næste event</h2>
             </div>
 
-            {homepageEventSections.map((section, index) => (
-              <Fragment key={section.title}>
-                <EventCarouselSection events={section.events} href={section.href} title={section.title} />
-                {index === 1 && homepageMiddleAds.length > 0 ? (
-                  <PartnerAdCarousel ads={homepageMiddleAds} className="py-1" />
-                ) : null}
-              </Fragment>
-            ))}
+            {homepageEventSections.map((section, index) => {
+              const hideOnMobile = mobileHiddenHomepageEventSections.has(section.title) || section.showOnMobile === false;
+              const hideOnDesktop = section.showOnDesktop === false;
+              const visibilityClass = hideOnMobile && hideOnDesktop ? "hidden" : hideOnMobile ? "hidden md:block" : hideOnDesktop ? "md:hidden" : undefined;
+
+              return (
+                <Fragment key={section.title}>
+                  <div className={visibilityClass}>
+                    <EventCarouselSection events={section.events} href={section.href} title={section.title} />
+                  </div>
+                  {index === 1 && homepageMiddleAds.length > 0 ? (
+                    <PartnerAdCarousel ads={homepageMiddleAds} className="py-1" />
+                  ) : null}
+                </Fragment>
+              );
+            })}
           </div>
         </section>
       )}
