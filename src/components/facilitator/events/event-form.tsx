@@ -299,33 +299,76 @@ function TimeSelect({
   onChange?: (value: string) => void;
 }) {
   const currentValue = normalizeTimeOption(selectedValue, defaultValue);
+  const [isOpen, setIsOpen] = useState(false);
+  const optionsRef = useRef<HTMLDivElement | null>(null);
   const options = timeOptions.includes(currentValue)
     ? timeOptions
     : [...timeOptions, currentValue].sort((first, second) => first.localeCompare(second));
 
+  function handleSelect(nextValue: string) {
+    onChange?.(nextValue);
+    setIsOpen(false);
+  }
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const selectedOption = optionsRef.current?.querySelector<HTMLElement>("[data-selected='true']");
+    selectedOption?.scrollIntoView({ block: "center" });
+  }, [currentValue, isOpen]);
+
   return (
-    <label className="grid gap-2 text-sm font-medium text-ink/72">
+    <div className="grid gap-2 text-sm font-medium text-ink/72">
       <span>
         {label}
         {required ? <span className="ml-1 text-[#B56F8A]">*</span> : null}
       </span>
-      <div className="relative">
-        <select
-          className={"h-12 w-full min-w-0 cursor-pointer appearance-none rounded-card border py-0 pl-4 pr-11 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(currentValue)}
-          name={name}
-          onChange={(event) => onChange?.(event.target.value)}
-          required={required}
-          value={currentValue}
+      <div
+        className="relative"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) {
+            setIsOpen(false);
+          }
+        }}
+      >
+        <input name={name} type="hidden" value={currentValue} />
+        <button
+          aria-expanded={isOpen}
+          className={"h-12 w-full min-w-0 cursor-pointer appearance-none rounded-card border py-0 pl-4 pr-11 text-left text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none " + fieldStateClass(currentValue)}
+          onClick={() => setIsOpen((open) => !open)}
+          type="button"
         >
-          {options.map((timeOption) => (
-            <option key={timeOption} value={timeOption}>
-              {timeOption}
-            </option>
-          ))}
-        </select>
+          {currentValue}
+        </button>
         <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-midnight/70" aria-hidden="true" />
+        {isOpen ? (
+          <div
+            className="absolute left-0 top-full z-30 mt-2 max-h-64 w-full overflow-auto rounded-card border border-[#E6D8F0] bg-white py-2 shadow-soft"
+            ref={optionsRef}
+          >
+            {options.map((timeOption) => (
+              <button
+                aria-selected={timeOption === currentValue}
+                className={
+                  "block w-full px-4 py-2 text-left text-base transition hover:bg-[#F4EEF8] " +
+                  (timeOption === currentValue ? "bg-[#F4EEF8] font-semibold text-[#6E5285]" : "text-ink")
+                }
+                key={timeOption}
+                data-selected={timeOption === currentValue ? "true" : undefined}
+                onClick={() => handleSelect(timeOption)}
+                onMouseDown={(event) => event.preventDefault()}
+                role="option"
+                type="button"
+              >
+                {timeOption}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
-    </label>
+    </div>
   );
 }
 
