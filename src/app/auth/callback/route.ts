@@ -46,13 +46,18 @@ function createPasswordResetClient(request: NextRequest) {
   }
 
   const cookiesToSet: Array<{ name: string; value: string; options: CookieOptions }> = [];
+  const responseHeaders: Record<string, string> = {};
   const supabase = createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(nextCookies) {
+      setAll(nextCookies, headers) {
         cookiesToSet.push(...nextCookies);
+        Object.assign(responseHeaders, headers);
+        nextCookies.forEach(({ name, value }) => {
+          request.cookies.set(name, value);
+        });
       },
     },
   });
@@ -62,6 +67,9 @@ function createPasswordResetClient(request: NextRequest) {
     applyCookies(response: NextResponse) {
       cookiesToSet.forEach(({ name, value, options }) => {
         response.cookies.set(name, value, options);
+      });
+      Object.entries(responseHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value);
       });
 
       return response;
