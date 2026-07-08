@@ -35,8 +35,8 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           Tilbage til forsiden
         </Link>
       </div>
-      <section className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-2 lg:items-stretch">
-        <aside className="order-1 rounded-[1.75rem] border border-[#EDE4F7] bg-white/80 p-6 shadow-soft sm:p-8 lg:col-start-1 lg:row-start-1 lg:flex lg:h-full lg:flex-col lg:justify-center lg:p-10">
+      <section className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-2 lg:items-start">
+        <aside className="order-1 rounded-[1.75rem] border border-[#EDE4F7] bg-white/80 p-6 shadow-soft sm:p-8 lg:col-start-1 lg:row-start-1 lg:flex lg:flex-col lg:p-10">
           <Link className="mb-8 flex items-center gap-3" href="/">
             <BrandLogo className="h-28 w-28 sm:h-36 sm:w-36" priority />
             <div>
@@ -218,7 +218,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           </p>
           <Link
             className="mt-4 inline-flex min-h-10 items-center justify-center rounded-full border border-[#7A4EAB]/25 px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#EDE4F7]"
-            href="/#contact"
+            href="/contact"
           >
             Skriv til SoulEvents.dk
           </Link>
