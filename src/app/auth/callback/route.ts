@@ -45,6 +45,8 @@ function createPasswordResetClient(request: NextRequest) {
     throw new Error("Supabase server credentials are missing.");
   }
 
+  const callbackHostname = new URL(request.url).hostname;
+  const shouldUseProductionCookieDomain = callbackHostname === "soulevents.dk" || callbackHostname === "www.soulevents.dk";
   const cookiesToSet: Array<{ name: string; value: string; options: CookieOptions }> = [];
   const responseHeaders: Record<string, string> = {};
   const supabase = createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
@@ -66,7 +68,19 @@ function createPasswordResetClient(request: NextRequest) {
     supabase,
     applyCookies(response: NextResponse) {
       cookiesToSet.forEach(({ name, value, options }) => {
-        response.cookies.set(name, value, options);
+        response.cookies.set(
+          name,
+          value,
+          shouldUseProductionCookieDomain
+            ? {
+                ...options,
+                domain: ".soulevents.dk",
+                path: "/",
+                sameSite: "lax",
+                secure: true,
+              }
+            : options,
+        );
       });
       Object.entries(responseHeaders).forEach(([key, value]) => {
         response.headers.set(key, value);
