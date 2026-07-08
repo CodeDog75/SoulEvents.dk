@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  CalendarDays,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -38,6 +39,21 @@ type TagRelation = {
   tags: TagOption | TagOption[] | null;
 };
 
+type ManualEventOption = {
+  event_reference_id?: string | null;
+  id: string;
+  starts_at: string;
+  status?: string | null;
+  title: string;
+};
+
+type EventRelation = {
+  collection_id: string;
+  event_id: string;
+  sort_order: number | null;
+  events: ManualEventOption | ManualEventOption[] | null;
+};
+
 type HomepageCollection = {
   id: string;
   title: string;
@@ -49,6 +65,7 @@ type HomepageCollection = {
   selection_mode: SelectionMode;
   created_at: string;
   updated_at: string | null;
+  homepage_event_collection_events?: EventRelation[] | null;
   homepage_event_collection_tags?: TagRelation[] | null;
 };
 
@@ -59,6 +76,18 @@ function getRelationTag(relation: TagRelation) {
 
 function getCollectionTags(collection: HomepageCollection) {
   return (collection.homepage_event_collection_tags ?? []).map(getRelationTag).filter(Boolean) as TagOption[];
+}
+
+function getRelationEvent(relation: EventRelation) {
+  const events = relation.events;
+  return Array.isArray(events) ? (events[0] ?? null) : events;
+}
+
+function getCollectionEvents(collection?: HomepageCollection) {
+  return [...(collection?.homepage_event_collection_events ?? [])]
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map(getRelationEvent)
+    .filter(Boolean) as ManualEventOption[];
 }
 
 function getSelectedTagIds(collection?: HomepageCollection) {
@@ -130,7 +159,73 @@ function TagSelector({ tags, selectedIds }: { tags: TagOption[]; selectedIds: Se
   );
 }
 
-function CollectionForm({ collection, tags }: { collection?: HomepageCollection; tags: TagOption[] }) {
+function formatEventDate(value: string) {
+  return new Intl.DateTimeFormat("da-DK", {
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function ManualEventSelector({ collection, events }: { collection?: HomepageCollection; events: ManualEventOption[] }) {
+  const selectedEvents = getCollectionEvents(collection);
+  const inputId = `event-options-${collection?.id ?? "new"}`;
+
+  return (
+    <section className="grid gap-4 rounded-[22px] border border-midnight/10 bg-[#FFFDF9] p-4">
+      <div className="flex items-center gap-2">
+        <CalendarDays className="size-5 text-[#8758C8]" aria-hidden="true" />
+        <h3 className="font-serif text-xl font-semibold text-sage-700">Manuel udvælgelse</h3>
+      </div>
+      <p className="text-sm leading-6 text-ink/60">
+        Tilføj et konkret event via eventnummer eller event-ID. Manuel udvælgelse afhænger ikke af tags.
+      </p>
+      <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
+        Tilføj event
+        <input
+          className="w-full min-w-0 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-base outline-none transition focus:border-[#8B5FC7] focus:ring-2 focus:ring-[#E5D7F7]"
+          list={inputId}
+          name="event_lookup"
+          placeholder="Fx V101-E02-0726 eller event-ID"
+        />
+        <datalist id={inputId}>
+          {events.map((event) => (
+            <option key={event.id} value={event.event_reference_id ?? event.id}>
+              {event.title} · {formatEventDate(event.starts_at)}
+            </option>
+          ))}
+        </datalist>
+      </label>
+      <div className="grid gap-2">
+        <p className="text-sm font-semibold text-midnight">Valgte events</p>
+        {selectedEvents.length ? (
+          selectedEvents.map((event) => (
+            <label
+              className="flex min-w-0 cursor-pointer items-start gap-3 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-sm text-ink/70 transition hover:border-[#B89BE6]"
+              key={event.id}
+            >
+              <input className="mt-1 size-5 accent-[#7E4BB8]" defaultChecked name="event_ids" type="checkbox" value={event.id} />
+              <span className="min-w-0">
+                <span className="block font-semibold text-midnight">{event.title}</span>
+                <span className="mt-1 block text-xs font-semibold text-ink/50">
+                  {event.event_reference_id ?? event.id} · {formatEventDate(event.starts_at)}
+                </span>
+              </span>
+            </label>
+          ))
+        ) : (
+          <div className="rounded-[18px] border border-[#E8DED3] bg-[#FBF7EF] p-4 text-sm text-ink/64">
+            Ingen events valgt endnu.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function CollectionForm({ collection, eventOptions, tags }: { collection?: HomepageCollection; eventOptions: ManualEventOption[]; tags: TagOption[] }) {
   const selectedTagIds = getSelectedTagIds(collection);
   const isNew = !collection;
 
@@ -236,9 +331,11 @@ function CollectionForm({ collection, tags }: { collection?: HomepageCollection;
               </select>
             </label>
             <div className="rounded-[18px] bg-[#F7F1EA] p-4 text-sm leading-6 text-ink/64">
-              Automatisk visning er klar nu. Manuel udvælgelse er forberedt i datamodellen og kan bygges i en senere version.
+              Automatisk visning bruger tags. Manuel udvælgelse bruger de konkrete events, du vælger herunder.
             </div>
           </section>
+
+          <ManualEventSelector collection={collection} events={eventOptions} />
 
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
             <button className="inline-flex items-center justify-center gap-2 rounded-[18px] bg-sage-700 px-6 py-3 font-semibold text-white shadow-soft transition hover:bg-sage-800">
@@ -262,8 +359,9 @@ function CollectionForm({ collection, tags }: { collection?: HomepageCollection;
   );
 }
 
-function CollectionCard({ collection, tags, savedId }: { collection: HomepageCollection; tags: TagOption[]; savedId?: string }) {
+function CollectionCard({ collection, eventOptions, tags, savedId }: { collection: HomepageCollection; eventOptions: ManualEventOption[]; tags: TagOption[]; savedId?: string }) {
   const selectedTags = getCollectionTags(collection);
+  const selectedEvents = getCollectionEvents(collection);
 
   return (
     <article className="rounded-[26px] border border-midnight/10 bg-white p-5 shadow-soft">
@@ -278,7 +376,17 @@ function CollectionCard({ collection, tags, savedId }: { collection: HomepageCol
           <h2 className="mt-4 font-serif text-2xl font-semibold text-sage-700">{collection.title}</h2>
           {collection.description && <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/64">{collection.description}</p>}
           <div className="mt-3 flex flex-wrap gap-2">
-            {selectedTags.length ? (
+            {collection.selection_mode === "manual" ? (
+              selectedEvents.length ? (
+                selectedEvents.map((event) => (
+                  <span className="rounded-full bg-[#F2E7FF] px-3 py-1 text-xs font-semibold text-[#7A4EAB]" key={event.id}>
+                    {event.event_reference_id ?? event.title}
+                  </span>
+                ))
+              ) : (
+                <span className="rounded-full bg-[#F5F0EA] px-3 py-1 text-xs font-semibold text-ink/50">Ingen events valgt</span>
+              )
+            ) : selectedTags.length ? (
               selectedTags.map((tag) => (
                 <span className="rounded-full bg-[#F2E7FF] px-3 py-1 text-xs font-semibold text-[#7A4EAB]" key={tag.id}>
                   {tag.name}
@@ -301,7 +409,7 @@ function CollectionCard({ collection, tags, savedId }: { collection: HomepageCol
       )}
 
       <div className="mt-5">
-        <CollectionForm collection={collection} tags={tags} />
+        <CollectionForm collection={collection} eventOptions={eventOptions} tags={tags} />
       </div>
     </article>
   );
@@ -312,7 +420,13 @@ export default async function AdminCurrentExperiencesPage({ searchParams }: Page
   await requireRole("admin");
 
   const admin = createAdminClient() as any;
-  const [{ data: tagData, error: tagsError }, { data: collectionData, error: collectionsError }, { data: collectionTagData, error: collectionTagsError }] = await Promise.all([
+  const [
+    { data: tagData, error: tagsError },
+    { data: collectionData, error: collectionsError },
+    { data: collectionTagData, error: collectionTagsError },
+    { data: collectionEventData, error: collectionEventsError },
+    { data: eventOptionsData, error: eventOptionsError },
+  ] = await Promise.all([
     admin.from("tags").select("id, name").eq("is_active", true).order("sort_order", { ascending: true }).order("name", { ascending: true }),
     admin
       .from("homepage_event_collections")
@@ -320,11 +434,26 @@ export default async function AdminCurrentExperiencesPage({ searchParams }: Page
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: false }),
     admin.from("homepage_event_collection_tags").select("collection_id, tag_id, tags(id, name)"),
+    admin
+      .from("homepage_event_collection_events")
+      .select("collection_id, event_id, sort_order, events(id, event_reference_id, title, starts_at, status)")
+      .order("sort_order", { ascending: true }),
+    admin
+      .from("events")
+      .select("id, event_reference_id, title, starts_at, status, facilitator_profiles!inner(status)")
+      .in("status", ["active", "sold_out"])
+      .eq("facilitator_profiles.status", "approved")
+      .gte("starts_at", new Date().toISOString())
+      .order("starts_at", { ascending: true })
+      .limit(250),
   ]);
 
   const tags = (tagData ?? []) as TagOption[];
+  const eventOptions = (eventOptionsData ?? []) as unknown as ManualEventOption[];
   const relationRows = (collectionTagData ?? []) as unknown as TagRelation[];
+  const eventRelationRows = (collectionEventData ?? []) as unknown as EventRelation[];
   const relationsByCollection = new Map<string, TagRelation[]>();
+  const eventRelationsByCollection = new Map<string, EventRelation[]>();
 
   for (const relation of relationRows) {
     const current = relationsByCollection.get(relation.collection_id) ?? [];
@@ -332,12 +461,19 @@ export default async function AdminCurrentExperiencesPage({ searchParams }: Page
     relationsByCollection.set(relation.collection_id, current);
   }
 
+  for (const relation of eventRelationRows) {
+    const current = eventRelationsByCollection.get(relation.collection_id) ?? [];
+    current.push(relation);
+    eventRelationsByCollection.set(relation.collection_id, current);
+  }
+
   const collections = ((collectionData ?? []) as unknown as HomepageCollection[]).map((collection) => ({
     ...collection,
+    homepage_event_collection_events: eventRelationsByCollection.get(collection.id) ?? [],
     homepage_event_collection_tags: relationsByCollection.get(collection.id) ?? [],
   }));
   const activeCount = collections.filter((collection) => collection.is_active).length;
-  const errorMessage = params.error ?? tagsError?.message ?? collectionsError?.message ?? collectionTagsError?.message;
+  const errorMessage = params.error ?? tagsError?.message ?? collectionsError?.message ?? collectionTagsError?.message ?? collectionEventsError?.message ?? eventOptionsError?.message;
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -395,13 +531,13 @@ export default async function AdminCurrentExperiencesPage({ searchParams }: Page
 
         <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.45fr)]">
           <div className="min-w-0">
-            <CollectionForm tags={tags} />
+            <CollectionForm eventOptions={eventOptions} tags={tags} />
           </div>
 
           <section className="grid min-w-0 gap-4">
             {collections.length ? (
               collections.map((collection) => (
-                <CollectionCard collection={collection} key={collection.id} savedId={params.saved} tags={tags} />
+                <CollectionCard collection={collection} eventOptions={eventOptions} key={collection.id} savedId={params.saved} tags={tags} />
               ))
             ) : (
               <div className="rounded-[28px] border border-midnight/10 bg-white p-8 text-center shadow-soft">

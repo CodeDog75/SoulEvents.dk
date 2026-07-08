@@ -21,6 +21,10 @@ function unique(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function redirectWith(params: Record<string, string>): never {
   const searchParams = new URLSearchParams(params);
   redirect(`${ADMIN_PATH}?${searchParams.toString()}`);
@@ -41,6 +45,49 @@ async function replaceCollectionTags(admin: any, collectionId: string, tagIds: s
     tagIds.map((tagId) => ({
       collection_id: collectionId,
       tag_id: tagId,
+    })),
+  );
+
+  return insertError ?? null;
+}
+
+async function resolveEventIds(admin: any, eventIds: string[], lookup: string) {
+  const directIds = unique(eventIds).filter(isUuid);
+  const lookupValue = lookup.trim();
+
+  if (!lookupValue) {
+    return directIds;
+  }
+
+  if (isUuid(lookupValue)) {
+    return unique([...directIds, lookupValue]);
+  }
+
+  const { data, error } = await admin.from("events").select("id").eq("event_reference_id", lookupValue).maybeSingle();
+
+  if (error || !data?.id) {
+    return null;
+  }
+
+  return unique([...directIds, data.id]);
+}
+
+async function replaceCollectionEvents(admin: any, collectionId: string, eventIds: string[]) {
+  const { error: deleteError } = await admin.from("homepage_event_collection_events").delete().eq("collection_id", collectionId);
+
+  if (deleteError) {
+    return deleteError;
+  }
+
+  if (!eventIds.length) {
+    return null;
+  }
+
+  const { error: insertError } = await admin.from("homepage_event_collection_events").insert(
+    eventIds.map((eventId, index) => ({
+      collection_id: collectionId,
+      event_id: eventId,
+      sort_order: index * 10,
     })),
   );
 
@@ -74,6 +121,11 @@ export async function upsertHomepageEventCollectionAction(formData: FormData) {
     selection_mode: getSelectionMode(formData),
   };
   const tagIds = unique(getAllStrings(formData, "tag_ids"));
+  const selectedEventIds = await resolveEventIds(admin, getAllStrings(formData, "event_ids"), getOptionalString(formData, "event_lookup") ?? "");
+
+  if (!selectedEventIds) {
+    redirectWith({ error: "Eventet blev ikke fundet. Brug eventnummer eller event-ID." });
+  }
 
   const result = id
     ? await admin.from("homepage_event_collections").update(payload).eq("id", id).select("id").single()
@@ -89,6 +141,13 @@ export async function upsertHomepageEventCollectionAction(formData: FormData) {
   if (tagError) {
     console.error("Homepage event collection tags save failed", tagError);
     redirectWith({ error: "Sektionen blev gemt, men tags kunne ikke opdateres.", saved: result.data.id });
+  }
+
+  const eventError = await replaceCollectionEvents(admin, result.data.id, selectedEventIds);
+
+  if (eventError) {
+    console.error("Homepage event collection events save failed", eventError);
+    redirectWith({ error: "Sektionen blev gemt, men events kunne ikke opdateres.", saved: result.data.id });
   }
 
   revalidatePath(ADMIN_PATH);

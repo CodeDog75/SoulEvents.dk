@@ -48,6 +48,7 @@ type HomeProps = {
     longitude?: string;
     format?: string;
     country?: string;
+    collection?: string;
     code?: string;
     error?: string;
     error_description?: string;
@@ -296,6 +297,7 @@ function experienceGroupHasEvents(
 }
 
 type HomepageEventCollection = {
+  eventIds: string[];
   id: string;
   selection_mode: "automatic" | "manual";
   show_on_desktop: boolean;
@@ -319,7 +321,7 @@ async function getHomepageEventCollections(): Promise<HomepageEventCollection[]>
   }
 
   const supabase = await createClient();
-  const [{ data: collections, error: collectionsError }, { data: tagRelations, error: tagsError }] = await Promise.all([
+  const [{ data: collections, error: collectionsError }, { data: tagRelations, error: tagsError }, { data: eventRelations, error: eventsError }] = await Promise.all([
     supabase
       .from("homepage_event_collections")
       .select("id, title, is_active, sort_order, show_on_mobile, show_on_desktop, selection_mode")
@@ -327,6 +329,7 @@ async function getHomepageEventCollections(): Promise<HomepageEventCollection[]>
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: false }),
     supabase.from("homepage_event_collection_tags").select("collection_id, tag_id"),
+    supabase.from("homepage_event_collection_events").select("collection_id, event_id, sort_order").order("sort_order", { ascending: true }),
   ]);
 
   if (collectionsError || !collections) {
@@ -337,7 +340,12 @@ async function getHomepageEventCollections(): Promise<HomepageEventCollection[]>
     console.error("Homepage event collection tags could not be loaded", tagsError);
   }
 
+  if (eventsError) {
+    console.error("Homepage event collection events could not be loaded", eventsError);
+  }
+
   const tagIdsByCollection = new Map<string, string[]>();
+  const eventIdsByCollection = new Map<string, string[]>();
 
   for (const relation of tagRelations ?? []) {
     const current = tagIdsByCollection.get(relation.collection_id) ?? [];
@@ -345,7 +353,14 @@ async function getHomepageEventCollections(): Promise<HomepageEventCollection[]>
     tagIdsByCollection.set(relation.collection_id, current);
   }
 
+  for (const relation of eventRelations ?? []) {
+    const current = eventIdsByCollection.get(relation.collection_id) ?? [];
+    current.push(relation.event_id);
+    eventIdsByCollection.set(relation.collection_id, current);
+  }
+
   return collections.map((collection) => ({
+    eventIds: eventIdsByCollection.get(collection.id) ?? [],
     id: collection.id,
     selection_mode: collection.selection_mode === "manual" ? "manual" : "automatic",
     show_on_desktop: collection.show_on_desktop,
@@ -354,6 +369,15 @@ async function getHomepageEventCollections(): Promise<HomepageEventCollection[]>
     tagIds: tagIdsByCollection.get(collection.id) ?? [],
     title: collection.title,
   }));
+}
+
+function eventsByIdsInOrder(events: PublicEvent[], eventIds: string[]) {
+  const eventById = new Map(events.map((event) => [event.id, event]));
+  return eventIds.map((eventId) => eventById.get(eventId)).filter(Boolean) as PublicEvent[];
+}
+
+function homepageCollectionHref(collectionId: string) {
+  return `/?collection=${encodeURIComponent(collectionId)}#events`;
 }
 
 function eventMatchesTagIds(event: PublicEvent, tagIds: string[]) {
@@ -1143,6 +1167,7 @@ export default async function Home({ searchParams }: HomeProps) {
     format: params.format ?? "",
     country: params.country ?? "",
   };
+  const selectedCollectionId = params.collection ?? "";
   const hasSearch = Boolean(
     selected.q ||
       selected.area ||
@@ -1152,7 +1177,8 @@ export default async function Home({ searchParams }: HomeProps) {
       selected.latitude ||
       selected.longitude ||
       selected.format ||
-      selected.country,
+      selected.country ||
+      selectedCollectionId,
   );
   const upcomingEvents = await getSearchEvents({
     ...selected,
@@ -1192,7 +1218,6 @@ export default async function Home({ searchParams }: HomeProps) {
   const homepageExperienceGroups = experienceGroups.filter((group) => experienceGroupHasEvents(group, mainCategoryEventCounts));
   const homepageExperienceGroupCounts = getExperienceGroupEventCounts(homepageExperienceGroups, categoryAvailabilityEvents);
   const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
-  const localServiceProviders = await getLocalServiceProviders(selected);
   const mapSourceEvents = uniqueEventsById(mapOverviewEvents);
   const facilitatorCards = await getHomeFacilitators(facilitatorQuery);
   const [featuredFacilitators, newFacilitators] = await Promise.all([
@@ -1201,15 +1226,22 @@ export default async function Home({ searchParams }: HomeProps) {
   ]);
   const adminHomepageEventCollections = await getHomepageEventCollections();
   const homepageEventPool = uniqueEventsById(upcomingEvents as PublicEvent[]);
+  const selectedHomepageEventCollection = adminHomepageEventCollections.find((collection) => collection.id === selectedCollectionId);
   const physicalHomepageEvents = homepageEventPool.filter((event) => event.event_format !== "online");
   const newHomepageEvents = [...homepageEventPool].sort(
     (a, b) => new Date(b.created_at ?? b.starts_at).getTime() - new Date(a.created_at ?? a.starts_at).getTime(),
   );
+  const eventsForHomepageCollection = (collection: HomepageEventCollection) =>
+    collection.selection_mode === "manual"
+      ? eventsByIdsInOrder(homepageEventPool, collection.eventIds)
+      : homepageEventPool.filter((event) => eventMatchesTagIds(event, collection.tagIds));
+  const selectedCollectionEvents = selectedHomepageEventCollection ? eventsForHomepageCollection(selectedHomepageEventCollection) : [];
+  const displayedSearchEvents = selectedHomepageEventCollection ? selectedCollectionEvents : searchEvents;
+  const localServiceProviders = selectedHomepageEventCollection ? [] : await getLocalServiceProviders(selected);
   const adminHomepageEventSections = adminHomepageEventCollections
-    .filter((collection) => collection.selection_mode === "automatic")
     .map((collection) => ({
-      events: homepageEventPool.filter((event) => eventMatchesTagIds(event, collection.tagIds)).slice(0, 10),
-      href: "/events",
+      events: eventsForHomepageCollection(collection).slice(0, 10),
+      href: homepageCollectionHref(collection.id),
       showOnDesktop: collection.show_on_desktop,
       showOnMobile: collection.show_on_mobile,
       sortOrder: collection.sort_order ?? 0,
@@ -1219,7 +1251,7 @@ export default async function Home({ searchParams }: HomeProps) {
     .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "da-DK"));
   const homepageEventSections: HomepageEventSection[] = [
     { title: "Events nær dig", href: "/#find-events", events: physicalHomepageEvents.slice(0, 10) },
-    { title: "Nye events", href: "/events", events: newHomepageEvents.slice(0, 10) },
+    { title: "Nye events", href: "/#events", events: newHomepageEvents.slice(0, 10) },
     ...adminHomepageEventSections,
   ];
   const mobileHiddenHomepageEventSections = new Set(["Events nær dig"]);
@@ -1290,6 +1322,9 @@ export default async function Home({ searchParams }: HomeProps) {
     selected.q ? { key: "q", label: "Søgning: " + selected.q, href: removeSearchParam(activeFilterParams, "q") } : null,
     selected.country === "udenfor-danmark"
       ? { key: "country", label: "Events i udlandet", href: removeSearchParam(activeFilterParams, "country") }
+      : null,
+    selectedHomepageEventCollection
+      ? { key: "collection", label: selectedHomepageEventCollection.title, href: "/#events" }
       : null,
     selected.latitude && selected.longitude
       ? { key: "nearby", label: "I nærheden", href: "/#events" }
@@ -1462,13 +1497,13 @@ export default async function Home({ searchParams }: HomeProps) {
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Søgeresultater</p>
                 <h2 className="mt-3 text-4xl font-medium leading-tight text-[#2F2633] sm:text-5xl">
-                  Events der matcher din søgning
+                  {selectedHomepageEventCollection ? selectedHomepageEventCollection.title : "Events der matcher din søgning"}
                 </h2>
               </div>
 
-              {searchEvents.length > 0 ? (
+              {displayedSearchEvents.length > 0 ? (
                 <>
-                  <PublicEventList events={searchEvents as never} />
+                  <PublicEventList events={displayedSearchEvents as never} />
                   <LocalServiceProviderSection providers={localServiceProviders} />
                 </>
               ) : (
