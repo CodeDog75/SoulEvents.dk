@@ -110,10 +110,10 @@ function TagSelector({ tags, selectedIds }: { tags: TagOption[]; selectedIds: Se
   }
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-2 sm:grid-cols-2">
       {tags.map((tag) => (
         <label
-          className="flex cursor-pointer items-center gap-3 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-sm font-semibold text-midnight transition hover:border-[#B89BE6]"
+          className="flex min-w-0 cursor-pointer items-center gap-3 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-sm font-semibold text-midnight transition hover:border-[#B89BE6]"
           key={tag.id}
         >
           <input
@@ -123,7 +123,7 @@ function TagSelector({ tags, selectedIds }: { tags: TagOption[]; selectedIds: Se
             type="checkbox"
             value={tag.id}
           />
-          {tag.name}
+          <span className="min-w-0 break-words">{tag.name}</span>
         </label>
       ))}
     </div>
@@ -198,12 +198,12 @@ function CollectionForm({ collection, tags }: { collection?: HomepageCollection;
 
           <section className="grid gap-4 rounded-[22px] border border-midnight/10 bg-[#FFFDF9] p-4">
             <h3 className="font-serif text-xl font-semibold text-sage-700">Visning og udvalg</h3>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="flex items-center gap-3 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-sm font-semibold text-midnight">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex min-w-0 items-center gap-3 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-sm font-semibold text-midnight">
                 <input className="size-5 accent-[#7E4BB8]" defaultChecked={collection?.is_active ?? true} name="is_active" type="checkbox" />
                 Aktiv
               </label>
-              <label className="flex items-center gap-3 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-sm font-semibold text-midnight">
+              <label className="flex min-w-0 items-center gap-3 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-sm font-semibold text-midnight">
                 <input
                   className="size-5 accent-[#7E4BB8]"
                   defaultChecked={collection?.show_on_mobile ?? true}
@@ -213,7 +213,7 @@ function CollectionForm({ collection, tags }: { collection?: HomepageCollection;
                 <Smartphone className="size-4" aria-hidden="true" />
                 Mobil
               </label>
-              <label className="flex items-center gap-3 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-sm font-semibold text-midnight">
+              <label className="flex min-w-0 items-center gap-3 rounded-[16px] border border-midnight/10 bg-white px-4 py-3 text-sm font-semibold text-midnight">
                 <input
                   className="size-5 accent-[#7E4BB8]"
                   defaultChecked={collection?.show_on_desktop ?? true}
