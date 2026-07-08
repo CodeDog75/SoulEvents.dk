@@ -49,6 +49,7 @@ type HomeProps = {
     format?: string;
     country?: string;
     collection?: string;
+    view?: string;
     code?: string;
     error?: string;
     error_description?: string;
@@ -378,6 +379,10 @@ function eventsByIdsInOrder(events: PublicEvent[], eventIds: string[]) {
 
 function homepageCollectionHref(collectionId: string) {
   return `/?collection=${encodeURIComponent(collectionId)}#events`;
+}
+
+function homepageViewHref(view: "nearby" | "new") {
+  return `/?view=${view}#events`;
 }
 
 function eventMatchesTagIds(event: PublicEvent, tagIds: string[]) {
@@ -1168,6 +1173,7 @@ export default async function Home({ searchParams }: HomeProps) {
     country: params.country ?? "",
   };
   const selectedCollectionId = params.collection ?? "";
+  const selectedHomepageView = params.view === "nearby" || params.view === "new" ? params.view : "";
   const hasSearch = Boolean(
     selected.q ||
       selected.area ||
@@ -1178,7 +1184,8 @@ export default async function Home({ searchParams }: HomeProps) {
       selected.longitude ||
       selected.format ||
       selected.country ||
-      selectedCollectionId,
+      selectedCollectionId ||
+      selectedHomepageView,
   );
   const upcomingEvents = await getSearchEvents({
     ...selected,
@@ -1236,8 +1243,16 @@ export default async function Home({ searchParams }: HomeProps) {
       ? eventsByIdsInOrder(homepageEventPool, collection.eventIds)
       : homepageEventPool.filter((event) => eventMatchesTagIds(event, collection.tagIds));
   const selectedCollectionEvents = selectedHomepageEventCollection ? eventsForHomepageCollection(selectedHomepageEventCollection) : [];
-  const displayedSearchEvents = selectedHomepageEventCollection ? selectedCollectionEvents : searchEvents;
-  const localServiceProviders = selectedHomepageEventCollection ? [] : await getLocalServiceProviders(selected);
+  const selectedViewEvents =
+    selectedHomepageView === "nearby" ? physicalHomepageEvents : selectedHomepageView === "new" ? newHomepageEvents : [];
+  const selectedViewTitle =
+    selectedHomepageView === "nearby" ? "Events nær dig" : selectedHomepageView === "new" ? "Nye events" : "";
+  const displayedSearchEvents = selectedHomepageEventCollection
+    ? selectedCollectionEvents
+    : selectedHomepageView
+      ? selectedViewEvents
+      : searchEvents;
+  const localServiceProviders = selectedHomepageEventCollection || selectedHomepageView ? [] : await getLocalServiceProviders(selected);
   const adminHomepageEventSections = adminHomepageEventCollections
     .map((collection) => ({
       events: eventsForHomepageCollection(collection).slice(0, 10),
@@ -1250,8 +1265,8 @@ export default async function Home({ searchParams }: HomeProps) {
     .filter((section) => section.events.length > 0)
     .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "da-DK"));
   const homepageEventSections: HomepageEventSection[] = [
-    { title: "Events nær dig", href: "/#find-events", events: physicalHomepageEvents.slice(0, 10) },
-    { title: "Nye events", href: "/#events", events: newHomepageEvents.slice(0, 10) },
+    { title: "Events nær dig", href: homepageViewHref("nearby"), events: physicalHomepageEvents.slice(0, 10) },
+    { title: "Nye events", href: homepageViewHref("new"), events: newHomepageEvents.slice(0, 10) },
     ...adminHomepageEventSections,
   ];
   const mobileHiddenHomepageEventSections = new Set(["Events nær dig"]);
@@ -1325,6 +1340,9 @@ export default async function Home({ searchParams }: HomeProps) {
       : null,
     selectedHomepageEventCollection
       ? { key: "collection", label: selectedHomepageEventCollection.title, href: "/#events" }
+      : null,
+    selectedHomepageView
+      ? { key: "view", label: selectedViewTitle, href: "/#events" }
       : null,
     selected.latitude && selected.longitude
       ? { key: "nearby", label: "I nærheden", href: "/#events" }
@@ -1497,7 +1515,11 @@ export default async function Home({ searchParams }: HomeProps) {
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Søgeresultater</p>
                 <h2 className="mt-3 text-4xl font-medium leading-tight text-[#2F2633] sm:text-5xl">
-                  {selectedHomepageEventCollection ? selectedHomepageEventCollection.title : "Events der matcher din søgning"}
+                  {selectedHomepageEventCollection
+                    ? selectedHomepageEventCollection.title
+                    : selectedHomepageView
+                      ? selectedViewTitle
+                      : "Events der matcher din søgning"}
                 </h2>
               </div>
 

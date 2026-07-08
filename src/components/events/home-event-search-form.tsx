@@ -325,9 +325,6 @@ export function HomeEventSearchForm({
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Udforsk oplevelser</p>
             <h2 className="mt-1 text-2xl font-medium text-[#2F2633] sm:text-3xl">Udforsk retninger</h2>
           </div>
-          <Link className="shrink-0 text-sm font-bold text-[#7A4EAB] transition hover:text-[#2F2633]" href="/#events">
-            Se alle
-          </Link>
         </div>
 
         {sortedExperienceGroups.length > 0 ? (
