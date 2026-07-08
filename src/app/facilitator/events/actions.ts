@@ -55,6 +55,10 @@ function eventsRedirect(message: string): never {
   redirect(`/facilitator/events?message=${encodeURIComponent(message)}`);
 }
 
+function facilitatorOverviewRedirect(message: string): never {
+  redirect(`/facilitator?message=${encodeURIComponent(message)}`);
+}
+
 function getInteger(formData: FormData, key: string, fallback = 0) {
   const raw = getString(formData, key);
   const numberValue = Number(raw);
@@ -845,11 +849,12 @@ export async function updateEventStatusAction(formData: FormData) {
     );
 
   if (error) {
-    eventsRedirect("Eventstatus kunne ikke opdateres.");
+    facilitatorOverviewRedirect("Eventstatus kunne ikke opdateres.");
   }
 
+  revalidatePath("/facilitator");
   revalidatePath("/facilitator/events");
-  eventsRedirect("Eventstatus er opdateret.");
+  facilitatorOverviewRedirect(status === "cancelled" ? "Eventet er aflyst." : "Eventstatus er opdateret.");
 }
 
 

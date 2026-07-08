@@ -474,12 +474,16 @@ function StatusAction({ eventId, status, children }: { eventId: string; status: 
 function EventCard({ event }: { event: any }) {
   const categories =
     event.event_categories?.map((row: any) => first(row.categories)?.name).filter((name: string | undefined): name is string => Boolean(name)) ?? [];
-  const activeBookings = event.bookings?.filter((booking: any) => ["pending", "confirmed"].includes(booking.status)) ?? [];
-  const bookingCount = activeBookings.length;
-  const reservedSeats = activeBookings.reduce((sum: number, booking: any) => sum + (booking.seats ?? 0), 0);
+  const bookingCount = event.bookings?.length ?? 0;
   const location = event.event_format === "online" ? "Online" : event.city || "Lokation kommer";
   const isDraft = event.status === "draft";
   const isActive = event.status === "active" || event.status === "sold_out";
+  const isCopyableAsDraft =
+    event.status === "active" ||
+    event.status === "sold_out" ||
+    event.status === "completed" ||
+    event.status === "cancelled" ||
+    new Date(event.starts_at) < new Date();
   const statusUpdatedLabel =
     event.status === "draft"
       ? "Kladde opdateret"
@@ -507,10 +511,10 @@ function EventCard({ event }: { event: any }) {
           <Leaf className="size-4 text-[#7A5D91]" aria-hidden="true" />
           {location}
         </p>
-        <div>
-          <p className="font-semibold text-[#2F2437]">{reservedSeats} af {event.capacity} pladser reserveret</p>
-          <p className="text-xs text-[#6E6475]">{bookingCount === 1 ? "1 booking" : bookingCount + " bookinger"}</p>
-        </div>
+        <p className="inline-flex items-center gap-2">
+          <Ticket className="size-4 text-[#7A5D91]" aria-hidden="true" />
+          {bookingCount} tilmeldinger
+        </p>
         <p className="inline-flex items-center gap-2">
           <Clock3 className="size-4 text-[#7A5D91]" aria-hidden="true" />
           {statusUpdatedLabel}: {formatDateTime(event.updated_at)}
@@ -558,7 +562,7 @@ function EventCard({ event }: { event: any }) {
             </button>
           </form>
         ) : null}
-        {event.status === "completed" ? (
+        {isCopyableAsDraft ? (
           <form action={copyEventAsDraftAction}>
             <input name="event_id" type="hidden" value={event.id} />
             <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#E5DDEA] bg-[#F4F0F7] px-4 text-sm font-semibold text-[#6E5A86]" type="submit">
@@ -863,7 +867,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
       ? await Promise.all([
           supabase
             .from("events")
-            .select("id, title, status, starts_at, created_at, updated_at, city, event_format, price_cents, capacity, event_reference_id, event_categories(categories(name)), bookings(id, status, seats)")
+            .select("id, title, status, starts_at, created_at, updated_at, city, event_format, price_cents, capacity, event_reference_id, event_categories(categories(name)), bookings(id)")
             .eq("facilitator_id", facilitatorProfile.id)
             .order("starts_at", { ascending: false }),
           supabase
@@ -1034,7 +1038,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           {showPerformanceDashboard ? <InsightCard events={eventRows} /> : null}
 
           {showPerformanceDashboard ? (
-            <EventSection id="tidligere-events" title="Tidligere events" text="En rolig historik over events, du allerede har afholdt." events={completedEvents.slice(0, 6)} />
+            <EventSection id="tidligere-events" title="Tidligere events" text="En rolig historik over events, du har afholdt eller aflyst. Herfra kan du kopiere et tidligere event som ny kladde." events={completedEvents.slice(0, 6)} />
           ) : null}
 
         </div>

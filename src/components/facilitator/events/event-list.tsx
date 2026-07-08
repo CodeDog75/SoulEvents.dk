@@ -34,6 +34,16 @@ const statusLabels: Record<EventStatus, string> = {
   archived: "Arkiveret",
 };
 
+function isCopyableAsDraft(event: EventRow) {
+  return (
+    event.status === "active" ||
+    event.status === "sold_out" ||
+    event.status === "completed" ||
+    event.status === "cancelled" ||
+    new Date(event.starts_at) < new Date()
+  );
+}
+
 function StatusAction({
   eventId,
   status,
@@ -72,7 +82,7 @@ export function EventList({ events }: EventListProps) {
     <section className="w-full max-w-full overflow-hidden rounded-card border border-midnight/10 bg-white shadow-soft">
       <div className="border-b border-midnight/10 px-4 py-4 sm:px-5">
         <h2 className="text-lg font-semibold text-midnight">Mine events</h2>
-        <p className="mt-1 text-sm text-ink/64">Se og administrer dine kladder, aktive og aflyste events.</p>
+        <p className="mt-1 text-sm text-ink/64">Se og administrer dine kladder, aktive og tidligere events.</p>
       </div>
 
       <div className="divide-y divide-midnight/10">
@@ -137,7 +147,7 @@ export function EventList({ events }: EventListProps) {
                     </button>
                   </form>
                 )}
-                {event.status === "completed" && (
+                {isCopyableAsDraft(event) && (
                   <form action={copyEventAsDraftAction} className="w-full sm:w-auto">
                     <input name="event_id" type="hidden" value={event.id} />
                     <button
