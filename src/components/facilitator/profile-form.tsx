@@ -2,6 +2,7 @@
 
 import { Camera, CheckCircle2, CircleAlert, CircleDashed, Info, Link2, Save, X } from "lucide-react";
 import Link from "next/link";
+import type { FormEvent } from "react";
 import { useId, useState } from "react";
 import { updateFacilitatorProfileAction } from "@/app/facilitator/profile/actions";
 import { ProfileImageManager } from "@/components/facilitator/profile-image-manager";
@@ -48,6 +49,8 @@ type GalleryImage = {
 };
 
 type ProfileFormProps = {
+  errorSection?: string | null;
+  feedbackMessage?: string | null;
   profile: {
     full_name: string;
     email: string;
@@ -58,9 +61,29 @@ type ProfileFormProps = {
   categories: Category[];
   selectedCategoryIds: string[];
   galleryImages: GalleryImage[];
+  savedSection?: string | null;
   serviceTitles: ServiceTitle[];
   selectedServiceTitleIds: string[];
 };
+
+const profileFormSections = ["contact", "location", "social", "images", "categories", "services"] as const;
+
+type ProfileFormSection = (typeof profileFormSections)[number];
+type ProfileSavedSection = ProfileFormSection | "all";
+type MissingProfileItem = {
+  focusSelector?: string;
+  key: string;
+  label: string;
+  targetId: string;
+};
+
+function isProfileFormSection(value: string | null | undefined): value is ProfileFormSection {
+  return profileFormSections.includes(value as ProfileFormSection);
+}
+
+function isProfileSavedSection(value: string | null | undefined): value is ProfileSavedSection {
+  return value === "all" || isProfileFormSection(value);
+}
 
 function value(input: string | number | null | undefined) {
   return input === null || input === undefined ? "" : String(input);
@@ -155,7 +178,7 @@ function fieldClass(complete: boolean, optional = false) {
   return `${base} border-red-500 bg-red-50`;
 }
 
-function SectionSaveButton({ children, section }: { children: string; section: string }) {
+function SectionSaveButton({ children, section }: { children: string; section: ProfileFormSection }) {
   return (
     <button
       className="inline-flex h-10 items-center justify-center gap-2 rounded-button bg-olive px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500"
@@ -167,6 +190,38 @@ function SectionSaveButton({ children, section }: { children: string; section: s
       {children}
     </button>
   );
+}
+
+function SectionFeedback({
+  errorSection,
+  message,
+  savedSection,
+  section,
+}: {
+  errorSection: ProfileFormSection | null;
+  message: string | null;
+  savedSection: ProfileSavedSection | null;
+  section: ProfileFormSection;
+}) {
+  if (errorSection === section && message) {
+    return (
+      <div className="mt-5 flex items-start gap-2 rounded-md border border-red-500/25 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+        <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <span>{message}</span>
+      </div>
+    );
+  }
+
+  if ((savedSection === section || savedSection === "all") && message) {
+    return (
+      <div className="mt-5 flex items-start gap-2 rounded-md border border-sage-700/25 bg-[#EEF6E8] px-4 py-3 text-sm font-semibold text-sage-700">
+        <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <span>{message}</span>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 function InfoHelp({ children }: { children: string }) {
@@ -215,12 +270,15 @@ function InfoHelp({ children }: { children: string }) {
 }
 
 export function ProfileForm({
+  errorSection = null,
+  feedbackMessage = null,
   profile,
   facilitatorProfile,
   regions,
   categories,
   selectedCategoryIds,
   galleryImages,
+  savedSection = null,
   serviceTitles,
   selectedServiceTitleIds,
 }: ProfileFormProps) {
@@ -240,6 +298,7 @@ export function ProfileForm({
   const [selectedServiceTitles, setSelectedServiceTitles] = useState(selectedServiceTitleIds);
   const [serviceDescription, setServiceDescription] = useState(value(facilitatorProfile.service_description));
   const [serviceOtherTitle, setServiceOtherTitle] = useState(value(facilitatorProfile.service_other_title));
+  const [highlightedMissingKey, setHighlightedMissingKey] = useState("");
   const currentOrigin = typeof window === "undefined" ? "" : window.location.origin;
   const fullNameComplete = Boolean(fullName.trim());
   const companyNameComplete = Boolean(companyName.trim());
@@ -256,6 +315,51 @@ export function ProfileForm({
   const selectedRegion =
     regions.find((region) => region.slug === inferredRegionSlug) ??
     regions.find((region) => region.id === facilitatorProfile.region_id);
+  const normalizedErrorSection = isProfileFormSection(errorSection) ? errorSection : null;
+  const normalizedSavedSection = isProfileSavedSection(savedSection) ? savedSection : null;
+  const missingProfileItems: MissingProfileItem[] = [
+    fullNameComplete ? null : { focusSelector: "[name='full_name']", key: "full_name", label: "Privat navn", targetId: "profile-full-name-field" },
+    companyNameComplete
+      ? null
+      : { focusSelector: "[name='company_name']", key: "company_name", label: "Visningsnavn", targetId: "profile-company-name-field" },
+    shortComplete
+      ? null
+      : { focusSelector: "[name='short_description']", key: "short_description", label: "Kort præsentation", targetId: "profile-short-description-field" },
+    postalCode.trim()
+      ? null
+      : { focusSelector: "[name='postal_code']", key: "postal_code", label: "Postnummer", targetId: "profile-postal-code-field" },
+    city.trim() ? null : { focusSelector: "[name='city']", key: "city", label: "By", targetId: "profile-city-field" },
+    categoriesComplete ? null : { key: "categories", label: "Kategorier", targetId: "profile-categories-section" },
+  ].filter((item): item is MissingProfileItem => Boolean(item));
+
+  function guideToMissingProfileItem(item: MissingProfileItem) {
+    setHighlightedMissingKey(item.key);
+
+    window.setTimeout(() => {
+      const target = document.getElementById(item.targetId);
+      const focusTarget = item.focusSelector
+        ? (document.querySelector(item.focusSelector) as HTMLElement | null)
+        : (target?.querySelector("input, textarea, select, button") as HTMLElement | null);
+
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      focusTarget?.focus({ preventScroll: true });
+    }, 50);
+
+    window.setTimeout(() => setHighlightedMissingKey(""), 1800);
+  }
+
+  function highlightMissingClass(key: string) {
+    return highlightedMissingKey === key ? "ring-4 ring-[#D89A94]/35" : "";
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+
+    if (submitter?.value === "all" && missingProfileItems.length > 0) {
+      event.preventDefault();
+      guideToMissingProfileItem(missingProfileItems[0]);
+    }
+  }
 
   async function fetchPostalCodeCity(normalizedPostalCode: string) {
     try {
@@ -290,7 +394,7 @@ export function ProfileForm({
   }
 
   return (
-    <form action={updateFacilitatorProfileAction} className="grid gap-6" noValidate>
+    <form action={updateFacilitatorProfileAction} className="grid gap-6" noValidate onSubmit={handleSubmit}>
       <input name="current_origin" suppressHydrationWarning type="hidden" value={currentOrigin} />
       <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
         <div className="flex items-center justify-between gap-4">
@@ -298,7 +402,7 @@ export function ProfileForm({
         </div>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
+          <label className={"grid gap-2 text-sm font-medium text-ink/72 " + highlightMissingClass("full_name")} id="profile-full-name-field">
             <span className="flex flex-wrap items-center gap-2">
               Privat navn
               <InfoHelp>Privat navn bruges internt af SoulEvents og i kommunikationen med dig.</InfoHelp>
@@ -342,7 +446,7 @@ export function ProfileForm({
             />
           </label>
 
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
+          <label className={"grid gap-2 text-sm font-medium text-ink/72 " + highlightMissingClass("company_name")} id="profile-company-name-field">
             <span className="flex flex-wrap items-center gap-2">
               Det navn du ønsker at blive vist under
               <InfoHelp>
@@ -363,7 +467,7 @@ export function ProfileForm({
         </div>
 
         <div className="mt-4 grid gap-4">
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
+          <label className={"grid gap-2 text-sm font-medium text-ink/72 " + highlightMissingClass("short_description")} id="profile-short-description-field">
             <span className="flex flex-wrap items-center gap-2">
               Kort præsentation
               <FieldStatus complete={shortComplete} />
@@ -408,6 +512,13 @@ export function ProfileForm({
           </label>
         </div>
 
+        <SectionFeedback
+          errorSection={normalizedErrorSection}
+          message={feedbackMessage}
+          savedSection={normalizedSavedSection}
+          section="contact"
+        />
+
         <div className="mt-5 flex justify-center sm:justify-end">
           <SectionSaveButton section="contact">Gem dette afsnit</SectionSaveButton>
         </div>
@@ -438,7 +549,7 @@ export function ProfileForm({
             />
           </label>
 
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
+          <label className={"grid gap-2 text-sm font-medium text-ink/72 " + highlightMissingClass("postal_code")} id="profile-postal-code-field">
             <span className="flex flex-wrap items-center gap-2">
               Postnummer
             </span>
@@ -453,7 +564,7 @@ export function ProfileForm({
             />
           </label>
 
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
+          <label className={"grid gap-2 text-sm font-medium text-ink/72 " + highlightMissingClass("city")} id="profile-city-field">
             <span className="flex flex-wrap items-center gap-2">
               By
             </span>
@@ -481,6 +592,13 @@ export function ProfileForm({
             mere præcis.
           </p>
         </div>
+
+        <SectionFeedback
+          errorSection={normalizedErrorSection}
+          message={feedbackMessage}
+          savedSection={normalizedSavedSection}
+          section="location"
+        />
 
         <div className="mt-5 flex justify-center sm:justify-end">
           <SectionSaveButton section="location">Gem dette afsnit</SectionSaveButton>
@@ -555,12 +673,19 @@ export function ProfileForm({
           </label>
         </div>
 
+        <SectionFeedback
+          errorSection={normalizedErrorSection}
+          message={feedbackMessage}
+          savedSection={normalizedSavedSection}
+          section="social"
+        />
+
         <div className="mt-5 flex justify-center sm:justify-end">
           <SectionSaveButton section="social">Gem dette afsnit</SectionSaveButton>
         </div>
       </section>
 
-      <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+      <section className={"rounded-md border border-midnight/10 bg-white p-5 shadow-soft " + highlightMissingClass("categories")} id="profile-categories-section">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-md bg-sage-50 text-sage-700">
@@ -578,6 +703,13 @@ export function ProfileForm({
             profileImagePath={facilitatorProfile.profile_image_path}
           />
         </div>
+
+        <SectionFeedback
+          errorSection={normalizedErrorSection}
+          message={feedbackMessage}
+          savedSection={normalizedSavedSection}
+          section="images"
+        />
 
         <div className="mt-5 flex justify-center sm:justify-end">
           <SectionSaveButton section="images">Gem dette afsnit</SectionSaveButton>
@@ -600,7 +732,7 @@ export function ProfileForm({
             >
               <input
                 className="size-4 accent-sage-700"
-                defaultChecked={selectedCategoryIds.includes(category.id)}
+                checked={selectedCategories.includes(category.id)}
                 name="category_ids"
                 onChange={(event) => {
                   setSelectedCategories((current) =>
@@ -616,6 +748,13 @@ export function ProfileForm({
             </label>
           ))}
         </div>
+
+        <SectionFeedback
+          errorSection={normalizedErrorSection}
+          message={feedbackMessage}
+          savedSection={normalizedSavedSection}
+          section="categories"
+        />
 
         <div className="mt-5 flex justify-center sm:justify-end">
           <SectionSaveButton section="categories">Gem dette afsnit</SectionSaveButton>
@@ -732,31 +871,76 @@ export function ProfileForm({
           </div>
         )}
 
+        <SectionFeedback
+          errorSection={normalizedErrorSection}
+          message={feedbackMessage}
+          savedSection={normalizedSavedSection}
+          section="services"
+        />
+
         <div className="mt-5 flex justify-center sm:justify-end">
           <SectionSaveButton section="services">Gem dette afsnit</SectionSaveButton>
         </div>
       </section>
 
-      <div className="flex flex-col items-center gap-4 rounded-md border border-midnight/10 bg-white p-5 text-center shadow-soft sm:flex-row sm:items-center sm:justify-between sm:text-left">
-        <p className="max-w-2xl text-sm leading-6 text-ink/64">
-          Når du er færdig, kan du gemme hele profilen samlet her.
-        </p>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Link
-            className="inline-flex h-11 items-center justify-center rounded-md border border-midnight/15 bg-white px-5 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
-            href="/facilitator"
-          >
-            Tilbage til forsiden
-          </Link>
-          <button
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700"
-            name="section"
-            type="submit"
-            value="all"
-          >
-            <Save className="size-4" aria-hidden="true" />
-            Gem hele profilen
-          </button>
+      <div className="grid gap-4 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+        {normalizedSavedSection === "all" && feedbackMessage ? (
+          <div className="flex items-start gap-2 rounded-md border border-sage-700/25 bg-[#EEF6E8] px-4 py-3 text-sm font-semibold text-sage-700">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <span>{feedbackMessage}</span>
+          </div>
+        ) : null}
+
+        {normalizedErrorSection && feedbackMessage ? (
+          <div className="flex items-start gap-2 rounded-md border border-red-500/25 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <span>{feedbackMessage}</span>
+          </div>
+        ) : null}
+
+        {missingProfileItems.length > 0 ? (
+          <div className="rounded-md border border-[#D8CBE4] bg-[#F4F0F7] p-4 text-sm leading-6 text-[#6E5A86]">
+            <p className="font-semibold">Udfyld først:</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {missingProfileItems.map((item) => (
+                <button
+                  className="rounded-full border border-[#D8CBE4] bg-white px-3 py-1 text-xs font-semibold text-[#7A5D91] transition hover:border-[#7A5D91]"
+                  key={item.key}
+                  onClick={() => guideToMissingProfileItem(item)}
+                  type="button"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-md border border-[#CFE3C8] bg-[#F3F7F0] p-4 text-sm leading-6 text-[#4F6F48]">
+            <p className="font-semibold">Din profil er klar til at blive gemt samlet.</p>
+          </div>
+        )}
+
+        <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+          <p className="max-w-2xl text-sm leading-6 text-ink/64">
+            Når du er færdig, kan du gemme hele profilen samlet her.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Link
+              className="inline-flex h-11 items-center justify-center rounded-md border border-midnight/15 bg-white px-5 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
+              href="/facilitator"
+            >
+              Tilbage til forsiden
+            </Link>
+            <button
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700"
+              name="section"
+              type="submit"
+              value="all"
+            >
+              <Save className="size-4" aria-hidden="true" />
+              Gem hele profilen
+            </button>
+          </div>
         </div>
       </div>
     </form>

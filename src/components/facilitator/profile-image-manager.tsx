@@ -306,7 +306,7 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
               inputRef={(element: HTMLInputElement | null) => {
                 galleryInputRefs.current[index] = element;
               }}
-              name="gallery_image_files"
+          name={`gallery_image_file_${index}`}
               onClear={() => clearGalleryImage(index)}
               onSelect={(file, previewUrl) => {
                 setGallery((current) => {

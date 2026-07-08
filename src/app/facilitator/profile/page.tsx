@@ -10,13 +10,15 @@ export const dynamic = "force-dynamic";
 
 type FacilitatorProfilePageProps = {
   searchParams: Promise<{
+    errorSection?: string;
     message?: string;
     ready?: string;
+    saved?: string;
   }>;
 };
 
 export default async function FacilitatorProfilePage({ searchParams }: FacilitatorProfilePageProps) {
-  const [{ message, ready }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const [{ errorSection, message, ready, saved }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
   const supabase = await createClient();
   const isSavedMessage = message?.startsWith("Ændringer gemt");
 
@@ -135,10 +137,13 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
 
         <ProfileForm
           categories={categories ?? []}
+          errorSection={errorSection ?? null}
           facilitatorProfile={facilitatorProfile}
+          feedbackMessage={message ?? null}
           galleryImages={galleryImages}
           profile={profile}
           regions={regions ?? []}
+          savedSection={saved ?? null}
           selectedCategoryIds={selectedCategoryIds}
           selectedServiceTitleIds={selectedServiceTitleIds}
           serviceTitles={visibleServiceTitles}
