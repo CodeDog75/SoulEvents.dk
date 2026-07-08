@@ -47,9 +47,18 @@ function createPasswordResetClient(request: NextRequest) {
 
   const callbackHostname = new URL(request.url).hostname;
   const shouldUseProductionCookieDomain = callbackHostname === "soulevents.dk" || callbackHostname === "www.soulevents.dk";
+  const passwordResetCookieOptions: CookieOptions | undefined = shouldUseProductionCookieDomain
+    ? {
+        domain: ".soulevents.dk",
+        path: "/",
+        sameSite: "lax",
+        secure: true,
+      }
+    : undefined;
   const cookiesToSet: Array<{ name: string; value: string; options: CookieOptions }> = [];
   const responseHeaders: Record<string, string> = {};
   const supabase = createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
+    cookieOptions: passwordResetCookieOptions,
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -68,19 +77,7 @@ function createPasswordResetClient(request: NextRequest) {
     supabase,
     applyCookies(response: NextResponse) {
       cookiesToSet.forEach(({ name, value, options }) => {
-        response.cookies.set(
-          name,
-          value,
-          shouldUseProductionCookieDomain
-            ? {
-                ...options,
-                domain: ".soulevents.dk",
-                path: "/",
-                sameSite: "lax",
-                secure: true,
-              }
-            : options,
-        );
+        response.cookies.set(name, value, options);
       });
       Object.entries(responseHeaders).forEach(([key, value]) => {
         response.headers.set(key, value);
@@ -308,7 +305,7 @@ export async function GET(request: NextRequest) {
 
   if (isPasswordResetFlow && tokenHash && type === "recovery") {
     const passwordResetClient = createPasswordResetClient(request);
-    const { data: verifyData, error: verifyError } = await passwordResetClient.supabase.auth.verifyOtp({
+    const { error: verifyError } = await passwordResetClient.supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type: "recovery",
     });
@@ -320,16 +317,6 @@ export async function GET(request: NextRequest) {
         "Linket til ny adgangskode er udløbet eller er allerede brugt. Skriv din e-mailadresse, så sender vi et nyt link.",
       );
     }
-
-    const {
-      data: { session },
-      error: sessionError,
-    } = await passwordResetClient.supabase.auth.getSession();
-    console.info("Password reset token verification completed", {
-      getSessionError: Boolean(sessionError),
-      getSessionHasSession: Boolean(session),
-      verifyOtpHasSession: Boolean(verifyData.session),
-    });
 
     return passwordResetClient.applyCookies(passwordResetRedirect(requestUrl));
   }
