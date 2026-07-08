@@ -238,6 +238,22 @@ const timeOptions = Array.from({ length: 96 }, (_, index) => {
   return `${hour}:${minute}`;
 });
 
+function normalizeTimeInputValue(timeValue: string | undefined) {
+  const match = timeValue?.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) {
+    return "";
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return "";
+  }
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 function formatLocalDateInputValue(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -264,11 +280,7 @@ function getEventImageMessage(message: string) {
 }
 
 function normalizeTimeOption(timeValue: string | undefined, fallback: string) {
-  if (timeValue && timeOptions.includes(timeValue)) {
-    return timeValue;
-  }
-
-  return fallback;
+  return normalizeTimeInputValue(timeValue) || fallback;
 }
 
 function TimeSelect({
@@ -287,6 +299,9 @@ function TimeSelect({
   onChange?: (value: string) => void;
 }) {
   const currentValue = normalizeTimeOption(selectedValue, defaultValue);
+  const options = timeOptions.includes(currentValue)
+    ? timeOptions
+    : [...timeOptions, currentValue].sort((first, second) => first.localeCompare(second));
 
   return (
     <label className="grid gap-2 text-sm font-medium text-ink/72">
@@ -302,7 +317,7 @@ function TimeSelect({
           required={required}
           value={currentValue}
         >
-          {timeOptions.map((timeOption) => (
+          {options.map((timeOption) => (
             <option key={timeOption} value={timeOption}>
               {timeOption}
             </option>
@@ -638,8 +653,8 @@ export function EventForm({
   const todayDate = new Date();
   const tomorrowDate = new Date(todayDate);
   tomorrowDate.setDate(todayDate.getDate() + 1);
-  const today = todayDate.toISOString().slice(0, 10);
-  const tomorrow = tomorrowDate.toISOString().slice(0, 10);
+  const today = formatLocalDateInputValue(todayDate);
+  const tomorrow = formatLocalDateInputValue(tomorrowDate);
   const draftStart = draftEvent?.starts_at ? new Date(draftEvent.starts_at) : null;
   const draftEnd = draftEvent?.ends_at ? new Date(draftEvent.ends_at) : null;
   const draftStartDate = draftStart ? formatLocalDateInputValue(draftStart) : tomorrow;
