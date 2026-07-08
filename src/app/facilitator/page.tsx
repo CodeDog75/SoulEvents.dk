@@ -114,6 +114,10 @@ function statusClass(status: string) {
   return statusStyles[status] ?? "bg-stone-100 text-stone-700";
 }
 
+function isPastEvent(event: { starts_at: string; status: string }, now: Date) {
+  return event.status === "completed" || event.status === "cancelled" || new Date(event.starts_at) < now;
+}
+
 function getProfileReadiness({
   categoryCount,
   facilitatorProfile,
@@ -338,12 +342,14 @@ function ProfileStatusPanel({ profileReadiness }: { profileReadiness: ProfileRea
 }
 
 function StatsCard({
+  description,
   icon: Icon,
   label,
   value,
   tone,
   href,
 }: {
+  description: string;
   icon: React.ElementType;
   label: string;
   value: number;
@@ -365,12 +371,56 @@ function StatsCard({
       <span className={"grid size-10 shrink-0 place-items-center rounded-full sm:size-11 " + tones[tone]}>
         <Icon className="size-5" aria-hidden="true" />
       </span>
-      <span className="flex min-w-0 flex-1 items-baseline gap-3">
-        <span className="text-2xl font-semibold leading-none text-[#2F2437] sm:text-3xl">{value}</span>
-        <span className="text-sm font-semibold leading-tight text-[#6E6475] sm:text-base">{label}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-lg font-semibold leading-tight text-[#2F2437] sm:text-xl">
+          {value} {label}
+        </span>
+        <span className="mt-1 block text-sm leading-5 text-[#6E6475]">{description}</span>
       </span>
       <ArrowRight className="size-4 shrink-0 text-[#A08BB4] transition group-hover:translate-x-0.5 group-hover:text-[#7A5D91]" aria-hidden="true" />
     </Link>
+  );
+}
+
+function BookingAttentionCard({ pendingCount }: { pendingCount: number }) {
+  const hasPending = pendingCount > 0;
+
+  return (
+    <section
+      className={
+        "rounded-[24px] border p-5 shadow-soft sm:p-6 " +
+        (hasPending ? "border-[#E8D6A8] bg-[#FFF9EC]" : "border-[#C9DAC1] bg-[#F3F8F0]")
+      }
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-3">
+          <span
+            className={
+              "mt-0.5 grid size-10 shrink-0 place-items-center rounded-full " +
+              (hasPending ? "bg-[#FFF1D6] text-[#8A6A2E]" : "bg-[#DDE8D7] text-[#4E6A45]")
+            }
+          >
+            {hasPending ? <Inbox className="size-5" aria-hidden="true" /> : <CheckCircle2 className="size-5" aria-hidden="true" />}
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold text-[#2F2437]">Tilmeldinger</h2>
+            <p className="mt-1 text-sm leading-6 text-[#6E6475]">
+              {hasPending
+                ? `Du har ${pendingCount} ${pendingCount === 1 ? "tilmelding" : "tilmeldinger"}, der afventer din bekræftelse.`
+                : "Alle aktuelle tilmeldinger er behandlet."}
+            </p>
+          </div>
+        </div>
+        {hasPending ? (
+          <Link
+            className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285]"
+            href="/facilitator/bookings"
+          >
+            Se tilmeldinger
+          </Link>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -807,7 +857,8 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     facilitatorProfile?.is_active_host ? "active" : null,
   ].filter(Boolean) as Array<"experienced" | "active">;
 
-  const [{ data: events }, { count: reminderSubscriberCount }, { data: adminMessages }, { count: bookingCount }, { data: recentBookings }] =
+  const now = new Date();
+  const [{ data: events }, { count: reminderSubscriberCount }, { data: adminMessages }, { count: pendingBookingCount }, { data: recentBookings }] =
     facilitatorProfile
       ? await Promise.all([
           supabase
@@ -829,7 +880,10 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           supabase
             .from("bookings")
             .select("id, events!inner(facilitator_id)", { count: "exact", head: true })
-            .eq("events.facilitator_id", facilitatorProfile.id),
+            .eq("events.facilitator_id", facilitatorProfile.id)
+            .eq("status", "pending")
+            .in("events.status", ["active", "sold_out"])
+            .gte("events.starts_at", now.toISOString()),
           supabase
             .from("bookings")
             .select("id, participant_name, created_at, events!inner(title, facilitator_id)")
@@ -849,15 +903,15 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
         url: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,
       })) ?? [];
 
-  const now = new Date();
   const eventRows = (events ?? []) as any[];
   const limitStatus = facilitatorProfile
     ? await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id)
     : { activeCount: 0, draftCount: 0, maxActiveEvents: 10, maxDraftEvents: 5 };
   const messageRows = (adminMessages ?? []) as any[];
   const unreadMessageCount = messageRows.filter((item) => !item.facilitator_read_at).length;
-  const activeEvents = eventRows.filter((event) => ["active", "sold_out", "pending_review"].includes(event.status) && new Date(event.starts_at) >= now);
-  const completedEvents = eventRows.filter((event) => event.status === "completed" || new Date(event.starts_at) < now);
+  const activeEvents = eventRows.filter((event) => ["active", "sold_out", "pending_review"].includes(event.status) && !isPastEvent(event, now));
+  const completedEvents = eventRows.filter((event) => isPastEvent(event, now));
+  const heldEvents = completedEvents.filter((event) => event.status !== "cancelled");
   const draftEvents = eventRows.filter((event) => event.status === "draft");
   const profileReadiness = getProfileReadiness({
     categoryCount: categoryNames.length,
@@ -868,7 +922,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     maxDraftEvents: limitStatus.maxDraftEvents,
     profileReadiness,
   });
-  const hasDashboardActivity = activeEvents.length > 0 || draftEvents.length > 0 || completedEvents.length > 0 || (bookingCount ?? 0) > 0;
+  const hasDashboardActivity = activeEvents.length > 0 || draftEvents.length > 0 || completedEvents.length > 0 || (pendingBookingCount ?? 0) > 0;
   const showPerformanceDashboard = profileReadiness.isComplete && hasDashboardActivity;
   const activityItems = [
     ...((recentBookings ?? []) as any[]).map((booking) => {
@@ -911,12 +965,35 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           />
 
           {showPerformanceDashboard ? (
-            <section className="grid gap-3 sm:grid-cols-2">
-              <StatsCard href="#aktive-events" icon={CalendarCheck2} label="Aktive events" value={activeEvents.length} tone="lavender" />
-              <StatsCard href="#kladder" icon={CalendarDays} label="Kladder" value={draftEvents.length} tone="sage" />
-              <StatsCard href="#tidligere-events" icon={Clock3} label="Afholdte events" value={completedEvents.length} tone="cream" />
-              <StatsCard href="/facilitator/bookings" icon={Ticket} label="Tilmeldinger" value={bookingCount ?? 0} tone="rose" />
-            </section>
+            <div className="space-y-3">
+              <section className="grid gap-3 sm:grid-cols-3">
+                <StatsCard
+                  description="Dine kommende events."
+                  href="#aktive-events"
+                  icon={CalendarCheck2}
+                  label="Aktive events"
+                  value={activeEvents.length}
+                  tone="lavender"
+                />
+                <StatsCard
+                  description={`Du har ${draftEvents.length} ${draftEvents.length === 1 ? "event" : "events"}, der mangler at blive færdiggjort.`}
+                  href="#kladder"
+                  icon={CalendarDays}
+                  label="Kladder"
+                  value={draftEvents.length}
+                  tone="sage"
+                />
+                <StatsCard
+                  description={`Du har afholdt i alt ${heldEvents.length} ${heldEvents.length === 1 ? "event" : "events"}.`}
+                  href="#tidligere-events"
+                  icon={Clock3}
+                  label="Afholdte events"
+                  value={heldEvents.length}
+                  tone="cream"
+                />
+              </section>
+              <BookingAttentionCard pendingCount={pendingBookingCount ?? 0} />
+            </div>
           ) : profileReadiness.isComplete ? (
             <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Næste skridt</p>
