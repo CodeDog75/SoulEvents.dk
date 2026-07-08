@@ -37,6 +37,14 @@ export function UpdatePasswordForm() {
 
     setIsSubmitting(true);
     const supabase = createClient();
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+    console.info("Password reset form session check", {
+      getSessionError: Boolean(sessionError),
+      hasSession: Boolean(session),
+    });
     const { error } = await supabase.auth.updateUser({ password });
     setIsSubmitting(false);
 

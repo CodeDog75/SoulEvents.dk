@@ -294,7 +294,7 @@ export async function GET(request: NextRequest) {
 
   if (isPasswordResetFlow && tokenHash && type === "recovery") {
     const passwordResetClient = createPasswordResetClient(request);
-    const { error: verifyError } = await passwordResetClient.supabase.auth.verifyOtp({
+    const { data: verifyData, error: verifyError } = await passwordResetClient.supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type: "recovery",
     });
@@ -306,6 +306,16 @@ export async function GET(request: NextRequest) {
         "Linket til ny adgangskode er udløbet eller er allerede brugt. Skriv din e-mailadresse, så sender vi et nyt link.",
       );
     }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await passwordResetClient.supabase.auth.getSession();
+    console.info("Password reset token verification completed", {
+      getSessionError: Boolean(sessionError),
+      getSessionHasSession: Boolean(session),
+      verifyOtpHasSession: Boolean(verifyData.session),
+    });
 
     return passwordResetClient.applyCookies(passwordResetRedirect(requestUrl));
   }
