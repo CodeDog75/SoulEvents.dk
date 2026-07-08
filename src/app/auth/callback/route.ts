@@ -258,6 +258,8 @@ export async function GET(request: NextRequest) {
   const errorDescription = requestUrl.searchParams.get("error_description");
   const flow = requestUrl.searchParams.get("flow");
   const next = requestUrl.searchParams.get("next") ?? "/dashboard";
+  const tokenHash = requestUrl.searchParams.get("token_hash");
+  const type = requestUrl.searchParams.get("type");
   const isPasswordResetFlow = next === "/auth/update-password";
   const hasOAuthCookie = Boolean(request.cookies.get(oauthFlowCookie)?.value);
   const isOAuthFlow = flow === "oauth" || hasOAuthCookie;
@@ -288,6 +290,24 @@ export async function GET(request: NextRequest) {
       "Bekræftelseslinket er udløbet eller er allerede brugt. Skriv din e-mailadresse herunder, så sender vi et nyt link.",
       "expired",
     );
+  }
+
+  if (isPasswordResetFlow && tokenHash && type === "recovery") {
+    const passwordResetClient = createPasswordResetClient(request);
+    const { error: verifyError } = await passwordResetClient.supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: "recovery",
+    });
+
+    if (verifyError) {
+      console.error("Password reset token verification failed", verifyError);
+      return passwordResetRedirect(
+        requestUrl,
+        "Linket til ny adgangskode er udløbet eller er allerede brugt. Skriv din e-mailadresse, så sender vi et nyt link.",
+      );
+    }
+
+    return passwordResetClient.applyCookies(passwordResetRedirect(requestUrl));
   }
 
   if (code) {
