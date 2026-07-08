@@ -40,61 +40,25 @@ function passwordResetRedirect(requestUrl: URL, message?: string) {
   return NextResponse.redirect(new URL(path, getAppUrl(requestUrl.origin)));
 }
 
-function authCookieNames(cookies: Array<{ name: string }>) {
-  return cookies.map((cookie) => cookie.name).filter((name) => name.startsWith("sb-"));
-}
-
-function authErrorSummary(error: unknown) {
-  if (!error || typeof error !== "object") {
-    return { message: String(error) };
-  }
-
-  const record = error as { code?: unknown; message?: unknown; name?: unknown; status?: unknown };
-
-  return {
-    code: typeof record.code === "string" ? record.code : null,
-    message: typeof record.message === "string" ? record.message : null,
-    name: typeof record.name === "string" ? record.name : null,
-    status: typeof record.status === "number" || typeof record.status === "string" ? record.status : null,
-  };
-}
-
 function createPasswordResetClient(request: NextRequest) {
   if (!env.supabaseUrl || !env.supabaseAnonKey) {
     throw new Error("Supabase server credentials are missing.");
   }
 
   const cookiesToSet: Array<{ name: string; value: string; options: CookieOptions }> = [];
-  const responseHeaders: Record<string, string> = {};
   const supabase = createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(nextCookies, headers) {
+      setAll(nextCookies) {
         cookiesToSet.push(...nextCookies);
-        Object.assign(responseHeaders, headers);
       },
     },
   });
 
   return {
     supabase,
-    debugCookies() {
-      return {
-        cookieCount: cookiesToSet.length,
-        cookieNames: cookiesToSet.map((cookie) => cookie.name),
-        cookieOptions: cookiesToSet.map((cookie) => ({
-          domain: cookie.options.domain ?? null,
-          httpOnly: cookie.options.httpOnly ?? null,
-          name: cookie.name,
-          path: cookie.options.path ?? null,
-          sameSite: cookie.options.sameSite ?? null,
-          secure: cookie.options.secure ?? null,
-        })),
-        headerNames: Object.keys(responseHeaders),
-      };
-    },
     applyCookies(response: NextResponse) {
       cookiesToSet.forEach(({ name, value, options }) => {
         response.cookies.set(name, value, options);
@@ -289,21 +253,6 @@ export async function GET(request: NextRequest) {
   const isPasswordResetFlow = next === "/auth/update-password";
   const hasOAuthCookie = Boolean(request.cookies.get(oauthFlowCookie)?.value);
   const isOAuthFlow = flow === "oauth" || hasOAuthCookie;
-  const incomingAuthCookies = authCookieNames(request.cookies.getAll());
-
-  if (isPasswordResetFlow) {
-    console.info("Password reset callback received", {
-      authCookieCount: incomingAuthCookies.length,
-      authCookieNames: incomingAuthCookies,
-      codePresent: Boolean(code),
-      errorCode: requestUrl.searchParams.get("error_code"),
-      errorDescriptionPresent: Boolean(errorDescription),
-      errorPresent: Boolean(error),
-      next,
-      tokenHashPresent: Boolean(requestUrl.searchParams.get("token_hash")),
-      type: requestUrl.searchParams.get("type"),
-    });
-  }
 
   if (error) {
     const errorText = `${error} ${errorDescription ?? ""}`;
@@ -339,9 +288,6 @@ export async function GET(request: NextRequest) {
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (exchangeError) {
-      if (isPasswordResetFlow) {
-        console.info("Password reset callback exchange failed", authErrorSummary(exchangeError));
-      }
       console.error("Auth callback session exchange failed", exchangeError);
 
       if (isOAuthFlow) {
@@ -382,9 +328,6 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      if (isPasswordResetFlow) {
-        console.info("Password reset callback exchange completed without user", passwordResetClient?.debugCookies());
-      }
       console.error("Auth callback completed without a session user");
       if (isOAuthFlow) {
         return redirectAndClearOAuthCookie(
@@ -418,7 +361,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (isPasswordResetFlow) {
-      console.info("Password reset callback exchange succeeded", passwordResetClient?.debugCookies());
       return passwordResetClient?.applyCookies(passwordResetRedirect(requestUrl)) ?? passwordResetRedirect(requestUrl);
     }
   } else {

@@ -1,12 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAppUrl } from "@/lib/app-url";
 import { env } from "@/lib/env";
 import {
+  assertPasswordResetRateLimit,
   assertRateLimit,
   isRateLimitExceededError,
   RATE_LIMIT_MESSAGE,
@@ -60,25 +61,6 @@ async function getRequestAppUrl() {
 
 function getCanonicalAppUrl() {
   return (env.appUrl || "https://www.soulevents.dk").trim().replace(/\/$/, "");
-}
-
-function authCookieNames(cookiesToInspect: Array<{ name: string }>) {
-  return cookiesToInspect.map((cookie) => cookie.name).filter((name) => name.startsWith("sb-"));
-}
-
-function authErrorSummary(error: unknown) {
-  if (!error || typeof error !== "object") {
-    return { message: String(error) };
-  }
-
-  const record = error as { code?: unknown; message?: unknown; name?: unknown; status?: unknown };
-
-  return {
-    code: typeof record.code === "string" ? record.code : null,
-    message: typeof record.message === "string" ? record.message : null,
-    name: typeof record.name === "string" ? record.name : null,
-    status: typeof record.status === "number" || typeof record.status === "string" ? record.status : null,
-  };
 }
 
 async function getAuthUserByEmail(email: string) {
@@ -262,7 +244,18 @@ export async function requestPasswordResetAction(formData: FormData) {
     authRedirect("/auth/forgot-password", "Skriv din e-mailadresse.");
   }
 
-  await enforceAuthRateLimit("auth:password-reset", "/auth/forgot-password");
+  try {
+    await assertPasswordResetRateLimit(email);
+  } catch (error) {
+    if (isRateLimitExceededError(error)) {
+      authRedirectWithParams("/auth/forgot-password", {
+        message: RATE_LIMIT_MESSAGE,
+        status: "429",
+      });
+    }
+
+    throw error;
+  }
 
   const supabase = await createClient();
   const appUrl = getCanonicalAppUrl();
@@ -298,22 +291,13 @@ export async function updatePasswordAction(formData: FormData) {
     authRedirect("/auth/update-password", "Adgangskoderne er ikke ens.");
   }
 
-  const cookieStore = await cookies();
-  const authCookies = authCookieNames(cookieStore.getAll());
-  console.info("Password update action received", {
-    authCookieCount: authCookies.length,
-    authCookieNames: authCookies,
-  });
-
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
-    console.info("Password update action failed", authErrorSummary(error));
     authRedirect("/auth/update-password", "Adgangskoden kunne ikke opdateres: " + error.message);
   }
 
-  console.info("Password update action succeeded");
   revalidatePath("/", "layout");
   authRedirect("/auth/login", "Din adgangskode er blevet opdateret.");
 }

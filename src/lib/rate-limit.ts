@@ -51,6 +51,12 @@ const RATE_LIMITS: Record<RateLimitAction, RateLimitConfig> = {
   },
 };
 
+const PASSWORD_RESET_IP_BACKSTOP: RateLimitConfig = {
+  limit: 60,
+  windowSeconds: 15 * 60,
+  blockSeconds: 15 * 60,
+};
+
 const globalForRateLimit = globalThis as typeof globalThis & {
   __souleventsRateLimitStore?: Map<string, MemoryEntry>;
 };
@@ -76,12 +82,34 @@ export function isRateLimitExceededError(error: unknown): error is RateLimitExce
 export async function assertRateLimit(action: RateLimitAction) {
   const config = RATE_LIMITS[action];
   const ip = await getClientIp();
-  const ipHash = hashIp(ip);
+  const ipHash = hashSubject("ip", ip);
 
   const result = await checkPersistentRateLimit(action, ipHash, config);
 
   if (!result.allowed) {
     throw new RateLimitExceededError(result.retryAfterSeconds);
+  }
+}
+
+export async function assertPasswordResetRateLimit(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const emailHash = hashSubject("email", normalizedEmail);
+  const emailResult = await checkPersistentRateLimit(
+    "auth:password-reset:email",
+    emailHash,
+    RATE_LIMITS["auth:password-reset"],
+  );
+
+  if (!emailResult.allowed) {
+    throw new RateLimitExceededError(emailResult.retryAfterSeconds);
+  }
+
+  const ip = await getClientIp();
+  const ipHash = hashSubject("ip", ip);
+  const ipResult = await checkPersistentRateLimit("auth:password-reset:ip", ipHash, PASSWORD_RESET_IP_BACKSTOP);
+
+  if (!ipResult.allowed) {
+    throw new RateLimitExceededError(ipResult.retryAfterSeconds);
   }
 }
 
@@ -98,13 +126,13 @@ async function getClientIp() {
   );
 }
 
-function hashIp(ip: string) {
+function hashSubject(scope: string, value: string) {
   const salt = env.supabaseUrl || "soulevents";
-  return createHash("sha256").update(`${salt}:${ip}`).digest("hex");
+  return createHash("sha256").update(`${salt}:${scope}:${value}`).digest("hex");
 }
 
 async function checkPersistentRateLimit(
-  action: RateLimitAction,
+  action: string,
   ipHash: string,
   config: RateLimitConfig,
 ): Promise<RateLimitResult> {
@@ -145,7 +173,7 @@ async function checkPersistentRateLimit(
 }
 
 function checkMemoryRateLimit(
-  action: RateLimitAction,
+  action: string,
   ipHash: string,
   config: RateLimitConfig,
 ): RateLimitResult {
