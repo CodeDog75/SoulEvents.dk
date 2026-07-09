@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
+import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
 import { activeLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -65,6 +66,10 @@ export async function updateAdminEventStatusAction(formData: FormData) {
     old_value: event.status,
     new_value: status,
   });
+
+  if (status === "active") {
+    await notifyFacilitatorEventReminderSubscribers(event.id);
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/events");

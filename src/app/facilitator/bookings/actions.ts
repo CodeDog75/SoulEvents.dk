@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendParticipantBookingResponse } from "@/lib/email/participant-booking-response";
+import { env } from "@/lib/env";
 import { syncEventCapacityStatus } from "@/lib/events/capacity";
 import { getString } from "@/lib/forms/form-data";
 import { requireRole } from "@/lib/auth/roles";
@@ -10,6 +11,11 @@ import { createClient } from "@/lib/supabase/server";
 import type { BookingStatus } from "@/types/database";
 
 const responseStatuses: BookingStatus[] = ["confirmed", "cancelled"];
+
+function publicEventUrl(eventId: string) {
+  const appUrl = (env.appUrl || "https://www.soulevents.dk").trim().replace(/\/$/, "");
+  return appUrl + "/events/" + eventId;
+}
 
 function bookingsRedirect(message: string, eventId?: string | null): never {
   const params = new URLSearchParams({ message });
@@ -95,6 +101,7 @@ export async function updateBookingStatusAction(formData: FormData) {
     eventTitle: booking.event_title_snapshot,
     eventStartsAt: booking.event_starts_at_snapshot,
     facilitatorName: booking.facilitator_name_snapshot,
+    eventUrl: status === "confirmed" ? publicEventUrl(booking.event_id) : null,
   });
 
   revalidatePath("/facilitator");

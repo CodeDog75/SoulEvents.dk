@@ -12,7 +12,6 @@ type ParticipantBookingReceiptInput = {
 };
 
 const guidelines = [
-  "Din tilmelding er modtaget, men den er ikke en garanti for deltagelse, før arrangøren har bekræftet den.",
   "SoulEvents.dk formidler events mellem deltagere og arrangører og er ikke arrangør af det enkelte event.",
   "SoulEvents.dk kan ikke stilles til ansvar for manglende bekræftelse, manglende svar fra arrangør eller kvaliteten af eventet.",
   "Kontakt arrangøren direkte, hvis du har spørgsmål til praktiske forhold, betaling, ændringer eller aflysning.",
@@ -30,7 +29,8 @@ function buildHtml(input: ParticipantBookingReceiptInput) {
     '<div style="font-family: Arial, sans-serif; color: #17243b; line-height: 1.5;">',
     '<h1 style="font-size: 22px; margin: 0 0 12px;">Vi har modtaget din tilmelding</h1>',
     '<p style="margin: 0 0 16px;">Hej ' + escapeHtml(input.participantName) + '</p>',
-    '<p style="margin: 0 0 20px;">Tak for din tilmelding til ' + escapeHtml(input.eventTitle) + '. Din tilmelding er sendt videre til arrangøren.</p>',
+    '<p style="margin: 0 0 12px;">Tak for din tilmelding til ' + escapeHtml(input.eventTitle) + '.</p>',
+    '<p style="margin: 0 0 20px;">Din tilmelding er modtaget og afventer arrangørens bekræftelse.</p>',
     '<table style="border-collapse: collapse; width: 100%; max-width: 620px; margin-bottom: 22px;"><tbody>',
     rows
       .map(
@@ -57,7 +57,8 @@ function buildText(input: ParticipantBookingReceiptInput) {
     "",
     "Hej " + input.participantName,
     "",
-    "Tak for din tilmelding til " + input.eventTitle + ". Din tilmelding er sendt videre til arrangøren.",
+    "Tak for din tilmelding til " + input.eventTitle + ".",
+    "Din tilmelding er modtaget og afventer arrangørens bekræftelse.",
     "",
     "Event: " + input.eventTitle,
     "Dato: " + formatDate(input.eventStartsAt),

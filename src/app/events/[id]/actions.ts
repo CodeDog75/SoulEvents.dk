@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { sendBookingNotification } from "@/lib/email/booking-notification";
 import { sendParticipantBookingReceipt } from "@/lib/email/participant-booking-receipt";
 import { getAppUrl } from "@/lib/app-url";
+import { env } from "@/lib/env";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -32,6 +33,18 @@ function validEmail(value: string) {
 function validOptionalPhone(value: string | null) {
   if (!value) return true;
   return /^[\d\s]+$/.test(value) && value.replace(/\D/g, "").length === 8;
+}
+
+function bookingAdminAppUrl(origin: string | null) {
+  if (env.appUrl) {
+    return env.appUrl.trim().replace(/\/$/, "");
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    return "https://www.soulevents.dk";
+  }
+
+  return getAppUrl(origin ?? undefined);
 }
 
 const eventSelect = [
@@ -188,7 +201,7 @@ export async function createBookingAction(formData: FormData) {
   }
 
   const requestHeaders = await headers();
-  const appUrl = getAppUrl(requestHeaders.get("origin") ?? undefined);
+  const appUrl = bookingAdminAppUrl(requestHeaders.get("origin"));
   const bookingsUrl = appUrl + "/facilitator/bookings?event=" + encodeURIComponent(event.id);
 
   const [facilitatorMailSent, participantMailSent] = await Promise.all([

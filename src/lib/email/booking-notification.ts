@@ -14,14 +14,12 @@ function buildHtml(input: BookingNotificationInput) {
   const rows = [
     ["Event", input.eventTitle],
     ["Dato", formatDate(input.eventStartsAt)],
-    ["Status", "Afventer din bekræftelse"],
   ];
 
   return `
     <div style="font-family: Arial, sans-serif; color: #17243b; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Ny tilmelding</h1>
-      <p style="margin: 0 0 16px;">Hej ${escapeHtml(input.facilitatorName)}, der er kommet en ny tilmelding til dit event.</p>
-      <p style="margin: 0 0 20px;">Log ind på SoulEvents for at se tilmeldingen og bekræfte den.</p>
+      <h1 style="font-size: 22px; margin: 0 0 12px;">Du har modtaget en ny tilmelding</h1>
+      <p style="margin: 0 0 16px;">Hej ${escapeHtml(input.facilitatorName)}, der er kommet en ny tilmelding til:</p>
       <table style="border-collapse: collapse; width: 100%; max-width: 620px;">
         <tbody>
           ${rows
@@ -36,8 +34,9 @@ function buildHtml(input: BookingNotificationInput) {
             .join("")}
         </tbody>
       </table>
+      <p style="margin: 20px 0 0;">Log ind på SoulEvents for at se tilmeldingen og husk at bekræfte den.</p>
       <p style="margin: 24px 0 0;">
-        <a href="${escapeHtml(input.bookingsUrl)}" style="display: inline-block; border-radius: 999px; background: #4b5645; color: #ffffff; font-weight: 700; padding: 12px 20px; text-decoration: none;">Log ind og behandl tilmeldingen</a>
+        <a href="${escapeHtml(input.bookingsUrl)}" style="display: inline-block; border-radius: 999px; background: #4b5645; color: #ffffff; font-weight: 700; padding: 12px 20px; text-decoration: none;">Se og bekræft tilmelding</a>
       </p>
     </div>
   `;
@@ -45,15 +44,14 @@ function buildHtml(input: BookingNotificationInput) {
 
 function buildText(input: BookingNotificationInput) {
   return [
-    "Ny tilmelding",
+    "Du har modtaget en ny tilmelding",
     "",
-    `Hej ${input.facilitatorName}, der er kommet en ny tilmelding.`,
+    `Hej ${input.facilitatorName}, der er kommet en ny tilmelding til:`,
     "",
     `Event: ${input.eventTitle}`,
     `Dato: ${formatDate(input.eventStartsAt)}`,
-    "Status: Afventer din bekræftelse",
     "",
-    "Log ind på SoulEvents for at se tilmeldingen og bekræfte den:",
+    "Log ind på SoulEvents for at se tilmeldingen og husk at bekræfte den:",
     input.bookingsUrl,
   ].join("\n");
 }
@@ -63,7 +61,7 @@ export async function sendBookingNotification(input: BookingNotificationInput) {
     return false;
   }
 
-  const subject = `Ny tilmelding: ${input.eventTitle}`;
+  const subject = `Ny tilmelding til ${input.eventTitle}`;
   return sendLoggedEmail({
     type: "booking_created_facilitator",
     to: input.facilitatorEmail,

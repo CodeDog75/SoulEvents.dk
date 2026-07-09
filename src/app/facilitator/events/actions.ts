@@ -8,6 +8,7 @@ import {
   formatEventUpdateMoney,
   sendEventUpdateNotifications,
 } from "@/lib/email/event-update-notification";
+import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
@@ -682,6 +683,7 @@ export async function createEventAction(formData: FormData) {
         new_value: "active",
         reason: "auto_approve_events",
       });
+      await notifyFacilitatorEventReminderSubscribers(existingEventId);
       redirect("/facilitator/events?receipt=published&event=" + existingEventId);
     }
 
@@ -788,6 +790,7 @@ export async function createEventAction(formData: FormData) {
       new_value: "active",
       reason: "auto_approve_events",
     });
+    await notifyFacilitatorEventReminderSubscribers(event.id);
     redirect("/facilitator/events?receipt=published&event=" + event.id);
   }
 
@@ -850,6 +853,10 @@ export async function updateEventStatusAction(formData: FormData) {
 
   if (error) {
     facilitatorOverviewRedirect("Eventstatus kunne ikke opdateres.");
+  }
+
+  if (status === "active") {
+    await notifyFacilitatorEventReminderSubscribers(eventId);
   }
 
   revalidatePath("/facilitator");

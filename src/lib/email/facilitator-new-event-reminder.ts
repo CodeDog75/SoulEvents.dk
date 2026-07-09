@@ -29,12 +29,12 @@ function first<T>(value: T | T[] | null | undefined) {
 }
 
 function unsubscribeUrl(token: string) {
-  const appUrl = env.appUrl || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3001";
+  const appUrl = env.appUrl || "https://www.soulevents.dk";
   return appUrl.replace(/\/$/, "") + "/reminders/unsubscribe?token=" + encodeURIComponent(token);
 }
 
 function eventUrl(eventId: string) {
-  const appUrl = env.appUrl || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3001";
+  const appUrl = env.appUrl || "https://www.soulevents.dk";
   return appUrl.replace(/\/$/, "") + "/events/" + eventId;
 }
 

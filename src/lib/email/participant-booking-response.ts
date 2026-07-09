@@ -10,6 +10,7 @@ type ParticipantBookingResponseInput = {
   eventTitle: string;
   eventStartsAt: string;
   facilitatorName: string;
+  eventUrl?: string | null;
 };
 
 const statusText: Partial<Record<BookingStatus, { subject: string; headline: string; body: string }>> = {
@@ -24,9 +25,9 @@ const statusText: Partial<Record<BookingStatus, { subject: string; headline: str
     body: "Arrangøren har markeret arrangementet som udsolgt.",
   },
   cancelled: {
-    subject: "Arrangementet er aflyst",
-    headline: "Arrangementet er aflyst",
-    body: "Arrangøren har aflyst arrangementet.",
+    subject: "Din tilmelding er blevet annulleret",
+    headline: "Din tilmelding er blevet annulleret",
+    body: "Arrangøren har annulleret din tilmelding. Eventet er ikke nødvendigvis aflyst.",
   },
 };
 
@@ -54,6 +55,11 @@ function buildHtml(input: ParticipantBookingResponseInput) {
           </tr>
         </tbody>
       </table>
+      ${
+        input.status === "confirmed" && input.eventUrl
+          ? `<p style="margin: 24px 0 0;"><a href="${escapeHtml(input.eventUrl)}" style="display: inline-block; border-radius: 999px; background: #4b5645; color: #ffffff; font-weight: 700; padding: 12px 20px; text-decoration: none;">Se eventet</a></p>`
+          : ""
+      }
     </div>
   `;
 }
@@ -70,6 +76,7 @@ function buildText(input: ParticipantBookingResponseInput) {
     `Event: ${input.eventTitle}`,
     `Dato: ${formatDate(input.eventStartsAt)}`,
     `Arrangør: ${input.facilitatorName}`,
+    input.status === "confirmed" && input.eventUrl ? `Eventlink: ${input.eventUrl}` : "",
   ].join("\n");
 }
 
