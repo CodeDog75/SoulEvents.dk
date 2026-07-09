@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink } from "lucide-react";
 
 export type PartnerAd = {
@@ -37,35 +37,68 @@ function isExternalUrl(url: string | null) {
 function AdMedia({
   altText,
   className,
+  shouldLoad,
   url,
 }: {
   altText: string;
   className: string;
+  shouldLoad: boolean;
   url: string | null;
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const hasMediaError = Boolean(url && failedUrl === url);
 
-  if (!url || hasMediaError) {
+  if (!shouldLoad || !url || hasMediaError) {
     return <div className="h-full w-full bg-gradient-to-br from-[#2F2633] via-[#7A4EAB] to-[#D8A7B1]" />;
   }
 
   if (isVideoAd(url)) {
-    return <video autoPlay className={className} loop muted onError={() => setFailedUrl(url)} playsInline src={url} />;
+    return <video autoPlay className={className} loop muted onError={() => setFailedUrl(url)} playsInline preload="metadata" src={url} />;
   }
 
   // eslint-disable-next-line @next/next/no-img-element
-  return <img alt={altText} className={className} onError={() => setFailedUrl(url)} src={url} />;
+  return <img alt={altText} className={className} decoding="async" loading="lazy" onError={() => setFailedUrl(url)} src={url} />;
 }
 
 export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProps) {
+  const sectionRef = useRef<HTMLElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [fadingIndex, setFadingIndex] = useState<number | null>(null);
+  const [isDesktopMedia, setIsDesktopMedia] = useState<boolean | null>(null);
+  const [shouldLoadMedia, setShouldLoadMedia] = useState(false);
   const [paused, setPaused] = useState(false);
   const visibleAds = useMemo(() => ads, [ads]);
   const safeActiveIndex = visibleAds.length > 0 ? activeIndex % visibleAds.length : 0;
   const safeFadingIndex = fadingIndex === null || visibleAds.length === 0 ? null : fadingIndex % visibleAds.length;
   const activeAd = visibleAds[safeActiveIndex] ?? visibleAds[0];
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1024px)");
+    const updateMediaVariant = () => setIsDesktopMedia(query.matches);
+
+    updateMediaVariant();
+    query.addEventListener("change", updateMediaVariant);
+
+    return () => query.removeEventListener("change", updateMediaVariant);
+  }, []);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || shouldLoadMedia) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldLoadMedia(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "600px 0px" },
+    );
+
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, [shouldLoadMedia]);
 
   useEffect(() => {
     if (paused || visibleAds.length <= 1 || !activeAd) return;
@@ -104,9 +137,10 @@ export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProp
           if (!ad) return null;
           const isActive = index === safeActiveIndex;
           const mobileMediaUrl = ad.mobileImageUrl || ad.imageUrl;
-          const mobileMediaClass = ad.mobileImageUrl
-            ? "h-full w-full object-cover object-center"
-            : "h-full w-full object-contain object-center";
+          const mediaUrl = isDesktopMedia ? ad.imageUrl : mobileMediaUrl;
+          const mediaClass = !isDesktopMedia && !ad.mobileImageUrl
+            ? "h-full w-full object-contain object-center"
+            : "h-full w-full object-cover object-center";
 
           return (
             <div
@@ -114,11 +148,8 @@ export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProp
               className={"absolute inset-0 transition-opacity duration-1000 ease-in-out " + (isActive ? "opacity-100" : "opacity-0")}
               key={ad.id}
             >
-              <div className="absolute inset-0 lg:hidden">
-                <AdMedia altText={ad.altText} className={mobileMediaClass} url={mobileMediaUrl} />
-              </div>
-              <div className="absolute inset-0 hidden lg:block">
-                <AdMedia altText={ad.altText} className="h-full w-full object-cover object-center" url={ad.imageUrl} />
+              <div className="absolute inset-0">
+                <AdMedia altText={ad.altText} className={mediaClass} shouldLoad={shouldLoadMedia && isDesktopMedia !== null} url={mediaUrl} />
               </div>
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#2F2633]/48 via-transparent to-transparent lg:bg-gradient-to-r lg:from-[#2F2633]/62 lg:via-[#2F2633]/18 lg:to-transparent" />
               <div className="absolute inset-x-0 bottom-0 px-5 pb-4 pt-12 sm:p-7">
@@ -156,7 +187,7 @@ export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProp
   );
 
   return (
-    <section className={className} aria-label="Partnerindhold fra SoulEvents.dk">
+    <section className={className} aria-label="Partnerindhold fra SoulEvents.dk" ref={sectionRef}>
       {activeAd.targetUrl ? (
         <a aria-label={"Se partnerindhold: " + activeAd.title} href={"/ads/" + activeAd.id + "/click"} rel={opensInNewTab ? "noopener noreferrer" : undefined} target={opensInNewTab ? "_blank" : undefined}>
           {content}

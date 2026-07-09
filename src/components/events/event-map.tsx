@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import mapboxgl from "mapbox-gl";
+import type { GeoJSONSource, Map as MapboxMap } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { CalendarDays, HeartHandshake, MapPinned } from "lucide-react";
 
@@ -280,7 +280,7 @@ function mapHeaderText(mode: MapViewMode) {
   };
 }
 
-function setMapLayerVisibility(map: mapboxgl.Map, mode: MapViewMode) {
+function setMapLayerVisibility(map: MapboxMap, mode: MapViewMode) {
   const eventVisibility = mode === "events" ? "visible" : "none";
   const providerVisibility = mode === "providers" ? "visible" : "none";
 
@@ -297,9 +297,10 @@ function setMapLayerVisibility(map: mapboxgl.Map, mode: MapViewMode) {
 
 export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders = [] }: EventMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const mapRef = useRef<MapboxMap | null>(null);
   const viewModeRef = useRef<MapViewMode>("events");
   const [mapError, setMapError] = useState("");
+  const [shouldLoadMap, setShouldLoadMap] = useState(false);
   const [viewMode, setViewMode] = useState<MapViewMode>("events");
 
   const eventGroups = useMemo(() => groupEventsByLocation(events), [events]);
@@ -336,20 +337,47 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
   }, []);
 
   useEffect(() => {
-    if (!containerRef.current || !mapboxToken || !hasAnyMarkers) return;
+    const container = containerRef.current;
+    if (!container || shouldLoadMap || !mapboxToken || !hasAnyMarkers) return;
 
-    mapboxgl.accessToken = mapboxToken;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShouldLoadMap(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "700px 0px" },
+    );
 
-    const map = new mapboxgl.Map({
-      container: containerRef.current,
-      style: mapboxStyleUrl || "mapbox://styles/mapbox/light-v11",
-      center: [10.2, 56.1],
-      zoom: 5.9,
-      cooperativeGestures: true,
-    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [hasAnyMarkers, mapboxToken, shouldLoadMap]);
 
-    mapRef.current = map;
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "top-right");
+  useEffect(() => {
+    let cancelled = false;
+    let loadedMap: MapboxMap | null = null;
+
+    async function loadMap() {
+      if (!containerRef.current || !mapboxToken || !hasAnyMarkers || !shouldLoadMap) return;
+
+      const mapboxgl = (await import("mapbox-gl")).default;
+
+      if (cancelled || !containerRef.current) return;
+
+      mapboxgl.accessToken = mapboxToken;
+
+      const map = new mapboxgl.Map({
+        container: containerRef.current,
+        style: mapboxStyleUrl || "mapbox://styles/mapbox/light-v11",
+        center: [10.2, 56.1],
+        zoom: 5.9,
+        cooperativeGestures: true,
+      });
+
+      loadedMap = map;
+      mapRef.current = map;
+      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "top-right");
 
     const features = eventGroups.map((group) => ({
       type: "Feature" as const,
@@ -473,7 +501,7 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
           const featuresAtClick = map.queryRenderedFeatures(event.point, { layers: ["event-clusters"] });
           const clickedFeature = featuresAtClick[0];
           const clusterId = clickedFeature?.properties?.cluster_id;
-          const source = map.getSource("events") as mapboxgl.GeoJSONSource;
+          const source = map.getSource("events") as GeoJSONSource;
           if (clusterId === undefined) return;
 
           source.getClusterExpansionZoom(clusterId, (error, zoom) => {
@@ -567,11 +595,18 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
       setMapError("Kortet kunne ikke indlæses. Tjek Mapbox-token.");
     });
 
+    }
+
+    loadMap().catch(() => {
+      setMapError("Kortet kunne ikke indlæses. Tjek Mapbox-token.");
+    });
+
     return () => {
-      map.remove();
+      cancelled = true;
+      loadedMap?.remove();
       mapRef.current = null;
     };
-  }, [mapboxToken, mapboxStyleUrl, hasAnyMarkers, eventGroups, localServiceProviders]);
+  }, [mapboxToken, mapboxStyleUrl, hasAnyMarkers, shouldLoadMap, eventGroups, localServiceProviders]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -675,7 +710,14 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
         </div>
         {mapError && <p className="mt-2 text-sm font-semibold text-terracotta">{mapError}</p>}
       </div>
-      <div className="h-[58vh] min-h-[360px] w-full sm:h-[62vh] sm:min-h-[440px]" ref={containerRef} />
+      <div className="grid h-[58vh] min-h-[360px] w-full place-items-center bg-sage-50/70 sm:h-[62vh] sm:min-h-[440px]" ref={containerRef}>
+        {!shouldLoadMap && (
+          <div className="px-5 text-center">
+            <MapPinned className="mx-auto size-8 text-sage-700" aria-hidden="true" />
+            <p className="mt-3 text-sm font-semibold text-olive">Kortet indlæses, når du nærmer dig sektionen.</p>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
