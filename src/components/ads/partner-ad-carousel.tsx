@@ -43,16 +43,19 @@ function AdMedia({
   className: string;
   url: string | null;
 }) {
-  if (!url) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const hasMediaError = Boolean(url && failedUrl === url);
+
+  if (!url || hasMediaError) {
     return <div className="h-full w-full bg-gradient-to-br from-[#2F2633] via-[#7A4EAB] to-[#D8A7B1]" />;
   }
 
   if (isVideoAd(url)) {
-    return <video autoPlay className={className} loop muted playsInline src={url} />;
+    return <video autoPlay className={className} loop muted onError={() => setFailedUrl(url)} playsInline src={url} />;
   }
 
   // eslint-disable-next-line @next/next/no-img-element
-  return <img alt={altText} className={className} src={url} />;
+  return <img alt={altText} className={className} onError={() => setFailedUrl(url)} src={url} />;
 }
 
 export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProps) {

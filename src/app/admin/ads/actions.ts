@@ -131,6 +131,20 @@ async function uploadAdMedia(
   return imagePath;
 }
 
+async function removeReplacedAdMedia(currentPath: string | null, nextPath: string | null) {
+  if (!currentPath || !nextPath || currentPath === nextPath) return;
+  if (/^https?:\/\//i.test(currentPath)) return;
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.storage.from("media").remove([currentPath]);
+  if (error) {
+    console.warn("Old ad media could not be removed", {
+      message: error.message,
+      path: currentPath,
+    });
+  }
+}
+
 export async function upsertAdAction(formData: FormData) {
   await requireRole("admin");
 
@@ -230,6 +244,11 @@ export async function upsertAdAction(formData: FormData) {
   }
 
   const adId = result.data.id;
+  await Promise.all([
+    removeReplacedAdMedia(currentImagePath || null, imagePath),
+    removeReplacedAdMedia(currentMobileImagePath || null, mobileImagePath),
+  ]);
+
   await supabase.from("ad_main_categories").delete().eq("ad_id", adId);
   if (showOnCategoryPages && categoryIds.length > 0) {
     const rows = categoryIds.map((mainCategoryId) => ({ ad_id: adId, main_category_id: mainCategoryId }));

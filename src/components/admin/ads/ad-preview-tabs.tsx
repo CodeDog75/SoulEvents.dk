@@ -46,7 +46,10 @@ function PreviewMedia({
   path?: string | null;
   url?: string | null;
 }) {
-  if (!url) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const hasMediaError = Boolean(url && failedUrl === url);
+
+  if (!url || hasMediaError) {
     return (
       <div className={className + " grid place-items-center bg-gradient-to-br from-[#2F2633] via-[#7A4EAB] to-[#D8A7B1] px-6 text-center text-sm font-semibold text-white"}>
         Upload banner for at se preview
@@ -55,11 +58,11 @@ function PreviewMedia({
   }
 
   if (isVideoMedia(path, mediaType)) {
-    return <video autoPlay className={className} loop muted playsInline src={url} />;
+    return <video autoPlay className={className} loop muted onError={() => setFailedUrl(url)} playsInline src={url} />;
   }
 
   // eslint-disable-next-line @next/next/no-img-element
-  return <img alt={altText} className={className} src={url} />;
+  return <img alt={altText} className={className} onError={() => setFailedUrl(url)} src={url} />;
 }
 
 export function AdPreviewTabs({
