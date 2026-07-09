@@ -3,8 +3,8 @@
 import { Camera, CheckCircle2, CircleAlert, CircleDashed, Info, Link2, Save, X } from "lucide-react";
 import Link from "next/link";
 import type { FormEvent } from "react";
-import { useId, useState } from "react";
-import { updateFacilitatorProfileAction } from "@/app/facilitator/profile/actions";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { autosaveFacilitatorProfileAction, updateFacilitatorProfileAction } from "@/app/facilitator/profile/actions";
 import { ProfileImageManager } from "@/components/facilitator/profile-image-manager";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
 
@@ -298,7 +298,19 @@ export function ProfileForm({
   const [selectedServiceTitles, setSelectedServiceTitles] = useState(selectedServiceTitleIds);
   const [serviceDescription, setServiceDescription] = useState(value(facilitatorProfile.service_description));
   const [serviceOtherTitle, setServiceOtherTitle] = useState(value(facilitatorProfile.service_other_title));
+  const [showInLocalServiceResults, setShowInLocalServiceResults] = useState(Boolean(facilitatorProfile.show_in_local_service_results));
   const [highlightedMissingKey, setHighlightedMissingKey] = useState("");
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const autosaveTimerRef = useRef<number | null>(null);
+  const autosaveQueueRef = useRef(Promise.resolve());
+  const dirtySectionsRef = useRef<Set<ProfileFormSection>>(new Set());
+  const hasMountedAutosaveRef = useRef(false);
+  const autosaveInFlightRef = useRef(false);
+  const lastAutosaveFailedRef = useRef(false);
+  const skipSubmitAutosaveRef = useRef(false);
+  const saveSequenceRef = useRef(0);
+  const [autosaveStatus, setAutosaveStatus] = useState<"error" | "idle" | "saved" | "saving">("idle");
+  const [autosaveMessage, setAutosaveMessage] = useState("");
   const currentOrigin = typeof window === "undefined" ? "" : window.location.origin;
   const fullNameComplete = Boolean(fullName.trim());
   const companyNameComplete = Boolean(companyName.trim());
@@ -352,14 +364,233 @@ export function ProfileForm({
     return highlightedMissingKey === key ? "ring-4 ring-[#D89A94]/35" : "";
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  const buildAutosaveInput = useCallback(
+    (section: ProfileFormSection): Parameters<typeof autosaveFacilitatorProfileAction>[0] => {
+      if (section === "contact") {
+        return {
+          section,
+          values: {
+            company_name: companyName,
+            full_name: fullName,
+            long_description: longDescription,
+            phone,
+            short_description: shortDescription,
+          },
+        };
+      }
+
+      if (section === "location") {
+        return {
+          section,
+          values: {
+            address_line: addressLine,
+            city,
+            postal_code: postalCode,
+          },
+        };
+      }
+
+      if (section === "social") {
+        return {
+          section,
+          values: {
+            facebook_url: facebookUrl,
+            instagram_url: instagramUrl,
+            website_url: websiteUrl,
+          },
+        };
+      }
+
+      if (section === "categories") {
+        return { section, values: { category_ids: selectedCategories } };
+      }
+
+      if (section === "services") {
+        return {
+          section,
+          values: {
+            offers_services: offersServices,
+            service_description: serviceDescription,
+            service_other_title: serviceOtherTitle,
+            service_title_ids: selectedServiceTitles,
+            show_in_local_service_results: showInLocalServiceResults,
+          },
+        };
+      }
+
+      return { section, values: {} };
+    },
+    [
+      addressLine,
+      city,
+      companyName,
+      facebookUrl,
+      fullName,
+      instagramUrl,
+      longDescription,
+      offersServices,
+      phone,
+      postalCode,
+      selectedCategories,
+      selectedServiceTitles,
+      serviceDescription,
+      serviceOtherTitle,
+      shortDescription,
+      showInLocalServiceResults,
+      websiteUrl,
+    ],
+  );
+
+  const flushAutosaveNow = useCallback(
+    async (sections?: ProfileFormSection[]) => {
+      const sectionsToSave = sections ?? [...dirtySectionsRef.current];
+
+      if (sectionsToSave.length === 0) {
+        if (autosaveInFlightRef.current) {
+          await autosaveQueueRef.current;
+          return !lastAutosaveFailedRef.current;
+        }
+
+        return true;
+      }
+
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+
+      sectionsToSave.forEach((section) => dirtySectionsRef.current.delete(section));
+      const saveSequence = saveSequenceRef.current + 1;
+      saveSequenceRef.current = saveSequence;
+      autosaveInFlightRef.current = true;
+      lastAutosaveFailedRef.current = false;
+      setAutosaveStatus("saving");
+      setAutosaveMessage("Gemmer...");
+
+      const saveTask = autosaveQueueRef.current.then(async () => {
+        for (const section of sectionsToSave) {
+          const result = await autosaveFacilitatorProfileAction(buildAutosaveInput(section));
+
+          if (!result.ok) {
+            throw new Error(result.message);
+          }
+        }
+      });
+
+      const trackedSaveTask = saveTask.catch(() => undefined);
+      autosaveQueueRef.current = trackedSaveTask;
+
+      try {
+        await saveTask;
+
+        if (autosaveQueueRef.current === trackedSaveTask) {
+          autosaveInFlightRef.current = false;
+        }
+
+        if (saveSequenceRef.current === saveSequence) {
+          setAutosaveStatus("saved");
+          setAutosaveMessage("Gemt");
+        }
+
+        return true;
+      } catch (error) {
+        if (autosaveQueueRef.current === trackedSaveTask) {
+          autosaveInFlightRef.current = false;
+        }
+
+        lastAutosaveFailedRef.current = true;
+
+        if (saveSequenceRef.current === saveSequence) {
+          setAutosaveStatus("error");
+          setAutosaveMessage(error instanceof Error ? error.message : "Profilen kunne ikke gemmes automatisk.");
+        }
+
+        sectionsToSave.forEach((section) => dirtySectionsRef.current.add(section));
+        return false;
+      }
+    },
+    [buildAutosaveInput],
+  );
+
+  const markSectionDirty = useCallback(
+    (section: ProfileFormSection) => {
+      dirtySectionsRef.current.add(section);
+      setAutosaveStatus("idle");
+      setAutosaveMessage("");
+
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+      }
+
+      autosaveTimerRef.current = window.setTimeout(() => {
+        void flushAutosaveNow();
+      }, 1000);
+    },
+    [flushAutosaveNow],
+  );
+
+  function handleFormBlur() {
+    void flushAutosaveNow();
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+
+    if (skipSubmitAutosaveRef.current) {
+      skipSubmitAutosaveRef.current = false;
+      return;
+    }
 
     if (submitter?.value === "all" && missingProfileItems.length > 0) {
       event.preventDefault();
       guideToMissingProfileItem(missingProfileItems[0]);
+      return;
+    }
+
+    event.preventDefault();
+
+    const didSave = await flushAutosaveNow();
+
+    if (didSave) {
+      skipSubmitAutosaveRef.current = true;
+      formRef.current?.requestSubmit(submitter ?? undefined);
     }
   }
+
+  useEffect(() => {
+    if (!hasMountedAutosaveRef.current) return;
+    markSectionDirty("contact");
+  }, [companyName, fullName, longDescription, markSectionDirty, phone, shortDescription]);
+
+  useEffect(() => {
+    if (!hasMountedAutosaveRef.current) return;
+    markSectionDirty("location");
+  }, [addressLine, city, markSectionDirty, postalCode]);
+
+  useEffect(() => {
+    if (!hasMountedAutosaveRef.current) return;
+    markSectionDirty("social");
+  }, [facebookUrl, instagramUrl, markSectionDirty, websiteUrl]);
+
+  useEffect(() => {
+    if (!hasMountedAutosaveRef.current) return;
+    markSectionDirty("categories");
+  }, [markSectionDirty, selectedCategories]);
+
+  useEffect(() => {
+    if (!hasMountedAutosaveRef.current) return;
+    markSectionDirty("services");
+  }, [markSectionDirty, offersServices, selectedServiceTitles, serviceDescription, serviceOtherTitle, showInLocalServiceResults]);
+
+  useEffect(() => {
+    hasMountedAutosaveRef.current = true;
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, []);
 
   async function fetchPostalCodeCity(normalizedPostalCode: string) {
     try {
@@ -394,7 +625,15 @@ export function ProfileForm({
   }
 
   return (
-    <form action={updateFacilitatorProfileAction} autoComplete="off" className="grid gap-6" noValidate onSubmit={handleSubmit}>
+    <form
+      action={updateFacilitatorProfileAction}
+      autoComplete="off"
+      className="grid gap-6"
+      noValidate
+      onBlurCapture={handleFormBlur}
+      onSubmit={handleSubmit}
+      ref={formRef}
+    >
       <input name="current_origin" suppressHydrationWarning type="hidden" value={currentOrigin} />
       <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
         <div className="flex items-center justify-between gap-4">
@@ -870,8 +1109,9 @@ export function ProfileForm({
             <label className="flex items-start gap-3 rounded-md border border-midnight/10 bg-white p-4 text-sm font-semibold text-midnight">
               <input
                 className="mt-1 size-4 accent-[#7A4EAB]"
-                defaultChecked={Boolean(facilitatorProfile.show_in_local_service_results)}
+                checked={showInLocalServiceResults}
                 name="show_in_local_service_results"
+                onChange={(event) => setShowInLocalServiceResults(event.target.checked)}
                 type="checkbox"
               />
               <span>
@@ -934,9 +1174,24 @@ export function ProfileForm({
         )}
 
         <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
-          <p className="max-w-2xl text-sm leading-6 text-ink/64">
-            Når du er færdig, kan du gemme hele profilen samlet her.
-          </p>
+          <div className="grid max-w-2xl gap-1">
+            <p className="text-sm leading-6 text-ink/64">
+              Når du er færdig, kan du gemme hele profilen samlet her.
+            </p>
+            {autosaveMessage ? (
+              <p
+                className={
+                  autosaveStatus === "error"
+                    ? "text-sm font-semibold text-red-700"
+                    : autosaveStatus === "saving"
+                      ? "text-sm font-semibold text-[#7A5D91]"
+                      : "text-sm font-semibold text-sage-700"
+                }
+              >
+                {autosaveMessage}
+              </p>
+            ) : null}
+          </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Link
               className="inline-flex h-11 items-center justify-center rounded-md border border-midnight/15 bg-white px-5 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"

@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ImagePlus, Pencil, Repeat2, Trash2, Upload } from "lucide-react";
-import { type ChangeEvent, type ReactNode, type Ref, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, type PointerEvent, type ReactNode, type Ref, type TouchEvent, useEffect, useRef, useState } from "react";
 import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
 
 type GalleryImage = {
@@ -247,6 +247,16 @@ function SmallActionButton({
 export function ProfileImageManager({ galleryImages, profileImagePath }: ProfileImageManagerProps) {
   const profileInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const cropDragRef = useRef<{
+    cropX: number;
+    cropY: number;
+    height: number;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    width: number;
+  } | null>(null);
+  const cropPinchRef = useRef<{ distance: number; zoom: number } | null>(null);
   const [profileCrop, setProfileCrop] = useState<ProfileCropState | null>(null);
   const [profileSlot, setProfileSlot] = useState<ImageSlot>({
     file: null,
@@ -361,6 +371,108 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
     }
   }
 
+  function getSquareCropPreview(crop: ProfileCropState) {
+    const area = getSquareCropArea(crop);
+    const scale = 900 / area.size;
+
+    return {
+      height: crop.naturalHeight * scale,
+      width: crop.naturalWidth * scale,
+      x: -area.sourceX * scale,
+      y: -area.sourceY * scale,
+    };
+  }
+
+  function updateProfileCropZoom(direction: "in" | "out") {
+    setProfileCrop((current) => {
+      if (!current) return current;
+      const nextZoom = direction === "in" ? current.zoom + 0.15 : current.zoom - 0.15;
+      return { ...current, zoom: Math.min(Math.max(nextZoom, 1), 3) };
+    });
+  }
+
+  function startProfileCropDrag(event: PointerEvent<HTMLDivElement>) {
+    if (!profileCrop) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    cropDragRef.current = {
+      cropX: profileCrop.cropX,
+      cropY: profileCrop.cropY,
+      height: rect.height,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      width: rect.width,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveProfileCrop(event: PointerEvent<HTMLDivElement>) {
+    const drag = cropDragRef.current;
+
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    const nextCropX = Math.min(Math.max(drag.cropX - (deltaX / drag.width) * 100, 0), 100);
+    const nextCropY = Math.min(Math.max(drag.cropY - (deltaY / drag.height) * 100, 0), 100);
+
+    setProfileCrop((current) => (current ? { ...current, cropX: nextCropX, cropY: nextCropY } : current));
+  }
+
+  function stopProfileCropDrag(event: PointerEvent<HTMLDivElement>) {
+    if (cropDragRef.current?.pointerId === event.pointerId) {
+      cropDragRef.current = null;
+    }
+  }
+
+  function getTouchDistance(touches: TouchEvent<HTMLDivElement>["touches"]) {
+    const firstTouch = touches[0];
+    const secondTouch = touches[1];
+
+    if (!firstTouch || !secondTouch) {
+      return 0;
+    }
+
+    return Math.hypot(firstTouch.clientX - secondTouch.clientX, firstTouch.clientY - secondTouch.clientY);
+  }
+
+  function startProfileCropPinch(event: TouchEvent<HTMLDivElement>) {
+    if (!profileCrop || event.touches.length !== 2) {
+      cropPinchRef.current = null;
+      return;
+    }
+
+    cropPinchRef.current = { distance: getTouchDistance(event.touches), zoom: profileCrop.zoom };
+  }
+
+  function moveProfileCropPinch(event: TouchEvent<HTMLDivElement>) {
+    const pinch = cropPinchRef.current;
+
+    if (!pinch || event.touches.length !== 2 || pinch.distance <= 0) {
+      return;
+    }
+
+    event.preventDefault();
+    const nextDistance = getTouchDistance(event.touches);
+    const nextZoom = Math.min(Math.max(pinch.zoom * (nextDistance / pinch.distance), 1), 3);
+    setProfileCrop((current) => (current ? { ...current, zoom: nextZoom } : current));
+  }
+
+  function stopProfileCropPinch() {
+    cropPinchRef.current = null;
+  }
+
+  function closeProfileCrop() {
+    if (profileCrop?.sourceUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(profileCrop.sourceUrl);
+    }
+
+    setProfileCrop(null);
+  }
+
   async function applyProfileCrop() {
     if (!profileCrop) {
       return;
@@ -396,7 +508,7 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
     const croppedFile = new File([blob], croppedFileName, { type: "image/jpeg" });
     const previewUrl = URL.createObjectURL(croppedFile);
     setProfileSlot((current) => ({ ...current, file: croppedFile, fileName: croppedFile.name, message: "", path: "", previewUrl }));
-    setProfileCrop(null);
+    closeProfileCrop();
   }
 
   return (
@@ -505,72 +617,85 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
       })}
       {profileCrop ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-midnight/45 p-4">
-          <div className="w-full max-w-md rounded-[22px] bg-white p-5 shadow-lift">
+          <div className="w-full max-w-2xl rounded-[22px] bg-white p-5 shadow-lift">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold text-midnight">Rediger profilbillede</h3>
-                <p className="mt-1 text-sm leading-6 text-ink/60">Juster beskæringen og gem billedet.</p>
+                <p className="mt-1 text-sm leading-6 text-ink/60">Træk i billedet for at flytte udsnittet.</p>
               </div>
-              <button className="rounded-full p-2 text-ink/50 transition hover:bg-sage-50 hover:text-midnight" onClick={() => setProfileCrop(null)} type="button">
+              <button className="rounded-full p-2 text-ink/50 transition hover:bg-sage-50 hover:text-midnight" onClick={closeProfileCrop} type="button">
                 Luk
               </button>
             </div>
 
-            <div className="mt-4 overflow-hidden rounded-[18px] border border-midnight/10 bg-sage-50">
-              <div className="aspect-square overflow-hidden">
-                <img
-                  alt="Forhåndsvisning af beskåret profilbillede"
-                  className="h-full w-full object-cover"
-                  src={profileCrop.sourceUrl}
-                  style={{
-                    objectPosition: `${profileCrop.cropX}% ${profileCrop.cropY}%`,
-                    transform: `scale(${profileCrop.zoom})`,
-                  }}
-                />
+            <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_14rem]">
+              <div
+                className="relative aspect-square touch-none cursor-grab overflow-hidden rounded-[18px] border-4 border-[#D8CBE4] bg-[#F4F0F7] active:cursor-grabbing"
+                onPointerCancel={stopProfileCropDrag}
+                onPointerDown={startProfileCropDrag}
+                onPointerMove={moveProfileCrop}
+                onPointerUp={stopProfileCropDrag}
+                onTouchCancel={stopProfileCropPinch}
+                onTouchEnd={stopProfileCropPinch}
+                onTouchMove={moveProfileCropPinch}
+                onTouchStart={startProfileCropPinch}
+              >
+                {(() => {
+                  const preview = getSquareCropPreview(profileCrop);
+
+                  return (
+                    <svg
+                      aria-label="Beskæring af profilbillede"
+                      className="absolute inset-0 size-full"
+                      preserveAspectRatio="none"
+                      role="img"
+                      viewBox="0 0 900 900"
+                    >
+                      <image
+                        height={preview.height}
+                        href={profileCrop.sourceUrl}
+                        preserveAspectRatio="none"
+                        width={preview.width}
+                        x={preview.x}
+                        y={preview.y}
+                      />
+                    </svg>
+                  );
+                })()}
+                <div className="pointer-events-none absolute inset-0 rounded-[14px] ring-2 ring-inset ring-white/80" />
               </div>
-            </div>
 
-            <div className="mt-4 grid gap-3 text-sm font-semibold text-ink/70">
-              <label className="grid gap-2">
-                Zoom
-                <input
-                  max="2"
-                  min="1"
-                  onChange={(event) => setProfileCrop((current) => (current ? { ...current, zoom: Number(event.target.value) } : current))}
-                  step="0.05"
-                  type="range"
-                  value={profileCrop.zoom}
-                />
-              </label>
-              <label className="grid gap-2">
-                Vandret placering
-                <input
-                  max="100"
-                  min="0"
-                  onChange={(event) => setProfileCrop((current) => (current ? { ...current, cropX: Number(event.target.value) } : current))}
-                  type="range"
-                  value={profileCrop.cropX}
-                />
-              </label>
-              <label className="grid gap-2">
-                Lodret placering
-                <input
-                  max="100"
-                  min="0"
-                  onChange={(event) => setProfileCrop((current) => (current ? { ...current, cropY: Number(event.target.value) } : current))}
-                  type="range"
-                  value={profileCrop.cropY}
-                />
-              </label>
-            </div>
+              <div className="grid content-start gap-4 rounded-[18px] bg-[#FAF6EF] p-4">
+                <div>
+                  <p className="text-sm font-semibold text-midnight">Zoom</p>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <button
+                      className="inline-flex h-12 items-center justify-center rounded-md border border-[#D8CBE4] bg-white text-2xl font-semibold text-[#7A5D91]"
+                      onClick={() => updateProfileCropZoom("out")}
+                      type="button"
+                    >
+                      {"−"}
+                    </button>
+                    <button
+                      className="inline-flex h-12 items-center justify-center rounded-md border border-[#D8CBE4] bg-white text-2xl font-semibold text-[#7A5D91]"
+                      onClick={() => updateProfileCropZoom("in")}
+                      type="button"
+                    >
+                      {"+"}
+                    </button>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-ink/64">Træk med musen eller fingeren for at placere billedet.</p>
+                </div>
 
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <button className="h-10 rounded-md border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight" onClick={() => setProfileCrop(null)} type="button">
-                Fortryd
-              </button>
-              <button className="h-10 rounded-md bg-olive px-4 text-sm font-semibold text-white" onClick={applyProfileCrop} type="button">
-                Gem beskæring
-              </button>
+                <div className="grid gap-3 pt-2">
+                  <button className="h-10 rounded-md bg-olive px-4 text-sm font-semibold text-white" onClick={applyProfileCrop} type="button">
+                    Gem beskæring
+                  </button>
+                  <button className="h-10 rounded-md border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight" onClick={closeProfileCrop} type="button">
+                    Fortryd
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

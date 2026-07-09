@@ -35,6 +35,11 @@ const editableProfileSections = ["contact", "location", "social", "images", "cat
 type EditableProfileSection = (typeof editableProfileSections)[number];
 type ProfileSection = EditableProfileSection | "all";
 
+type ProfileAutosaveInput = {
+  section: EditableProfileSection;
+  values: Record<string, boolean | string | string[] | null>;
+};
+
 function isEditableProfileSection(value: string | null | undefined): value is EditableProfileSection {
   return editableProfileSections.includes(value as EditableProfileSection);
 }
@@ -154,6 +159,190 @@ async function notifyAdminsIfReady(input: {
       }),
     ),
   );
+}
+
+export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInput) {
+  const profile = await requireRole("facilitator");
+  const supabase = createAdminClient();
+  const section = isEditableProfileSection(input.section) ? input.section : null;
+
+  if (!section) {
+    return { message: "Profilafsnittet kunne ikke genkendes.", ok: false };
+  }
+
+  const { data: existingProfile, error: existingProfileError } = await supabase
+    .from("facilitator_profiles")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .single();
+
+  if (existingProfileError || !existingProfile) {
+    return { message: "Arrangørprofilen kunne ikke hentes.", ok: false };
+  }
+
+  const facilitatorId = existingProfile.id as string;
+  const updates: Record<string, boolean | number | string | null> = {};
+
+  if (section === "contact") {
+    const fullName = valueForAutosave(input.values.full_name);
+    const phone = valueForAutosave(input.values.phone);
+    const companyName = valueForAutosave(input.values.company_name);
+    const shortDescription = valueForAutosave(input.values.short_description);
+    const longDescription = valueForAutosave(input.values.long_description);
+
+    if (fullName.length > 80 || companyName.length > 100 || shortDescription.length > 300 || longDescription.length > 2000) {
+      return { message: "Et felt er længere end tilladt.", ok: false };
+    }
+
+    if (phone && !isValidPhoneNumber(phone)) {
+      return { message: "Telefonnummer skal bestå af præcis 8 tal.", ok: false };
+    }
+
+    const { error: profileError } = await supabase.from("profiles").update({ full_name: fullName, phone }).eq("id", profile.id);
+
+    if (profileError) {
+      return { message: "Kontaktoplysningerne kunne ikke gemmes.", ok: false };
+    }
+
+    updates.company_name = companyName;
+    updates.long_description = longDescription;
+    updates.short_description = shortDescription;
+  }
+
+  if (section === "location") {
+    const addressLine = valueForAutosave(input.values.address_line);
+    const postalCode = valueForAutosave(input.values.postal_code);
+    const city = valueForAutosave(input.values.city);
+
+    if (addressLine.length > 120 || postalCode.length > 20 || city.length > 80) {
+      return { message: "Et lokationsfelt er længere end tilladt.", ok: false };
+    }
+
+    let regionId: string | null = null;
+    const inferredSlug = inferRegionSlug({ city, postalCode });
+
+    if (inferredSlug) {
+      const { data: inferredRegion } = await supabase.from("regions").select("id").eq("slug", inferredSlug).maybeSingle();
+      regionId = inferredRegion?.id ?? null;
+    }
+
+    const coordinates = postalCode && city ? await geocodeDanishAddress({ addressLine, postalCode, city }) : null;
+
+    updates.address_line = addressLine;
+    updates.city = city;
+    updates.latitude = coordinates?.latitude ?? null;
+    updates.longitude = coordinates?.longitude ?? null;
+    updates.postal_code = postalCode;
+    updates.region_id = regionId;
+  }
+
+  if (section === "social") {
+    const websiteUrl = valueForAutosave(input.values.website_url);
+    const facebookUrl = valueForAutosave(input.values.facebook_url);
+    const instagramUrl = valueForAutosave(input.values.instagram_url);
+
+    if (websiteUrl.length > 300 || facebookUrl.length > 300 || instagramUrl.length > 300) {
+      return { message: "Et link er længere end tilladt.", ok: false };
+    }
+
+    updates.facebook_url = facebookUrl;
+    updates.instagram_url = instagramUrl;
+    updates.website_url = websiteUrl;
+  }
+
+  if (section === "services") {
+    const offersServices = input.values.offers_services === true;
+    const serviceTitleIds = arrayForAutosave(input.values.service_title_ids);
+    const serviceDescription = valueForAutosave(input.values.service_description);
+    const serviceOtherTitle = valueForAutosave(input.values.service_other_title);
+    const showInLocalServiceResults = input.values.show_in_local_service_results === true;
+
+    if (serviceDescription.length > 500 || serviceOtherTitle.length > 120) {
+      return { message: "Et ydelsesfelt er længere end tilladt.", ok: false };
+    }
+
+    updates.offers_services = offersServices;
+    updates.service_description = offersServices ? serviceDescription : null;
+    updates.service_other_title = offersServices ? serviceOtherTitle : null;
+    updates.show_in_local_service_results = offersServices && showInLocalServiceResults;
+
+    const { error: deleteServiceTitleError } = await supabase
+      .from("facilitator_service_titles")
+      .delete()
+      .eq("facilitator_id", facilitatorId);
+
+    if (deleteServiceTitleError) {
+      return { message: "Behandlertitlerne kunne ikke gemmes.", ok: false };
+    }
+
+    if (offersServices && serviceTitleIds.length > 0) {
+      const { error: serviceTitleError } = await supabase.from("facilitator_service_titles").insert(
+        serviceTitleIds.map((serviceTitleId) => ({
+          facilitator_id: facilitatorId,
+          service_title_id: serviceTitleId,
+        })),
+      );
+
+      if (serviceTitleError) {
+        return { message: "Behandlertitlerne kunne ikke gemmes.", ok: false };
+      }
+    }
+  }
+
+  if (section === "categories") {
+    const categoryIds = [...new Set(arrayForAutosave(input.values.category_ids))];
+
+    if (categoryIds.length > 0) {
+      const { error: categoryError } = await supabase.from("facilitator_categories").upsert(
+        categoryIds.map((categoryId) => ({
+          facilitator_id: facilitatorId,
+          category_id: categoryId,
+        })),
+        { onConflict: "facilitator_id,category_id" },
+      );
+
+      if (categoryError) {
+        return { message: "Kategorierne kunne ikke gemmes.", ok: false };
+      }
+
+      const { error: deleteCategoryError } = await supabase
+        .from("facilitator_categories")
+        .delete()
+        .eq("facilitator_id", facilitatorId)
+        .not("category_id", "in", `(${categoryIds.join(",")})`);
+
+      if (deleteCategoryError) {
+        return { message: "Kategorierne kunne ikke gemmes.", ok: false };
+      }
+    } else {
+      const { error: deleteCategoryError } = await supabase.from("facilitator_categories").delete().eq("facilitator_id", facilitatorId);
+
+      if (deleteCategoryError) {
+        return { message: "Kategorierne kunne ikke gemmes.", ok: false };
+      }
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    const { error: facilitatorError } = await supabase.from("facilitator_profiles").update(updates).eq("profile_id", profile.id);
+
+    if (facilitatorError) {
+      return { message: "Arrangørprofilen kunne ikke gemmes.", ok: false };
+    }
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/profile");
+
+  return { message: "Gemt", ok: true };
+}
+
+function valueForAutosave(value: boolean | string | string[] | null | undefined) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function arrayForAutosave(value: boolean | string | string[] | null | undefined) {
+  return Array.isArray(value) ? value.filter((item) => item.trim()) : [];
 }
 
 async function ensureMediaBucket(
