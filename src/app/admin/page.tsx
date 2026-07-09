@@ -62,6 +62,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { data: recentEvents },
     { data: latestBookings },
     { count: openAdminMessages },
+    { data: ownedFacilitatorProfile },
   ] = await Promise.all([
     supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "approved"),
     supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "pending"),
@@ -78,6 +79,11 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       .select("id", { count: "exact", head: true })
       .in("type", ["message", "closure_request"])
       .in("status", ["unread", "read"]),
+    supabase
+      .from("facilitator_profiles")
+      .select("id, host_reference_id, company_name")
+      .eq("profile_id", profile.id)
+      .maybeSingle(),
   ]);
 
   const stats = [
@@ -91,6 +97,16 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   ];
 
   const adminLinks = [
+    ...(ownedFacilitatorProfile
+      ? [
+          {
+            href: "/facilitator/profile",
+            title: `${ownedFacilitatorProfile.company_name || "SoulEvents"} profil`,
+            text: `Rediger profilbillede og stemningsbilleder for ${ownedFacilitatorProfile.host_reference_id || "din arrangørprofil"}.`,
+            icon: UserCog,
+          },
+        ]
+      : []),
     { href: "/admin/events", title: "Eventmoderation", text: "Godkend, afvis, skjul og arkiver events.", icon: CalendarDays },
     { href: "/admin/bookings", title: "Tilmeldinger", text: "Se deltagere, status og antal pladser.", icon: ReceiptText },
     { href: "/admin/messages", title: "Beskeder", text: "Indbakke, sendte svar og arkiverede beskeder.", icon: Mail, badge: openAdminMessages ? `${formatNumber(openAdminMessages)} ubesvarede` : undefined },

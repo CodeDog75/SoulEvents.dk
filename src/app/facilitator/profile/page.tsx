@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, CircleUserRound } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { ProfileForm } from "@/components/facilitator/profile-form";
-import { requireRole } from "@/lib/auth/roles";
+import { requireProfile } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ type FacilitatorProfilePageProps = {
 };
 
 export default async function FacilitatorProfilePage({ searchParams }: FacilitatorProfilePageProps) {
-  const [{ errorSection, message, ready, saved }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const [{ errorSection, message, ready, saved }, profile] = await Promise.all([searchParams, requireProfile()]);
   const supabase = await createClient();
   const isSavedMessage = message?.startsWith("Ændringer gemt");
 
@@ -75,6 +75,8 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     );
   }
 
+  const backHref = profile.role === "admin" ? "/admin" : "/facilitator";
+
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
       <header className="border-b border-midnight/10 bg-white">
@@ -93,7 +95,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
           </div>
           <Link
             className="inline-flex h-10 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta"
-            href="/facilitator"
+            href={backHref}
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
             Tilbage

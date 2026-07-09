@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth/roles";
+import { requireProfile } from "@/lib/auth/roles";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { profileApprovalUrl, sendFacilitatorProfileReadyEmail } from "@/lib/email/facilitator-profile-ready";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
@@ -160,7 +160,7 @@ async function notifyAdminsIfReady(input: {
 }
 
 export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInput) {
-  const profile = await requireRole("facilitator");
+  const profile = await requireProfile();
   const supabase = createAdminClient();
   const section = isEditableProfileSection(input.section) ? input.section : null;
 
@@ -412,7 +412,7 @@ async function uploadImage(
 }
 
 export async function updateFacilitatorProfileAction(formData: FormData) {
-  const profile = await requireRole("facilitator");
+  const profile = await requireProfile();
   const supabase = createAdminClient();
   const redirectOrigin = getOptionalString(formData, "current_origin");
   const section = normalizeProfileSection(getString(formData, "section"));
