@@ -57,6 +57,9 @@ const providers = [
   },
 ] as const;
 
+const showAppleLogin = false;
+const visibleProviders = providers.filter((provider) => showAppleLogin || provider.provider !== "apple");
+
 function appOrigin() {
   const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
   const isLocalhost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
@@ -113,7 +116,7 @@ export function SocialAuthButtons({ mode }: SocialAuthButtonsProps) {
 
   return (
     <section aria-label="Social login" className="grid gap-3">
-      {providers.map((provider) => (
+      {visibleProviders.map((provider) => (
         <div key={provider.provider}>
           <button
             aria-busy={pendingProvider === provider.provider}
