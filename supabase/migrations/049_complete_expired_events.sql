@@ -24,7 +24,7 @@ drop policy if exists "Public can read active approved events" on public.events;
 create policy "Public can read active approved events"
 on public.events for select
 using (
-  public.is_admin()
+  private.is_admin()
   or exists (
     select 1
     from public.facilitator_profiles fp
@@ -53,7 +53,7 @@ using (
     join public.facilitator_profiles fp on fp.id = e.facilitator_id
     where e.id = event_images.event_id
       and (
-        public.is_admin()
+        private.is_admin()
         or fp.profile_id = auth.uid()
         or (e.status in ('active', 'sold_out') and coalesce(e.ends_at, e.starts_at) >= now() and fp.status = 'approved')
       )
