@@ -57,6 +57,25 @@ const providers = [
   },
 ] as const;
 
+function appOrigin() {
+  const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
+  const isLocalhost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
+  if (isLocalhost) return window.location.origin;
+  return configuredAppUrl || window.location.origin;
+}
+
+function rememberOAuthFlow() {
+  const secure = window.location.protocol === "https:" ? "; secure" : "";
+  document.cookie = "soulevents_oauth_flow=1; path=/; max-age=600; samesite=lax" + secure;
+}
+
+function providerLabel(provider: SocialAuthProvider) {
+  if (provider === "apple") return "Apple";
+  if (provider === "facebook") return "Facebook";
+  return "Google";
+}
+
 export function SocialAuthButtons({ mode }: SocialAuthButtonsProps) {
   const [error, setError] = useState("");
   const [pendingProvider, setPendingProvider] = useState<SocialAuthProvider | null>(null);
@@ -66,10 +85,11 @@ export function SocialAuthButtons({ mode }: SocialAuthButtonsProps) {
     setPendingProvider(provider);
 
     try {
-      const callbackUrl = new URL("/auth/callback", window.location.origin);
+      const callbackUrl = new URL("/auth/callback", appOrigin());
       callbackUrl.searchParams.set("flow", "oauth");
       callbackUrl.searchParams.set("provider", provider);
       callbackUrl.searchParams.set("mode", mode);
+      rememberOAuthFlow();
 
       const supabase = createClient();
       const { error: signInError } = await supabase.auth.signInWithOAuth({
@@ -81,7 +101,7 @@ export function SocialAuthButtons({ mode }: SocialAuthButtonsProps) {
       });
 
       if (signInError) {
-        setError(`Login med ${provider} kunne ikke startes lige nu. Prøv igen om lidt.`);
+        setError(`Login med ${providerLabel(provider)} kunne ikke startes lige nu. Prøv igen om lidt.`);
         setPendingProvider(null);
       }
     } catch (loginError) {

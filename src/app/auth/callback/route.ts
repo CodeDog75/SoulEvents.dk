@@ -94,6 +94,17 @@ function loginErrorRedirect(requestUrl: URL, message: string) {
   return NextResponse.redirect(new URL(`/auth/login?${searchParams.toString()}`, getAppUrl(requestUrl.origin)));
 }
 
+function oauthProviderLabel(provider: string | null) {
+  if (provider === "apple") return "Apple";
+  if (provider === "facebook") return "Facebook";
+  if (provider === "google") return "Google";
+  return "socialt login";
+}
+
+function oauthErrorMessage(provider: string | null, detail = "Prøv igen, eller log ind med e-mail og adgangskode.") {
+  return `Login med ${oauthProviderLabel(provider)} kunne ikke gennemføres. ${detail}`;
+}
+
 function isExpiredOrInvalidLink(errorText: string) {
   const normalized = errorText.toLowerCase();
 
@@ -268,6 +279,7 @@ export async function GET(request: NextRequest) {
   const error = requestUrl.searchParams.get("error");
   const errorDescription = requestUrl.searchParams.get("error_description");
   const flow = requestUrl.searchParams.get("flow");
+  const provider = requestUrl.searchParams.get("provider");
   const next = requestUrl.searchParams.get("next") ?? "/dashboard";
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
@@ -283,7 +295,10 @@ export async function GET(request: NextRequest) {
       return redirectAndClearOAuthCookie(
         loginErrorRedirect(
           requestUrl,
-          "Google-login kunne ikke gennemføres. Hvis du allerede har en SoulEvents-konto med samme e-mail, så log ind med e-mail og adgangskode denne gang.",
+          oauthErrorMessage(
+            provider,
+            "Hvis du allerede har en SoulEvents-konto med samme e-mail, så log ind med e-mail og adgangskode denne gang.",
+          ),
         ),
         hasOAuthCookie,
       );
@@ -333,7 +348,7 @@ export async function GET(request: NextRequest) {
         return redirectAndClearOAuthCookie(
           loginErrorRedirect(
             requestUrl,
-            "Google-login kunne ikke gennemføres. Prøv igen, eller log ind med e-mail og adgangskode.",
+            oauthErrorMessage(provider),
           ),
           hasOAuthCookie,
         );
@@ -370,7 +385,7 @@ export async function GET(request: NextRequest) {
       console.error("Auth callback completed without a session user");
       if (isOAuthFlow) {
         return redirectAndClearOAuthCookie(
-          loginErrorRedirect(requestUrl, "Google-login kunne ikke gennemføres. Prøv igen."),
+          loginErrorRedirect(requestUrl, oauthErrorMessage(provider, "Prøv igen.")),
           hasOAuthCookie,
         );
       }
@@ -429,7 +444,7 @@ export async function GET(request: NextRequest) {
       return redirectAndClearOAuthCookie(
         loginErrorRedirect(
           requestUrl,
-          "Google-login kunne ikke gennemføres. Prøv igen, eller log ind med e-mail og adgangskode.",
+          oauthErrorMessage(provider),
         ),
         hasOAuthCookie,
       );
