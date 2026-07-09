@@ -547,6 +547,10 @@ export function ProfileForm({
       return;
     }
 
+    if (submitter?.value === "all") {
+      return;
+    }
+
     event.preventDefault();
 
     const didSave = await flushAutosaveNow();
