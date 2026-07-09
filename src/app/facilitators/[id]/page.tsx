@@ -3,10 +3,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, Mail, MapPinned, Phone, Sparkles, UserRound } from "lucide-react";
+import { ArrowLeft, CalendarDays, ExternalLink, Mail, MapPinned, Phone, Sparkles, Ticket, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { ActiveHostInfo, ExperiencedHostInfo, OrganizerImageBadge } from "@/components/badges/organizer-badges";
-import { PublicEventList } from "@/components/events/public-event-list";
 import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitator-button";
 import { subscribeToFacilitatorReminderAction } from "./actions";
 import { getCurrentProfile } from "@/lib/auth/roles";
@@ -31,6 +30,21 @@ function ensureUrl(url: string) {
 function nameOf(facilitator: any) {
   const profile = first(facilitator?.profiles);
   return facilitator?.company_name || profile?.full_name || "Arrangør";
+}
+
+function formatEventPrice(priceCents: number | null | undefined) {
+  if (!priceCents) return "Gratis";
+  return new Intl.NumberFormat("da-DK").format(priceCents / 100) + " kr.";
+}
+
+function locationOfEvent(event: any) {
+  const region = first(event.regions);
+
+  if (event.event_format === "online") {
+    return "Online event";
+  }
+
+  return [event.city, region?.name].filter(Boolean).join(", ") || "Lokation kommer snart";
 }
 
 function getBackLink(referer: string | null, currentId: string) {
@@ -79,6 +93,56 @@ function getAdminReturnLink(value: string | undefined) {
 function getFacilitatorReturnLink(value: string | undefined) {
   if (value !== "/facilitator") return null;
   return { href: value, label: "Tilbage til dashboard" };
+}
+
+function FacilitatorEventList({ events }: { events: any[] }) {
+  return (
+    <div className="grid gap-3">
+      {events.map((event) => (
+        <article
+          className="rounded-card border border-sage-700/18 bg-[#F8FBF4] p-4 shadow-soft sm:p-5"
+          key={event.id}
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-sage-700/12 px-3 py-1 text-xs font-semibold text-sage-900">
+                  Kommende
+                </span>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/60">
+                  {event.event_format === "online" ? "Online" : "Fysisk"}
+                </span>
+                {event.status === "sold_out" && (
+                  <span className="rounded-full bg-midnight px-3 py-1 text-xs font-semibold text-white">Udsolgt</span>
+                )}
+              </div>
+              <h3 className="text-2xl font-medium leading-tight text-olive">{event.title}</h3>
+              <div className="mt-3 grid gap-2 text-sm text-ink/68 sm:grid-cols-3">
+                <span className="flex items-center gap-2">
+                  <CalendarDays className="size-4 shrink-0 text-sage-700" aria-hidden="true" />
+                  {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.starts_at))}
+                </span>
+                <span className="flex items-center gap-2">
+                  <MapPinned className="size-4 shrink-0 text-sage-700" aria-hidden="true" />
+                  <span className="truncate">{locationOfEvent(event)}</span>
+                </span>
+                <span className="flex items-center gap-2 font-semibold text-olive">
+                  <Ticket className="size-4 shrink-0 text-sage-700" aria-hidden="true" />
+                  {formatEventPrice(event.price_cents)}
+                </span>
+              </div>
+            </div>
+            <Link
+              className="inline-flex h-11 shrink-0 items-center justify-center rounded-button border border-sage-700/30 bg-white px-5 text-sm font-semibold text-olive transition hover:border-sage-700 hover:bg-sage-50"
+              href={"/events/" + event.id}
+            >
+              Se event
+            </Link>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
 }
 
 export async function generateMetadata({ params }: FacilitatorPageProps): Promise<Metadata> {
@@ -266,7 +330,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
             <h2 className="text-4xl font-medium text-olive">Kommende events</h2>
             <div className="mt-5">
               {events && events.length > 0 ? (
-                <PublicEventList events={events as never} layout="stack" />
+                <FacilitatorEventList events={events} />
               ) : (
                 <div className="rounded-card bg-cream p-8 text-center">
                   <Sparkles className="mx-auto size-8 text-rose" aria-hidden="true" />
