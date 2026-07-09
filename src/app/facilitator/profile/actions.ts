@@ -105,12 +105,10 @@ function isProfileReady(input: {
   companyName: string | null;
   fullName: string | null;
   postalCode: string | null;
-  shortDescription: string;
 }) {
   return (
     Boolean(input.companyName) &&
     Boolean(input.fullName) &&
-    input.shortDescription.trim().length >= 20 &&
     Boolean(input.postalCode) &&
     Boolean(input.city) &&
     input.categoryIds.length > 0
@@ -469,7 +467,6 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     companyName: existingProfile.company_name ?? null,
     fullName: profile.full_name ?? null,
     postalCode: existingProfile.postal_code ?? null,
-    shortDescription: existingProfile.short_description ?? "",
   });
 
   if (savesSection(section, "contact") && !fullName) {
@@ -507,10 +504,6 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
 
   if (savesSection(section, "contact") && phone && !isValidPhoneNumber(phone)) {
     profileRedirect("Telefonnummer skal bestå af præcis 8 tal. Kun tal og mellemrum er tilladt.", redirectOrigin, "contact");
-  }
-
-  if (savesSection(section, "contact") && shortDescription && shortDescription.length < 20) {
-    profileRedirect("Kort præsentation skal være mindst 20 tegn.", redirectOrigin, "contact");
   }
 
   if (savesSection(section, "location") && (!postalCode || !city)) {
@@ -703,7 +696,6 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     companyName: savesSection(section, "contact") ? companyName : existingProfile.company_name ?? null,
     fullName: savesSection(section, "contact") ? fullName : profile.full_name ?? null,
     postalCode: savesSection(section, "location") ? postalCode : existingProfile.postal_code ?? null,
-    shortDescription: savesSection(section, "contact") ? shortDescription : existingProfile.short_description ?? "",
   });
 
   if (finalReady) {

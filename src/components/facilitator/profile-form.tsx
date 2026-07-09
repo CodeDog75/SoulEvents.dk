@@ -314,15 +314,13 @@ export function ProfileForm({
   const currentOrigin = typeof window === "undefined" ? "" : window.location.origin;
   const fullNameComplete = Boolean(fullName.trim());
   const companyNameComplete = Boolean(companyName.trim());
-  const shortComplete = shortDescription.trim().length >= 20;
+  const shortHasContent = Boolean(shortDescription.trim());
   const phoneComplete = Boolean(phone && digits(phone).length === 8);
   const locationComplete = Boolean(postalCode.trim() && city.trim());
   const categoriesComplete = selectedCategories.length > 0;
-  const shortDescriptionMinimum = 20;
   const shortDescriptionMaximum = 300;
   const longDescriptionMaximum = 2000;
   const serviceDescriptionMaximum = 500;
-  const shortDescriptionMissing = Math.max(shortDescriptionMinimum - shortDescription.trim().length, 0);
   const inferredRegionSlug = inferRegionSlug({ city, postalCode });
   const selectedRegion =
     regions.find((region) => region.slug === inferredRegionSlug) ??
@@ -334,9 +332,6 @@ export function ProfileForm({
     companyNameComplete
       ? null
       : { focusSelector: "[name='company_name']", key: "company_name", label: "Visningsnavn", targetId: "profile-company-name-field" },
-    shortComplete
-      ? null
-      : { focusSelector: "[name='short_description']", key: "short_description", label: "Kort præsentation", targetId: "profile-short-description-field" },
     postalCode.trim()
       ? null
       : { focusSelector: "[name='postal_code']", key: "postal_code", label: "Postnummer", targetId: "profile-postal-code-field" },
@@ -716,23 +711,21 @@ export function ProfileForm({
           <label className={"grid gap-2 text-sm font-medium text-ink/72 " + highlightMissingClass("short_description")} id="profile-short-description-field">
             <span className="flex flex-wrap items-center gap-2">
               Kort præsentation
-              <FieldStatus complete={shortComplete} />
+              <FieldStatus complete={shortHasContent} optional />
               <InfoHelp>Denne tekst vises offentligt på din profil og bruges ofte som det første indtryk af dig.</InfoHelp>
             </span>
             <textarea
               autoComplete="off"
-              className={`min-h-24 p-3 ${fieldClass(shortComplete)}`}
+              className={`min-h-24 p-3 ${fieldClass(shortHasContent, true)}`}
               name="short_description"
               maxLength={shortDescriptionMaximum}
 
               onChange={(event) => setShortDescription(event.target.value)}
-              placeholder="Skal udfyldes"
+              placeholder="Valgfrit"
               value={shortDescription}
             />
-            <span className={shortComplete ? "text-xs font-semibold text-[#7A4EAB]" : "text-xs font-semibold text-[#B56F8A]"}>
-              {shortComplete
-                ? `${shortDescriptionMaximum - shortDescription.length} tegn tilbage`
-                : `Mangler ${shortDescriptionMissing} tegn før præsentationen er lang nok`}
+            <span className="text-xs font-semibold text-[#7A4EAB]">
+              Valgfrit · {shortDescriptionMaximum - shortDescription.length} tegn tilbage
             </span>
           </label>
 
