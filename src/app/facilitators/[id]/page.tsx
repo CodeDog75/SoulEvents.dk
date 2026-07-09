@@ -60,8 +60,20 @@ function getBackLink(referer: string | null, currentId: string) {
 }
 
 function getAdminReturnLink(value: string | undefined) {
-  if (!value?.startsWith("/admin/users")) return null;
-  return { href: value, label: "Tilbage til arrangøroversigten" };
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
+
+  try {
+    const url = new URL(value, "https://soulevents.local");
+
+    if (!url.pathname.startsWith("/admin")) return null;
+
+    const href = url.pathname + url.search + url.hash;
+    const label = url.pathname.startsWith("/admin/users") ? "Tilbage til arrangøroversigten" : "Tilbage til admin-dashboardet";
+
+    return { href, label };
+  } catch {
+    return null;
+  }
 }
 
 function getFacilitatorReturnLink(value: string | undefined) {
