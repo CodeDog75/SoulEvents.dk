@@ -132,6 +132,10 @@ function profileSuccessRedirect(message: string, ready: boolean, origin?: string
   redirect(redirectOrigin ? `${redirectOrigin}${path}` : path);
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Ukendt fejl";
+}
+
 async function notifyAdminsIfReady(input: {
   facilitatorEmail: string;
   facilitatorId: string;
@@ -143,13 +147,30 @@ async function notifyAdminsIfReady(input: {
   }
 
   const supabase = createAdminClient();
-  const { data: admins } = await supabase.from("profiles").select("email").eq("role", "admin");
-  const submittedAt = new Date().toISOString();
+  const { data: admins, error: adminsError } = await supabase.from("profiles").select("email").eq("role", "admin");
 
-  await Promise.all(
-    (admins ?? []).map((admin) =>
+  if (adminsError) {
+    console.error("[facilitator-profile] Admin-notifikation kunne ikke forberedes", {
+      error: adminsError.message,
+      facilitatorId: input.facilitatorId,
+    });
+    return;
+  }
+
+  const submittedAt = new Date().toISOString();
+  const adminEmails = (admins ?? []).map((admin) => admin.email).filter((email): email is string => Boolean(email));
+
+  if (adminEmails.length === 0) {
+    console.error("[facilitator-profile] Ingen admin-modtagere fundet til profilnotifikation", {
+      facilitatorId: input.facilitatorId,
+    });
+    return;
+  }
+
+  const results = await Promise.allSettled(
+    adminEmails.map((adminEmail) =>
       sendFacilitatorProfileReadyEmail({
-        adminEmail: admin.email,
+        adminEmail,
         facilitatorEmail: input.facilitatorEmail,
         facilitatorName: input.facilitatorName,
         profileUrl: profileApprovalUrl(),
@@ -157,6 +178,18 @@ async function notifyAdminsIfReady(input: {
       }),
     ),
   );
+
+  const failedMessages = results
+    .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+    .map((result) => errorMessage(result.reason));
+
+  if (failedMessages.length > 0) {
+    console.error("[facilitator-profile] Admin-notifikation fejlede efter profilgemning", {
+      errors: failedMessages,
+      failed: failedMessages.length,
+      facilitatorId: input.facilitatorId,
+    });
+  }
 }
 
 export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInput) {
