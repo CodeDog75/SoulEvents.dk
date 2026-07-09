@@ -44,7 +44,8 @@ export async function getFacilitatorEventLimitStatus(
     .from("events")
     .select("id", { count: "exact", head: true })
     .eq("facilitator_id", facilitatorId)
-    .in("status", ["active", "sold_out"]);
+    .in("status", ["active", "sold_out"])
+    .gte("ends_at", new Date().toISOString());
 
   if (options.excludeEventId) {
     draftQuery = draftQuery.neq("id", options.excludeEventId);

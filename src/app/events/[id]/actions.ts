@@ -39,6 +39,7 @@ const eventSelect = [
   "status,",
   "title,",
   "starts_at,",
+  "ends_at,",
   "price_cents,",
   "capacity,",
   "facilitator_id,",
@@ -66,6 +67,7 @@ type BookingEventResult = {
   id: string;
   price_cents: number;
   starts_at: string;
+  ends_at: string;
   status: string;
   title: string;
 };
@@ -123,6 +125,7 @@ export async function createBookingAction(formData: FormData) {
     .eq("id", eventId)
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
+    .gte("ends_at", new Date().toISOString())
     .single();
 
   const event = eventResult as BookingEventResult | null;

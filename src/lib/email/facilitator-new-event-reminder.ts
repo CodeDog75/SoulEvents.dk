@@ -6,6 +6,7 @@ type ReminderEvent = {
   id: string;
   title: string;
   short_description: string | null;
+  ends_at: string;
   starts_at: string;
   price_cents: number | null;
   city: string | null;
@@ -91,9 +92,10 @@ export async function notifyFacilitatorEventReminderSubscribers(eventId: string)
   const admin = createAdminClient();
   const { data: event } = await admin
     .from("events")
-    .select("id, title, short_description, starts_at, price_cents, city, event_format, facilitator_id, facilitator_profiles(company_name, profiles(full_name))")
+    .select("id, title, short_description, starts_at, ends_at, price_cents, city, event_format, facilitator_id, facilitator_profiles(company_name, profiles(full_name))")
     .eq("id", eventId)
     .eq("status", "active")
+    .gte("ends_at", new Date().toISOString())
     .maybeSingle();
 
   if (!event) {

@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 type FacilitatorPageProps = {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ reminder_message?: string }>;
+  searchParams?: Promise<{ admin_return?: string; facilitator_return?: string; reminder_message?: string }>;
 };
 
 function first<T>(value: T | T[] | null | undefined) {
@@ -59,6 +59,16 @@ function getBackLink(referer: string | null, currentId: string) {
   return { href: "/facilitators", label: "Tilbage til arrangører" };
 }
 
+function getAdminReturnLink(value: string | undefined) {
+  if (!value?.startsWith("/admin/users")) return null;
+  return { href: value, label: "Tilbage til arrangøroversigten" };
+}
+
+function getFacilitatorReturnLink(value: string | undefined) {
+  if (value !== "/facilitator") return null;
+  return { href: value, label: "Tilbage til dashboard" };
+}
+
 export async function generateMetadata({ params }: FacilitatorPageProps): Promise<Metadata> {
   const { id } = await params;
   const supabase = await createClient();
@@ -80,23 +90,35 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
 
 export default async function PublicFacilitatorPage({ params, searchParams }: FacilitatorPageProps) {
   const { id } = await params;
-  const reminderMessage = (await searchParams)?.reminder_message ?? "";
+  const resolvedSearchParams = await searchParams;
+  const reminderMessage = resolvedSearchParams?.reminder_message ?? "";
+  const adminReturnLink = getAdminReturnLink(resolvedSearchParams?.admin_return);
+  const facilitatorReturnLink = getFacilitatorReturnLink(resolvedSearchParams?.facilitator_return);
   const referer = (await headers()).get("referer");
   const supabase = await createClient();
   const viewer = await getCurrentProfile();
 
-  const { data: facilitator } = await supabase
+  const facilitatorSelect =
+    "id, profile_id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
+  const { data: publicFacilitator } = await supabase
     .from("facilitator_profiles")
-    .select(
-      "id, profile_id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
-    )
+    .select(facilitatorSelect)
     .eq("id", id)
     .eq("status", "approved")
     .single();
+  const { data: previewFacilitator } =
+    !publicFacilitator && ((adminReturnLink && viewer?.role === "admin") || (facilitatorReturnLink && viewer?.role === "facilitator"))
+      ? await createAdminClient().from("facilitator_profiles").select(facilitatorSelect).eq("id", id).single()
+      : { data: null };
+  const facilitator = publicFacilitator ?? previewFacilitator;
 
   const facilitatorData = facilitator as any;
 
   if (!facilitatorData) {
+    notFound();
+  }
+
+  if (facilitatorReturnLink && (viewer?.role !== "facilitator" || viewer.id !== facilitatorData.profile_id)) {
     notFound();
   }
 
@@ -107,12 +129,12 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   const { data: events } = await supabase
     .from("events")
     .select(
-      "id, status, title, short_description, starts_at, city, price_cents, capacity, event_format, facilitator_profiles!inner(status, company_name, profiles(full_name)), regions(name), event_categories(categories(name, color_hex))",
+      "id, status, title, short_description, starts_at, ends_at, city, price_cents, capacity, event_format, facilitator_profiles!inner(status, company_name, profiles(full_name)), regions(name), event_categories(categories(name, color_hex))",
     )
     .eq("facilitator_id", id)
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
-    .gte("starts_at", new Date().toISOString())
+    .gte("ends_at", new Date().toISOString())
     .order("starts_at", { ascending: true });
 
   const profile = first(facilitatorData.profiles);
@@ -143,7 +165,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     facilitatorData.tiktok_url ? { label: "TikTok", href: ensureUrl(facilitatorData.tiktok_url) } : null,
   ].filter((link): link is { label: string; href: string } => Boolean(link));
   const isOwnProfilePreview = viewer?.role === "facilitator" && viewer.id === facilitatorData.profile_id;
-  const backLink = isOwnProfilePreview ? { href: "/facilitator", label: "Tilbage til min profil" } : getBackLink(referer, id);
+  const backLink = adminReturnLink ?? facilitatorReturnLink ?? (isOwnProfilePreview ? { href: "/facilitator", label: "Tilbage til dashboard" } : getBackLink(referer, id));
 
   return (
     <main className="min-h-screen bg-cream text-ink">

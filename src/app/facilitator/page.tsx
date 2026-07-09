@@ -2,13 +2,12 @@ import {
   ArrowRight,
   Bell,
   CalendarCheck2,
-  CalendarClock,
   CalendarDays,
   CalendarPlus,
   CheckCircle2,
   Clock3,
   Copy,
-  HeartHandshake,
+  Eye,
   Inbox,
   Leaf,
   Mail,
@@ -16,13 +15,12 @@ import {
   PencilLine,
   RotateCcw,
   Settings,
-  Sparkles,
   Ticket,
   XCircle,
 } from "lucide-react";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
-import { requestFacilitatorProfileClosureAction, sendFacilitatorAdminMessageAction } from "@/app/facilitator/actions";
+import { activateFacilitatorProfileAction, requestFacilitatorProfileClosureAction, sendFacilitatorAdminMessageAction } from "@/app/facilitator/actions";
 import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { SignOutButton } from "@/components/auth/sign-out-button";
@@ -102,10 +100,6 @@ function formatDateTime(value: string | null | undefined) {
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-function formatDay(value: string) {
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium" }).format(new Date(value));
-}
-
 function statusLabel(status: string) {
   return statusLabels[status] ?? status;
 }
@@ -114,8 +108,8 @@ function statusClass(status: string) {
   return statusStyles[status] ?? "bg-stone-100 text-stone-700";
 }
 
-function isPastEvent(event: { starts_at: string; status: string }, now: Date) {
-  return event.status === "completed" || event.status === "cancelled" || new Date(event.starts_at) < now;
+function isPastEvent(event: { ends_at?: string | null; starts_at: string; status: string }, now: Date) {
+  return event.status === "completed" || event.status === "cancelled" || new Date(event.ends_at ?? event.starts_at) < now;
 }
 
 function getProfileReadiness({
@@ -229,7 +223,7 @@ function getDashboardAction({
   };
 }
 
-function DashboardActionCard({ action }: { action: DashboardAction }) {
+function DashboardActionCard({ action, fullProfileHref }: { action: DashboardAction; fullProfileHref?: string | null }) {
   const Icon = action.icon;
 
   return (
@@ -245,13 +239,24 @@ function DashboardActionCard({ action }: { action: DashboardAction }) {
           <p className="mt-1">{action.description}</p>
         </div>
       ) : (
-        <Link
-          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285] hover:shadow-[0_8px_18px_rgba(122,93,145,0.18)] md:mt-6"
-          href={action.href}
-        >
-          <Icon className="size-4" aria-hidden="true" />
-          {action.label}
-        </Link>
+        <div className="grid gap-2 md:mt-6">
+          <Link
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285] hover:shadow-[0_8px_18px_rgba(122,93,145,0.18)]"
+            href={action.href}
+          >
+            <Icon className="size-4" aria-hidden="true" />
+            {action.label}
+          </Link>
+          {fullProfileHref ? (
+            <Link
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-[#D8CBE4] bg-white px-5 text-sm font-semibold text-[#6E5A86] shadow-soft transition hover:-translate-y-0.5 hover:border-[#7A5D91] hover:text-[#7A5D91]"
+              href={fullProfileHref}
+            >
+              <Eye className="size-4" aria-hidden="true" />
+              Vis profil
+            </Link>
+          ) : null}
+        </div>
       )}
     </div>
   );
@@ -262,7 +267,9 @@ function DashboardHeader({
   hostReferenceId,
   profileReadiness,
   primaryAction,
+  fullProfileHref,
 }: {
+  fullProfileHref?: string | null;
   name: string | null;
   hostReferenceId?: string | null;
   profileReadiness: ProfileReadiness;
@@ -315,7 +322,7 @@ function DashboardHeader({
             ) : null}
           </div>
         </div>
-        <DashboardActionCard action={primaryAction} />
+        <DashboardActionCard action={primaryAction} fullProfileHref={fullProfileHref} />
       </div>
     </section>
   );
@@ -424,41 +431,6 @@ function BookingAttentionCard({ pendingCount }: { pendingCount: number }) {
   );
 }
 
-function ActivityFeed({ items }: { items: Array<{ id: string; icon: React.ElementType; text: string; detail?: string }> }) {
-  return (
-    <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
-      <div className="flex items-center gap-3">
-        <span className="grid size-10 place-items-center rounded-full bg-[#F4F0F7] text-[#7A5D91]">
-          <Sparkles className="size-5" aria-hidden="true" />
-        </span>
-        <div>
-          <h2 className="text-xl font-semibold text-[#2F2437]">Det sker omkring dine events</h2>
-          <p className="mt-1 text-sm text-[#6E6475]">Små tegn på aktivitet og bevægelse.</p>
-        </div>
-      </div>
-      <div className="mt-5 grid gap-3">
-        {items.length > 0 ? (
-          items.map((item) => (
-            <article className="flex gap-3 rounded-[18px] bg-[#FAF7F2] p-4" key={item.id}>
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-[#7A5D91] shadow-sm">
-                <item.icon className="size-4" aria-hidden="true" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-[#2F2437]">{item.text}</p>
-                {item.detail ? <p className="mt-1 text-xs text-[#6E6475]">{item.detail}</p> : null}
-              </div>
-            </article>
-          ))
-        ) : (
-          <p className="rounded-[18px] bg-[#FAF7F2] p-4 text-sm leading-6 text-[#6E6475]">
-            Når der kommer tilmeldinger, ændringer eller nye events, samler vi dem roligt her.
-          </p>
-        )}
-      </div>
-    </section>
-  );
-}
-
 function StatusAction({ eventId, status, children }: { eventId: string; status: string; children: React.ReactNode }) {
   return (
     <form action={updateEventStatusAction}>
@@ -471,7 +443,7 @@ function StatusAction({ eventId, status, children }: { eventId: string; status: 
   );
 }
 
-function EventCard({ event }: { event: any }) {
+function EventCard({ event, tone = "default" }: { event: any; tone?: "default" | "muted" }) {
   const categories =
     event.event_categories?.map((row: any) => first(row.categories)?.name).filter((name: string | undefined): name is string => Boolean(name)) ?? [];
   const bookingCount = event.bookings?.length ?? 0;
@@ -495,8 +467,15 @@ function EventCard({ event }: { event: any }) {
             ? "Deaktiveret/aflyst"
             : "Status opdateret";
 
+  const cardClass =
+    tone === "muted"
+      ? "border-[#D8D2CA] bg-[#F1EEE9]"
+      : isDraft
+        ? "border-[#D8D2CA] bg-[#F1EEE9]"
+        : "border-[#E5DDEA] bg-white";
+
   return (
-    <article className={"rounded-[24px] border p-5 shadow-soft " + (isDraft ? "border-[#D8D2CA] bg-[#F1EEE9]" : "border-[#E5DDEA] bg-white")}>
+    <article className={"rounded-[24px] border p-5 shadow-soft " + cardClass}>
       <div className="flex flex-wrap items-center gap-2">
         <span className={"rounded-full px-3 py-1 text-xs font-semibold " + statusClass(event.status)}>{statusLabel(event.status)}</span>
         {event.event_reference_id ? <span className="rounded-full bg-[#FAF7F2] px-3 py-1 text-xs font-semibold text-[#6E6475]">Ref. {event.event_reference_id}</span> : null}
@@ -588,7 +567,7 @@ function EventCard({ event }: { event: any }) {
   );
 }
 
-function EventSection({ title, text, events, id }: { title: string; text: string; events: any[]; id?: string }) {
+function EventSection({ title, text, events, id, tone = "default" }: { title: string; text: string; events: any[]; id?: string; tone?: "default" | "muted" }) {
   return (
     <section id={id}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -599,47 +578,12 @@ function EventSection({ title, text, events, id }: { title: string; text: string
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         {events.length > 0 ? (
-          events.map((event) => <EventCard event={event} key={event.id} />)
+          events.map((event) => <EventCard event={event} key={event.id} tone={tone} />)
         ) : (
           <div className="rounded-[24px] border border-[#E5DDEA] bg-white p-6 text-sm leading-6 text-[#6E6475] shadow-soft lg:col-span-2">
             Her vises dine events, når de er klar.
           </div>
         )}
-      </div>
-    </section>
-  );
-}
-
-function MilestoneCard({
-  activeEventCount,
-  completedEventCount,
-  reminderSubscriberCount,
-}: {
-  activeEventCount: number;
-  completedEventCount: number;
-  reminderSubscriberCount: number;
-}) {
-  return (
-    <section className="rounded-[24px] border border-[#E5DDEA] bg-[#F4F0F7] p-5 shadow-soft sm:p-6">
-      <div className="flex items-center gap-3">
-        <span className="grid size-10 place-items-center rounded-full bg-white text-[#7A5D91]">
-          <HeartHandshake className="size-5" aria-hidden="true" />
-        </span>
-        <div>
-          <h2 className="text-xl font-semibold text-[#2F2437]">Milepæle</h2>
-          <p className="mt-1 text-sm text-[#6E6475]">Tak fordi du bidrager til fællesskabet.</p>
-        </div>
-      </div>
-      <div className="mt-5 grid gap-3 text-sm leading-6 text-[#4D4458]">
-        <p className="rounded-[18px] bg-white/75 p-4">
-          🌱 Din aktivitet skaber flere muligheder for mennesker, der søger ro, nærvær og fællesskab.
-        </p>
-        <p className="rounded-[18px] bg-white/75 p-4">
-          🌿 Din erfaring vokser gennem hvert event og hver tilmelding på SoulEvents.dk.
-        </p>
-        <p className="rounded-[18px] bg-white/75 p-4">
-          Du har {activeEventCount} aktive/kommende events, {completedEventCount} afholdte events og {reminderSubscriberCount} personer på påmindelseslisten.
-        </p>
       </div>
     </section>
   );
@@ -726,7 +670,9 @@ function AdminMessageCta({ unreadCount }: { unreadCount: number }) {
   );
 }
 
-function SettingsPanel({ adminMessages, unreadMessageCount }: { adminMessages: any[]; unreadMessageCount: number }) {
+function SettingsPanel({ adminMessages, profileStatus, unreadMessageCount }: { adminMessages: any[]; profileStatus: string; unreadMessageCount: number }) {
+  const isPaused = profileStatus === "disabled";
+
   return (
     <details className="rounded-[18px] border border-[#E5DDEA] bg-white/70 shadow-soft" id="beskeder-admin" open>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#6E6475] transition hover:text-[#7A5D91]">
@@ -741,6 +687,9 @@ function SettingsPanel({ adminMessages, unreadMessageCount }: { adminMessages: a
           <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Kontakt</p>
           <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Skriv til SoulEvents administration</h2>
           <p className="mt-2 text-sm leading-6 text-[#6E6475]">Send en kort besked direkte til SoulEvents.dk. Maks. 500 tegn.</p>
+          <p className="mt-2 text-sm leading-6 text-[#6E6475]">
+            Dine beskeder gemmes i op til 3 måneder og slettes derefter automatisk.
+          </p>
           <label className="mt-4 grid gap-2 text-sm font-semibold text-[#2F2437]">
             Emne
             <input className="h-11 rounded-md border border-[#E5DDEA] px-3 outline-none focus:border-[#7A5D91]" maxLength={80} name="subject" placeholder="Fx spørgsmål til min profil" />
@@ -755,30 +704,43 @@ function SettingsPanel({ adminMessages, unreadMessageCount }: { adminMessages: a
           </button>
         </form>
 
-        <form action={requestFacilitatorProfileClosureAction} className="rounded-[20px] border border-[#E5DDEA] bg-[#FAF7F2] p-5">
-          <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Pause</p>
-          <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Sæt profil på pause</h2>
-          <p className="mt-2 text-sm leading-6 text-[#6E6475]">
-            Har du brug for en pause, kan du midlertidigt skjule din profil på SoulEvents.
-          </p>
-          <p className="mt-2 text-sm leading-6 text-[#6E6475]">
-            Din offentlige profil og dine kommende events bliver skjult, og SoulEvents får besked om ønsket. Du kan altid genaktivere din profil senere, hvis du ønsker at vende tilbage.
-          </p>
-          <p className="mt-2 text-sm leading-6 text-[#6E6475]">
-            Ønsker du i stedet at få slettet din profil og dine data, kan du skrive det i kommentarfeltet nedenfor.
-          </p>
-          <label className="mt-4 grid gap-2 text-sm font-semibold text-[#2F2437]">
-            Kommentar (valgfri)
-            <textarea className="min-h-24 rounded-md border border-[#E5DDEA] bg-white p-3 outline-none focus:border-[#7A5D91]" maxLength={500} name="reason" placeholder="Skriv gerne hvorfor du ønsker pause. Hvis du ønsker datasletning, så skriv det her." />
-          </label>
-          <label className="mt-4 flex items-start gap-3 text-sm font-semibold text-[#2F2437]">
-            <input className="mt-1 size-4 accent-[#7A5D91]" name="confirm_closure" type="checkbox" />
-            Jeg er sikker på, at jeg ønsker at sætte min arrangørprofil på pause.
-          </label>
-          <button className="mt-4 inline-flex h-11 items-center justify-center rounded-full border border-[#7A5D91] bg-white px-5 text-sm font-semibold text-[#7A5D91]" type="submit">
-            Sæt profil på pause
-          </button>
-        </form>
+        {isPaused ? (
+          <form action={activateFacilitatorProfileAction} className="rounded-[20px] border border-[#D7E4D1] bg-[#F3F7F0] p-5">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#5F7A55]">Aktivér</p>
+            <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Aktivér profil igen</h2>
+            <p className="mt-2 text-sm leading-6 text-[#6E6475]">
+              Når du aktiverer profilen igen, kan din offentlige profil og dine aktive events vises på SoulEvents efter de eksisterende regler.
+            </p>
+            <button className="mt-4 inline-flex h-11 items-center justify-center rounded-full bg-[#5F7A55] px-5 text-sm font-semibold text-white" type="submit">
+              Aktivér profil igen
+            </button>
+          </form>
+        ) : (
+          <form action={requestFacilitatorProfileClosureAction} className="rounded-[20px] border border-[#E5DDEA] bg-[#FAF7F2] p-5">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Pause</p>
+            <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Sæt profil på pause</h2>
+            <p className="mt-2 text-sm leading-6 text-[#6E6475]">
+              Har du brug for en pause, kan du midlertidigt skjule din profil på SoulEvents.
+            </p>
+            <p className="mt-2 text-sm leading-6 text-[#6E6475]">
+              Din offentlige profil og dine kommende events bliver skjult. Du kan selv aktivere profilen igen, når du ønsker at vende tilbage.
+            </p>
+            <p className="mt-2 text-sm leading-6 text-[#6E6475]">
+              Ønsker du i stedet at få slettet din profil og dine data, kan du skrive det i kommentarfeltet nedenfor.
+            </p>
+            <label className="mt-4 grid gap-2 text-sm font-semibold text-[#2F2437]">
+              Kommentar (valgfri)
+              <textarea className="min-h-24 rounded-md border border-[#E5DDEA] bg-white p-3 outline-none focus:border-[#7A5D91]" maxLength={500} name="reason" placeholder="Skriv gerne hvorfor du ønsker pause. Hvis du ønsker datasletning, så skriv det her." />
+            </label>
+            <label className="mt-4 flex items-start gap-3 text-sm font-semibold text-[#2F2437]">
+              <input className="mt-1 size-4 accent-[#7A5D91]" name="confirm_closure" type="checkbox" />
+              Jeg er sikker på, at jeg ønsker at sætte min arrangørprofil på pause.
+            </label>
+            <button className="mt-4 inline-flex h-11 items-center justify-center rounded-full border border-[#7A5D91] bg-white px-5 text-sm font-semibold text-[#7A5D91]" type="submit">
+              Sæt profil på pause
+            </button>
+          </form>
+        )}
       </div>
 
       {adminMessages.length > 0 ? (
@@ -786,7 +748,9 @@ function SettingsPanel({ adminMessages, unreadMessageCount }: { adminMessages: a
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="font-semibold text-[#2F2437]">Dine seneste beskeder med SoulEvents administration</h2>
-              <p className="mt-1 text-sm leading-6 text-[#6E6475]">Dine seneste beskeder og svar fra SoulEvents administration.</p>
+              <p className="mt-1 text-sm leading-6 text-[#6E6475]">
+                Dine seneste beskeder og svar fra SoulEvents administration. Dine beskeder gemmes i op til 3 måneder og slettes derefter automatisk.
+              </p>
             </div>
           </div>
           <div className="mt-4 grid gap-3">
@@ -828,6 +792,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
   const profileName = facilitatorProfile?.company_name || profile.full_name || "Personlig profil";
+  const fullProfileHref = facilitatorProfile?.id ? "/facilitators/" + facilitatorProfile.id + "?facilitator_return=/facilitator" : null;
   const categoryNames =
     facilitatorProfile?.facilitator_categories
       ?.map((row: CategoryRelation) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
@@ -850,19 +815,14 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   ].filter(Boolean) as Array<"experienced" | "active">;
 
   const now = new Date();
-  const [{ data: events }, { count: reminderSubscriberCount }, { data: adminMessages }, { count: pendingBookingCount }, { data: recentBookings }] =
+  const [{ data: events }, { data: adminMessages }, { count: pendingBookingCount }] =
     facilitatorProfile
       ? await Promise.all([
           supabase
             .from("events")
-            .select("id, title, status, starts_at, created_at, updated_at, city, event_format, price_cents, capacity, event_reference_id, event_categories(categories(name)), bookings(id)")
+            .select("id, title, status, starts_at, ends_at, created_at, updated_at, city, event_format, price_cents, capacity, event_reference_id, event_categories(categories(name)), bookings(id)")
             .eq("facilitator_id", facilitatorProfile.id)
             .order("starts_at", { ascending: false }),
-          supabase
-            .from("facilitator_event_reminders")
-            .select("id", { count: "exact", head: true })
-            .eq("facilitator_id", facilitatorProfile.id)
-            .eq("status", "active"),
           supabase
             .from("facilitator_admin_messages")
             .select("id, subject, message, type, status, created_at")
@@ -875,15 +835,9 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .eq("events.facilitator_id", facilitatorProfile.id)
             .eq("status", "pending")
             .in("events.status", ["active", "sold_out"])
-            .gte("events.starts_at", now.toISOString()),
-          supabase
-            .from("bookings")
-            .select("id, participant_name, created_at, events!inner(title, facilitator_id)")
-            .eq("events.facilitator_id", facilitatorProfile.id)
-            .order("created_at", { ascending: false })
-            .limit(5),
+            .gte("events.ends_at", now.toISOString()),
         ])
-      : [{ data: [] }, { count: 0 }, { data: [] }, { count: 0 }, { data: [] }];
+      : [{ data: [] }, { data: [] }, { count: 0 }];
 
   const moodImages =
     facilitatorProfile?.facilitator_images
@@ -916,24 +870,6 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   });
   const hasDashboardActivity = activeEvents.length > 0 || draftEvents.length > 0 || completedEvents.length > 0 || (pendingBookingCount ?? 0) > 0;
   const showPerformanceDashboard = profileReadiness.isComplete && hasDashboardActivity;
-  const activityItems = [
-    ...((recentBookings ?? []) as any[]).map((booking) => {
-      const bookingEvent = first(booking.events);
-      return {
-        id: "booking-" + booking.id,
-        icon: Ticket,
-        text: (booking.participant_name || "En deltager") + " har tilmeldt sig " + (bookingEvent?.title || "dit event") + ".",
-        detail: formatDay(booking.created_at),
-      };
-    }),
-    ...eventRows.slice(0, 3).map((event) => ({
-      id: "event-" + event.id,
-      icon: CalendarClock,
-      text: event.status === "completed" ? "Dit event " + event.title + " er afholdt." : "Dit event " + event.title + " ligger i dit overblik.",
-      detail: formatDate(event.starts_at),
-    })),
-  ].slice(0, 6);
-
   return (
     <main className="min-h-screen bg-[#F8F3FA] text-[#2F2437]">
       <header className="border-b border-[#E5DDEA] bg-white/90 backdrop-blur">
@@ -954,6 +890,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             hostReferenceId={hostReferenceId}
             profileReadiness={profileReadiness}
             primaryAction={primaryAction}
+            fullProfileHref={fullProfileHref}
           />
 
           {showPerformanceDashboard ? (
@@ -1005,8 +942,6 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
 
           <AdminMessageCta unreadCount={unreadMessageCount} />
 
-          {showPerformanceDashboard ? <ActivityFeed items={activityItems} /> : null}
-
           {profileReadiness.isComplete && draftEvents.length > 0 ? (
             <EventSection id="kladder" title="Kladder" text="Events du kan åbne og gøre færdige i dit eget tempo." events={draftEvents} />
           ) : null}
@@ -1015,18 +950,10 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             <EventSection id="aktive-events" title="Dine aktive events" text="Kommende events og events, der er ved at blive gjort klar." events={activeEvents} />
           ) : null}
 
-          {showPerformanceDashboard ? (
-            <MilestoneCard
-              activeEventCount={activeEvents.length}
-              completedEventCount={completedEvents.length}
-              reminderSubscriberCount={reminderSubscriberCount ?? 0}
-            />
-          ) : null}
-
           {showPerformanceDashboard ? <InsightCard events={eventRows} /> : null}
 
           {showPerformanceDashboard ? (
-            <EventSection id="tidligere-events" title="Tidligere events" text="En rolig historik over events, du har afholdt eller aflyst. Herfra kan du kopiere et tidligere event som ny kladde." events={completedEvents.slice(0, 6)} />
+            <EventSection id="tidligere-events" title="Tidligere events" text="En rolig historik over events, du har afholdt eller aflyst. Herfra kan du kopiere et tidligere event som ny kladde." events={completedEvents.slice(0, 6)} tone="muted" />
           ) : null}
 
         </div>
@@ -1041,7 +968,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
               name: category.name,
             }))}
             editHref="/facilitator/profile"
-            fullProfileHref={status === "approved" && facilitatorProfile?.id ? "/facilitators/" + facilitatorProfile.id : null}
+            fullProfileHref={fullProfileHref}
             city={facilitatorProfile?.city}
             introText="Sådan møder deltagerne dig på SoulEvents.dk."
             moodImages={moodImages}
@@ -1067,7 +994,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
         </aside>
 
         <section className="lg:col-span-2">
-          <SettingsPanel adminMessages={messageRows} unreadMessageCount={0} />
+          <SettingsPanel adminMessages={messageRows} profileStatus={status} unreadMessageCount={0} />
         </section>
       </section>
     </main>

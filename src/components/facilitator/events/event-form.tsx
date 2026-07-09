@@ -96,6 +96,7 @@ type EventFormProps = {
   initialStep?: number;
   message?: string;
   facilitator: {
+    id: string;
     contactEmail: string;
     contactPhone: string | null;
     regionId: string | null;
@@ -229,7 +230,8 @@ function openNativePicker(input: HTMLInputElement) {
   }
 }
 
-const eventDraftStorageKey = "soulevents:event-form-draft:v1";
+const legacyEventDraftStorageKey = "soulevents:event-form-draft:v1";
+const eventDraftStoragePrefix = "soulevents:event-form-draft:v2";
 const maxEventDescriptionLength = 2000;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 const timeOptions = Array.from({ length: 96 }, (_, index) => {
@@ -492,6 +494,7 @@ function TextInput({
   autoFocus,
   highlightWhenEmpty,
   id,
+  onValueChange,
 }: {
   label: string;
   name: string;
@@ -507,6 +510,7 @@ function TextInput({
   autoFocus?: boolean;
   highlightWhenEmpty?: boolean;
   id?: string;
+  onValueChange?: (value: string) => void;
 }) {
   const [inputCharacterCount, setInputCharacterCount] = useState(defaultValue?.length ?? 0);
   const [inputValue, setInputValue] = useState(defaultValue ?? "");
@@ -522,6 +526,7 @@ function TextInput({
         {required ? <span className="ml-1 text-[#B56F8A]">*</span> : null}
       </span>
       <input
+        autoComplete="off"
         autoFocus={autoFocus}
         className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + emptyHighlightClass}
         defaultValue={defaultValue}
@@ -531,8 +536,10 @@ function TextInput({
         min={min}
         name={name}
         onInput={(event) => {
-          setInputCharacterCount(event.currentTarget.value.length);
-          setInputValue(event.currentTarget.value);
+          const nextValue = event.currentTarget.value;
+          setInputCharacterCount(nextValue.length);
+          setInputValue(nextValue);
+          onValueChange?.(nextValue);
         }}
         placeholder={placeholder}
         required={required}
@@ -580,6 +587,7 @@ function TextArea({
         {required ? <span className="ml-1 text-[#B56F8A]">*</span> : null}
       </span>
       <textarea
+        autoComplete="off"
         className={minHeight + " w-full min-w-0 rounded-card border p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(textValue)}
         defaultValue={defaultValue}
         maxLength={maxLength}
@@ -616,6 +624,7 @@ function EventDescriptionField({ defaultValue = "" }: { defaultValue?: string })
         Hvad skal deltagerne opleve?<span className="ml-1 text-[#B56F8A]">*</span>
       </span>
       <textarea
+        autoComplete="off"
         className={"min-h-40 w-full min-w-0 rounded-card border p-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(descriptionValue)}
         maxLength={maxEventDescriptionLength}
         defaultValue={defaultValue}
@@ -771,11 +780,16 @@ export function EventForm({
   const isDanishPhysicalEvent = showAddress && !isForeignLocation;
   const selectedRegionName = regions.find((region) => region.id === regionId)?.name ?? "";
   const currentCoverImageUrl = coverPreviewUrl || draftEvent?.coverImageUrl || "";
+  const [titleValue, setTitleValue] = useState(value(draftEvent?.title));
+  const titleBoxStateClass = titleValue.trim()
+    ? "border-[#CFE3C8] bg-[#F6FBF3]"
+    : "border-[#F0D6D2] bg-[#FFF8F6]";
   const hasExistingCoverImage = Boolean(draftEvent?.coverImageUrl || draftEvent?.cover_image_path);
   const draftEventStatus = draftEvent?.status ?? null;
   const isEditingPublishedEvent = draftEventStatus === "active" || draftEventStatus === "sold_out";
   const primarySubmitStatus = isEditingPublishedEvent && draftEventStatus ? draftEventStatus : "pending_review";
-  const draftStorageKey = draftEvent?.id ? eventDraftStorageKey + ":" + draftEvent.id : eventDraftStorageKey;
+  const userDraftStorageKey = `${eventDraftStoragePrefix}:${facilitator.id}`;
+  const draftStorageKey = draftEvent?.id ? `${userDraftStorageKey}:event:${draftEvent.id}` : `${userDraftStorageKey}:new`;
   const statusHelp = useMemo(
     () =>
       "Når du gør eventet offentligt, bliver det enten sendt til godkendelse eller publiceret med det samme, hvis du har automatisk godkendelse.",
@@ -1646,11 +1660,13 @@ export function EventForm({
 
     if (normalizedMessage.includes("oprettet") || normalizedMessage.includes("gemt") || normalizedMessage.includes("opdateret")) {
       window.localStorage.removeItem(draftStorageKey);
-      window.localStorage.removeItem(eventDraftStorageKey);
+      window.localStorage.removeItem(userDraftStorageKey + ":new");
+      window.localStorage.removeItem(legacyEventDraftStorageKey);
       return;
     }
 
     const hasDraft = Boolean(window.localStorage.getItem(draftStorageKey));
+    window.localStorage.removeItem(legacyEventDraftStorageKey);
     window.setTimeout(() => {
       setHasAutosavedDraft(hasDraft);
       if (hasDraft) {
@@ -1891,6 +1907,7 @@ export function EventForm({
   return (
     <form
       action={createEventAction}
+      autoComplete="off"
       className="grid w-full max-w-full gap-5 overflow-x-hidden sm:gap-6"
       noValidate
       onChange={() => {
@@ -1945,7 +1962,9 @@ export function EventForm({
         <div className="grid gap-4 md:grid-cols-2 md:gap-x-5 md:gap-y-4">
           <div
             className={
-              "rounded-[20px] border border-[#F0D6D2] bg-[#FFF8F6] p-4 transition md:col-span-2 " +
+              "rounded-[20px] border p-4 transition md:col-span-2 " +
+              titleBoxStateClass +
+              " " +
               (highlightedMissingKey === "title" ? "ring-4 ring-[#D89A94]/35" : "")
             }
             id="event-title-field"
@@ -1962,6 +1981,7 @@ export function EventForm({
               label="Hvad kalder du dit event?"
               maxLength={80}
               name="title"
+              onValueChange={setTitleValue}
               placeholder="Giv dit event et navn"
               required
             />
@@ -1972,6 +1992,7 @@ export function EventForm({
               Startdato<span className="ml-1 text-[#B56F8A]">*</span>
             </span>
             <input
+              autoComplete="off"
               className={"h-12 w-full min-w-0 cursor-pointer rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(startDate)}
               name="start_date"
               onClick={(event) => openNativePicker(event.currentTarget)}
@@ -2008,6 +2029,7 @@ export function EventForm({
                 Slutdato<span className="ml-1 text-[#B56F8A]">*</span>
               </span>
               <input
+                autoComplete="off"
                 className={"h-12 w-full min-w-0 cursor-pointer rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(endDate)}
                 min={startDate}
                 name="end_date"
@@ -2052,6 +2074,7 @@ export function EventForm({
                 {isDanishPhysicalEvent ? "Postnummer" : "Postnummer / ZIP"}<span className="ml-1 text-[#B56F8A]">*</span>
               </span>
               <input
+                autoComplete="off"
                 className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(postalCode, { error: isDanishPhysicalEvent && postalCode.length > 0 && postalCode.length < 4 })}
                 inputMode={isDanishPhysicalEvent ? "numeric" : "text"}
                 maxLength={isDanishPhysicalEvent ? 4 : undefined}
@@ -2068,6 +2091,7 @@ export function EventForm({
                 By<span className="ml-1 text-[#B56F8A]">*</span>
               </span>
               <input
+                autoComplete="off"
                 className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(city, { auto: isDanishPhysicalEvent && Boolean(city) })}
                 name="city"
                 onChange={(event) => setCity(event.target.value)}
@@ -2083,6 +2107,7 @@ export function EventForm({
                 Land<span className="ml-1 text-[#B56F8A]">*</span>
               </span>
               <input
+                autoComplete="off"
                 className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(country, { auto: isDanishPhysicalEvent })}
                 name="country"
                 onChange={(event) => setCountry(event.target.value)}
@@ -2231,6 +2256,7 @@ export function EventForm({
             <label className="grid gap-2 text-sm font-medium text-ink/72">
               <span>Pris i kr.</span>
               <input
+                autoComplete="off"
                 className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(priceValue)}
                 inputMode="numeric"
                 maxLength={5}
@@ -2255,6 +2281,7 @@ export function EventForm({
           <label className="grid gap-2 text-sm font-medium text-ink/72">
             <span>Maks. antal deltagere</span>
             <input
+              autoComplete="off"
               className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(capacityValue)}
               inputMode="numeric"
               maxLength={3}

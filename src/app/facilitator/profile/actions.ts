@@ -39,8 +39,8 @@ function isEditableProfileSection(value: string | null | undefined): value is Ed
   return editableProfileSections.includes(value as EditableProfileSection);
 }
 
-function normalizeProfileSection(value: string | null | undefined): ProfileSection {
-  return value === "all" || isEditableProfileSection(value) ? value : "all";
+function normalizeProfileSection(value: string | null | undefined): ProfileSection | null {
+  return value === "all" || isEditableProfileSection(value) ? value : null;
 }
 
 function savesSection(section: ProfileSection, target: EditableProfileSection) {
@@ -227,8 +227,12 @@ async function uploadImage(
 export async function updateFacilitatorProfileAction(formData: FormData) {
   const profile = await requireRole("facilitator");
   const supabase = createAdminClient();
-  const section = normalizeProfileSection(getString(formData, "section"));
   const redirectOrigin = getOptionalString(formData, "current_origin");
+  const section = normalizeProfileSection(getString(formData, "section"));
+
+  if (!section) {
+    profileRedirect("Profilen blev ikke gemt, fordi gemmehandlingen manglede. Prøv igen.", redirectOrigin, "contact");
+  }
 
   const fullName = getString(formData, "full_name");
   const phone = getOptionalString(formData, "phone");

@@ -226,6 +226,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
             }))}
             tags={tags ?? []}
             facilitator={{
+              id: facilitatorProfile.id,
               contactEmail: contactProfile?.email ?? profile.email,
               contactPhone: contactProfile?.phone ?? profile.phone,
               regionId: facilitatorProfile.region_id,

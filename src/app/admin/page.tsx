@@ -94,7 +94,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { href: "/admin/events", title: "Eventmoderation", text: "Godkend, afvis, skjul og arkiver events.", icon: CalendarDays },
     { href: "/admin/bookings", title: "Tilmeldinger", text: "Se deltagere, status og antal pladser.", icon: ReceiptText },
     { href: "/admin/messages", title: "Beskeder", text: "Indbakke, sendte svar og arkiverede beskeder.", icon: Mail, badge: openAdminMessages ? `${formatNumber(openAdminMessages)} ubesvarede` : undefined },
-    { href: "/admin/category-architecture", title: "Kategorier & tag-farver", text: "Administrer kategorier, tags, eventformat og farver på tags.", icon: Tags },
+    { href: "/admin/category-architecture", title: "Kategorier & tags", text: "Administrer kategorier, tags og tagfarver ét samlet sted.", icon: Tags },
     { href: "/admin/service-titles", title: "Behandlertitler", text: "Styr titler og ydelsestyper til arrangørprofiler.", icon: UserCog },
     { href: "/admin/homepage", title: "Forsidebokse og temaer", text: "Styr de store 1:1 bokse og kampagne-temaer på forsiden.", icon: LayoutGrid },
     { href: "/admin/current-experiences", title: "Aktuelle oplevelser", text: "Opret og styr de eventrækker, der vises på forsiden.", icon: Sparkles },
@@ -125,6 +125,58 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <AuthMessage message={message} />
+
+        <section className="scroll-mt-24 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Søgning</p>
+            <h2 className="mt-1 font-serif text-2xl font-semibold text-midnight">Find arrangør eller event</h2>
+            <p className="mt-2 text-sm leading-6 text-ink/64">
+              Søgningen åbner resultaterne på en separat side, så dashboardet forbliver ryddeligt.
+            </p>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <form action="/admin/users" className="grid gap-2">
+              <label className="text-sm font-semibold text-midnight" htmlFor="admin-organizer-search">
+                Søg arrangør eller admin
+              </label>
+              <div className="flex min-w-0 gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink/45" aria-hidden="true" />
+                  <input
+                    className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
+                    id="admin-organizer-search"
+                    name="q"
+                    placeholder="Søg navn, kaldenavn, firma, e-mail, by eller medlemsnummer"
+                  />
+                </div>
+                <button className="h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">
+                  Søg
+                </button>
+              </div>
+            </form>
+
+            <form action="/admin/events" className="grid gap-2">
+              <label className="text-sm font-semibold text-midnight" htmlFor="admin-event-search">
+                Søg events
+              </label>
+              <div className="flex min-w-0 gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink/45" aria-hidden="true" />
+                  <input
+                    className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
+                    id="admin-event-search"
+                    name="q"
+                    placeholder="Søg eventtitel, arrangør/kaldenavn, by, kategori eller e-mail"
+                  />
+                </div>
+                <button className="h-11 rounded-md bg-sage-700 px-4 text-sm font-semibold text-white" type="submit">
+                  Søg
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
 
         <div className="mt-5 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
           {stats.map((stat) => (
@@ -285,57 +337,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           </p>
         </section>
 
-        <section className="scroll-mt-24 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Søgning</p>
-            <h2 className="mt-1 font-serif text-2xl font-semibold text-midnight">Find arrangør eller event</h2>
-            <p className="mt-2 text-sm leading-6 text-ink/64">
-              Søgningen åbner resultaterne på en separat side, så dashboardet forbliver ryddeligt.
-            </p>
-          </div>
-
-          <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            <form action="/admin/users" className="grid gap-2">
-              <label className="text-sm font-semibold text-midnight" htmlFor="admin-organizer-search">
-                Søg arrangør eller admin
-              </label>
-              <div className="flex min-w-0 gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink/45" aria-hidden="true" />
-                  <input
-                    className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
-                    id="admin-organizer-search"
-                    name="q"
-                    placeholder="Søg navn, kaldenavn, firma, e-mail, by eller medlemsnummer"
-                  />
-                </div>
-                <button className="h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">
-                  Søg
-                </button>
-              </div>
-            </form>
-
-            <form action="/admin/events" className="grid gap-2">
-              <label className="text-sm font-semibold text-midnight" htmlFor="admin-event-search">
-                Søg events
-              </label>
-              <div className="flex min-w-0 gap-2">
-                <div className="relative min-w-0 flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink/45" aria-hidden="true" />
-                  <input
-                    className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
-                    id="admin-event-search"
-                    name="q"
-                    placeholder="Søg eventtitel, arrangør/kaldenavn, by, kategori eller e-mail"
-                  />
-                </div>
-                <button className="h-11 rounded-md bg-sage-700 px-4 text-sm font-semibold text-white" type="submit">
-                  Søg
-                </button>
-              </div>
-            </form>
-          </div>
-        </section>
       </section>
     </main>
   );

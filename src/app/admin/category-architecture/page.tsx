@@ -8,7 +8,6 @@ import {
   upsertTagAction,
 } from "@/app/admin/category-architecture/actions";
 import { RecommendedColorPalette } from "@/components/admin/recommended-color-palette";
-import { CategoryForm } from "@/components/admin/taxonomy/category-form";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -28,17 +27,6 @@ type BasicItem = {
   description: string | null;
   image_path?: string | null;
   color_hex?: string;
-  is_active: boolean;
-  sort_order: number;
-};
-
-type EventCategory = {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  color_hex: string;
-  icon_name: string | null;
   is_active: boolean;
   sort_order: number;
 };
@@ -113,16 +101,9 @@ function AdminWorkflowGuide() {
     {
       href: "#tags",
       label: "3",
-      title: "Opret tags",
-      text: "Ekstra filtre og stemninger som Begyndervenlig, Weekend, Gratis eller Udendørs.",
+      title: "Opret tags og farver",
+      text: "Ekstra filtre og stemninger som Begyndervenlig, Weekend, Gratis eller Udendørs. Farven styres samme sted.",
       cta: "Gå til tags",
-    },
-    {
-      href: "#event-tags",
-      label: "4",
-      title: "Justér visuelle badges",
-      text: "Her styrer du farverne på de små kategori-tags, der vises på eventkort og eventsider.",
-      cta: "Gå til badge-farver",
     },
   ];
 
@@ -141,7 +122,7 @@ function AdminWorkflowGuide() {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
         {cards.map((card) => (
           <a className="group rounded-card border border-midnight/10 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-purple/40 hover:shadow-soft" href={card.href} key={card.href}>
             <span className="grid size-9 place-items-center rounded-full bg-lavender text-sm font-bold text-purple">{card.label}</span>
@@ -419,17 +400,15 @@ export default async function CategoryArchitecturePage({ searchParams }: PagePro
   const [{ message }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = await createClient();
   const admin = createAdminClient();
-  const [{ data: mainCategories }, { data: subcategories }, { data: tags }, { data: eventCategories }] = await Promise.all([
+  const [{ data: mainCategories }, { data: subcategories }, { data: tags }] = await Promise.all([
     admin.from("main_categories").select("*").order("sort_order"),
     admin.from("subcategories").select("*").order("sort_order"),
     admin.from("tags").select("*").order("sort_order"),
-    admin.from("categories").select("*").order("sort_order"),
   ]);
 
   const mainItems = (mainCategories ?? []) as BasicItem[];
   const subItems = (subcategories ?? []) as BasicItem[];
   const tagItems = (tags ?? []) as BasicItem[];
-  const eventCategoryItems = (eventCategories ?? []) as EventCategory[];
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -441,7 +420,7 @@ export default async function CategoryArchitecturePage({ searchParams }: PagePro
             </div>
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Administrator</p>
-              <h1 className="text-xl font-semibold text-midnight">Kategorier & tag-farver</h1>
+              <h1 className="text-xl font-semibold text-midnight">Kategorier & tags</h1>
             </div>
           </div>
           <Link className="inline-flex h-10 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight" href="/admin">
@@ -454,12 +433,11 @@ export default async function CategoryArchitecturePage({ searchParams }: PagePro
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
         <AuthMessage message={message} />
 
-        <nav className="grid gap-3 md:grid-cols-4">
+        <nav className="grid gap-3 md:grid-cols-3">
           {[
             { href: "#main", title: "Hovedkategorier", count: mainItems.length },
             { href: "#sub", title: "Underkategorier", count: subItems.length },
             { href: "#tags", title: "Tags", count: tagItems.length },
-            { href: "#event-tags", title: "Badge-farver", count: eventCategoryItems.length },
           ].map((item) => (
             <a className="rounded-md border border-midnight/10 bg-white p-4 shadow-soft transition hover:border-sage-700" href={item.href} key={item.href}>
               <p className="text-sm font-semibold text-sage-700">{item.title}</p>
@@ -547,59 +525,29 @@ export default async function CategoryArchitecturePage({ searchParams }: PagePro
           id="tags"
           eyebrow="Filtre"
           title="Tags"
-          description="Ekstra søge- og filterord som Begyndervenlig, Gratis, Weekend, Online eller Fuldmåne."
+          description="Ekstra søge- og filterord som Begyndervenlig, Gratis, Weekend, Online eller Fuldmåne. Farven styres samme sted, så der kun er én tagliste."
         >
           <details className="mb-4 rounded-md border border-sage-700/20 bg-sage-50">
             <summary className="cursor-pointer list-none p-4 font-semibold text-olive">Opret tag</summary>
             <div className="border-t border-sage-700/15 bg-white p-4">
-              <BasicForm action={upsertTagAction} table="tags" title="Opret tag" />
+              <BasicForm action={upsertTagAction} table="tags" title="Opret tag" showColor suggestedColor="#87A878" />
             </div>
           </details>
           <EditableList
             emptyText="Der er ingen tags endnu."
             items={tagItems}
-            renderForm={(item) => <BasicForm action={upsertTagAction} item={item} table="tags" title={"Rediger: " + item.name} />}
+            renderForm={(item) => <BasicForm action={upsertTagAction} item={item} table="tags" title={"Rediger: " + item.name} showColor />}
             renderSummary={(item) => (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold text-midnight">{item.name}</span>
+                <span className="rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ backgroundColor: item.color_hex ?? "#87A878" }}>
+                  {item.name}
+                </span>
                 <span className="rounded-md bg-sage-50 px-2 py-1 text-xs font-semibold text-sage-700">{item.slug}</span>
+                <span className="rounded-md bg-midnight/5 px-2 py-1 text-xs font-semibold text-midnight">{item.color_hex ?? "#87A878"}</span>
                 <StatusPill active={item.is_active} />
               </div>
             )}
           />
-        </SectionShell>
-        <SectionShell
-          id="event-tags"
-          eyebrow="Visning"
-          title="Farver på event-tags"
-          description="Disse farver bruges på kategori-tags på eventkort, kort-popup og eventsider."
-        >
-          <details className="mb-4 rounded-md border border-sage-700/20 bg-sage-50">
-            <summary className="cursor-pointer list-none p-4 font-semibold text-olive">Opret nyt badge/tag på eventkort</summary>
-            <div className="border-t border-sage-700/15 bg-white p-4">
-              <CategoryForm title="Opret badge/tag på eventkort" />
-            </div>
-          </details>
-
-          <div className="grid gap-3">
-            {eventCategoryItems.map((category) => (
-              <details className="group rounded-md border border-midnight/10 bg-white" key={category.id}>
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ backgroundColor: category.color_hex }}>
-                      {category.name}
-                    </span>
-                    <span className="rounded-md bg-midnight/5 px-2 py-1 text-xs font-semibold text-midnight">{category.color_hex}</span>
-                    <StatusPill active={category.is_active} />
-                  </div>
-                  <ChevronDown className="size-4 shrink-0 text-ink/45 transition group-open:rotate-180" aria-hidden="true" />
-                </summary>
-                <div className="border-t border-midnight/10 bg-[#fbfaf7] p-4">
-                  <CategoryForm category={category as never} title={"Rediger: " + category.name} />
-                </div>
-              </details>
-            ))}
-          </div>
         </SectionShell>
 
 

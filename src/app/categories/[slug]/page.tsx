@@ -159,7 +159,7 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
     )
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
-    .gte("starts_at", new Date().toISOString())
+    .gte("ends_at", new Date().toISOString())
     .order("starts_at", { ascending: true });
 
   const events = uniqueById(rawEvents ?? []).filter((event: any) => {

@@ -116,7 +116,7 @@ async function saveBasic(table: "main_categories" | "subcategories" | "tags", fo
     slug,
     description: getOptionalString(formData, "description"),
     image_path: imagePath,
-    color_hex: table === "main_categories" ? getString(formData, "color_hex") || "#7A4EAB" : undefined,
+    color_hex: table === "main_categories" || table === "tags" ? getString(formData, "color_hex") || "#7A4EAB" : undefined,
     is_active: formData.get("is_active") === "on",
     sort_order: sortOrder(formData),
   };

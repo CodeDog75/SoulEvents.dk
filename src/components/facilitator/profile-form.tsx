@@ -394,7 +394,7 @@ export function ProfileForm({
   }
 
   return (
-    <form action={updateFacilitatorProfileAction} className="grid gap-6" noValidate onSubmit={handleSubmit}>
+    <form action={updateFacilitatorProfileAction} autoComplete="off" className="grid gap-6" noValidate onSubmit={handleSubmit}>
       <input name="current_origin" suppressHydrationWarning type="hidden" value={currentOrigin} />
       <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
         <div className="flex items-center justify-between gap-4">
@@ -408,6 +408,7 @@ export function ProfileForm({
               <InfoHelp>Privat navn bruges internt af SoulEvents og i kommunikationen med dig.</InfoHelp>
             </span>
             <input
+              autoComplete="off"
               className={`h-11 ${fieldClass(fullNameComplete)}`}
               name="full_name"
               maxLength={80}
@@ -434,6 +435,7 @@ export function ProfileForm({
               <InfoHelp>Telefonnummer skal bestå af præcis 8 tal. Mellemrum er tilladt.</InfoHelp>
             </span>
             <input
+              autoComplete="off"
               className={`h-11 ${fieldClass(phoneComplete, true)}`}
               inputMode="tel"
               maxLength={11}
@@ -455,6 +457,7 @@ export function ProfileForm({
               </InfoHelp>
             </span>
             <input
+              autoComplete="off"
               className={`h-11 ${fieldClass(companyNameComplete)}`}
               name="company_name"
               maxLength={100}
@@ -474,6 +477,7 @@ export function ProfileForm({
               <InfoHelp>Denne tekst vises offentligt på din profil og bruges ofte som det første indtryk af dig.</InfoHelp>
             </span>
             <textarea
+              autoComplete="off"
               className={`min-h-24 p-3 ${fieldClass(shortComplete)}`}
               name="short_description"
               maxLength={shortDescriptionMaximum}
@@ -498,6 +502,7 @@ export function ProfileForm({
               </InfoHelp>
             </span>
             <textarea
+              autoComplete="off"
               className={`min-h-40 p-3 ${fieldClass(Boolean(longDescription.trim()), true)}`}
               name="long_description"
               maxLength={longDescriptionMaximum}
@@ -539,6 +544,7 @@ export function ProfileForm({
               Adresse
             </span>
             <input
+              autoComplete="off"
               className={`h-11 ${fieldClass(Boolean(addressLine.trim()), true)}`}
               name="address_line"
               maxLength={120}
@@ -554,6 +560,7 @@ export function ProfileForm({
               Postnummer
             </span>
             <input
+              autoComplete="off"
               className={`h-11 ${fieldClass(Boolean(postalCode.trim()))}`}
               name="postal_code"
               maxLength={20}
@@ -569,6 +576,7 @@ export function ProfileForm({
               By
             </span>
             <input
+              autoComplete="off"
               className={`h-11 ${fieldClass(Boolean(city.trim()))}`}
               name="city"
               maxLength={80}
@@ -627,6 +635,7 @@ export function ProfileForm({
               <InfoHelp>Eksempel: https://www.soulevents.dk/</InfoHelp>
             </span>
             <input
+              autoComplete="off"
               className={`h-11 ${fieldClass(Boolean(websiteUrl.trim()), true)}`}
               name="website_url"
               maxLength={300}
@@ -644,6 +653,7 @@ export function ProfileForm({
               <InfoHelp>Eksempel: https://www.facebook.com/soulevents.dk/</InfoHelp>
             </span>
             <input
+              autoComplete="off"
               className={`h-11 ${fieldClass(Boolean(facebookUrl.trim()), true)}`}
               name="facebook_url"
               maxLength={300}
@@ -661,6 +671,7 @@ export function ProfileForm({
               <InfoHelp>Eksempel: https://www.instagram.com/soulevents.dk/</InfoHelp>
             </span>
             <input
+              autoComplete="off"
               className={`h-11 ${fieldClass(Boolean(instagramUrl.trim()), true)}`}
               name="instagram_url"
               maxLength={300}
@@ -828,6 +839,7 @@ export function ProfileForm({
             <label className="grid gap-2 text-sm font-medium text-ink/72">
               Kort beskrivelse
               <textarea
+                autoComplete="off"
                 className={"min-h-28 p-3 " + fieldClass(Boolean(serviceDescription.trim()), true)}
                 name="service_description"
                 maxLength={serviceDescriptionMaximum}
@@ -844,6 +856,7 @@ export function ProfileForm({
             <label className="grid gap-2 text-sm font-medium text-ink/72">
               Anden titel eller uddybning
               <input
+                autoComplete="off"
                 className={"h-11 " + fieldClass(Boolean(serviceOtherTitle.trim()), true)}
                 name="service_other_title"
                 maxLength={120}

@@ -19,7 +19,7 @@ async function getFacilitatorForCurrentUser() {
   const admin = createAdminClient();
   const { data: facilitator } = await admin
     .from("facilitator_profiles")
-    .select("id, company_name")
+    .select("id, company_name, status")
     .eq("profile_id", profile.id)
     .single();
 
@@ -79,7 +79,7 @@ export async function requestFacilitatorProfileClosureAction(formData: FormData)
     profile_id: profile.id,
     type: "closure_request",
     status: "unread",
-    subject: "Anmodning om at sætte arrangørprofil på pause",
+    subject: "Arrangørprofil sat på pause",
     message,
   });
 
@@ -93,7 +93,29 @@ export async function requestFacilitatorProfileClosureAction(formData: FormData)
   revalidatePath("/facilitator");
   revalidatePath("/admin");
   revalidatePath("/admin/messages");
-  go("Din arrangørprofil er sat på pause, og admin har fået besked om din anmodning.");
+  revalidatePath("/facilitators");
+  revalidatePath("/facilitators/" + facilitator.id);
+  go("Din arrangørprofil er sat på pause. Din profil og dine aktive events er skjult på SoulEvents.");
+}
+
+export async function activateFacilitatorProfileAction() {
+  const { admin, facilitator } = await getFacilitatorForCurrentUser();
+
+  if (facilitator.status !== "disabled") {
+    go("Din arrangørprofil er allerede aktiv eller afventer godkendelse.");
+  }
+
+  const { error } = await admin.from("facilitator_profiles").update({ status: "approved" }).eq("id", facilitator.id);
+
+  if (error) {
+    console.error("activateFacilitatorProfileAction failed", error);
+    go("Profilen kunne ikke aktiveres. Prøv igen.");
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitators");
+  revalidatePath("/facilitators/" + facilitator.id);
+  go("Din arrangørprofil er aktiv igen. Din profil og dine aktive events kan nu vises på SoulEvents.");
 }
 
 export async function markFacilitatorAdminMessagesReadAction() {

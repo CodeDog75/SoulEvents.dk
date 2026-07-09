@@ -1,7 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { Archive, ArrowLeft, Inbox, Search, Send } from "lucide-react";
-import { archiveFacilitatorAdminMessageAction, replyToFacilitatorAdminMessageAction } from "@/app/admin/facilitators/actions";
+import {
+  archiveFacilitatorAdminMessageAction,
+  replyToFacilitatorAdminMessageAction,
+  sendAdminMessageToFacilitatorAction,
+} from "@/app/admin/facilitators/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -9,7 +13,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 type AdminMessagesPageProps = {
-  searchParams: Promise<{ box?: string; q?: string; message?: string }>;
+  searchParams: Promise<{ box?: string; facilitator?: string; message?: string; q?: string; return_to?: string }>;
 };
 
 type Mailbox = "inbox" | "sent" | "archive";
@@ -77,9 +81,11 @@ function matchesSearch(item: any, queryText: string) {
 }
 
 export default async function AdminMessagesPage({ searchParams }: AdminMessagesPageProps) {
-  const [{ box, q, message }] = await Promise.all([searchParams, requireRole("admin")]);
+  const [{ box, facilitator, message, q, return_to: returnTo }] = await Promise.all([searchParams, requireRole("admin")]);
   const selectedBox = normalizeMailbox(box);
+  const selectedFacilitatorId = facilitator ?? "";
   const queryText = (q ?? "").trim().toLowerCase();
+  const safeReturnTo = returnTo?.startsWith("/admin/users") ? returnTo : "";
   const supabase = createAdminClient();
 
   const { data: messageRows, error: messagesError } = await supabase
@@ -88,7 +94,7 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
     .order("created_at", { ascending: false });
 
   const rows = (messageRows ?? []) as any[];
-  const facilitatorIds = [...new Set(rows.map((item) => item.facilitator_id).filter(Boolean))];
+  const facilitatorIds = [...new Set([...rows.map((item) => item.facilitator_id), selectedFacilitatorId].filter(Boolean))];
   const directProfileIds = rows.map((item) => item.profile_id).filter(Boolean);
 
   const { data: facilitators } = facilitatorIds.length
@@ -114,6 +120,8 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
       profiles: profileById.get(facilitator?.profile_id ?? item.profile_id) ?? null,
     };
   });
+  const selectedFacilitator = selectedFacilitatorId ? facilitatorById.get(selectedFacilitatorId) : null;
+  const selectedProfile = selectedFacilitator ? profileById.get(selectedFacilitator.profile_id) : null;
   const rowsByMailbox: Record<Mailbox, any[]> = {
     inbox: enrichedRows.filter((item) => mailboxFilter(item, "inbox")).filter((item) => matchesSearch(item, queryText)),
     sent: enrichedRows.filter((item) => mailboxFilter(item, "sent")).filter((item) => matchesSearch(item, queryText)),
@@ -149,6 +157,57 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
         <AuthMessage message={message} />
         <AuthMessage message={errorMessage ? "Beskeder kunne ikke hentes: " + errorMessage : undefined} variant="error" />
 
+        {selectedFacilitator ? (
+          <section className="rounded-[26px] border border-midnight/10 bg-white p-5 shadow-soft">
+            <div className="grid gap-4 lg:grid-cols-[1fr_minmax(320px,460px)]">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Ny besked</p>
+                <h2 className="mt-2 font-serif text-3xl font-semibold text-midnight">
+                  Besked til {selectedFacilitator.company_name || selectedProfile?.full_name || "arrangør"}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-ink/64">
+                  Beskeden sendes direkte til den valgte arrangør og kan efterfølgende findes under Sendte.
+                </p>
+                {safeReturnTo ? (
+                  <Link className="mt-4 inline-flex text-sm font-semibold text-sage-700 hover:text-terracotta" href={safeReturnTo}>
+                    Tilbage til arrangøroversigten
+                  </Link>
+                ) : null}
+              </div>
+
+              <form action={sendAdminMessageToFacilitatorAction} className="grid gap-3 rounded-[18px] border border-[#E5D4F7] bg-[#FAF7F2] p-3">
+                <input name="facilitator_id" type="hidden" value={selectedFacilitatorId} />
+                <input name="return_to" type="hidden" value="/admin/messages?box=sent" />
+                <label className="grid gap-2 text-xs font-semibold text-ink/68">
+                  Emne
+                  <input
+                    className="h-10 rounded-md border border-midnight/10 bg-white px-3 text-sm font-normal text-ink outline-none transition focus:border-[#7A4EAB]"
+                    maxLength={120}
+                    name="subject"
+                    required
+                    defaultValue="Besked fra SoulEvents administration"
+                  />
+                </label>
+                <label className="grid gap-2 text-xs font-semibold text-ink/68">
+                  Besked
+                  <textarea
+                    className="min-h-28 rounded-md border border-midnight/10 bg-white p-3 text-sm font-normal leading-6 text-ink outline-none transition focus:border-[#7A4EAB]"
+                    maxLength={500}
+                    name="message"
+                    placeholder="Skriv en kort besked til arrangøren."
+                    required
+                  />
+                </label>
+                <div className="flex justify-end">
+                  <button className="inline-flex h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#62408D]" type="submit">
+                    Send besked
+                  </button>
+                </div>
+              </form>
+            </div>
+          </section>
+        ) : null}
+
         <section className="rounded-[26px] border border-midnight/10 bg-white p-5 shadow-soft">
           <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
@@ -156,6 +215,7 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
               <h2 className="mt-2 font-serif text-3xl font-semibold text-midnight">Beskeder fra og til arrangører</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/64">
                 Få overblik over nye henvendelser, sendte svar og arkiverede beskeder uden at blande dem ind i dashboardets forside.
+                Dine beskeder gemmes i op til 3 måneder og slettes derefter automatisk.
               </p>
             </div>
             <form action="/admin/messages" className="grid gap-2 sm:min-w-80">

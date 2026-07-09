@@ -42,6 +42,7 @@ type TagRelation = {
 type ManualEventOption = {
   event_reference_id?: string | null;
   id: string;
+  ends_at: string;
   starts_at: string;
   status?: string | null;
   title: string;
@@ -436,14 +437,14 @@ export default async function AdminCurrentExperiencesPage({ searchParams }: Page
     admin.from("homepage_event_collection_tags").select("collection_id, tag_id, tags(id, name)"),
     admin
       .from("homepage_event_collection_events")
-      .select("collection_id, event_id, sort_order, events(id, event_reference_id, title, starts_at, status)")
+      .select("collection_id, event_id, sort_order, events(id, event_reference_id, title, starts_at, ends_at, status)")
       .order("sort_order", { ascending: true }),
     admin
       .from("events")
-      .select("id, event_reference_id, title, starts_at, status, facilitator_profiles!inner(status)")
+      .select("id, event_reference_id, title, starts_at, ends_at, status, facilitator_profiles!inner(status)")
       .in("status", ["active", "sold_out"])
       .eq("facilitator_profiles.status", "approved")
-      .gte("starts_at", new Date().toISOString())
+      .gte("ends_at", new Date().toISOString())
       .order("starts_at", { ascending: true })
       .limit(250),
   ]);

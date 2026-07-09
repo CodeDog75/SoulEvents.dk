@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { FacilitatorStatus } from "@/types/database";
 
 const allowedStatuses: FacilitatorStatus[] = ["pending", "approved", "disabled"];
+const missingColumnErrorCodes = ["42703", "PGRST204"];
 
 function adminRedirect(message: string): never {
   redirect(`/admin?message=${encodeURIComponent(message)}`);
@@ -17,8 +18,56 @@ function adminMessageRedirect(message: string): never {
   redirect(`/admin/messages?message=${encodeURIComponent(message)}`);
 }
 
+function adminMessageReturnRedirect(message: string, returnTo = "/admin/messages"): never {
+  const safeReturnTo = returnTo.startsWith("/admin/messages") ? returnTo : "/admin/messages";
+  const separator = safeReturnTo.includes("?") ? "&" : "?";
+  redirect(`${safeReturnTo}${separator}message=${encodeURIComponent(message)}`);
+}
+
 function adminFacilitatorEditRedirect(facilitatorId: string, message: string): never {
   redirect(`/admin/facilitators/${facilitatorId}/edit?message=${encodeURIComponent(message)}`);
+}
+
+export async function sendAdminMessageToFacilitatorAction(formData: FormData) {
+  await requireRole("admin");
+
+  const facilitatorId = getString(formData, "facilitator_id");
+  const returnTo = getString(formData, "return_to") || "/admin/messages?box=sent";
+  const subject = getString(formData, "subject") || "Besked fra SoulEvents administration";
+  const message = getString(formData, "message");
+
+  if (!facilitatorId || !message || message.length > 500 || subject.length > 120) {
+    adminMessageReturnRedirect("Skriv en besked på højst 500 tegn.", returnTo);
+  }
+
+  const supabase = createAdminClient();
+  const { data: facilitator } = await supabase
+    .from("facilitator_profiles")
+    .select("id, profile_id")
+    .eq("id", facilitatorId)
+    .single();
+
+  if (!facilitator?.profile_id) {
+    adminMessageReturnRedirect("Arrangøren kunne ikke findes.", returnTo);
+  }
+
+  const { error } = await supabase.from("facilitator_admin_messages").insert({
+    facilitator_id: facilitator.id,
+    profile_id: facilitator.profile_id,
+    type: "admin_reply",
+    status: "unread",
+    subject,
+    message,
+  });
+
+  if (error) {
+    adminMessageReturnRedirect("Beskeden kunne ikke sendes. Kør eventuelt den nyeste Supabase-migration og prøv igen.", returnTo);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/messages");
+  revalidatePath("/facilitator");
+  adminMessageReturnRedirect("Beskeden er sendt til arrangøren.", returnTo);
 }
 
 export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
@@ -180,11 +229,12 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   }
 
   const supabase = createAdminClient();
-  const { data: previousFacilitator } = await supabase
+  const { data: previousFacilitator, error: previousFacilitatorError } = await supabase
     .from("facilitator_profiles")
     .select("auto_approve_events")
     .eq("id", facilitatorId)
     .maybeSingle();
+  const canUpdateAutoApprove = !missingColumnErrorCodes.includes(previousFacilitatorError?.code ?? "");
   const previousAutoApprove = Boolean(previousFacilitator?.auto_approve_events);
 
   const { error: profileError } = await supabase
@@ -199,35 +249,45 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
     adminFacilitatorEditRedirect(facilitatorId, "Brugeroplysninger kunne ikke gemmes.");
   }
 
+  const facilitatorUpdate: Record<string, boolean | number | string | null> = {
+    status,
+    company_name: companyName,
+    short_description: shortDescription,
+    long_description: longDescription,
+    public_email: publicEmail,
+    public_phone: publicPhone,
+    website_url: websiteUrl,
+    facebook_url: facebookUrl,
+    instagram_url: instagramUrl,
+    address_line: addressLine,
+    postal_code: postalCode,
+    city,
+    region_id: regionId,
+    is_featured: isFeatured,
+    is_active_host: isActiveHost,
+    is_experienced_host: isExperiencedHost,
+    featured_sort_order: Number.isFinite(featuredSortOrder) ? featuredSortOrder : 0,
+  };
+
+  if (canUpdateAutoApprove) {
+    facilitatorUpdate.auto_approve_events = autoApproveEvents;
+  }
+
   const { error: facilitatorError } = await supabase
     .from("facilitator_profiles")
-    .update({
-      status,
-      company_name: companyName,
-      short_description: shortDescription,
-      long_description: longDescription,
-      public_email: publicEmail,
-      public_phone: publicPhone,
-      website_url: websiteUrl,
-      facebook_url: facebookUrl,
-      instagram_url: instagramUrl,
-      address_line: addressLine,
-      postal_code: postalCode,
-      city,
-      region_id: regionId,
-      is_featured: isFeatured,
-      is_active_host: isActiveHost,
-      is_experienced_host: isExperiencedHost,
-      auto_approve_events: autoApproveEvents,
-      featured_sort_order: Number.isFinite(featuredSortOrder) ? featuredSortOrder : 0,
-    })
+    .update(facilitatorUpdate)
     .eq("id", facilitatorId);
 
   if (facilitatorError) {
-    adminFacilitatorEditRedirect(facilitatorId, "Arrangørprofilen kunne ikke gemmes.");
+    adminFacilitatorEditRedirect(
+      facilitatorId,
+      missingColumnErrorCodes.includes(facilitatorError.code ?? "")
+        ? "Databasen mangler et felt til denne handling. Kør de nyeste Supabase-migrationer og prøv igen."
+        : "Arrangørprofilen kunne ikke gemmes.",
+    );
   }
 
-  if (previousAutoApprove !== autoApproveEvents) {
+  if (canUpdateAutoApprove && previousAutoApprove !== autoApproveEvents) {
     await supabase.from("admin_audit_log").insert({
       actor_profile_id: adminProfile.id,
       facilitator_id: facilitatorId,
@@ -271,5 +331,10 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   revalidatePath("/facilitators/" + facilitatorId);
   revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
 
-  adminFacilitatorEditRedirect(facilitatorId, "Arrangørprofilen er gemt.");
+  adminFacilitatorEditRedirect(
+    facilitatorId,
+    canUpdateAutoApprove
+      ? "Arrangørprofilen er gemt."
+      : "Arrangørprofilen er gemt. Auto-godkendelse kræver, at migration 046_admin_facilitator_overview_fields.sql køres.",
+  );
 }
