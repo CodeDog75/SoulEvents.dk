@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { GeoJSONSource, Map as MapboxMap } from "mapbox-gl";
+import type { GeoJSONSource, Map as MapboxMap, Popup } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { CalendarDays, HeartHandshake, MapPinned } from "lucide-react";
 
@@ -284,20 +284,23 @@ function setMapLayerVisibility(map: MapboxMap, mode: MapViewMode) {
   const eventVisibility = mode === "events" ? "visible" : "none";
   const providerVisibility = mode === "providers" ? "visible" : "none";
 
-  for (const layerId of ["event-clusters", "event-cluster-count", "event-points", "same-place-count"]) {
+  for (const layerId of ["event-clusters", "event-cluster-count", "event-points", "event-point-hit-area", "same-place-count"]) {
     if (map.getLayer(layerId)) {
       map.setLayoutProperty(layerId, "visibility", eventVisibility);
     }
   }
 
-  if (map.getLayer("service-provider-points")) {
-    map.setLayoutProperty("service-provider-points", "visibility", providerVisibility);
+  for (const layerId of ["service-provider-points", "service-provider-hit-area"]) {
+    if (map.getLayer(layerId)) {
+      map.setLayoutProperty(layerId, "visibility", providerVisibility);
+    }
   }
 }
 
 export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders = [] }: EventMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
+  const activePopupRef = useRef<Popup | null>(null);
   const viewModeRef = useRef<MapViewMode>("events");
   const [mapError, setMapError] = useState("");
   const [shouldLoadMap, setShouldLoadMap] = useState(false);
@@ -378,6 +381,11 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
       loadedMap = map;
       mapRef.current = map;
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "top-right");
+
+      const closeActivePopup = () => {
+        activePopupRef.current?.remove();
+        activePopupRef.current = null;
+      };
 
     const features = eventGroups.map((group) => ({
       type: "Feature" as const,
@@ -461,6 +469,19 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
         });
 
         map.addLayer({
+          id: "event-point-hit-area",
+          type: "circle",
+          source: "events",
+          filter: ["!", ["has", "point_count"]],
+          paint: {
+            "circle-color": "#000000",
+            "circle-opacity": 0,
+            "circle-radius": 24,
+          },
+          layout: { visibility: "visible" },
+        });
+
+        map.addLayer({
           id: "same-place-count",
           type: "symbol",
           source: "events",
@@ -494,6 +515,18 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
             "circle-opacity": 0.95,
           },
         });
+
+        map.addLayer({
+          id: "service-provider-hit-area",
+          type: "circle",
+          source: "service-providers",
+          layout: { visibility: "none" },
+          paint: {
+            "circle-color": "#000000",
+            "circle-opacity": 0,
+            "circle-radius": 24,
+          },
+        });
       }
 
       if (features.length > 0) {
@@ -512,11 +545,13 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
           });
         });
 
-        map.on("click", "event-points", (event) => {
+        map.on("click", "event-point-hit-area", (event) => {
+          event.preventDefault();
           const feature = event.features?.[0];
           const id = feature?.properties?.id;
           const selected = typeof id === "string" ? groupById.get(id) : null;
           if (!selected || !feature) return;
+          closeActivePopup();
           const coordinates = (feature.geometry as GeoJSON.Point).coordinates.slice() as [number, number];
           const mapCanvas = map.getCanvas();
           const anchor = event.point.y < mapCanvas.clientHeight * 0.48 ? "top" : "bottom";
@@ -524,6 +559,12 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
             .setLngLat(coordinates)
             .setHTML(popupHtml(selected))
             .addTo(map);
+          popup.on("close", () => {
+            if (activePopupRef.current === popup) {
+              activePopupRef.current = null;
+            }
+          });
+          activePopupRef.current = popup;
 
           requestAnimationFrame(() => {
             const popupElement = popup.getElement();
@@ -554,20 +595,28 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
       }
 
       if (serviceFeatures.length > 0) {
-        map.on("click", "service-provider-points", (event) => {
+        map.on("click", "service-provider-hit-area", (event) => {
+          event.preventDefault();
           const feature = event.features?.[0];
           const id = feature?.properties?.id;
           const selected = typeof id === "string" ? serviceById.get(id) : null;
           if (!selected || !feature) return;
+          closeActivePopup();
           const coordinates = (feature.geometry as GeoJSON.Point).coordinates.slice() as [number, number];
-          new mapboxgl.Popup({ offset: 16, className: "soulevents-map-popup", maxWidth: "300px" })
+          const popup = new mapboxgl.Popup({ offset: 16, className: "soulevents-map-popup", maxWidth: "300px" })
             .setLngLat(coordinates)
             .setHTML(servicePopupHtml(selected))
             .addTo(map);
+          popup.on("close", () => {
+            if (activePopupRef.current === popup) {
+              activePopupRef.current = null;
+            }
+          });
+          activePopupRef.current = popup;
         });
       }
 
-      for (const layerId of ["event-clusters", "event-points", "service-provider-points"]) {
+      for (const layerId of ["event-clusters", "event-point-hit-area", "service-provider-hit-area"]) {
         if (!map.getLayer(layerId)) continue;
         map.on("mouseenter", layerId, () => {
           map.getCanvas().style.cursor = "pointer";
@@ -576,6 +625,18 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
           map.getCanvas().style.cursor = "";
         });
       }
+
+      map.on("click", (event) => {
+        const clickableLayers = ["event-clusters", "event-point-hit-area", "service-provider-hit-area"].filter((layerId) =>
+          map.getLayer(layerId),
+        );
+        const clickedInteractiveFeature =
+          clickableLayers.length > 0 ? map.queryRenderedFeatures(event.point, { layers: clickableLayers }).length > 0 : false;
+
+        if (!clickedInteractiveFeature) {
+          closeActivePopup();
+        }
+      });
 
       setMapLayerVisibility(map, viewModeRef.current);
 
@@ -603,6 +664,8 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
 
     return () => {
       cancelled = true;
+      activePopupRef.current?.remove();
+      activePopupRef.current = null;
       loadedMap?.remove();
       mapRef.current = null;
     };
@@ -612,6 +675,8 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
     const map = mapRef.current;
     if (!map) return;
 
+    activePopupRef.current?.remove();
+    activePopupRef.current = null;
     document.querySelectorAll(".soulevents-map-popup").forEach((element) => element.remove());
 
     if (map.loaded()) {
