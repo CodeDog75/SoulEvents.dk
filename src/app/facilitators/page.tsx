@@ -70,7 +70,8 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
       .select(
         "id, host_reference_id, company_name, profile_image_path, short_description, city, is_online_facilitator, is_active_host, is_experienced_host, profiles(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))",
       )
-      .eq("status", "approved"),
+      .eq("status", "approved")
+      .neq("host_reference_id", "V101"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
     supabase.from("regions").select("slug, name").order("sort_order"),
     supabase.from("events").select("id, facilitator_id").in("status", ["active", "sold_out"]).gte("ends_at", new Date().toISOString()),

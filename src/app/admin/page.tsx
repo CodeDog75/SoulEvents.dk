@@ -112,6 +112,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { href: "/admin/messages", title: "Beskeder", text: "Indbakke, sendte svar og arkiverede beskeder.", icon: Mail, badge: openAdminMessages ? `${formatNumber(openAdminMessages)} ubesvarede` : undefined },
     { href: "/admin/category-architecture", title: "Kategorier & tags", text: "Administrer kategorier, tags og tagfarver ét samlet sted.", icon: Tags },
     { href: "/admin/service-titles", title: "Behandlertitler", text: "Styr titler og ydelsestyper til arrangørprofiler.", icon: UserCog },
+    { href: "/admin/about", title: "Om SoulEvents", text: "Rediger den offentlige fortælling, CTA og billeder.", icon: FileText },
     { href: "/admin/homepage", title: "Forsidebokse og temaer", text: "Styr de store 1:1 bokse og kampagne-temaer på forsiden.", icon: LayoutGrid },
     { href: "/admin/current-experiences", title: "Aktuelle oplevelser", text: "Opret og styr de eventrækker, der vises på forsiden.", icon: Sparkles },
     { href: "/admin/inspirators", title: "Inspiratorer", text: "Opret og rediger inspiratorprofiler til inspirationsuniverset.", icon: Sparkles },
