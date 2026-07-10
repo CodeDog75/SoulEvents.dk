@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, HeartHandshake, MapPinned, Sparkles } from "lucide-react";
+import { ArrowLeft, CalendarPlus, HeartHandshake, MailCheck, MapPinned, Search, Sparkles, UserPlus } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import { aboutPageSettingKey, parseAboutPageContent, type AboutImageKey } from "@/lib/about-page-content";
@@ -11,9 +11,20 @@ function publicMediaUrl(supabase: Awaited<ReturnType<typeof createClient>>, path
   return path ? supabase.storage.from("media").getPublicUrl(path).data.publicUrl : null;
 }
 
+function TextBody({ className = "", text }: { className?: string; text: string }) {
+  if (!text) return null;
+
+  return (
+    <div className={"space-y-4 whitespace-pre-line text-base leading-8 text-ink/70 " + className}>
+      {text}
+    </div>
+  );
+}
+
 function StorySection({
   imageKey,
   imagePosition = "right",
+  imageTone = "default",
   supabase,
   text,
   title,
@@ -21,6 +32,7 @@ function StorySection({
 }: {
   imageKey?: AboutImageKey;
   imagePosition?: "left" | "right";
+  imageTone?: "default" | "prominent";
   supabase: Awaited<ReturnType<typeof createClient>>;
   text: string;
   title: string;
@@ -33,23 +45,94 @@ function StorySection({
   const image = imageKey ? images[imageKey] : null;
   const imageUrl = image ? publicMediaUrl(supabase, image.path) : null;
   const textBlock = (
-    <div>
-      <h2 className="text-3xl font-medium text-olive sm:text-4xl">{title}</h2>
-      {text && <p className="mt-4 whitespace-pre-line text-base leading-7 text-ink/70">{text}</p>}
+    <div className={imagePosition === "left" ? "lg:order-2" : ""}>
+      <h2 className="text-3xl font-medium leading-tight text-olive sm:text-4xl">{title}</h2>
+      <TextBody className="mt-4 max-w-[62ch]" text={text} />
     </div>
   );
   const imageBlock = imageUrl ? (
-    <div className="overflow-hidden rounded-[24px] bg-sage-50 shadow-soft">
+    <div className={(imagePosition === "left" ? "lg:order-1 " : "") + "overflow-hidden rounded-[24px] bg-sage-50 shadow-soft"}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img alt={image?.alt || title} className="aspect-[16/11] w-full object-cover" src={imageUrl} />
+      <img
+        alt={image?.alt || title}
+        className={(imageTone === "prominent" ? "aspect-[16/10]" : "aspect-[16/11]") + " w-full object-cover"}
+        src={imageUrl}
+      />
     </div>
   ) : null;
 
   return (
-    <section className="grid gap-6 rounded-[28px] bg-white p-6 shadow-soft sm:p-8 lg:grid-cols-2 lg:items-center">
-      {imagePosition === "left" && imageBlock}
+    <section
+      className={
+        "grid gap-7 rounded-[28px] bg-white p-6 shadow-soft sm:p-8 lg:items-center " +
+        (imageTone === "prominent" ? "lg:grid-cols-[1fr_1.08fr]" : "lg:grid-cols-[1.08fr_0.92fr]")
+      }
+    >
       {textBlock}
-      {imagePosition === "right" && imageBlock}
+      {imageBlock}
+    </section>
+  );
+}
+
+function HowItWorksSection({ text, title }: { text: string; title: string }) {
+  if (!title && !text) return null;
+
+  const steps = [
+    { icon: UserPlus, title: "Opret gratis arrangørprofil" },
+    { icon: CalendarPlus, title: "Del events og ydelser" },
+    { icon: MailCheck, title: "Modtag tilmeldinger og e-mailbeskeder" },
+    { icon: Search, title: "Bliv fundet via kort og søgning" },
+  ];
+
+  return (
+    <section className="rounded-[28px] bg-white p-6 shadow-soft sm:p-8">
+      <div className="grid gap-7 lg:grid-cols-[1.18fr_0.82fr] lg:items-start">
+        <div>
+          <h2 className="text-3xl font-medium leading-tight text-olive sm:text-4xl">{title}</h2>
+          <TextBody className="mt-4 max-w-[72ch]" text={text} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+          {steps.map((step) => {
+            const Icon = step.icon;
+            return (
+              <div className="flex items-center gap-3 rounded-[18px] border border-sage-700/10 bg-[#FAF6EF] px-4 py-3" key={step.title}>
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#EDE4F7] text-[#7A4EAB]">
+                  <Icon className="size-4" aria-hidden="true" />
+                </span>
+                <p className="text-sm font-semibold leading-5 text-[#2F2633]">{step.title}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ValuesSection({ text, title }: { text: string; title: string }) {
+  if (!title && !text) return null;
+
+  const values = [
+    { title: "Tillid", text: "Trygge rammer for både deltagere og arrangører." },
+    { title: "Gennemsigtighed", text: "Klare oplysninger, relevante annoncer og en sund drift af platformen." },
+    { title: "Ro", text: "Et overskueligt univers med god luft og respekt for valget." },
+    { title: "Respekt", text: "Plads til forskellige mennesker, praksisser og veje ind i fællesskabet." },
+  ];
+
+  return (
+    <section className="rounded-[28px] bg-white p-6 shadow-soft sm:p-8">
+      <div className="max-w-[78ch]">
+        <h2 className="text-3xl font-medium leading-tight text-olive sm:text-4xl">{title}</h2>
+        <TextBody className="mt-4" text={text} />
+      </div>
+      <div className="mt-7 grid gap-5 sm:grid-cols-2">
+        {values.map((value) => (
+          <div className="border-t border-sage-700/15 pt-4" key={value.title}>
+            <h3 className="text-xl font-medium text-[#2F2633]">{value.title}</h3>
+            <p className="mt-2 text-sm leading-6 text-ink/68">{value.text}</p>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -62,13 +145,13 @@ export default async function AboutPage() {
 
   return (
     <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
-      <section className="mx-auto max-w-[1100px] px-5 py-8 sm:px-8 sm:py-12">
+      <section className="mx-auto max-w-[1180px] px-5 py-8 sm:px-8 sm:py-12">
         <Link className="inline-flex items-center gap-2 text-sm font-semibold text-olive transition hover:text-rose" href="/">
           <ArrowLeft className="size-4" aria-hidden="true" />
           Tilbage til forsiden
         </Link>
 
-        <div className="mt-8 grid gap-8 rounded-[28px] bg-white p-6 shadow-soft sm:p-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+        <div className="mt-8 grid gap-8 rounded-[28px] bg-white p-6 shadow-soft sm:p-8 lg:grid-cols-[0.86fr_1.14fr] lg:items-center">
           <div>
             {heroImageUrl ? (
               <div className="overflow-hidden rounded-[24px] bg-sage-50 shadow-soft">
@@ -82,7 +165,7 @@ export default async function AboutPage() {
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Om SoulEvents</p>
             <h1 className="mt-3 text-4xl font-medium leading-tight text-olive sm:text-6xl">{content.headline}</h1>
-            <p className="mt-4 whitespace-pre-line text-base leading-7 text-ink/70">{content.introduction}</p>
+            <TextBody className="mt-4 max-w-[68ch]" text={content.introduction} />
           </div>
         </div>
 
@@ -118,9 +201,9 @@ export default async function AboutPage() {
         <div className="mt-8 grid gap-6">
           <StorySection imageKey="why" images={content.images} supabase={supabase} text={content.whyText} title={content.whyTitle} />
           <StorySection imageKey="vision" imagePosition="left" images={content.images} supabase={supabase} text={content.visionText} title={content.visionTitle} />
-          <StorySection imageKey="story" images={content.images} supabase={supabase} text={content.storyText} title={content.storyTitle} />
-          <StorySection images={content.images} supabase={supabase} text={content.howText} title={content.howTitle} />
-          <StorySection images={content.images} supabase={supabase} text={content.valuesText} title={content.valuesTitle} />
+          <StorySection imageKey="story" imageTone="prominent" images={content.images} supabase={supabase} text={content.storyText} title={content.storyTitle} />
+          <HowItWorksSection text={content.howText} title={content.howTitle} />
+          <ValuesSection text={content.valuesText} title={content.valuesTitle} />
         </div>
 
         {(content.ctaTitle || content.ctaText || content.ctaButtonText) && (
