@@ -35,6 +35,10 @@ function getName(facilitator: any) {
   return facilitator.company_name || profile?.full_name || "Arrangør";
 }
 
+function isPlatformOwner(facilitator: any) {
+  return facilitator.host_reference_id === "V101";
+}
+
 function startsWithLetter(name: string, letter: string) {
   if (!letter) return true;
   return name.trim().toLocaleUpperCase("da-DK").startsWith(letter);
@@ -64,7 +68,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
     supabase
       .from("facilitator_profiles")
       .select(
-        "id, company_name, profile_image_path, short_description, city, is_online_facilitator, is_active_host, is_experienced_host, profiles(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))",
+        "id, host_reference_id, company_name, profile_image_path, short_description, city, is_online_facilitator, is_active_host, is_experienced_host, profiles(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))",
       )
       .eq("status", "approved"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
@@ -196,10 +200,18 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
               facilitator.facilitator_categories
                 ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
                 .filter(Boolean) ?? [];
+            const platformOwner = isPlatformOwner(facilitator);
 
             return (
-              <Link className="group overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift" href={"/facilitators/" + facilitator.id} key={facilitator.id}>
-                <div className="relative aspect-[4/3] bg-sage-50">
+              <Link
+                className={
+                  "group overflow-hidden rounded-card shadow-soft transition hover:-translate-y-1 hover:shadow-lift " +
+                  (platformOwner ? "border border-[#D8C7EE] bg-[#F4F0FA]" : "bg-white")
+                }
+                href={"/facilitators/" + facilitator.id}
+                key={facilitator.id}
+              >
+                <div className={"relative aspect-[4/3] " + (platformOwner ? "bg-[#EDE4F7]" : "bg-sage-50")}>
                   {facilitator.is_experienced_host ? (
                     <OrganizerImageBadge type="experienced" />
                   ) : facilitator.is_active_host ? (

@@ -930,6 +930,7 @@ function mapFacilitatorCard(facilitator: any, supabase: Awaited<ReturnType<typeo
 
   return {
     id: facilitator.id,
+    hostReferenceId: facilitator.host_reference_id ?? null,
     name: facilitator.company_name || profile?.full_name || "Arrangør",
     imageUrl: facilitator.profile_image_path
       ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
@@ -951,7 +952,7 @@ async function getFeaturedHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles(full_name), facilitator_categories(categories(name, color_hex))")
+    .select("id, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles(full_name), facilitator_categories(categories(name, color_hex))")
     .eq("status", "approved")
     .eq("is_featured", true)
     .order("featured_sort_order", { ascending: true })
@@ -973,7 +974,7 @@ async function getNewHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles(full_name), facilitator_categories(categories(name, color_hex))")
+    .select("id, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles(full_name), facilitator_categories(categories(name, color_hex))")
     .eq("status", "approved")
     .order("created_at", { ascending: false })
     .limit(8);
@@ -994,7 +995,7 @@ async function getHomeFacilitators(queryText: string) {
   const { data: facilitators } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, is_online_facilitator, is_active_host, is_experienced_host, website_url, facebook_url, instagram_url, profiles(full_name), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_tags(tags(name))",
+      "id, host_reference_id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, is_online_facilitator, is_active_host, is_experienced_host, website_url, facebook_url, instagram_url, profiles(full_name), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_tags(tags(name))",
     )
     .eq("status", "approved");
 
@@ -1042,6 +1043,7 @@ async function getHomeFacilitators(queryText: string) {
 
     return {
       id: facilitator.id,
+      hostReferenceId: facilitator.host_reference_id ?? null,
       name: facilitator.company_name || profile?.full_name || "Arrangør",
       imageUrl: facilitator.profile_image_path
         ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
@@ -1049,7 +1051,7 @@ async function getHomeFacilitators(queryText: string) {
       tagline: facilitator.short_description || "",
       city: facilitator.city || region?.name || facilitator.country || null,
       isActiveHost: Boolean(facilitator.is_active_host),
-    isExperiencedHost: Boolean(facilitator.is_experienced_host),
+      isExperiencedHost: Boolean(facilitator.is_experienced_host),
       categories,
     };
   });
@@ -1173,7 +1175,7 @@ export default async function Home({ searchParams }: HomeProps) {
     country: params.country ?? "",
   };
   const selectedCollectionId = params.collection ?? "";
-  const selectedHomepageView = params.view === "nearby" || params.view === "new" ? params.view : "";
+  const selectedHomepageView = params.view === "new" ? params.view : "";
   const hasSearch = Boolean(
     selected.q ||
       selected.area ||
@@ -1234,7 +1236,6 @@ export default async function Home({ searchParams }: HomeProps) {
   const adminHomepageEventCollections = await getHomepageEventCollections();
   const homepageEventPool = uniqueEventsById(upcomingEvents as PublicEvent[]);
   const selectedHomepageEventCollection = adminHomepageEventCollections.find((collection) => collection.id === selectedCollectionId);
-  const physicalHomepageEvents = homepageEventPool.filter((event) => event.event_format !== "online");
   const newHomepageEvents = [...homepageEventPool].sort(
     (a, b) => new Date(b.created_at ?? b.starts_at).getTime() - new Date(a.created_at ?? a.starts_at).getTime(),
   );
@@ -1243,10 +1244,8 @@ export default async function Home({ searchParams }: HomeProps) {
       ? eventsByIdsInOrder(homepageEventPool, collection.eventIds)
       : homepageEventPool.filter((event) => eventMatchesTagIds(event, collection.tagIds));
   const selectedCollectionEvents = selectedHomepageEventCollection ? eventsForHomepageCollection(selectedHomepageEventCollection) : [];
-  const selectedViewEvents =
-    selectedHomepageView === "nearby" ? physicalHomepageEvents : selectedHomepageView === "new" ? newHomepageEvents : [];
-  const selectedViewTitle =
-    selectedHomepageView === "nearby" ? "Events nær dig" : selectedHomepageView === "new" ? "Nye events" : "";
+  const selectedViewEvents = selectedHomepageView === "new" ? newHomepageEvents : [];
+  const selectedViewTitle = selectedHomepageView === "new" ? "Nye events" : "";
   const displayedSearchEvents = selectedHomepageEventCollection
     ? selectedCollectionEvents
     : selectedHomepageView
@@ -1265,11 +1264,10 @@ export default async function Home({ searchParams }: HomeProps) {
     .filter((section) => section.events.length > 0)
     .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "da-DK"));
   const homepageEventSections: HomepageEventSection[] = [
-    { title: "Events nær dig", href: homepageViewHref("nearby"), events: physicalHomepageEvents.slice(0, 10) },
     { title: "Nye events", href: homepageViewHref("new"), events: newHomepageEvents.slice(0, 10) },
     ...adminHomepageEventSections,
   ];
-  const mobileHiddenHomepageEventSections = new Set(["Events nær dig"]);
+  const mobileHiddenHomepageEventSections = new Set<string>();
   const mapEvents = mapSourceEvents.map((event) => {
     const facilitatorProfile = Array.isArray(event.facilitator_profiles)
       ? event.facilitator_profiles[0]
@@ -1461,7 +1459,7 @@ export default async function Home({ searchParams }: HomeProps) {
                   <div className={visibilityClass}>
                     <EventCarouselSection events={section.events} href={section.href} title={section.title} />
                   </div>
-                  {index === 1 && homepageMiddleAds.length > 0 ? (
+                  {index === 0 && homepageMiddleAds.length > 0 ? (
                     <PartnerAdCarousel ads={homepageMiddleAds} className="py-1" />
                   ) : null}
                 </Fragment>
@@ -1547,7 +1545,12 @@ export default async function Home({ searchParams }: HomeProps) {
                         <div className="mt-4 grid gap-3">
                           {facilitatorCards.slice(0, 3).map((facilitator) => (
                             <Link
-                              className="flex items-center justify-between gap-3 rounded-md border border-olive/10 bg-[#EDE4F7]/55 px-4 py-3 text-sm font-semibold text-[#2F2633] transition hover:border-sage-700"
+                              className={
+                                "flex items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm font-semibold text-[#2F2633] transition hover:border-sage-700 " +
+                                (facilitator.hostReferenceId === "V101"
+                                  ? "border-[#D8C7EE] bg-[#F4F0FA]"
+                                  : "border-olive/10 bg-[#EDE4F7]/55")
+                              }
                               href={"/facilitators/" + facilitator.id}
                               key={facilitator.id}
                             >
