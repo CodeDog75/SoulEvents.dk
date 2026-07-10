@@ -78,13 +78,17 @@ async function uploadAboutImage(file: FormDataEntryValue | null, key: AboutImage
     return { path: currentPath };
   }
 
+  console.info("[admin-about] image upload received", { field: key, size: file.size, type: file.type || "unknown" });
+
   const extension = extensionFromFile(file);
 
   if (!extension) {
+    console.info("[admin-about] image upload rejected", { field: key, reason: "unsupported_type", size: file.size, type: file.type || "unknown" });
     return { error: "Vælg et billede i JPG, PNG eller WEBP.", path: currentPath };
   }
 
   if (file.size > 10 * 1024 * 1024) {
+    console.info("[admin-about] image upload rejected", { field: key, reason: "file_too_large", size: file.size, type: file.type || "unknown" });
     return { error: "Billedet er for stort. Vælg et billede under 10 MB.", path: currentPath };
   }
 
@@ -99,6 +103,7 @@ async function uploadAboutImage(file: FormDataEntryValue | null, key: AboutImage
 
   let uploadError: string | null = null;
   try {
+    console.info("[admin-about] image upload started", { field: key, imagePath, size: file.size, type: file.type || "unknown" });
     const { error } = await supabase.storage.from("media").upload(imagePath, file, {
       cacheControl: "31536000",
       contentType: imageContentType(extension, file.type),
@@ -115,6 +120,7 @@ async function uploadAboutImage(file: FormDataEntryValue | null, key: AboutImage
     return { error: "Billedet kunne ikke uploades. Tjek at filen er JPG, PNG eller WEBP under 10 MB.", path: currentPath };
   }
 
+  console.info("[admin-about] image upload succeeded", { field: key, imagePath });
   return { path: imagePath };
 }
 
@@ -166,6 +172,11 @@ export async function updateAboutPageContentAction(formData: FormData) {
     };
   }
 
+  console.info("[admin-about] saving content", {
+    imageErrors: imageErrors.length,
+    imagePaths: Object.fromEntries(aboutImageFields.map((imageField) => [imageField.key, Boolean(content.images[imageField.key].path)])),
+  });
+
   const { error } = await supabase.from("site_settings").upsert(
     {
       key: aboutPageSettingKey,
@@ -178,6 +189,8 @@ export async function updateAboutPageContentAction(formData: FormData) {
     console.error("About page content save failed", { error: error.message });
     go("Om SoulEvents kunne ikke gemmes. Prøv igen.");
   }
+
+  console.info("[admin-about] content saved", { imageErrors: imageErrors.length });
 
   revalidatePath("/about");
   revalidatePath("/admin/about");

@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, FileText } from "lucide-react";
 import { updateAboutPageContentAction } from "@/app/admin/about/actions";
+import { AboutImageFields } from "@/components/admin/about-image-fields";
 import { AboutSubmitButton } from "@/components/admin/about-submit-button";
 import { AuthMessage } from "@/components/auth/auth-message";
-import { aboutImageFields, aboutPageSettingKey, parseAboutPageContent, type AboutImageKey } from "@/lib/about-page-content";
+import { aboutPageSettingKey, parseAboutPageContent } from "@/lib/about-page-content";
 import { requireRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -34,10 +35,6 @@ function Field({
       {children}
     </label>
   );
-}
-
-function imageUrl(supabase: Awaited<ReturnType<typeof createClient>>, path: string | null) {
-  return path ? supabase.storage.from("media").getPublicUrl(path).data.publicUrl : null;
 }
 
 export default async function AdminAboutPage({ searchParams }: AdminAboutPageProps) {
@@ -152,45 +149,7 @@ export default async function AdminAboutPage({ searchParams }: AdminAboutPagePro
             </Field>
           </section>
 
-          <section className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
-            <h2 className="font-semibold text-midnight">Billeder</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              {aboutImageFields.map((field) => {
-                const key = field.key as AboutImageKey;
-                const previewUrl = imageUrl(supabase, content.images[key].path);
-
-                return (
-                  <div className="grid gap-3 rounded-md border border-midnight/10 bg-[#fbfaf7] p-4" key={field.key}>
-                    <h3 className="font-semibold text-midnight">{field.label}</h3>
-                    {previewUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img alt={content.images[key].alt} className="aspect-[16/10] w-full rounded-md object-cover shadow-soft" src={previewUrl} />
-                    ) : (
-                      <div className="grid aspect-[16/10] place-items-center rounded-md bg-sage-50 text-sm font-semibold text-sage-700">
-                        Intet billede valgt
-                      </div>
-                    )}
-                    <input name={`${field.key}ImagePath`} type="hidden" value={content.images[key].path ?? ""} />
-                    <Field label="Upload/udskift billede">
-                      <input
-                        accept="image/jpeg,image/png,image/webp"
-                        className="rounded-md border border-midnight/15 bg-white px-3 py-2 text-sm"
-                        name={`${field.key}ImageFile`}
-                        type="file"
-                      />
-                    </Field>
-                    <Field label="Alternativ tekst">
-                      <input
-                        className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
-                        defaultValue={content.images[key].alt}
-                        name={`${field.key}ImageAlt`}
-                      />
-                    </Field>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+          <AboutImageFields images={content.images} />
 
           <div className="flex flex-col gap-3 rounded-card border border-midnight/10 bg-white p-5 shadow-soft sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-ink/64">Gemmer både tekster og billeder for den offentlige “Om SoulEvents”-side.</p>
