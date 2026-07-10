@@ -24,6 +24,12 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+const hiddenHomepageFacilitatorReferenceIds = new Set(["V101"]);
+
+function isHiddenHomepageFacilitator(facilitator: { host_reference_id?: string | null } | null | undefined) {
+  return Boolean(facilitator?.host_reference_id && hiddenHomepageFacilitatorReferenceIds.has(facilitator.host_reference_id));
+}
+
 type LocalServiceProvider = {
   id: string;
   name: string;
@@ -576,7 +582,7 @@ async function getSearchEvents(selected: {
   let query = supabase
     .from("events")
     .select(
-      "id, status, title, short_description, starts_at, created_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, company_name, profiles(full_name)), regions(name), event_categories(categories(id, name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug)), event_tags(tag_id, tags(name))",
+      "id, status, title, short_description, starts_at, created_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, host_reference_id, company_name, profiles(full_name)), regions(name), event_categories(categories(id, name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug)), event_tags(tag_id, tags(name))",
     )
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
@@ -621,7 +627,13 @@ async function getSearchEvents(selected: {
 
   const { data: events } = await query;
   const matchedEvents = uniqueEventsById(events ?? []).filter(
-    (event) => textMatches(event, selected.q) && categoryMatches(event, selected.categoryLabel),
+    (event) => {
+      const facilitatorProfile = Array.isArray(event.facilitator_profiles)
+        ? event.facilitator_profiles[0]
+        : event.facilitator_profiles;
+
+      return !isHiddenHomepageFacilitator(facilitatorProfile) && textMatches(event, selected.q) && categoryMatches(event, selected.categoryLabel);
+    },
   );
 
   const userLatitude = parseCoordinate(selected.latitude);
@@ -804,7 +816,7 @@ async function getLocalServiceProviders(selected: {
   const { data: providers } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, company_name, profile_image_path, short_description, service_description, service_other_title, city, country, latitude, longitude, offers_services, show_in_local_service_results, profiles(full_name), regions(name, slug), facilitator_categories(categories(name)), facilitator_tags(tags(name)), facilitator_service_titles(service_titles(name, is_active))",
+      "id, host_reference_id, company_name, profile_image_path, short_description, service_description, service_other_title, city, country, latitude, longitude, offers_services, show_in_local_service_results, profiles(full_name), regions(name, slug), facilitator_categories(categories(name)), facilitator_tags(tags(name)), facilitator_service_titles(service_titles(name, is_active))",
     )
     .eq("status", "approved")
     .eq("offers_services", true)
@@ -822,6 +834,8 @@ async function getLocalServiceProviders(selected: {
 
   return (providers ?? [])
     .filter((provider: any) => {
+      if (isHiddenHomepageFacilitator(provider)) return false;
+
       const region = Array.isArray(provider.regions) ? provider.regions[0] : provider.regions;
       const areaMatches = !selectedArea || (region?.slug && selectedArea.slugs.includes(region.slug));
       if (!areaMatches) return false;
@@ -963,7 +977,7 @@ async function getFeaturedHomeFacilitators() {
     return [];
   }
 
-  return data.map((facilitator) => mapFacilitatorCard(facilitator, supabase));
+  return data.filter((facilitator) => !isHiddenHomepageFacilitator(facilitator)).map((facilitator) => mapFacilitatorCard(facilitator, supabase));
 }
 
 async function getNewHomeFacilitators() {
@@ -983,7 +997,7 @@ async function getNewHomeFacilitators() {
     return [];
   }
 
-  return data.map((facilitator) => mapFacilitatorCard(facilitator, supabase));
+  return data.filter((facilitator) => !isHiddenHomepageFacilitator(facilitator)).map((facilitator) => mapFacilitatorCard(facilitator, supabase));
 }
 
 async function getHomeFacilitators(queryText: string) {
@@ -1001,6 +1015,8 @@ async function getHomeFacilitators(queryText: string) {
 
   const term = normalizeText(queryText);
   const filtered = (facilitators ?? []).filter((facilitator: any) => {
+    if (isHiddenHomepageFacilitator(facilitator)) return false;
+
     const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
     const region = Array.isArray(facilitator.regions) ? facilitator.regions[0] : facilitator.regions;
     const categories =
@@ -1545,12 +1561,7 @@ export default async function Home({ searchParams }: HomeProps) {
                         <div className="mt-4 grid gap-3">
                           {facilitatorCards.slice(0, 3).map((facilitator) => (
                             <Link
-                              className={
-                                "flex items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm font-semibold text-[#2F2633] transition hover:border-sage-700 " +
-                                (facilitator.hostReferenceId === "V101"
-                                  ? "border-[#D8C7EE] bg-[#F4F0FA]"
-                                  : "border-olive/10 bg-[#EDE4F7]/55")
-                              }
+                              className="flex items-center justify-between gap-3 rounded-md border border-olive/10 bg-[#EDE4F7]/55 px-4 py-3 text-sm font-semibold text-[#2F2633] transition hover:border-sage-700"
                               href={"/facilitators/" + facilitator.id}
                               key={facilitator.id}
                             >

@@ -64,14 +64,11 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
           <div className="mt-6 flex snap-x gap-4 overflow-x-auto pb-4">
             {facilitators.map((facilitator) => (
               <Link
-                className={
-                  "group min-w-[250px] max-w-[250px] snap-start overflow-hidden rounded-card shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[300px] sm:max-w-[300px] " +
-                  (facilitator.hostReferenceId === "V101" ? "border border-[#D8C7EE] bg-[#F4F0FA]" : "bg-white")
-                }
+                className="group min-w-[250px] max-w-[250px] snap-start overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[300px] sm:max-w-[300px]"
                 href={"/facilitators/" + facilitator.id}
                 key={facilitator.id}
               >
-                <div className={"relative aspect-[4/3] " + (facilitator.hostReferenceId === "V101" ? "bg-[#EDE4F7]" : "bg-sage-50")}>
+                <div className="relative aspect-[4/3] bg-sage-50">
                   {facilitator.isExperiencedHost ? (
                     <OrganizerImageBadge type="experienced" />
                   ) : facilitator.isActiveHost ? (

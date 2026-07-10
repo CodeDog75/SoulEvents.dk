@@ -25,13 +25,14 @@ function extensionFromFile(file: File) {
     return fromName === "jpeg" ? "jpg" : fromName;
   }
 
+  if (file.type === "image/jpeg") return "jpg";
   if (file.type === "image/png") return "png";
   if (file.type === "image/webp") return "webp";
-  return "jpg";
+  return null;
 }
 
 function imageContentType(extension: string, fallback: string) {
-  if (fallback && fallback !== "application/octet-stream") {
+  if (["image/jpeg", "image/png", "image/webp"].includes(fallback)) {
     return fallback;
   }
 
@@ -55,7 +56,7 @@ async function ensureMediaBucket(supabase: ReturnType<typeof createAdminClient>)
   const { data: bucket } = await supabase.storage.getBucket("media");
 
   if (bucket) {
-    return;
+    return null;
   }
 
   const { error } = await supabase.storage.createBucket("media", {
@@ -66,29 +67,33 @@ async function ensureMediaBucket(supabase: ReturnType<typeof createAdminClient>)
 
   if (error && !error.message.toLowerCase().includes("already exists")) {
     console.error("About page media bucket setup failed", { error: error.message });
-    go("Billeder kan ikke uploades lige nu. Media-bucketten kunne ikke klargøres.");
+    return "Media-bucketten kunne ikke klargøres.";
   }
+
+  return null;
 }
 
 async function uploadAboutImage(file: FormDataEntryValue | null, key: AboutImageKey, currentPath: string | null) {
   if (!(file instanceof File) || file.size === 0) {
-    return currentPath;
+    return { path: currentPath };
   }
 
   const extension = extensionFromFile(file);
-  const isAllowedType = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
-  const isAllowedExtension = ["jpg", "jpeg", "png", "webp"].includes(extension);
 
-  if (!isAllowedType && !isAllowedExtension) {
-    go("Billeder skal være JPG, PNG eller WEBP.");
+  if (!extension) {
+    return { error: "Vælg et billede i JPG, PNG eller WEBP.", path: currentPath };
   }
 
   if (file.size > 10 * 1024 * 1024) {
-    go("Billedet er for stort. Vælg et billede under 10 MB.");
+    return { error: "Billedet er for stort. Vælg et billede under 10 MB.", path: currentPath };
   }
 
   const supabase = createAdminClient();
-  await ensureMediaBucket(supabase);
+  const bucketError = await ensureMediaBucket(supabase);
+
+  if (bucketError) {
+    return { error: bucketError, path: currentPath };
+  }
 
   const imagePath = "about/" + key + "/" + Date.now() + "-" + (safeName(file) || "billede") + "." + extension;
 
@@ -107,10 +112,10 @@ async function uploadAboutImage(file: FormDataEntryValue | null, key: AboutImage
 
   if (uploadError) {
     console.error("About page image upload failed", { error: uploadError, imagePath, key });
-    go("Billedet kunne ikke uploades. Tjek at filen er JPG, PNG eller WEBP under 10 MB.");
+    return { error: "Billedet kunne ikke uploades. Tjek at filen er JPG, PNG eller WEBP under 10 MB.", path: currentPath };
   }
 
-  return imagePath;
+  return { path: imagePath };
 }
 
 function text(formData: FormData, key: keyof Omit<AboutPageContent, "images">) {
@@ -144,12 +149,20 @@ export async function updateAboutPageContentAction(formData: FormData) {
     images: cloneAboutImages(currentContent.images),
   };
 
+  const imageErrors: string[] = [];
+
   for (const imageField of aboutImageFields) {
     const key = imageField.key;
     const currentPath = getOptionalString(formData, `${key}ImagePath`) || currentContent.images[key].path;
+    const upload = await uploadAboutImage(formData.get(`${key}ImageFile`), key, currentPath);
+
+    if (upload.error) {
+      imageErrors.push(`${imageField.label}: ${upload.error}`);
+    }
+
     content.images[key] = {
       alt: getOptionalString(formData, `${key}ImageAlt`) || currentContent.images[key].alt,
-      path: await uploadAboutImage(formData.get(`${key}ImageFile`), key, currentPath),
+      path: upload.path,
     };
   }
 
@@ -168,5 +181,10 @@ export async function updateAboutPageContentAction(formData: FormData) {
 
   revalidatePath("/about");
   revalidatePath("/admin/about");
+
+  if (imageErrors.length > 0) {
+    go("Tekster og gyldige billeder er gemt. " + imageErrors.join(" "));
+  }
+
   go("Om SoulEvents er gemt.");
 }
