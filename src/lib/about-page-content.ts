@@ -60,6 +60,15 @@ export const defaultAboutPageContent: AboutPageContent = {
   },
 };
 
+export function cloneAboutImages(images: AboutPageContent["images"]): AboutPageContent["images"] {
+  return {
+    hero: { ...images.hero },
+    why: { ...images.why },
+    vision: { ...images.vision },
+    story: { ...images.story },
+  };
+}
+
 function stringValue(value: unknown, fallback: string) {
   return typeof value === "string" ? value : fallback;
 }

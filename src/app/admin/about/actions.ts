@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import {
   aboutImageFields,
   aboutPageSettingKey,
+  cloneAboutImages,
   defaultAboutPageContent,
   parseAboutPageContent,
   type AboutImageKey,
@@ -140,7 +141,7 @@ export async function updateAboutPageContentAction(formData: FormData) {
     ctaText: text(formData, "ctaText"),
     ctaButtonText: text(formData, "ctaButtonText") || defaultAboutPageContent.ctaButtonText,
     ctaButtonLink: getOptionalString(formData, "ctaButtonLink") || defaultAboutPageContent.ctaButtonLink,
-    images: currentContent.images,
+    images: cloneAboutImages(currentContent.images),
   };
 
   for (const imageField of aboutImageFields) {
