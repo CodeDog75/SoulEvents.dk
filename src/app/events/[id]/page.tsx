@@ -308,11 +308,11 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   alt={`Profilbillede for ${facilitatorName}`}
-                  className="size-28 rounded-full object-cover shadow-soft"
+                  className="aspect-square size-28 shrink-0 rounded-full object-cover shadow-soft"
                   src={facilitatorImageUrl}
                 />
               ) : (
-                <div className="grid size-28 place-items-center rounded-full bg-sage-50 text-sage-700">
+                <div className="grid aspect-square size-28 shrink-0 place-items-center rounded-full bg-sage-50 text-sage-700">
                   <CircleUserRound className="size-10" aria-hidden="true" />
                 </div>
               )}
@@ -340,6 +340,12 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                     ))}
                   </div>
                 )}
+                <Link
+                  className="mt-4 inline-flex h-11 items-center justify-center rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-sage-700 hover:shadow-lift"
+                  href={"/facilitators/" + facilitatorProfile.id}
+                >
+                  Se arrangørens profil
+                </Link>
               </div>
             </div>
           </section>
