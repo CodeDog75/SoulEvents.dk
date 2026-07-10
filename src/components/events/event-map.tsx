@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapboxMap, Popup } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -324,7 +323,6 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
     [localServiceProviders, viewMode],
   );
   const hasVisibleMarkers = visibleEventGroups.length > 0 || visibleServiceProviders.length > 0;
-  const hasAnyMarkers = eventGroups.length > 0 || localServiceProviders.length > 0;
   const headerText = mapHeaderText(viewMode);
 
   useEffect(() => {
@@ -341,7 +339,7 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || shouldLoadMap || !mapboxToken || !hasAnyMarkers) return;
+    if (!container || shouldLoadMap || !mapboxToken) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -355,20 +353,21 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
 
     observer.observe(container);
     return () => observer.disconnect();
-  }, [hasAnyMarkers, mapboxToken, shouldLoadMap]);
+  }, [mapboxToken, shouldLoadMap]);
 
   useEffect(() => {
     let cancelled = false;
     let loadedMap: MapboxMap | null = null;
 
     async function loadMap() {
-      if (!containerRef.current || !mapboxToken || !hasAnyMarkers || !shouldLoadMap) return;
+      if (!containerRef.current || !mapboxToken || !shouldLoadMap) return;
 
       const mapboxgl = (await import("mapbox-gl")).default;
 
       if (cancelled || !containerRef.current) return;
 
       mapboxgl.accessToken = mapboxToken;
+      containerRef.current.replaceChildren();
 
       const map = new mapboxgl.Map({
         container: containerRef.current,
@@ -494,6 +493,7 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
           },
           paint: { "text-color": "#ffffff" },
         });
+
       }
 
       if (serviceFeatures.length > 0) {
@@ -669,7 +669,7 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
       loadedMap?.remove();
       mapRef.current = null;
     };
-  }, [mapboxToken, mapboxStyleUrl, hasAnyMarkers, shouldLoadMap, eventGroups, localServiceProviders]);
+  }, [mapboxToken, mapboxStyleUrl, shouldLoadMap, eventGroups, localServiceProviders]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -734,35 +734,6 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
     );
   }
 
-  if (!hasVisibleMarkers) {
-    return (
-      <section className="rounded-card bg-white p-6 shadow-soft" id="map">
-        <div className="flex items-start gap-3">
-          <MapPinned className="mt-1 size-5 text-sage-700" aria-hidden="true" />
-          <div>
-            <h2 className="text-3xl font-medium text-olive">{headerText.title}</h2>
-            <p className="mt-1 text-sm leading-6 text-ink/64">{headerText.description}</p>
-            {viewToggle}
-            <p className="mt-4 text-sm leading-6 text-ink/64">
-              {viewMode === "events"
-                ? "Ingen af de viste fysiske events har kortplacering endnu. Online events vises ikke som markører på kortet."
-                : "Der er endnu ingen ydelser med lokation i denne visning."}
-            </p>
-          </div>
-        </div>
-        {viewMode === "events" && events.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {events.slice(0, 6).map((event) => (
-              <Link className="rounded-button bg-sage-50 px-3 py-2 text-sm font-semibold text-sage-700" href={"/events/" + event.id} key={event.id}>
-                {event.title}
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
-    );
-  }
-
   return (
     <section className="overflow-hidden rounded-card bg-white shadow-soft" id="map">
       <div className="border-b border-olive/10 px-5 py-4 sm:px-6">
@@ -770,14 +741,22 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
           <div>
             <h2 className="text-3xl font-medium leading-tight text-olive sm:text-4xl">{headerText.title}</h2>
             <p className="mt-2 text-sm leading-6 text-ink/64">{headerText.description}</p>
+            {!hasVisibleMarkers && shouldLoadMap && (
+              <p className="mt-2 text-sm leading-6 text-ink/64">
+                {viewMode === "events"
+                  ? "Ingen af de viste fysiske events har kortplacering endnu. Online events vises ikke som markører på kortet."
+                  : "Der er endnu ingen ydelser med lokation i denne visning."}
+              </p>
+            )}
           </div>
           {viewToggle}
         </div>
         {mapError && <p className="mt-2 text-sm font-semibold text-terracotta">{mapError}</p>}
       </div>
-      <div className="grid h-[58vh] min-h-[360px] w-full place-items-center bg-sage-50/70 sm:h-[62vh] sm:min-h-[440px]" ref={containerRef}>
+      <div className="relative h-[58vh] min-h-[360px] w-full bg-sage-50/70 sm:h-[62vh] sm:min-h-[440px]">
+        <div ref={containerRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
         {!shouldLoadMap && (
-          <div className="px-5 text-center">
+          <div className="absolute inset-0 grid place-items-center px-5 text-center">
             <MapPinned className="mx-auto size-8 text-sage-700" aria-hidden="true" />
             <p className="mt-3 text-sm font-semibold text-olive">Kortet indlæses, når du nærmer dig sektionen.</p>
           </div>
