@@ -64,10 +64,25 @@ async function logEmail(input: {
 
 export async function sendLoggedEmail(input: SendLoggedEmailInput) {
   if (!input.to) {
+    console.error("Mail delivery skipped: missing recipient", {
+      bookingId: input.bookingId ?? null,
+      eventId: input.eventId ?? null,
+      subject: input.subject,
+      type: input.type,
+    });
     return false;
   }
 
   if (!env.resendApiKey || !env.resendFromEmail) {
+    console.error("Mail delivery failed: missing Resend environment variables", {
+      bookingId: input.bookingId ?? null,
+      eventId: input.eventId ?? null,
+      hasResendApiKey: Boolean(env.resendApiKey),
+      hasResendFromEmail: Boolean(env.resendFromEmail),
+      recipientEmail: input.to,
+      subject: input.subject,
+      type: input.type,
+    });
     await logEmail({
       type: input.type,
       bookingId: input.bookingId,
@@ -92,6 +107,14 @@ export async function sendLoggedEmail(input: SendLoggedEmailInput) {
     });
 
     if (result.error) {
+      console.error("Mail delivery failed: Resend returned an error", {
+        bookingId: input.bookingId ?? null,
+        eventId: input.eventId ?? null,
+        error: result.error.message,
+        recipientEmail: input.to,
+        subject: input.subject,
+        type: input.type,
+      });
       await logEmail({
         type: input.type,
         bookingId: input.bookingId,
@@ -116,6 +139,14 @@ export async function sendLoggedEmail(input: SendLoggedEmailInput) {
     });
     return true;
   } catch (error) {
+    console.error("Mail delivery failed: unexpected exception", {
+      bookingId: input.bookingId ?? null,
+      eventId: input.eventId ?? null,
+      error: error instanceof Error ? error.message : "Ukendt mailfejl.",
+      recipientEmail: input.to,
+      subject: input.subject,
+      type: input.type,
+    });
     await logEmail({
       type: input.type,
       bookingId: input.bookingId,

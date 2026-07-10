@@ -203,6 +203,25 @@ export async function createBookingAction(formData: FormData) {
   const requestHeaders = await headers();
   const appUrl = bookingAdminAppUrl(requestHeaders.get("origin"));
   const bookingsUrl = appUrl + "/facilitator/bookings?event=" + encodeURIComponent(event.id);
+  const { data: facilitatorContact, error: facilitatorContactError } = await adminSupabase
+    .from("facilitator_profiles")
+    .select("profiles(email)")
+    .eq("id", event.facilitator_id)
+    .maybeSingle();
+
+  if (facilitatorContactError) {
+    console.error("Booking facilitator email lookup failed", {
+      bookingId: booking.id,
+      eventId: event.id,
+      error: facilitatorContactError.message,
+      facilitatorId: event.facilitator_id,
+    });
+  }
+
+  const facilitatorContactProfile = Array.isArray(facilitatorContact?.profiles)
+    ? facilitatorContact?.profiles[0]
+    : facilitatorContact?.profiles;
+  const facilitatorEmail = facilitatorContactProfile?.email ?? facilitatorUser?.email ?? null;
 
   const [facilitatorMailSent, participantMailSent] = await Promise.all([
     sendBookingNotification({
@@ -210,7 +229,7 @@ export async function createBookingAction(formData: FormData) {
       eventId: event.id,
       eventTitle: event.title,
       eventStartsAt: event.starts_at,
-      facilitatorEmail: facilitatorUser?.email ?? null,
+      facilitatorEmail,
       facilitatorName,
       bookingsUrl,
     }),
