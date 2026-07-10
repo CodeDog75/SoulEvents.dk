@@ -29,6 +29,38 @@ const weeklyReflectionGradientValues = new Set([
   "gradient:warm-grey-cream",
 ]);
 
+type SupabaseErrorDetails = {
+  code?: string | null;
+  details?: string | null;
+  hint?: string | null;
+  message?: string | null;
+};
+
+function copenhagenDateInputValue(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Copenhagen",
+    year: "numeric",
+  }).format(date);
+}
+
+function logSupabaseError(context: string, error: SupabaseErrorDetails, extra: Record<string, unknown> = {}) {
+  console.error(context, {
+    code: error.code ?? null,
+    details: error.details ?? null,
+    hint: error.hint ?? null,
+    message: error.message ?? null,
+    ...extra,
+  });
+}
+
+function isMissingWeeklyReflectionImageColumns(error: SupabaseErrorDetails | null) {
+  if (!error) return false;
+  const message = error.message ?? "";
+  return error.code === "42703" || message.includes("weekly_reflections.image_path") || message.includes("image_path") || message.includes("image_alt_text");
+}
+
 function sortOrder(formData: FormData) {
   const value = Number(getString(formData, "sort_order"));
   return Number.isFinite(value) ? value : 0;
@@ -53,6 +85,19 @@ function imageContentType(extension: string, fallback: string) {
   if (extension === "png") return "image/png";
   if (extension === "webp") return "image/webp";
   return "image/jpeg";
+}
+
+function safeFileName(file: File, fallback: string) {
+  return (
+    file.name
+      .replace(/\.[^.]+$/, "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")
+      .slice(0, 60) || fallback
+  );
 }
 
 async function uploadSiteLogo(formData: FormData, currentLogoPath: string | null) {
@@ -173,6 +218,46 @@ async function uploadHeroImage(formData: FormData, currentImagePath: string | nu
   if (error) {
     console.error("Hero image upload failed", { error, imagePath, scope });
     heroGo("Hero-billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
+  }
+
+  return imagePath;
+}
+
+async function uploadWeeklyReflectionImage(formData: FormData, currentImagePath: string | null) {
+  const removeImage = formData.get("remove_reflection_image") === "on";
+  if (removeImage) {
+    return null;
+  }
+
+  const file = formData.get("reflection_image_file");
+  if (!(file instanceof File) || file.size === 0) {
+    return currentImagePath;
+  }
+
+  const extension = extensionFromFile(file);
+  const isAllowedType = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
+  const isAllowedExtension = ["jpg", "jpeg", "png", "webp"].includes(extension);
+
+  if (!isAllowedType && !isAllowedExtension) {
+    reflectionGo("Refleksionsbilledet skal være JPG, PNG eller WEBP. HEIC konverteres i browseren før gem.");
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    reflectionGo("Refleksionsbilledet er for stort. Vælg et billede under 10 MB.");
+  }
+
+  const supabase = createAdminClient();
+  const imagePath = "weekly-reflections/" + Date.now() + "-" + safeFileName(file, "refleksion") + "." + extension;
+
+  const { error } = await supabase.storage.from("media").upload(imagePath, file, {
+    cacheControl: "31536000",
+    contentType: imageContentType(extension, file.type),
+    upsert: false,
+  });
+
+  if (error) {
+    logSupabaseError("Weekly reflection image upload failed", error, { imagePath });
+    reflectionGo("Refleksionsbilledet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
   }
 
   return imagePath;
@@ -392,8 +477,9 @@ export async function upsertWeeklyReflectionAction(formData: FormData) {
   const gradientBackgroundColor = getString(formData, "background_gradient");
   const backgroundColor = backgroundMode === "gradient" ? gradientBackgroundColor : solidBackgroundColor;
   const isActive = formData.get("is_active") === "on";
-  const startDate = getOptionalString(formData, "start_date");
+  const startDate = getOptionalString(formData, "start_date") ?? copenhagenDateInputValue();
   const endDate = getOptionalString(formData, "end_date");
+  const imageAltText = getOptionalString(formData, "reflection_image_alt_text");
 
   if (!reflectionText) {
     reflectionGo("Skriv en refleksionstekst først.");
@@ -412,6 +498,27 @@ export async function upsertWeeklyReflectionAction(formData: FormData) {
   }
 
   const supabase = createAdminClient();
+  let currentImagePath = getOptionalString(formData, "reflection_image_path");
+
+  if (id) {
+    const { data: currentReflection, error: currentReflectionError } = await supabase
+      .from("weekly_reflections")
+      .select("image_path")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (currentReflectionError) {
+      logSupabaseError("Weekly reflection current image lookup failed", currentReflectionError, { id });
+      if (isMissingWeeklyReflectionImageColumns(currentReflectionError)) {
+        reflectionGo("Billedfelterne mangler i databasen. Kør migration 053_weekly_reflection_image.sql og prøv igen.");
+      }
+      reflectionGo("Refleksionen kunne ikke hentes før gem.");
+    }
+
+    currentImagePath = currentReflection?.image_path ?? currentImagePath;
+  }
+
+  const nextImagePath = await uploadWeeklyReflectionImage(formData, currentImagePath);
 
   if (isActive) {
     const { error: deactivateError } = await supabase
@@ -420,7 +527,7 @@ export async function upsertWeeklyReflectionAction(formData: FormData) {
       .neq("id", id ?? "00000000-0000-0000-0000-000000000000");
 
     if (deactivateError) {
-      console.error("Weekly reflection deactivate failed", { error: deactivateError, id });
+      logSupabaseError("Weekly reflection deactivate failed", deactivateError, { id });
       reflectionGo("Refleksionen kunne ikke aktiveres. Tjek at migrationen er kørt.");
     }
   }
@@ -430,6 +537,8 @@ export async function upsertWeeklyReflectionAction(formData: FormData) {
     reflection_text: reflectionText,
     author,
     background_color: backgroundColor,
+    image_alt_text: imageAltText,
+    image_path: nextImagePath,
     is_active: isActive,
     start_date: startDate,
     end_date: endDate,
@@ -440,8 +549,21 @@ export async function upsertWeeklyReflectionAction(formData: FormData) {
     : await supabase.from("weekly_reflections").insert(payload);
 
   if (result.error) {
-    console.error("Weekly reflection save failed", { error: result.error, id });
+    logSupabaseError("Weekly reflection save failed", result.error, { id });
+    if (nextImagePath && nextImagePath !== currentImagePath) {
+      await supabase.storage.from("media").remove([nextImagePath]);
+    }
+    if (isMissingWeeklyReflectionImageColumns(result.error)) {
+      reflectionGo("Billedfelterne mangler i databasen. Kør migration 053_weekly_reflection_image.sql og prøv igen.");
+    }
     reflectionGo("Refleksionen kunne ikke gemmes. Kør migrationen til weekly_reflections i Supabase først.");
+  }
+
+  if (currentImagePath && currentImagePath !== nextImagePath) {
+    const { error: removeError } = await supabase.storage.from("media").remove([currentImagePath]);
+    if (removeError) {
+      logSupabaseError("Old weekly reflection image cleanup failed", removeError, { currentImagePath });
+    }
   }
 
   revalidatePath("/");

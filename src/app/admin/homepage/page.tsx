@@ -10,6 +10,13 @@ import {
   useHomepageHeroImageAction,
 } from "@/app/admin/homepage/actions";
 import { HomepageImageUploadPreview } from "@/components/admin/homepage-image-upload-preview";
+import {
+  WeeklyReflectionBackgroundFields,
+  WeeklyReflectionLivePreview,
+  WeeklyReflectionStatusSwitch,
+  WeeklyReflectionSubmitButton,
+} from "@/components/admin/weekly-reflection-editor-ui";
+import { WeeklyReflectionImageField } from "@/components/admin/weekly-reflection-image-field";
 import { BrandLogo } from "@/components/brand-logo";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
@@ -55,6 +62,9 @@ type WeeklyReflection = {
   reflection_text: string;
   author: string | null;
   background_color: string;
+  image_alt_text: string | null;
+  image_path: string | null;
+  image_url?: string | null;
   is_active: boolean;
   start_date: string | null;
   end_date: string | null;
@@ -66,6 +76,15 @@ const weeklyReflectionGradientOptions = [
   { value: "gradient:dusty-purple-beige", label: "Støvet lilla til lys beige" },
   { value: "gradient:warm-grey-cream", label: "Varm grå til creme" },
 ];
+
+function copenhagenDateInputValue(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Copenhagen",
+    year: "numeric",
+  }).format(date);
+}
 
 function TileStatus({ active }: { active: boolean }) {
   return active ? (
@@ -275,6 +294,8 @@ function LogoForm({ logoPath, logoUrl }: { logoPath: string | null; logoUrl: str
 function WeeklyReflectionForm({ reflection }: { reflection?: WeeklyReflection }) {
   const currentBackground = reflection?.background_color ?? "#FAF6EF";
   const usesGradient = currentBackground.startsWith("gradient:");
+  const today = copenhagenDateInputValue();
+  const isExpired = Boolean(reflection?.end_date && reflection.end_date < today);
 
   return (
     <section className="overflow-hidden rounded-card border border-midnight/10 bg-white shadow-soft" id="weekly-reflection">
@@ -283,113 +304,103 @@ function WeeklyReflectionForm({ reflection }: { reflection?: WeeklyReflection })
         <h2 className="mt-1 text-xl font-semibold text-midnight">Rediger refleksion på forsiden</h2>
       </div>
 
-      <form action={upsertWeeklyReflectionAction} className="grid gap-5 p-5 sm:p-6">
+      <form action={upsertWeeklyReflectionAction} className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_380px]" id="weekly-reflection-form">
         <input name="id" type="hidden" value={reflection?.id ?? ""} />
 
-        <label className="grid gap-2 text-sm font-medium text-ink/72">
-          Overskrift
-          <input
-            className="h-11 w-full rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
-            defaultValue={reflection?.title ?? "Ugens refleksion"}
-            maxLength={80}
-            name="title"
-          />
-        </label>
-
-        <label className="grid gap-2 text-sm font-medium text-ink/72">
-          Refleksionstekst
-          <textarea
-            className="min-h-36 w-full rounded-md border border-midnight/15 px-3 py-3 text-base leading-7 outline-none transition focus:border-sage-700"
-            defaultValue={reflection?.reflection_text ?? ""}
-            maxLength={600}
-            name="reflection_text"
-            placeholder="Skriv en kort refleksion eller et citat"
-            required
-          />
-        </label>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            Forfatter (valgfri)
-            <input
-              className="h-11 w-full rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
-              defaultValue={reflection?.author ?? ""}
-              maxLength={80}
-              name="author"
-              placeholder="SoulEvents"
-            />
-          </label>
-
-          <div className="grid gap-3 rounded-md border border-midnight/10 bg-[#FAF6EF] p-4">
-            <p className="text-sm font-semibold text-midnight">Baggrund</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-ink/72">
-                <input className="size-4 accent-sage-700" defaultChecked={!usesGradient} name="background_mode" type="radio" value="solid" />
-                Ensfarvet
-              </label>
-              <label className="flex items-center gap-2 text-sm font-semibold text-ink/72">
-                <input className="size-4 accent-sage-700" defaultChecked={usesGradient} name="background_mode" type="radio" value="gradient" />
-                Diskret gradient
-              </label>
+        <div className="grid gap-8">
+          <section className="grid gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#7A4EAB]">1. Indhold</p>
+              <h3 className="mt-1 text-lg font-semibold text-midnight">Tekst og afsender</h3>
             </div>
             <label className="grid gap-2 text-sm font-medium text-ink/72">
-              Ensfarvet baggrund
+              Overskrift
               <input
-                className="h-11 w-full rounded-md border border-midnight/15 px-2 py-1 outline-none transition focus:border-sage-700"
-                defaultValue={usesGradient ? "#FAF6EF" : currentBackground}
-                name="background_color"
-                type="color"
+                className="h-11 w-full rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+                defaultValue={reflection?.title ?? "Ugens refleksion"}
+                maxLength={80}
+                name="title"
               />
             </label>
             <label className="grid gap-2 text-sm font-medium text-ink/72">
-              Gradient
-              <select
-                className="h-11 w-full rounded-md border border-midnight/15 bg-white px-3 text-base outline-none transition focus:border-sage-700"
-                defaultValue={usesGradient ? currentBackground : "gradient:lavender-cream"}
-                name="background_gradient"
-              >
-                {weeklyReflectionGradientOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              Refleksionstekst
+              <textarea
+                className="min-h-44 w-full rounded-md border border-midnight/15 px-3 py-3 text-lg leading-8 outline-none transition focus:border-sage-700"
+                defaultValue={reflection?.reflection_text ?? ""}
+                maxLength={600}
+                name="reflection_text"
+                placeholder="Skriv en kort refleksion eller et citat"
+                required
+              />
             </label>
-            <p className="text-xs leading-5 text-ink/55">Vælg ensfarvet for et helt roligt udtryk eller gradient for en blød, levende baggrund uden billeder.</p>
-          </div>
+            <label className="grid gap-2 text-sm font-medium text-ink/72">
+              Forfatter (valgfri)
+              <input
+                className="h-11 w-full rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+                defaultValue={reflection?.author ?? ""}
+                maxLength={80}
+                name="author"
+                placeholder="SoulEvents"
+              />
+            </label>
+          </section>
+
+          <section className="grid gap-5 border-t border-midnight/10 pt-7">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#7A4EAB]">2. Udseende</p>
+              <h3 className="mt-1 text-lg font-semibold text-midnight">Baggrund og billede</h3>
+            </div>
+            <WeeklyReflectionBackgroundFields
+              currentBackground={currentBackground}
+              gradientOptions={weeklyReflectionGradientOptions}
+              usesGradient={usesGradient}
+            />
+            <WeeklyReflectionImageField
+              altText={reflection?.image_alt_text ?? null}
+              imagePath={reflection?.image_path ?? null}
+              imageUrl={reflection?.image_url ?? null}
+            />
+          </section>
+
+          <section className="grid gap-5 border-t border-midnight/10 pt-7">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#7A4EAB]">3. Publicering</p>
+              <h3 className="mt-1 text-lg font-semibold text-midnight">Periode og status</h3>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium text-ink/72">
+                Startdato (valgfri)
+                <input
+                  className="h-11 w-full rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+                  defaultValue={reflection?.start_date ?? today}
+                  name="start_date"
+                  type="date"
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-ink/72">
+                Slutdato (valgfri)
+                <input
+                  className="h-11 w-full rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
+                  defaultValue={reflection?.end_date ?? ""}
+                  name="end_date"
+                  type="date"
+                />
+              </label>
+            </div>
+            <WeeklyReflectionStatusSwitch defaultChecked={reflection?.is_active ?? false} isExpired={isExpired} />
+            <WeeklyReflectionSubmitButton />
+          </section>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            Startdato (valgfri)
-            <input
-              className="h-11 w-full rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
-              defaultValue={reflection?.start_date ?? ""}
-              name="start_date"
-              type="date"
-            />
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            Slutdato (valgfri)
-            <input
-              className="h-11 w-full rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
-              defaultValue={reflection?.end_date ?? ""}
-              name="end_date"
-              type="date"
-            />
-          </label>
-        </div>
-
-        <label className="flex items-center gap-2 text-sm font-semibold text-midnight">
-          <input className="size-4 accent-sage-700" defaultChecked={reflection?.is_active ?? false} name="is_active" type="checkbox" />
-          Refleksionen er aktiv
-        </label>
-
-        <button className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700 sm:w-fit" type="submit">
-          <Save className="size-4" aria-hidden="true" />
-          Gem refleksion
-        </button>
+        <WeeklyReflectionLivePreview
+          author={reflection?.author ?? null}
+          backgroundColor={currentBackground}
+          imageAltText={reflection?.image_alt_text ?? null}
+          imageUrl={reflection?.image_url ?? null}
+          reflectionText={reflection?.reflection_text ?? ""}
+          title={reflection?.title ?? "Ugens refleksion"}
+          usesGradient={usesGradient}
+        />
       </form>
     </section>
   );
@@ -536,6 +547,9 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
   const homepageHeroImages = heroImagesWithUrls.filter((heroImage) => heroImage.scope === "homepage") as HeroImage[];
   const categoryHeroImages = heroImagesWithUrls.filter((heroImage) => heroImage.scope === "main_category") as HeroImage[];
   const weeklyReflection = weeklyReflections?.[0] as WeeklyReflection | undefined;
+  if (weeklyReflection?.image_path) {
+    weeklyReflection.image_url = supabase.storage.from("media").getPublicUrl(weeklyReflection.image_path).data.publicUrl;
+  }
   const knownCategoryIds = new Set(categoriesList.map((category) => category.id));
   const categoryHeroImagesByCategoryId = new Map<string, HeroImage[]>();
 

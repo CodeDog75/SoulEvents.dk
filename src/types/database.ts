@@ -182,6 +182,25 @@ export type Database = {
         Update: Update<Database["public"]["Tables"]["site_settings"]["Row"]>;
         Relationships: [];
       };
+      weekly_reflections: {
+        Row: Row<{
+          id: string;
+          title: string;
+          reflection_text: string;
+          author: string | null;
+          background_color: string;
+          image_path: string | null;
+          image_alt_text: string | null;
+          is_active: boolean;
+          start_date: string | null;
+          end_date: string | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["weekly_reflections"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["weekly_reflections"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: {
       event_capacity_view: {

@@ -222,14 +222,6 @@ function TagPill({
   );
 }
 
-function openNativePicker(input: HTMLInputElement) {
-  try {
-    (input as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
-  } catch {
-    input.focus();
-  }
-}
-
 const legacyEventDraftStorageKey = "soulevents:event-form-draft:v1";
 const eventDraftStoragePrefix = "soulevents:event-form-draft:v2";
 const maxEventDescriptionLength = 2000;
@@ -1174,7 +1166,7 @@ export function EventForm({
 
   function updateStartDate(nextDate: string) {
     setStartDate(nextDate);
-    setEndDate(nextDate);
+    setEndDate((currentEndDate) => (currentEndDate && currentEndDate >= nextDate ? currentEndDate : nextDate));
   }
 
 
@@ -1995,7 +1987,6 @@ export function EventForm({
               autoComplete="off"
               className={"h-12 w-full min-w-0 cursor-pointer rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(startDate)}
               name="start_date"
-              onClick={(event) => openNativePicker(event.currentTarget)}
               onChange={(event) => updateStartDate(event.target.value)}
               required
               type="date"
@@ -2033,7 +2024,6 @@ export function EventForm({
                 className={"h-12 w-full min-w-0 cursor-pointer rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(endDate)}
                 min={startDate}
                 name="end_date"
-                onClick={(event) => openNativePicker(event.currentTarget)}
                 onChange={(event) => setEndDate(event.target.value)}
                 required
                 type="date"

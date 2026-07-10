@@ -474,6 +474,8 @@ type WeeklyReflection = {
   reflection_text: string;
   author: string | null;
   background_color: string;
+  image_alt_text: string | null;
+  image_path: string | null;
   start_date?: string | null;
   end_date?: string | null;
 };
@@ -533,7 +535,7 @@ async function getActiveWeeklyReflection() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("weekly_reflections")
-    .select("title, reflection_text, author, background_color, start_date, end_date")
+    .select("title, reflection_text, author, background_color, image_path, image_alt_text, start_date, end_date")
     .eq("is_active", true)
     .order("updated_at", { ascending: false })
     .limit(5);
@@ -558,6 +560,8 @@ async function getActiveWeeklyReflection() {
     reflectionText: reflection.reflection_text.trim(),
     author: reflection.author?.trim() || null,
     backgroundColor: reflection.background_color || "#FAF6EF",
+    imageAltText: reflection.image_alt_text?.trim() || "Illustration til ugens refleksion",
+    imageUrl: reflection.image_path ? supabase.storage.from("media").getPublicUrl(reflection.image_path).data.publicUrl : null,
   };
 }
 
@@ -1170,10 +1174,6 @@ export default async function Home({ searchParams }: HomeProps) {
 
   const homeHeroImage = await getHomepageHeroImage();
   const weeklyReflection = await getActiveWeeklyReflection();
-  const weeklyReflectionParagraphs = weeklyReflection?.reflectionText
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean) ?? [];
   const [homepageMiddleAds, homepageBottomAds] = await Promise.all([
     getHomepageAds("middle"),
     getHomepageAds("bottom"),
@@ -1645,21 +1645,32 @@ export default async function Home({ searchParams }: HomeProps) {
               <div className="pointer-events-none absolute bottom-8 right-8 hidden font-serif text-[11rem] leading-none text-white/30 sm:block">
                 &rdquo;
               </div>
-              <div className="relative mx-auto max-w-[760px]">
-                <figcaption className="inline-flex items-center rounded-full bg-white/82 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#7A4EAB] shadow-soft">
-                  🌿 {weeklyReflection.title}
-                </figcaption>
-                <blockquote className="mt-8 space-y-6 font-serif text-3xl font-medium leading-[1.18] text-[#2F2633] sm:text-4xl sm:leading-[1.2]">
-                  {weeklyReflectionParagraphs.map((paragraph) => (
-                    <p key={paragraph}>{paragraph}</p>
-                  ))}
-                </blockquote>
-                {weeklyReflection.author && (
-                  <p className="mt-8 text-sm font-semibold uppercase tracking-[0.16em] text-[#2F2633]/58">- {weeklyReflection.author}</p>
+              <div className={"relative mx-auto grid gap-8 " + (weeklyReflection.imageUrl ? "max-w-[980px] lg:grid-cols-[1fr_minmax(280px,38%)] lg:items-center" : "max-w-[760px]")}>
+                {weeklyReflection.imageUrl && (
+                  <div className="overflow-hidden rounded-[22px] bg-white/45 shadow-soft lg:order-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      alt={weeklyReflection.imageAltText}
+                      className="aspect-[4/3] w-full object-cover"
+                      loading="lazy"
+                      src={weeklyReflection.imageUrl}
+                    />
+                  </div>
                 )}
-                <p className="mt-10 inline-flex border-t border-[#2F2633]/12 pt-5 text-sm font-semibold text-[#4B5645]">
-                  Tag et øjeblik med dig selv.
-                </p>
+                <div>
+                  <figcaption className="inline-flex items-center rounded-full bg-white/82 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#7A4EAB] shadow-soft">
+                    🌿 {weeklyReflection.title}
+                  </figcaption>
+                  <blockquote className="mt-6 whitespace-pre-line font-serif text-3xl font-medium leading-[1.18] text-[#2F2633] sm:text-4xl sm:leading-[1.2]">
+                    {weeklyReflection.reflectionText}
+                  </blockquote>
+                  {weeklyReflection.author && (
+                    <p className="mt-8 text-sm font-semibold uppercase tracking-[0.16em] text-[#2F2633]/58">- {weeklyReflection.author}</p>
+                  )}
+                  <p className="mt-10 inline-flex border-t border-[#2F2633]/12 pt-5 text-sm font-semibold text-[#4B5645]">
+                    Tag et øjeblik med dig selv.
+                  </p>
+                </div>
               </div>
             </figure>
           </div>
