@@ -50,6 +50,25 @@ function safeName(file: File) {
     .slice(0, 60);
 }
 
+async function ensureMediaBucket(supabase: ReturnType<typeof createAdminClient>) {
+  const { data: bucket } = await supabase.storage.getBucket("media");
+
+  if (bucket) {
+    return;
+  }
+
+  const { error } = await supabase.storage.createBucket("media", {
+    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
+    fileSizeLimit: 10 * 1024 * 1024,
+    public: true,
+  });
+
+  if (error && !error.message.toLowerCase().includes("already exists")) {
+    console.error("About page media bucket setup failed", { error: error.message });
+    go("Billeder kan ikke uploades lige nu. Media-bucketten kunne ikke klargøres.");
+  }
+}
+
 async function uploadAboutImage(file: FormDataEntryValue | null, key: AboutImageKey, currentPath: string | null) {
   if (!(file instanceof File) || file.size === 0) {
     return currentPath;
@@ -68,16 +87,26 @@ async function uploadAboutImage(file: FormDataEntryValue | null, key: AboutImage
   }
 
   const supabase = createAdminClient();
-  const imagePath = "about/" + key + "/" + Date.now() + "-" + (safeName(file) || "billede") + "." + extension;
-  const { error } = await supabase.storage.from("media").upload(imagePath, file, {
-    cacheControl: "31536000",
-    contentType: imageContentType(extension, file.type),
-    upsert: false,
-  });
+  await ensureMediaBucket(supabase);
 
-  if (error) {
-    console.error("About page image upload failed", { error: error.message, imagePath, key });
-    go("Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
+  const imagePath = "about/" + key + "/" + Date.now() + "-" + (safeName(file) || "billede") + "." + extension;
+
+  let uploadError: string | null = null;
+  try {
+    const { error } = await supabase.storage.from("media").upload(imagePath, file, {
+      cacheControl: "31536000",
+      contentType: imageContentType(extension, file.type),
+      upsert: false,
+    });
+
+    uploadError = error?.message ?? null;
+  } catch (error) {
+    uploadError = error instanceof Error ? error.message : "Ukendt uploadfejl";
+  }
+
+  if (uploadError) {
+    console.error("About page image upload failed", { error: uploadError, imagePath, key });
+    go("Billedet kunne ikke uploades. Tjek at filen er JPG, PNG eller WEBP under 10 MB.");
   }
 
   return imagePath;
