@@ -1,3 +1,4 @@
+import { renderEmailButton, renderEmailLayout, renderEmailTable, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, formatDate, sendLoggedEmail } from "@/lib/email/resend-mail";
 
 type BookingNotificationInput = {
@@ -19,7 +20,7 @@ function formatSeats(seats: number) {
 }
 
 function buildHtml(input: BookingNotificationInput) {
-  const rows = [
+  const rows: Array<[string, string]> = [
     ["Tilmeldt af", input.participantName],
     ["Antal reserverede pladser", String(input.seats)],
     ["E-mailadresse", input.participantEmail],
@@ -28,30 +29,15 @@ function buildHtml(input: BookingNotificationInput) {
     ["Dato", formatDate(input.eventStartsAt)],
   ];
 
-  return `
-    <div style="font-family: Arial, sans-serif; color: #17243b; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Du har modtaget en ny tilmelding</h1>
-      <p style="margin: 0 0 16px;">Hej ${escapeHtml(input.facilitatorName)}, der er kommet en ny tilmelding til:</p>
-      <table style="border-collapse: collapse; width: 100%; max-width: 620px;">
-        <tbody>
-          ${rows
-            .map(
-              ([label, value]) => `
-                <tr>
-                  <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px; font-weight: 700;">${escapeHtml(label)}</td>
-                  <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px;">${escapeHtml(value)}</td>
-                </tr>
-              `,
-            )
-            .join("")}
-        </tbody>
-      </table>
+  return renderEmailLayout({
+    title: "Du har modtaget en ny tilmelding",
+    children: `
+      <p style="margin: 0 0 16px;">Hej ${escapeHtml(input.facilitatorName)}, der er kommet en ny tilmelding til dit event.</p>
+      ${renderEmailTable(rows)}
       <p style="margin: 20px 0 0;">Log ind på SoulEvents for at se tilmeldingen og husk at bekræfte den.</p>
-      <p style="margin: 24px 0 0;">
-        <a href="${escapeHtml(input.bookingsUrl)}" style="display: inline-block; border-radius: 999px; background: #4b5645; color: #ffffff; font-weight: 700; padding: 12px 20px; text-decoration: none;">Se og bekræft tilmelding</a>
-      </p>
-    </div>
-  `;
+      ${renderEmailButton(input.bookingsUrl, "Se og bekræft tilmelding")}
+    `,
+  });
 }
 
 function buildText(input: BookingNotificationInput) {
@@ -69,6 +55,7 @@ function buildText(input: BookingNotificationInput) {
     "",
     "Log ind på SoulEvents for at se tilmeldingen og husk at bekræfte den:",
     input.bookingsUrl,
+    ...renderPlainTextFooter(),
   ].join("\n");
 }
 

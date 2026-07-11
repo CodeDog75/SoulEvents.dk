@@ -1,3 +1,4 @@
+import { renderEmailLayout, renderEmailTable, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, formatDate, sendLoggedEmail } from "@/lib/email/resend-mail";
 
 type ParticipantBookingReceiptInput = {
@@ -18,37 +19,26 @@ const guidelines = [
 ];
 
 function buildHtml(input: ParticipantBookingReceiptInput) {
-  const rows = [
+  const rows: Array<[string, string]> = [
     ["Event", input.eventTitle],
     ["Dato", formatDate(input.eventStartsAt)],
     ["Arrangør", input.facilitatorName],
     ["Antal pladser", String(input.seats)],
   ];
 
-  return [
-    '<div style="font-family: Arial, sans-serif; color: #17243b; line-height: 1.5;">',
-    '<h1 style="font-size: 22px; margin: 0 0 12px;">Vi har modtaget din tilmelding</h1>',
-    '<p style="margin: 0 0 16px;">Hej ' + escapeHtml(input.participantName) + '</p>',
-    '<p style="margin: 0 0 12px;">Tak for din tilmelding til ' + escapeHtml(input.eventTitle) + '.</p>',
-    '<p style="margin: 0 0 20px;">Din tilmelding er modtaget og afventer arrangørens bekræftelse.</p>',
-    '<table style="border-collapse: collapse; width: 100%; max-width: 620px; margin-bottom: 22px;"><tbody>',
-    rows
-      .map(
-        ([label, value]) =>
-          '<tr><td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px; font-weight: 700;">' +
-          escapeHtml(label) +
-          '</td><td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px;">' +
-          escapeHtml(value) +
-          '</td></tr>',
-      )
-      .join(""),
-    "</tbody></table>",
-    '<h2 style="font-size: 16px; margin: 0 0 8px;">Vigtigt om din tilmelding</h2>',
-    '<ul style="padding-left: 20px; margin: 0;">',
-    guidelines.map((item) => '<li style="margin-bottom: 8px;">' + escapeHtml(item) + "</li>").join(""),
-    "</ul>",
-    "</div>",
-  ].join("");
+  return renderEmailLayout({
+    title: "Vi har modtaget din tilmelding",
+    children: [
+      '<p style="margin: 0 0 16px;">Hej ' + escapeHtml(input.participantName) + '</p>',
+      '<p style="margin: 0 0 12px;">Tak for din tilmelding til ' + escapeHtml(input.eventTitle) + '.</p>',
+      '<p style="margin: 0 0 20px;">Din tilmelding er modtaget og afventer arrangørens bekræftelse.</p>',
+      renderEmailTable(rows),
+      '<h2 style="font-size: 16px; margin: 24px 0 8px; color: #2F2633;">Vigtigt om din tilmelding</h2>',
+      '<ul style="padding-left: 20px; margin: 0;">',
+      guidelines.map((item) => '<li style="margin-bottom: 8px;">' + escapeHtml(item) + "</li>").join(""),
+      "</ul>",
+    ].join(""),
+  });
 }
 
 function buildText(input: ParticipantBookingReceiptInput) {
@@ -67,6 +57,7 @@ function buildText(input: ParticipantBookingReceiptInput) {
     "",
     "Vigtigt om din tilmelding:",
     ...guidelines.map((item) => "- " + item),
+    ...renderPlainTextFooter(),
   ].join("\n");
 }
 

@@ -1,3 +1,4 @@
+import { renderEmailLayout, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, formatDate, formatMoney, sendLoggedEmail } from "@/lib/email/resend-mail";
 
 type EventUpdateField = {
@@ -25,8 +26,8 @@ function buildHtml(input: EventUpdateNotificationInput, recipient: EventUpdateRe
     .map(
       (field) => `
         <tr>
-          <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px; font-weight: 700;">${escapeHtml(field.label)}</td>
-          <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px;">
+          <td style="border-bottom: 1px solid #E9DFF2; padding: 10px 8px 10px 0; color: #2F2633; font-weight: 700; vertical-align: top;">${escapeHtml(field.label)}</td>
+          <td style="border-bottom: 1px solid #E9DFF2; padding: 10px 0 10px 8px; color: #2F2633; vertical-align: top;">
             <div><strong>Før:</strong> ${escapeHtml(field.previousValue)}</div>
             <div><strong>Nu:</strong> ${escapeHtml(field.nextValue)}</div>
           </td>
@@ -35,18 +36,17 @@ function buildHtml(input: EventUpdateNotificationInput, recipient: EventUpdateRe
     )
     .join("");
 
-  return `
-    <div style="font-family: Arial, sans-serif; color: #17243b; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Der er ændringer til dit event</h1>
+  return renderEmailLayout({
+    title: "Der er ændringer til dit event",
+    children: `
       <p style="margin: 0 0 16px;">Hej ${escapeHtml(recipient.name)}</p>
       <p style="margin: 0 0 20px;">Arrangøren har opdateret ${escapeHtml(input.eventTitle)}. Her er de vigtigste ændringer.</p>
-      <table style="border-collapse: collapse; width: 100%; max-width: 620px;">
+      <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse: collapse; width: 100%; margin: 20px 0 0;">
         <tbody>${rows}</tbody>
       </table>
       <p style="margin: 20px 0 0;">Har du spørgsmål, kan du kontakte arrangøren direkte.</p>
-      <p style="margin: 16px 0 0;">Kærlig hilsen<br> SoulEvents.dk</p>
-    </div>
-  `;
+    `,
+  });
 }
 
 function buildText(input: EventUpdateNotificationInput, recipient: EventUpdateRecipient) {
@@ -64,9 +64,7 @@ function buildText(input: EventUpdateNotificationInput, recipient: EventUpdateRe
       "",
     ]),
     "Har du spørgsmål, kan du kontakte arrangøren direkte.",
-    "",
-    "Kærlig hilsen",
-    "SoulEvents.dk",
+    ...renderPlainTextFooter(),
   ].join("\n");
 }
 

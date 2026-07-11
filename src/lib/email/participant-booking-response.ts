@@ -1,3 +1,4 @@
+import { renderEmailButton, renderEmailLayout, renderEmailTable, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, formatDate, sendLoggedEmail } from "@/lib/email/resend-mail";
 import type { BookingStatus } from "@/types/database";
 
@@ -33,35 +34,25 @@ const statusText: Partial<Record<BookingStatus, { subject: string; headline: str
 
 function buildHtml(input: ParticipantBookingResponseInput) {
   const copy = statusText[input.status] ?? statusText.confirmed;
+  const rows: Array<[string, string]> = [
+    ["Event", input.eventTitle],
+    ["Dato", formatDate(input.eventStartsAt)],
+    ["Arrangør", input.facilitatorName],
+  ];
 
-  return `
-    <div style="font-family: Arial, sans-serif; color: #17243b; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">${escapeHtml(copy?.headline ?? "Status på tilmelding")}</h1>
+  return renderEmailLayout({
+    title: copy?.headline ?? "Status på tilmelding",
+    children: `
       <p style="margin: 0 0 16px;">Hej ${escapeHtml(input.participantName)}</p>
       <p style="margin: 0 0 20px;">${escapeHtml(copy?.body ?? "Der er nyt om din tilmelding.")}</p>
-      <table style="border-collapse: collapse; width: 100%; max-width: 620px;">
-        <tbody>
-          <tr>
-            <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px; font-weight: 700;">Event</td>
-            <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px;">${escapeHtml(input.eventTitle)}</td>
-          </tr>
-          <tr>
-            <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px; font-weight: 700;">Periode</td>
-            <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px;">${escapeHtml(formatDate(input.eventStartsAt))}</td>
-          </tr>
-          <tr>
-            <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px; font-weight: 700;">Arrangør</td>
-            <td style="border-bottom: 1px solid #e9ddc9; padding: 8px 10px;">${escapeHtml(input.facilitatorName)}</td>
-          </tr>
-        </tbody>
-      </table>
+      ${renderEmailTable(rows)}
       ${
         input.status === "confirmed" && input.eventUrl
-          ? `<p style="margin: 24px 0 0;"><a href="${escapeHtml(input.eventUrl)}" style="display: inline-block; border-radius: 999px; background: #4b5645; color: #ffffff; font-weight: 700; padding: 12px 20px; text-decoration: none;">Se eventet</a></p>`
+          ? renderEmailButton(input.eventUrl, "Se eventet")
           : ""
       }
-    </div>
-  `;
+    `,
+  });
 }
 
 function buildText(input: ParticipantBookingResponseInput) {
@@ -77,6 +68,7 @@ function buildText(input: ParticipantBookingResponseInput) {
     `Dato: ${formatDate(input.eventStartsAt)}`,
     `Arrangør: ${input.facilitatorName}`,
     input.status === "confirmed" && input.eventUrl ? `Eventlink: ${input.eventUrl}` : "",
+    ...renderPlainTextFooter(),
   ].join("\n");
 }
 
