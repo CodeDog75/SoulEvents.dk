@@ -58,10 +58,18 @@ function buildHtml(input: EventUpdateNotificationInput, recipient: EventUpdateRe
     .map(
       (field) => `
         <tr>
-          <td style="border-bottom: 1px solid #E9DFF2; padding: 10px 8px 10px 0; color: #2F2633; font-weight: 700; vertical-align: top;">${escapeHtml(field.label)}</td>
-          <td style="border-bottom: 1px solid #E9DFF2; padding: 10px 0 10px 8px; color: #2F2633; vertical-align: top;">
-            <div><strong>Før:</strong> ${escapeHtml(field.previousValue)}</div>
-            <div><strong>Nu:</strong> ${escapeHtml(field.nextValue)}</div>
+          <td style="border-bottom: 1px solid #E9DFF2; padding: 16px 8px 16px 0; color: #2F2633; font-weight: 700; vertical-align: top; width: 34%;">${escapeHtml(field.label)}</td>
+          <td style="border-bottom: 1px solid #E9DFF2; padding: 16px 0 16px 8px; color: #2F2633; vertical-align: top;">
+            <div style="border-left: 3px solid #8FB985; padding: 2px 0 4px 14px;">
+              <div style="margin: 0 0 7px;">
+                <span style="display: inline-block; border-radius: 999px; background: #DDE8D7; color: #365730; font-size: 11px; font-weight: 700; letter-spacing: 0.02em; line-height: 1; padding: 5px 9px;">Nu</span>
+              </div>
+              <div style="background: #4F6F48; border-radius: 14px; color: #ffffff; font-size: 17px; font-weight: 700; line-height: 1.45; margin: 0 0 12px; padding: 10px 12px;">${escapeHtml(field.nextValue)}</div>
+              <div style="color: #A1A1AA; font-size: 12px; font-weight: 400; line-height: 1.45; opacity: 0.82;">
+                <div style="margin: 0 0 3px;">Før</div>
+                <div>${escapeHtml(field.previousValue)}</div>
+              </div>
+            </div>
           </td>
         </tr>
       `,
