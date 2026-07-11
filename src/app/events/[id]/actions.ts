@@ -30,9 +30,12 @@ function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function validOptionalPhone(value: string | null) {
-  if (!value) return true;
-  return /^[\d\s]+$/.test(value) && value.replace(/\D/g, "").length === 8;
+function normalizePhone(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function validPhone(value: string) {
+  return /^[\d\s]+$/.test(value) && normalizePhone(value).length === 8;
 }
 
 function bookingAdminAppUrl(origin: string | null) {
@@ -113,7 +116,8 @@ export async function createBookingAction(formData: FormData) {
   const eventId = getString(formData, "event_id");
   const participantName = getString(formData, "participant_name");
   const participantEmail = getString(formData, "participant_email").toLowerCase();
-  const participantPhone = getOptionalString(formData, "participant_phone");
+  const rawParticipantPhone = getString(formData, "participant_phone");
+  const participantPhone = normalizePhone(rawParticipantPhone);
   const seats = getSeats(formData);
   const message = getOptionalString(formData, "message");
   const acceptedGuidelines = getOptionalString(formData, "accepted_guidelines");
@@ -134,8 +138,8 @@ export async function createBookingAction(formData: FormData) {
     bookingRedirect(eventId, "Indtast en gyldig e-mailadresse.");
   }
 
-  if (!validOptionalPhone(participantPhone)) {
-    bookingRedirect(eventId, "Telefonnummer skal være 8 cifre – eller lad feltet være tomt.");
+  if (!validPhone(rawParticipantPhone)) {
+    bookingRedirect(eventId, "Indtast et gyldigt telefonnummer på 8 cifre.");
   }
 
   if (seats <= 0) {
@@ -257,6 +261,10 @@ export async function createBookingAction(formData: FormData) {
       facilitatorEmail,
       facilitatorName,
       bookingsUrl,
+      participantName,
+      participantEmail,
+      participantPhone,
+      seats,
     }),
     sendParticipantBookingReceipt({
       bookingId: booking.id,

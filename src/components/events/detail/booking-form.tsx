@@ -54,16 +54,27 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
   const [phone, setPhone] = useState("");
   const [seats, setSeats] = useState(1);
   const [acceptedGuidelines, setAcceptedGuidelines] = useState(false);
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   const nameComplete = Boolean(name.trim());
   const emailComplete = validEmail(email.trim());
-  const phoneValid = useMemo(() => !phone.trim() || (/^[\d\s]+$/.test(phone) && cleanPhone(phone).length === 8), [phone]);
+  const phoneValid = useMemo(() => /^[\d\s]+$/.test(phone) && cleanPhone(phone).length === 8, [phone]);
   const maxSeats = Math.max(availableSeats, 1);
   const canDecreaseSeats = seats > 1 && !isSoldOut;
   const canIncreaseSeats = seats < maxSeats && !isSoldOut;
+  const showPhoneError = (attemptedSubmit || phone.length > 0) && !phoneValid;
 
   return (
-    <form action={createBookingAction} className="rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_18px_45px_rgba(90,59,122,0.16)]">
+    <form
+      action={createBookingAction}
+      className="rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_18px_45px_rgba(90,59,122,0.16)]"
+      onSubmit={(event) => {
+        setAttemptedSubmit(true);
+        if (!phoneValid) {
+          event.preventDefault();
+        }
+      }}
+    >
       <input name="event_id" type="hidden" value={eventId} />
       <h2 className="text-3xl font-semibold text-olive">Tilmeld dig</h2>
       <CapacityBadge availableSeats={availableSeats} capacity={capacity} className="mt-2" />
@@ -117,23 +128,37 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">
-          Telefon
+          Telefon *
           <input
+            aria-describedby="participant-phone-help participant-phone-error"
+            aria-invalid={showPhoneError}
             autoComplete="tel"
             className={inputClass}
             disabled={isSoldOut}
+            id="participant-phone"
             inputMode="tel"
             maxLength={15}
             name="participant_phone"
-            onChange={(event) => setPhone(normalizePhoneInput(event.target.value))}
-            pattern="[0-9 ]*"
-            placeholder="Valgfrit"
-            title={"Telefonnummer skal best\u00e5 af 8 cifre. Mellemrum er tilladt."}
+            onChange={(event) => {
+              event.currentTarget.setCustomValidity("");
+              setPhone(normalizePhoneInput(event.target.value));
+            }}
+            onInvalid={(event) => {
+              event.currentTarget.setCustomValidity("Indtast et gyldigt telefonnummer på 8 cifre.");
+              setAttemptedSubmit(true);
+            }}
+            pattern="[0-9 ]{8,15}"
+            placeholder="1234 5678"
+            required
+            title="Indtast et gyldigt telefonnummer på 8 cifre."
             value={phone}
           />
-          {!phoneValid && (
-            <span className="rounded-md bg-white px-3 py-2 text-xs font-semibold text-[#8B1E2D] shadow-soft">
-              Telefonnummer skal være 8 cifre – eller lad feltet være tomt.
+          <span className="text-xs leading-5 text-ink/58" id="participant-phone-help">
+            Dit telefonnummer deles kun med arrangøren og bruges, hvis der opstår ændringer eller en akut aflysning.
+          </span>
+          {showPhoneError && (
+            <span className="rounded-md bg-white px-3 py-2 text-xs font-semibold text-[#8B1E2D] shadow-soft" id="participant-phone-error">
+              Indtast et gyldigt telefonnummer på 8 cifre.
             </span>
           )}
         </label>
@@ -208,7 +233,7 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
 
       <button
         className="mt-6 h-12 w-full rounded-button bg-rose px-4 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:bg-rose/40"
-        disabled={isSoldOut || !phoneValid}
+        disabled={isSoldOut}
         type="submit"
       >
         <span className="inline-flex items-center justify-center gap-2">

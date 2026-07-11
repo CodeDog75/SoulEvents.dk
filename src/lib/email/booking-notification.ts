@@ -8,10 +8,22 @@ type BookingNotificationInput = {
   facilitatorEmail: string | null;
   facilitatorName: string;
   bookingsUrl: string;
+  participantName: string;
+  participantEmail: string;
+  participantPhone: string | null;
+  seats: number;
 };
+
+function formatSeats(seats: number) {
+  return seats === 1 ? "1 plads" : `${seats} pladser`;
+}
 
 function buildHtml(input: BookingNotificationInput) {
   const rows = [
+    ["Tilmeldt af", input.participantName],
+    ["Antal reserverede pladser", String(input.seats)],
+    ["E-mailadresse", input.participantEmail],
+    ["Telefonnummer", input.participantPhone || "Ikke angivet"],
     ["Event", input.eventTitle],
     ["Dato", formatDate(input.eventStartsAt)],
   ];
@@ -48,6 +60,10 @@ function buildText(input: BookingNotificationInput) {
     "",
     `Hej ${input.facilitatorName}, der er kommet en ny tilmelding til:`,
     "",
+    `Tilmeldt af: ${input.participantName}`,
+    `Antal reserverede pladser: ${input.seats}`,
+    `E-mailadresse: ${input.participantEmail}`,
+    `Telefonnummer: ${input.participantPhone || "Ikke angivet"}`,
     `Event: ${input.eventTitle}`,
     `Dato: ${formatDate(input.eventStartsAt)}`,
     "",
@@ -57,7 +73,10 @@ function buildText(input: BookingNotificationInput) {
 }
 
 export async function sendBookingNotification(input: BookingNotificationInput) {
-  const subject = `Ny tilmelding til ${input.eventTitle}`;
+  const subject = input.seats === 1
+    ? `Ny tilmelding til ${input.eventTitle}`
+    : `Ny tilmelding: ${formatSeats(input.seats)} til ${input.eventTitle}`;
+
   return sendLoggedEmail({
     type: "booking_created_facilitator",
     to: input.facilitatorEmail,
