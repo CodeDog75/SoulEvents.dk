@@ -90,6 +90,25 @@ type CreatedBookingResult = {
   id: string;
 };
 
+function mailErrorDetails(result: PromiseSettledResult<boolean>) {
+  if (result.status === "fulfilled") {
+    return null;
+  }
+
+  const reason = result.reason as { code?: unknown; message?: unknown; stack?: unknown; status?: unknown; statusCode?: unknown };
+  return {
+    code: typeof reason?.code === "string" ? reason.code : null,
+    message: result.reason instanceof Error ? result.reason.message : typeof reason?.message === "string" ? reason.message : "Ukendt mailfejl.",
+    stack: result.reason instanceof Error ? result.reason.stack : typeof reason?.stack === "string" ? reason.stack : null,
+    status:
+      typeof reason?.statusCode === "number"
+        ? reason.statusCode
+        : typeof reason?.status === "number"
+          ? reason.status
+          : null,
+  };
+}
+
 export async function createBookingAction(formData: FormData) {
   const eventId = getString(formData, "event_id");
   const participantName = getString(formData, "participant_name");
@@ -223,7 +242,7 @@ export async function createBookingAction(formData: FormData) {
     : facilitatorContact?.profiles;
   const facilitatorEmail = facilitatorContactProfile?.email ?? facilitatorUser?.email ?? null;
 
-  const [facilitatorMailSent, participantMailSent] = await Promise.all([
+  const [facilitatorMailResult, participantMailResult] = await Promise.allSettled([
     sendBookingNotification({
       bookingId: booking.id,
       eventId: event.id,
@@ -244,13 +263,20 @@ export async function createBookingAction(formData: FormData) {
       seats,
     }),
   ]);
+  const facilitatorMailSent = facilitatorMailResult.status === "fulfilled" && facilitatorMailResult.value;
+  const participantMailSent = participantMailResult.status === "fulfilled" && participantMailResult.value;
 
   if (!facilitatorMailSent || !participantMailSent) {
     console.error("Booking mail delivery failed", {
       bookingId: booking.id,
       eventId: event.id,
+      facilitatorEmail,
+      facilitatorMailError: mailErrorDetails(facilitatorMailResult),
       facilitatorMailSent,
+      participantEmail,
+      participantMailError: mailErrorDetails(participantMailResult),
       participantMailSent,
+      sequence: "facilitator and participant mails attempted in parallel with Promise.allSettled",
     });
   }
 

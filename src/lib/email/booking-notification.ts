@@ -57,10 +57,6 @@ function buildText(input: BookingNotificationInput) {
 }
 
 export async function sendBookingNotification(input: BookingNotificationInput) {
-  if (!input.facilitatorEmail) {
-    return false;
-  }
-
   const subject = `Ny tilmelding til ${input.eventTitle}`;
   return sendLoggedEmail({
     type: "booking_created_facilitator",

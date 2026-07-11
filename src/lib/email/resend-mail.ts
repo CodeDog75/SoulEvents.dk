@@ -13,6 +13,15 @@ type SendLoggedEmailInput = {
   eventId?: string | null;
 };
 
+type UnknownMailError = {
+  code?: unknown;
+  message?: unknown;
+  name?: unknown;
+  stack?: unknown;
+  status?: unknown;
+  statusCode?: unknown;
+};
+
 export function formatMoney(cents: number) {
   return `${new Intl.NumberFormat("da-DK").format(cents / 100)} kr.`;
 }
@@ -77,9 +86,15 @@ export async function sendLoggedEmail(input: SendLoggedEmailInput) {
     console.error("Mail delivery failed: missing Resend environment variables", {
       bookingId: input.bookingId ?? null,
       eventId: input.eventId ?? null,
+      errorCode: "missing_resend_environment",
+      errorMessage: "Resend miljøvariabler mangler.",
+      errorStack: null,
       hasResendApiKey: Boolean(env.resendApiKey),
       hasResendFromEmail: Boolean(env.resendFromEmail),
+      httpStatus: null,
       recipientEmail: input.to,
+      resendCalled: false,
+      resendResponse: null,
       subject: input.subject,
       type: input.type,
     });
@@ -110,8 +125,17 @@ export async function sendLoggedEmail(input: SendLoggedEmailInput) {
       console.error("Mail delivery failed: Resend returned an error", {
         bookingId: input.bookingId ?? null,
         eventId: input.eventId ?? null,
-        error: result.error.message,
+        errorCode: result.error.name ?? null,
+        errorMessage: result.error.message,
+        errorStack: null,
+        httpStatus: result.error.statusCode ?? null,
         recipientEmail: input.to,
+        resendCalled: true,
+        resendResponse: {
+          data: result.data ?? null,
+          error: result.error,
+          headers: result.headers ?? null,
+        },
         subject: input.subject,
         type: input.type,
       });
@@ -139,11 +163,24 @@ export async function sendLoggedEmail(input: SendLoggedEmailInput) {
     });
     return true;
   } catch (error) {
+    const mailError = error as UnknownMailError;
     console.error("Mail delivery failed: unexpected exception", {
       bookingId: input.bookingId ?? null,
       eventId: input.eventId ?? null,
-      error: error instanceof Error ? error.message : "Ukendt mailfejl.",
+      errorCode: typeof mailError.code === "string" ? mailError.code : null,
+      errorMessage: error instanceof Error ? error.message : "Ukendt mailfejl.",
+      errorName: error instanceof Error ? error.name : typeof mailError.name === "string" ? mailError.name : null,
+      errorStack: error instanceof Error ? error.stack : typeof mailError.stack === "string" ? mailError.stack : null,
+      fullException: error,
+      httpStatus:
+        typeof mailError.statusCode === "number"
+          ? mailError.statusCode
+          : typeof mailError.status === "number"
+            ? mailError.status
+            : null,
       recipientEmail: input.to,
+      resendCalled: true,
+      resendResponse: null,
       subject: input.subject,
       type: input.type,
     });
