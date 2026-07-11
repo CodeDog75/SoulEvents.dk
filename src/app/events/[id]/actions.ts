@@ -7,7 +7,7 @@ import { sendBookingNotification } from "@/lib/email/booking-notification";
 import { sendParticipantBookingReceipt } from "@/lib/email/participant-booking-receipt";
 import { getAppUrl } from "@/lib/app-url";
 import { env } from "@/lib/env";
-import { getAvailableEventSeats } from "@/lib/events/capacity";
+import { getAvailableEventSeats, syncEventCapacityStatus } from "@/lib/events/capacity";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -166,12 +166,13 @@ export async function createBookingAction(formData: FormData) {
     bookingRedirect(eventId, "Eventet kunne ikke findes eller er ikke aktivt.");
   }
 
-  if (event.status === "sold_out") {
-    bookingRedirect(eventId, "Eventet er udsolgt.");
-  }
-
   const adminSupabase = createAdminClient();
   const availableSeats = await getAvailableEventSeats(adminSupabase, eventId, event.capacity);
+
+  if (availableSeats <= 0) {
+    await syncEventCapacityStatus(adminSupabase, event.id);
+    bookingRedirect(eventId, "Eventet er udsolgt.");
+  }
 
   if (seats > availableSeats) {
     bookingRedirect(eventId, "Der er kun " + availableSeats + " ledige pladser.");
@@ -213,11 +214,16 @@ export async function createBookingAction(formData: FormData) {
   const booking = bookingResult as CreatedBookingResult | null;
 
   if (error || !booking) {
+    const overCapacity = error?.code === "23514";
     bookingRedirect(
       eventId,
-      error?.message ? "Tilmeldingen kunne ikke gemmes: " + error.message : "Tilmeldingen kunne ikke gemmes. Prøv igen.",
+      overCapacity
+        ? "Der er desværre ikke nok ledige pladser tilbage."
+        : error?.message ? "Tilmeldingen kunne ikke gemmes: " + error.message : "Tilmeldingen kunne ikke gemmes. Prøv igen.",
     );
   }
+
+  await syncEventCapacityStatus(adminSupabase, event.id);
 
   const requestHeaders = await headers();
   const appUrl = bookingAdminAppUrl(requestHeaders.get("origin"));

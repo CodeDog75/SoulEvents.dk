@@ -121,7 +121,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     ? event.facilitator_profiles[0]
     : event.facilitator_profiles;
   const isPublishedEvent = ["active", "sold_out"].includes(event.status);
-  const isSoldOut = event.status === "sold_out";
+  const isSoldOut = event.status === "sold_out" || availableSeats <= 0;
   const isExpiredEvent = new Date(event.ends_at ?? event.starts_at) < new Date();
   const isPublicEvent = isPublishedEvent && !isExpiredEvent && facilitatorProfile?.status === "approved";
   const canPreviewEvent = viewer?.role === "admin" || viewer?.id === facilitatorProfile?.profile_id;
