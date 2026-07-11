@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CategoryEventExplorer } from "@/components/categories/category-event-explorer";
+import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
 import { areaOptions } from "@/lib/regions/areas";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -185,6 +186,11 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
 
     return matchesMainCategory || matchesMainByLegacyName || matchesActiveSubcategoryById || matchesActiveSubcategoryByName;
   });
+  const availableSeatsByEventId = await getAvailableEventSeatsByEventId(createAdminClient(), events);
+  const eventsWithCapacity = events.map((event: any) => ({
+    ...event,
+    available_seats: availableSeatsByEventId.get(event.id) ?? null,
+  }));
 
   return (
     <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
@@ -255,7 +261,7 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
 
         <CategoryEventExplorer
           allSubcategorySlugs={allSubcategorySlugs}
-          events={events as never}
+          events={eventsWithCapacity as never}
           initialSelectedSlugs={requestedSubSlugs}
           mainCategoryName={mainCategory.name}
           partnerAds={partnerAds}

@@ -6,6 +6,7 @@ import { OrganizerBadges } from "@/components/badges/organizer-badges";
 import { BookingForm } from "@/components/events/detail/booking-form";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
 import { getCurrentProfile } from "@/lib/auth/roles";
+import { formatCapacityLabel, getCapacityTone } from "@/lib/events/capacity-display";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -125,16 +126,14 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const isExpiredEvent = new Date(event.ends_at ?? event.starts_at) < new Date();
   const isPublicEvent = isPublishedEvent && !isExpiredEvent && facilitatorProfile?.status === "approved";
   const canPreviewEvent = viewer?.role === "admin" || viewer?.id === facilitatorProfile?.profile_id;
-  const capacityLabel = isSoldOut
-    ? "Udsolgt"
-    : availableSeats <= 3
-      ? "Få pladser tilbage"
-      : `${availableSeats} ledige pladser`;
-  const capacityBadgeClass = isSoldOut
-    ? "bg-red-50 text-red-800"
-    : availableSeats <= 3
-      ? "bg-[#FFF7E8] text-[#8A6A2E]"
-      : "bg-sage-50 text-sage-700";
+  const capacityLabel = formatCapacityLabel(availableSeats, event.capacity);
+  const capacityTone = getCapacityTone(availableSeats, event.capacity);
+  const capacityBadgeClass =
+    capacityTone === "sold_out"
+      ? "bg-red-50 text-red-800"
+      : capacityTone === "low"
+        ? "bg-[#FFF7E8] text-[#8A6A2E]"
+        : "bg-sage-50 text-sage-700";
 
   if (!isPublicEvent && !canPreviewEvent) {
     notFound();
@@ -259,11 +258,6 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             </div>
             <div className="p-8 sm:p-10">
             <div className="flex flex-wrap gap-2">
-              {isSoldOut && (
-                <span className="rounded-full bg-midnight px-3 py-1 text-xs font-semibold text-white">
-                  Udsolgt
-                </span>
-              )}
               {categories.map((category) => (
                 <span
                   className="rounded-full px-3 py-1 text-xs font-semibold text-white"
@@ -391,7 +385,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                 <Ticket className="mt-0.5 size-4 text-midnight" aria-hidden="true" />
                 <span>{formatPrice(event.price_cents)}</span>
               </div>
-              <span className={"w-fit rounded-full px-3 py-1 text-xs font-semibold " + capacityBadgeClass}>{capacityLabel}</span>
+              {capacityLabel && <span className={"w-fit rounded-full px-3 py-1 text-xs font-semibold " + capacityBadgeClass}>{capacityLabel}</span>}
               {event.practical_information && (
                 <div className="rounded-md bg-sage-50 p-3">
                   <p className="font-semibold text-olive">Praktisk information til deltagere</p>
@@ -429,12 +423,10 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           {isSoldOut ? (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
               <h2 className="text-3xl font-medium text-olive">Udsolgt</h2>
-              <p className="mt-3 text-sm leading-6 text-ink/70">
-                Der er desværre ikke flere ledige pladser til dette event.
-              </p>
+              {capacityLabel && <p className="mt-3 text-sm font-semibold leading-6 text-red-800">{capacityLabel}</p>}
             </section>
           ) : isBookable ? (
-            <BookingForm availableSeats={availableSeats} eventId={event.id} message={message} messageVariant={messageVariant} />
+            <BookingForm availableSeats={availableSeats} capacity={event.capacity} eventId={event.id} message={message} messageVariant={messageVariant} />
           ) : (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
               <h2 className="text-3xl font-medium text-olive">Tilmelding er ikke åben</h2>

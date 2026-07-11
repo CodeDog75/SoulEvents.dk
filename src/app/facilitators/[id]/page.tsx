@@ -9,6 +9,8 @@ import { ActiveHostInfo, ExperiencedHostInfo, OrganizerImageBadge } from "@/comp
 import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitator-button";
 import { subscribeToFacilitatorReminderAction } from "./actions";
 import { getCurrentProfile } from "@/lib/auth/roles";
+import { formatCapacityLabel, getCapacityTone } from "@/lib/events/capacity-display";
+import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -98,11 +100,21 @@ function getFacilitatorReturnLink(value: string | undefined) {
 function FacilitatorEventList({ events }: { events: any[] }) {
   return (
     <div className="grid gap-3">
-      {events.map((event) => (
-        <article
-          className="rounded-card border border-sage-700/18 bg-[#F8FBF4] p-4 shadow-soft sm:p-5"
-          key={event.id}
-        >
+      {events.map((event) => {
+        const capacityLabel = formatCapacityLabel(event.available_seats, event.capacity);
+        const capacityTone = getCapacityTone(event.available_seats, event.capacity);
+        const capacityClass =
+          capacityTone === "sold_out"
+            ? "text-red-800"
+            : capacityTone === "low"
+              ? "text-[#8A6A2E]"
+              : "text-sage-700";
+
+        return (
+          <article
+            className="rounded-card border border-sage-700/18 bg-[#F8FBF4] p-4 shadow-soft sm:p-5"
+            key={event.id}
+          >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -112,12 +124,9 @@ function FacilitatorEventList({ events }: { events: any[] }) {
                 <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/60">
                   {event.event_format === "online" ? "Online" : "Fysisk"}
                 </span>
-                {event.status === "sold_out" && (
-                  <span className="rounded-full bg-midnight px-3 py-1 text-xs font-semibold text-white">Udsolgt</span>
-                )}
               </div>
               <h3 className="text-2xl font-medium leading-tight text-olive">{event.title}</h3>
-              <div className="mt-3 grid gap-2 text-sm text-ink/68 sm:grid-cols-3">
+              <div className="mt-3 grid gap-2 text-sm text-ink/68 sm:grid-cols-2 xl:grid-cols-4">
                 <span className="flex items-center gap-2">
                   <CalendarDays className="size-4 shrink-0 text-sage-700" aria-hidden="true" />
                   {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.starts_at))}
@@ -130,6 +139,7 @@ function FacilitatorEventList({ events }: { events: any[] }) {
                   <Ticket className="size-4 shrink-0 text-sage-700" aria-hidden="true" />
                   {formatEventPrice(event.price_cents)}
                 </span>
+                {capacityLabel && <span className={"font-semibold " + capacityClass}>{capacityLabel}</span>}
               </div>
             </div>
             <Link
@@ -139,8 +149,9 @@ function FacilitatorEventList({ events }: { events: any[] }) {
               Se event
             </Link>
           </div>
-        </article>
-      ))}
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -212,6 +223,11 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     .eq("facilitator_profiles.status", "approved")
     .gte("ends_at", new Date().toISOString())
     .order("starts_at", { ascending: true });
+  const availableSeatsByEventId = await getAvailableEventSeatsByEventId(createAdminClient(), events ?? []);
+  const eventsWithCapacity = (events ?? []).map((event: any) => ({
+    ...event,
+    available_seats: availableSeatsByEventId.get(event.id) ?? null,
+  }));
 
   const profile = first(facilitatorData.profiles);
   const region = first(facilitatorData.regions);
@@ -330,7 +346,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
             <h2 className="text-4xl font-medium text-olive">Kommende events</h2>
             <div className="mt-5">
               {events && events.length > 0 ? (
-                <FacilitatorEventList events={events} />
+                <FacilitatorEventList events={eventsWithCapacity} />
               ) : (
                 <div className="rounded-card bg-cream p-8 text-center">
                   <Sparkles className="mx-auto size-8 text-rose" aria-hidden="true" />

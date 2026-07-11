@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, MapPinned, Ticket, UserRound } from "lucide-react";
 import type { PublicEvent } from "@/components/events/public-event-list";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
+import { formatCapacityLabel, getCapacityTone } from "@/lib/events/capacity-display";
 
 type FacilitatorCarouselCard = {
   id: string;
@@ -65,6 +66,14 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
   const categoryImageUrl = publicMediaUrl(mainCategories.find((category) => category.image_path)?.image_path);
   const eventImageUrl = publicMediaUrl(event.cover_image_path) ?? categoryImageUrl;
   const fallbackColor = mainCategories[0]?.color_hex || categories[0]?.color_hex || "#D89A94";
+  const capacityLabel = formatCapacityLabel(event.available_seats, event.capacity);
+  const capacityTone = getCapacityTone(event.available_seats, event.capacity);
+  const capacityClass =
+    capacityTone === "sold_out"
+      ? "text-red-800"
+      : capacityTone === "low"
+        ? "text-[#8A6A2E]"
+        : "text-sage-700";
   const locationText =
     event.event_format === "online"
       ? "Online event"
@@ -112,9 +121,6 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
           {event.event_format === "online" && (
             <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-ink/70 shadow-soft">Online</span>
           )}
-          {event.status === "sold_out" && (
-            <span className="rounded-full bg-midnight px-3 py-1 text-xs font-semibold text-white shadow-soft">Udsolgt</span>
-          )}
         </div>
       </div>
 
@@ -136,6 +142,7 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
             <Ticket className="size-4" aria-hidden="true" />
             {formatPrice(event.price_cents)}
           </span>
+          {capacityLabel && <span className={"text-right text-xs font-semibold " + capacityClass}>{capacityLabel}</span>}
           <span className="font-semibold text-rose">Se event</span>
         </div>
       </div>

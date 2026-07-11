@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarDays, Check, Slash } from "lucide-react";
 import { markEventSoldOutAction, updateBookingSeatsAction, updateBookingStatusAction } from "@/app/facilitator/bookings/actions";
 import { CancelBookingAction } from "@/components/facilitator/bookings/cancel-booking-action";
+import { formatCapacityLabel, getCapacityTone } from "@/lib/events/capacity-display";
 import type { BookingStatus } from "@/types/database";
 
 type BookingRow = {
@@ -30,7 +31,7 @@ type EventOption = {
   title: string;
   starts_at: string;
   status: string;
-  capacity: number;
+  capacity?: number | null;
   bookings?: Array<{
     id: string;
     status: BookingStatus;
@@ -79,6 +80,7 @@ function getEventBookingStats(event: EventOption) {
 
   return {
     bookingCount: activeBookings.length,
+    availableSeats: typeof event.capacity === "number" ? Math.max(event.capacity - totalSeats, 0) : null,
     confirmedSeats,
     pendingSeats,
     totalSeats,
@@ -256,6 +258,14 @@ function EventSelector({
         {eventOptions.map((event) => {
           const stats = getEventBookingStats(event);
           const isSelected = selectedEvent?.id === event.id;
+          const capacityLabel = formatCapacityLabel(stats.availableSeats, event.capacity);
+          const capacityTone = getCapacityTone(stats.availableSeats, event.capacity);
+          const capacityClass =
+            capacityTone === "sold_out"
+              ? "text-red-800"
+              : capacityTone === "low"
+                ? "text-[#8A6A2E]"
+                : "text-sage-700";
 
           return (
             <Link
@@ -274,17 +284,12 @@ function EventSelector({
                     {formatEventDate(event.starts_at)}
                   </p>
                 </div>
-                <span className="rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-sage-700">
-                  {event.status === "sold_out" ? "Udsolgt" : "Aktiv"}
-                </span>
+                {capacityLabel && <span className={"text-right text-xs font-semibold " + capacityClass}>{capacityLabel}</span>}
               </div>
               <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-ink/64">
                 <span className="rounded-md bg-white px-2.5 py-1">{stats.totalSeats} tilmeldte</span>
                 <span className="rounded-md bg-white px-2.5 py-1">{bookingLabel(stats.bookingCount)}</span>
                 <span className="rounded-md bg-white px-2.5 py-1">{stats.pendingSeats} afventer</span>
-                <span className="rounded-md bg-white px-2.5 py-1">
-                  {stats.confirmedSeats}/{event.capacity} bekræftede pladser
-                </span>
               </div>
             </Link>
           );
@@ -300,6 +305,19 @@ export function BookingList({ bookings, eventOptions, selectedEventId }: Booking
   const confirmedBookings = bookings.filter((booking) => booking.status === "confirmed");
   const cancelledBookings = bookings.filter((booking) => booking.status === "cancelled");
   const activeBookings = [...pendingBookings, ...confirmedBookings];
+  const selectedEventStats = selectedEvent ? getEventBookingStats(selectedEvent) : null;
+  const selectedCapacityLabel = selectedEventStats
+    ? formatCapacityLabel(selectedEventStats.availableSeats, selectedEvent?.capacity)
+    : null;
+  const selectedCapacityTone = selectedEventStats
+    ? getCapacityTone(selectedEventStats.availableSeats, selectedEvent?.capacity)
+    : null;
+  const selectedCapacityClass =
+    selectedCapacityTone === "sold_out"
+      ? "text-red-800"
+      : selectedCapacityTone === "low"
+        ? "text-[#8A6A2E]"
+        : "text-sage-700";
 
   return (
     <div className="grid gap-6">
@@ -321,6 +339,7 @@ export function BookingList({ bookings, eventOptions, selectedEventId }: Booking
             <p className="mt-1 text-sm text-ink/64">
               {formatEventDate(selectedEvent.starts_at)}
             </p>
+            {selectedCapacityLabel && <p className={"mt-2 text-sm font-semibold " + selectedCapacityClass}>{selectedCapacityLabel}</p>}
           </div>
           {selectedEvent.status === "sold_out" ? (
             <span className="inline-flex h-9 items-center justify-center rounded-md bg-sage-50 px-3 text-sm font-semibold text-sage-700">

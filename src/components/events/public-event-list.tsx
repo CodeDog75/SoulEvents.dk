@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CalendarDays, MapPinned, Ticket } from "lucide-react";
+import { formatCapacityLabel, getCapacityTone } from "@/lib/events/capacity-display";
 
 export type PublicEvent = {
   id: string;
@@ -10,7 +11,8 @@ export type PublicEvent = {
   created_at?: string | null;
   city: string | null;
   price_cents: number;
-  capacity: number;
+  capacity?: number | null;
+  available_seats?: number | null;
   cover_image_path?: string | null;
   event_format?: string | null;
   distance_km?: number | null;
@@ -180,6 +182,14 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
         const eventImageUrl = publicMediaUrl(event.cover_image_path) ?? categoryImageUrl;
         const imageFallbackColor = mainCategories[0]?.color_hex || categories[0]?.color_hex || "#D89A94";
         const distance = formatDistance(event.distance_km);
+        const capacityLabel = formatCapacityLabel(event.available_seats, event.capacity);
+        const capacityTone = getCapacityTone(event.available_seats, event.capacity);
+        const capacityClass =
+          capacityTone === "sold_out"
+            ? "text-red-800"
+            : capacityTone === "low"
+              ? "text-[#8A6A2E]"
+              : "text-sage-700";
         const locationText = event.event_format === "online"
           ? "Online event"
           : [event.city, region?.name].filter(Boolean).join(", ") || "Lokation kommer snart";
@@ -226,11 +236,6 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
                 <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-ink/60 shadow-soft">
                   {formatEventFormat(event.event_format)}
                 </span>
-                {event.status === "sold_out" && (
-                  <span className="rounded-full bg-midnight px-2.5 py-1 text-[11px] font-semibold text-white shadow-soft">
-                    Udsolgt
-                  </span>
-                )}
               </div>
             </div>
 
@@ -255,6 +260,7 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
                   <Ticket className="size-4 text-olive" aria-hidden="true" />
                   {formatPrice(event.price_cents)}
                 </span>
+                {capacityLabel && <span className={"text-xs font-semibold " + capacityClass}>{capacityLabel}</span>}
                 <span className="text-xs font-semibold text-ink/50">Se event</span>
               </div>
             </div>

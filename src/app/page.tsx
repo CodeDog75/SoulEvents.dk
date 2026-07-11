@@ -18,6 +18,7 @@ import { MobileHomeMenu } from "@/components/home/mobile-home-menu";
 import { PublicFacilitatorCarousel } from "@/components/facilitator/public-facilitator-carousel";
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import { env } from "@/lib/env";
+import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
 import { getAreaOption } from "@/lib/regions/areas";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -132,6 +133,15 @@ function uniqueEventsById<T extends { id: string }>(events: T[]) {
     seen.add(event.id);
     return true;
   });
+}
+
+async function withAvailableSeats<T extends { id: string; capacity?: number | null }>(events: T[]) {
+  const availableSeatsByEventId = await getAvailableEventSeatsByEventId(createAdminClient(), events);
+
+  return events.map((event) => ({
+    ...event,
+    available_seats: availableSeatsByEventId.get(event.id) ?? null,
+  }));
 }
 
 function normalizeText(value: string | null | undefined) {
@@ -660,7 +670,7 @@ async function getSearchEvents(selected: {
   });
 
   if (!userLocation) {
-    return eventsWithDistance.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+    return withAvailableSeats(eventsWithDistance.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()));
   }
 
   const nearbyEvents = eventsWithDistance.filter(
@@ -672,7 +682,7 @@ async function getSearchEvents(selected: {
       ? nearbyEvents.filter((event) => (event.distance_km ?? Number.POSITIVE_INFINITY) <= selectedDistance)
       : nearbyEvents;
 
-  return radiusFilteredEvents.sort((a, b) => (a.distance_km ?? 0) - (b.distance_km ?? 0));
+  return withAvailableSeats(radiusFilteredEvents.sort((a, b) => (a.distance_km ?? 0) - (b.distance_km ?? 0)));
 }
 
 

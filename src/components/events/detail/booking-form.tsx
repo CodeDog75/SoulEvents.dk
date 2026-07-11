@@ -5,10 +5,12 @@ import { Minus, Plus, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 import { createBookingAction } from "@/app/events/[id]/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
+import { formatCapacityLabel } from "@/lib/events/capacity-display";
 
 type BookingFormProps = {
   eventId: string;
   availableSeats: number;
+  capacity?: number | null;
   message?: string;
   messageVariant?: "notice" | "success";
 };
@@ -45,8 +47,9 @@ function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-export function BookingForm({ eventId, availableSeats, message, messageVariant = "notice" }: BookingFormProps) {
+export function BookingForm({ eventId, availableSeats, capacity, message, messageVariant = "notice" }: BookingFormProps) {
   const isSoldOut = availableSeats <= 0;
+  const capacityLabel = formatCapacityLabel(availableSeats, capacity);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -64,9 +67,7 @@ export function BookingForm({ eventId, availableSeats, message, messageVariant =
     <form action={createBookingAction} className="rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_18px_45px_rgba(90,59,122,0.16)]">
       <input name="event_id" type="hidden" value={eventId} />
       <h2 className="text-3xl font-semibold text-olive">Tilmeld dig</h2>
-      <p className="mt-1 text-sm text-ink/65">
-        {isSoldOut ? "Der er ikke flere ledige pladser." : availableSeats + " ledige pladser."}
-      </p>
+      {capacityLabel && <p className="mt-1 text-sm font-semibold text-sage-700">{capacityLabel}</p>}
 
       <div className="mt-4 rounded-md border border-white/70 bg-white/70 px-3 py-3 text-sm leading-6 text-ink/72 shadow-soft">
         <p className="font-semibold text-midnight">{"\ud83d\udc9c Vigtigt f\u00f8r du tilmelder dig"}</p>
