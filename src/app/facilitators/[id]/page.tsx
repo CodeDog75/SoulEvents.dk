@@ -6,10 +6,10 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, ExternalLink, Mail, MapPinned, Phone, Sparkles, Ticket, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { ActiveHostInfo, ExperiencedHostInfo, OrganizerImageBadge } from "@/components/badges/organizer-badges";
+import { CapacityBadge } from "@/components/events/capacity-badge";
 import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitator-button";
 import { subscribeToFacilitatorReminderAction } from "./actions";
 import { getCurrentProfile } from "@/lib/auth/roles";
-import { formatCapacityLabel, getCapacityTone } from "@/lib/events/capacity-display";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -101,15 +101,6 @@ function FacilitatorEventList({ events }: { events: any[] }) {
   return (
     <div className="grid gap-3">
       {events.map((event) => {
-        const capacityLabel = formatCapacityLabel(event.available_seats, event.capacity);
-        const capacityTone = getCapacityTone(event.available_seats, event.capacity);
-        const capacityClass =
-          capacityTone === "sold_out"
-            ? "text-red-800"
-            : capacityTone === "low"
-              ? "text-[#8A6A2E]"
-              : "text-sage-700";
-
         return (
           <article
             className="rounded-card border border-sage-700/18 bg-[#F8FBF4] p-4 shadow-soft sm:p-5"
@@ -139,7 +130,7 @@ function FacilitatorEventList({ events }: { events: any[] }) {
                   <Ticket className="size-4 shrink-0 text-sage-700" aria-hidden="true" />
                   {formatEventPrice(event.price_cents)}
                 </span>
-                {capacityLabel && <span className={"font-semibold " + capacityClass}>{capacityLabel}</span>}
+                <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} />
               </div>
             </div>
             <Link

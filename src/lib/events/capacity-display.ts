@@ -6,9 +6,13 @@ export function formatCapacityLabel(availableSeats?: number | null, capacity?: n
   }
 
   const available = Math.max(availableSeats, 0);
-  const label = `${available} af ${capacity} pladser tilbage`;
 
-  return available <= 0 ? `Udsolgt · ${label}` : label;
+  if (available <= 0) {
+    return "UDSOLGT";
+  }
+
+  const seatLabel = available === 1 ? "ledig plads" : "ledige pladser";
+  return `${available} ${seatLabel} (${capacity} i alt)`;
 }
 
 export function getCapacityTone(availableSeats?: number | null, capacity?: number | null): CapacityTone | null {

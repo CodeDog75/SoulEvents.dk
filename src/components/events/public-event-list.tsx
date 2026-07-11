@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CalendarDays, MapPinned, Ticket } from "lucide-react";
-import { formatCapacityLabel, getCapacityTone } from "@/lib/events/capacity-display";
+import { CapacityBadge } from "@/components/events/capacity-badge";
 
 export type PublicEvent = {
   id: string;
@@ -182,14 +182,6 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
         const eventImageUrl = publicMediaUrl(event.cover_image_path) ?? categoryImageUrl;
         const imageFallbackColor = mainCategories[0]?.color_hex || categories[0]?.color_hex || "#D89A94";
         const distance = formatDistance(event.distance_km);
-        const capacityLabel = formatCapacityLabel(event.available_seats, event.capacity);
-        const capacityTone = getCapacityTone(event.available_seats, event.capacity);
-        const capacityClass =
-          capacityTone === "sold_out"
-            ? "text-red-800"
-            : capacityTone === "low"
-              ? "text-[#8A6A2E]"
-              : "text-sage-700";
         const locationText = event.event_format === "online"
           ? "Online event"
           : [event.city, region?.name].filter(Boolean).join(", ") || "Lokation kommer snart";
@@ -260,7 +252,7 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
                   <Ticket className="size-4 text-olive" aria-hidden="true" />
                   {formatPrice(event.price_cents)}
                 </span>
-                {capacityLabel && <span className={"text-xs font-semibold " + capacityClass}>{capacityLabel}</span>}
+                <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} />
                 <span className="text-xs font-semibold text-ink/50">Se event</span>
               </div>
             </div>

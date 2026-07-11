@@ -5,7 +5,7 @@ import { Minus, Plus, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 import { createBookingAction } from "@/app/events/[id]/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
-import { formatCapacityLabel } from "@/lib/events/capacity-display";
+import { CapacityBadge } from "@/components/events/capacity-badge";
 
 type BookingFormProps = {
   eventId: string;
@@ -49,7 +49,6 @@ function validEmail(value: string) {
 
 export function BookingForm({ eventId, availableSeats, capacity, message, messageVariant = "notice" }: BookingFormProps) {
   const isSoldOut = availableSeats <= 0;
-  const capacityLabel = formatCapacityLabel(availableSeats, capacity);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -67,7 +66,7 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
     <form action={createBookingAction} className="rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_18px_45px_rgba(90,59,122,0.16)]">
       <input name="event_id" type="hidden" value={eventId} />
       <h2 className="text-3xl font-semibold text-olive">Tilmeld dig</h2>
-      {capacityLabel && <p className="mt-1 text-sm font-semibold text-sage-700">{capacityLabel}</p>}
+      <CapacityBadge availableSeats={availableSeats} capacity={capacity} className="mt-2" />
 
       <div className="mt-4 rounded-md border border-white/70 bg-white/70 px-3 py-3 text-sm leading-6 text-ink/72 shadow-soft">
         <p className="font-semibold text-midnight">{"\ud83d\udc9c Vigtigt f\u00f8r du tilmelder dig"}</p>

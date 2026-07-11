@@ -3,10 +3,10 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, CircleUserRound, ExternalLink, Mail, MapPinned, Phone, Ticket } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { OrganizerBadges } from "@/components/badges/organizer-badges";
+import { CapacityBadge } from "@/components/events/capacity-badge";
 import { BookingForm } from "@/components/events/detail/booking-form";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
 import { getCurrentProfile } from "@/lib/auth/roles";
-import { formatCapacityLabel, getCapacityTone } from "@/lib/events/capacity-display";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -126,15 +126,6 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const isExpiredEvent = new Date(event.ends_at ?? event.starts_at) < new Date();
   const isPublicEvent = isPublishedEvent && !isExpiredEvent && facilitatorProfile?.status === "approved";
   const canPreviewEvent = viewer?.role === "admin" || viewer?.id === facilitatorProfile?.profile_id;
-  const capacityLabel = formatCapacityLabel(availableSeats, event.capacity);
-  const capacityTone = getCapacityTone(availableSeats, event.capacity);
-  const capacityBadgeClass =
-    capacityTone === "sold_out"
-      ? "bg-red-50 text-red-800"
-      : capacityTone === "low"
-        ? "bg-[#FFF7E8] text-[#8A6A2E]"
-        : "bg-sage-50 text-sage-700";
-
   if (!isPublicEvent && !canPreviewEvent) {
     notFound();
   }
@@ -385,7 +376,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                 <Ticket className="mt-0.5 size-4 text-midnight" aria-hidden="true" />
                 <span>{formatPrice(event.price_cents)}</span>
               </div>
-              {capacityLabel && <span className={"w-fit rounded-full px-3 py-1 text-xs font-semibold " + capacityBadgeClass}>{capacityLabel}</span>}
+              <CapacityBadge availableSeats={availableSeats} capacity={event.capacity} />
               {event.practical_information && (
                 <div className="rounded-md bg-sage-50 p-3">
                   <p className="font-semibold text-olive">Praktisk information til deltagere</p>
@@ -423,7 +414,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           {isSoldOut ? (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
               <h2 className="text-3xl font-medium text-olive">Udsolgt</h2>
-              {capacityLabel && <p className="mt-3 text-sm font-semibold leading-6 text-red-800">{capacityLabel}</p>}
+              <CapacityBadge availableSeats={availableSeats} capacity={event.capacity} className="mt-3" />
             </section>
           ) : isBookable ? (
             <BookingForm availableSeats={availableSeats} capacity={event.capacity} eventId={event.id} message={message} messageVariant={messageVariant} />

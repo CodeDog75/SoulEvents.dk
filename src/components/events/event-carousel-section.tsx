@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, MapPinned, Ticket, UserRound } from "lucide-react";
+import { CapacityBadge } from "@/components/events/capacity-badge";
 import type { PublicEvent } from "@/components/events/public-event-list";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
-import { formatCapacityLabel, getCapacityTone } from "@/lib/events/capacity-display";
 
 type FacilitatorCarouselCard = {
   id: string;
@@ -66,14 +66,6 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
   const categoryImageUrl = publicMediaUrl(mainCategories.find((category) => category.image_path)?.image_path);
   const eventImageUrl = publicMediaUrl(event.cover_image_path) ?? categoryImageUrl;
   const fallbackColor = mainCategories[0]?.color_hex || categories[0]?.color_hex || "#D89A94";
-  const capacityLabel = formatCapacityLabel(event.available_seats, event.capacity);
-  const capacityTone = getCapacityTone(event.available_seats, event.capacity);
-  const capacityClass =
-    capacityTone === "sold_out"
-      ? "text-red-800"
-      : capacityTone === "low"
-        ? "text-[#8A6A2E]"
-        : "text-sage-700";
   const locationText =
     event.event_format === "online"
       ? "Online event"
@@ -142,7 +134,7 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
             <Ticket className="size-4" aria-hidden="true" />
             {formatPrice(event.price_cents)}
           </span>
-          {capacityLabel && <span className={"text-right text-xs font-semibold " + capacityClass}>{capacityLabel}</span>}
+          <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} className="justify-center text-center" />
           <span className="font-semibold text-rose">Se event</span>
         </div>
       </div>
