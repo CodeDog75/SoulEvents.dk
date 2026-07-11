@@ -83,6 +83,7 @@ type DraftEvent = {
   mainCategoryIds?: string[];
   subcategoryIds?: string[];
   tagIds?: string[];
+  activeBookingCount?: number;
 };
 
 type EventFormProps = {
@@ -95,6 +96,11 @@ type EventFormProps = {
   draftEvent?: DraftEvent | null;
   initialStep?: number;
   message?: string;
+  notificationLogs?: Array<{
+    actorName?: string | null;
+    createdAt: string;
+    recipientCount: number;
+  }>;
   facilitator: {
     id: string;
     contactEmail: string;
@@ -692,6 +698,7 @@ export function EventForm({
   draftEvent = null,
   initialStep = 0,
   message,
+  notificationLogs = [],
   facilitator,
 }: EventFormProps) {
   const todayDate = new Date();
@@ -706,6 +713,8 @@ export function EventForm({
   const draftStartTime = draftStart ? formatLocalTimeInputValue(draftStart) : "19:00";
   const draftEndTime = draftEnd ? formatLocalTimeInputValue(draftEnd) : "21:00";
   const formRef = useRef<HTMLFormElement | null>(null);
+  const initialFormSignatureRef = useRef<string | null>(null);
+  const notifyParticipantsInputRef = useRef<HTMLInputElement | null>(null);
   const coverFileInputRef = useRef<HTMLInputElement | null>(null);
   const cropDragRef = useRef<{
     cropX: number;
@@ -766,6 +775,9 @@ export function EventForm({
   const [coverFileName, setCoverFileName] = useState("");
   const [coverPreviewUrl, setCoverPreviewUrl] = useState("");
   const [coverCrop, setCoverCrop] = useState<CoverCropState | null>(null);
+  const [showParticipantNotificationDialog, setShowParticipantNotificationDialog] = useState(false);
+  const [pendingSubmitStatus, setPendingSubmitStatus] = useState("");
+  const [isSubmittingEventUpdate, setIsSubmittingEventUpdate] = useState(false);
   const [, setFormVersion] = useState(0);
   const showAddress = hasChosenEventFormat && eventFormat === "physical";
   const showOnline = hasChosenEventFormat && eventFormat === "online";
@@ -779,6 +791,7 @@ export function EventForm({
   const hasExistingCoverImage = Boolean(draftEvent?.coverImageUrl || draftEvent?.cover_image_path);
   const draftEventStatus = draftEvent?.status ?? null;
   const isEditingPublishedEvent = draftEventStatus === "active" || draftEventStatus === "sold_out";
+  const activeBookingCount = draftEvent?.activeBookingCount ?? 0;
   const primarySubmitStatus = isEditingPublishedEvent && draftEventStatus ? draftEventStatus : "pending_review";
   const userDraftStorageKey = `${eventDraftStoragePrefix}:${facilitator.id}`;
   const draftStorageKey = draftEvent?.id ? `${userDraftStorageKey}:event:${draftEvent.id}` : `${userDraftStorageKey}:new`;
@@ -1544,6 +1557,40 @@ export function EventForm({
     setHasAutosavedDraft(true);
   }
 
+  function formSignature() {
+    const form = formRef.current;
+    if (!form) return "";
+
+    const ignoredKeys = new Set([
+      "current_step",
+      "notify_participants",
+      "participant_update_message",
+      "status",
+    ]);
+    const formData = new FormData(form);
+    const entries: string[] = [];
+
+    for (const [key, rawValue] of formData.entries()) {
+      if (ignoredKeys.has(key)) continue;
+
+      if (rawValue instanceof File) {
+        if (rawValue.size > 0) {
+          entries.push(`${key}=file:${rawValue.name}:${rawValue.size}`);
+        }
+        continue;
+      }
+
+      entries.push(`${key}=${rawValue}`);
+    }
+
+    return entries.sort().join("&");
+  }
+
+  function hasActualFormChanges() {
+    const initialSignature = initialFormSignatureRef.current;
+    return Boolean(initialSignature && formSignature() !== initialSignature);
+  }
+
   function applyDraftFields(fields: Record<string, string[]>, options: { keepEventFormat?: boolean } = {}) {
     const form = formRef.current;
     const restoredOnlineValues = Array.isArray(fields.online_url_or_note) ? fields.online_url_or_note : [];
@@ -1681,6 +1728,14 @@ export function EventForm({
     }, 0);
     return () => window.clearTimeout(timeout);
   }, [capacityValue, city, country, endDate, endTime, eventFormat, hasChosenEventFormat, isForeignLocation, isFree, postalCode, priceValue, regionId, selectedMainCategoryIds, selectedTagIds, startDate, startTime]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      initialFormSignatureRef.current = formSignature();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   function renderStepAccordionHeader(index: number) {
     const step = steps[index];
@@ -1867,11 +1922,13 @@ export function EventForm({
                 : "bg-[#D8CBE4] text-white shadow-none")
             }
             name="status"
-            disabled={activeLimitBlocksSubmit}
+            disabled={activeLimitBlocksSubmit || isSubmittingEventUpdate}
             type="submit"
             value={primarySubmitStatus}
           >
-            {canPublish
+            {isSubmittingEventUpdate
+              ? "Gemmer..."
+              : canPublish
               ? isEditingPublishedEvent
                 ? "Gem ændringer"
                 : "Gør event offentlig"
@@ -1892,6 +1949,25 @@ export function EventForm({
             </button>
           ) : null}
         </div>
+        {notificationLogs.length > 0 ? (
+          <div className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-4 text-sm text-ink/72">
+            <h3 className="font-semibold text-midnight">Log over ændringsmails</h3>
+            <div className="mt-3 grid gap-3">
+              {notificationLogs.map((log) => (
+                <div className="rounded-md bg-white/80 p-3" key={log.createdAt}>
+                  <p className="font-semibold text-midnight">
+                    {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(log.createdAt))}
+                  </p>
+                  <p className="mt-1">Ændringsmail sendt</p>
+                  <p className="mt-1 text-xs font-semibold text-ink/60">
+                    {log.recipientCount} {log.recipientCount === 1 ? "modtager" : "modtagere"}
+                    {log.actorName ? " · sendt af " + log.actorName : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
     );
   }
@@ -1935,6 +2011,24 @@ export function EventForm({
         if (isPrimarySubmit && !latestCanPublish) {
           event.preventDefault();
           guideToMissingItem(latestMissingInvitationItems[0]);
+          return;
+        }
+
+        if (
+          isPrimarySubmit &&
+          isEditingPublishedEvent &&
+          activeBookingCount > 0 &&
+          hasActualFormChanges() &&
+          !showParticipantNotificationDialog
+        ) {
+          event.preventDefault();
+          setPendingSubmitStatus(submitter?.value ?? primarySubmitStatus);
+          setShowParticipantNotificationDialog(true);
+          return;
+        }
+
+        if (isPrimarySubmit) {
+          setIsSubmittingEventUpdate(true);
         }
       }}
       onKeyDown={(event) => {
@@ -1947,6 +2041,67 @@ export function EventForm({
       {draftEvent?.id ? <input name="event_id" type="hidden" value={draftEvent.id} /> : null}
       <input name="current_step" type="hidden" value={currentStep} />
       <input name="current_cover_image_path" type="hidden" value={value(draftEvent?.cover_image_path)} />
+      <input name="notify_participants" ref={notifyParticipantsInputRef} type="hidden" value="no" />
+      {showParticipantNotificationDialog ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-midnight/35 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="event-update-dialog-title">
+          <section className="w-full max-w-lg rounded-card bg-white p-5 shadow-lift sm:p-6">
+            <h2 className="text-2xl font-semibold text-midnight" id="event-update-dialog-title">Gem ændringer</h2>
+            <p className="mt-3 text-sm leading-6 text-ink/72">Vil du give de tilmeldte besked om ændringerne?</p>
+            <div className="mt-4 rounded-md bg-[#F7F2FB] p-4 text-sm leading-6 text-ink/72">
+              <p>Send kun en mail, hvis ændringerne har betydning for deltagerne – f.eks. ændret dato, tidspunkt, sted, pris eller anden vigtig praktisk information.</p>
+              <p className="mt-3">Små rettelser som stavefejl, nye billeder eller mindre tekstændringer behøver normalt ikke en mail.</p>
+            </div>
+            <label className="mt-5 grid gap-2 text-sm font-semibold text-midnight">
+              Personlig besked til deltagerne
+              <textarea
+                className="min-h-28 rounded-md border border-[#D8CBE4] bg-white px-3 py-3 text-base font-normal text-ink outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                maxLength={500}
+                name="participant_update_message"
+                placeholder="Skriv eventuelt en kort besked om ændringen..."
+              />
+            </label>
+            <div className="mt-6 grid gap-2 sm:grid-cols-2">
+              <button
+                className="inline-flex h-11 items-center justify-center rounded-button bg-[#7A5D91] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+                disabled={isSubmittingEventUpdate}
+                name="status"
+                onClick={() => {
+                  if (notifyParticipantsInputRef.current) notifyParticipantsInputRef.current.value = "no";
+                  setIsSubmittingEventUpdate(true);
+                }}
+                type="submit"
+                value={pendingSubmitStatus}
+              >
+                {isSubmittingEventUpdate ? "Gemmer..." : "Gem uden at sende mail"}
+              </button>
+              <button
+                className="inline-flex h-11 items-center justify-center rounded-button border border-[#7A4EAB]/30 bg-white px-4 text-sm font-semibold text-[#7A4EAB] disabled:cursor-not-allowed disabled:opacity-70"
+                disabled={isSubmittingEventUpdate}
+                name="status"
+                onClick={() => {
+                  if (notifyParticipantsInputRef.current) notifyParticipantsInputRef.current.value = "yes";
+                  setIsSubmittingEventUpdate(true);
+                }}
+                type="submit"
+                value={pendingSubmitStatus}
+              >
+                {isSubmittingEventUpdate ? "Sender..." : "Gem og send besked"}
+              </button>
+            </div>
+            <button
+              className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-button border border-midnight/10 bg-white px-4 text-sm font-semibold text-ink/70 disabled:cursor-not-allowed disabled:opacity-70"
+              disabled={isSubmittingEventUpdate}
+              onClick={() => {
+                setShowParticipantNotificationDialog(false);
+                setPendingSubmitStatus("");
+              }}
+              type="button"
+            >
+              Annuller
+            </button>
+          </section>
+        </div>
+      ) : null}
       <div className="grid min-w-0 max-w-full gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
         <div className="grid min-w-0 max-w-full gap-5">
           {renderStepAccordionHeader(0)}

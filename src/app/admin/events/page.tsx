@@ -95,6 +95,22 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
   }
 
   const { data: rows } = await query;
+  const eventIds = (rows ?? []).map((event: any) => event.id).filter(Boolean);
+  const { data: notificationLogs } = eventIds.length
+    ? await (supabase as any)
+        .from("event_update_notification_logs")
+        .select("event_id, created_at, recipient_count, profiles(full_name)")
+        .in("event_id", eventIds)
+        .order("created_at", { ascending: false })
+    : { data: [] };
+  const latestNotificationLogByEventId = new Map<string, any>();
+
+  for (const log of notificationLogs ?? []) {
+    if (!latestNotificationLogByEventId.has(log.event_id)) {
+      latestNotificationLogByEventId.set(log.event_id, log);
+    }
+  }
+
   const events = (rows ?? []).filter((event: any) => {
     if (!queryText) return true;
     const facilitator = Array.isArray(event.facilitator_profiles) ? event.facilitator_profiles[0] : event.facilitator_profiles;
@@ -180,6 +196,10 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                 const facilitator = Array.isArray(event.facilitator_profiles) ? event.facilitator_profiles[0] : event.facilitator_profiles;
                 const profile = Array.isArray(facilitator?.profiles) ? facilitator.profiles[0] : facilitator?.profiles;
                 const facilitatorApproved = facilitator?.status === "approved";
+                const latestNotificationLog = latestNotificationLogByEventId.get(event.id);
+                const notificationActor = Array.isArray(latestNotificationLog?.profiles)
+                  ? latestNotificationLog.profiles[0]
+                  : latestNotificationLog?.profiles;
                 const categories =
                   event.event_categories
                     ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories)?.name)
@@ -214,6 +234,13 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                         {event.city ? " · " + event.city : ""}
                         {event.event_format ? " · " + event.event_format : ""}
                       </p>
+                      {latestNotificationLog ? (
+                        <p className="mt-2 text-xs font-semibold text-[#6E5A86]">
+                          Seneste ændringsmail: {formatDateTime(latestNotificationLog.created_at)} · {latestNotificationLog.recipient_count ?? 0}{" "}
+                          {(latestNotificationLog.recipient_count ?? 0) === 1 ? "modtager" : "modtagere"}
+                          {notificationActor?.full_name ? " · sendt af " + notificationActor.full_name : ""}
+                        </p>
+                      ) : null}
                       <div className="mt-3 flex flex-wrap gap-2">
                         {categories.map((category: string) => (
                           <span className="rounded-md bg-sage-50 px-2.5 py-1 text-xs font-semibold text-sage-700" key={category}>

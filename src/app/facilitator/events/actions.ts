@@ -60,6 +60,11 @@ function facilitatorOverviewRedirect(message: string): never {
   redirect(`/facilitator?message=${encodeURIComponent(message)}`);
 }
 
+function publicEventUrl(eventId: string) {
+  const appUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.soulevents.dk").trim().replace(/\/$/, "");
+  return appUrl + "/events/" + eventId;
+}
+
 function getInteger(formData: FormData, key: string, fallback = 0) {
   const raw = getString(formData, key);
   const numberValue = Number(raw);
@@ -342,12 +347,18 @@ export async function createEventAction(formData: FormData) {
   }
 
   const requestedStatus = getString(formData, "status") as EventStatus;
+  const notifyParticipants = getString(formData, "notify_participants") === "yes";
+  const participantUpdateMessage = getOptionalString(formData, "participant_update_message");
   const existingEventId = getOptionalString(formData, "event_id");
   const currentStep = getString(formData, "current_step") || "0";
   const safeStep = ["0", "1", "2", "3", "4"].includes(currentStep) ? currentStep : "0";
 
   if (!allowedStatuses.includes(requestedStatus)) {
     eventsRedirect("Ugyldig eventstatus.");
+  }
+
+  if (participantUpdateMessage && participantUpdateMessage.length > 500) {
+    eventsRedirect("Beskeden til deltagerne må højst være 500 tegn.");
   }
 
   let existingEventStatus: EventStatus | null = null;
@@ -583,6 +594,7 @@ export async function createEventAction(formData: FormData) {
       status,
       title,
     };
+    let participantNotificationFailed = false;
     const { error: updateError } = await supabase
       .from("events")
       .update({
@@ -631,35 +643,73 @@ export async function createEventAction(formData: FormData) {
     if (previousEventSnapshot && shouldPreservePublishedStatus) {
       const changedFields = getEventUpdateFields(previousEventSnapshot, nextEventSnapshot);
 
-      if (changedFields.length > 0) {
-        if (previousEventSnapshot.title !== title || previousEventSnapshot.starts_at !== startsAt) {
-          await supabase
-            .from("bookings")
-            .update({
-              event_starts_at_snapshot: startsAt,
-              event_title_snapshot: title,
-            })
-            .eq("event_id", existingEventId)
-            .in("status", ["pending", "confirmed"]);
-        }
-
-        const { data: participants } = await supabase
+      if (previousEventSnapshot.title !== title || previousEventSnapshot.starts_at !== startsAt) {
+        await supabase
           .from("bookings")
-          .select("id, participant_email, participant_name")
+          .update({
+            event_starts_at_snapshot: startsAt,
+            event_title_snapshot: title,
+          })
           .eq("event_id", existingEventId)
           .in("status", ["pending", "confirmed"]);
+      }
 
-        await sendEventUpdateNotifications({
-          eventId: existingEventId,
-          eventTitle: title,
-          facilitatorName: contactName || "Arrangør",
-          fields: changedFields,
-          recipients: (participants ?? []).map((participant) => ({
+      if (notifyParticipants) {
+        try {
+          const { data: participants } = await supabase
+            .from("bookings")
+            .select("id, participant_email, participant_name, seats")
+            .eq("event_id", existingEventId)
+            .in("status", ["pending", "confirmed"]);
+
+          const recipients = (participants ?? []).map((participant) => ({
             bookingId: participant.id,
             email: participant.participant_email,
             name: participant.participant_name,
-          })),
-        });
+            seats: participant.seats,
+          }));
+
+          const mailResult = await sendEventUpdateNotifications({
+            eventId: existingEventId,
+            eventStartsAt: startsAt,
+            eventTitle: title,
+            eventUrl: publicEventUrl(existingEventId),
+            facilitatorName: contactName || "Arrangør",
+            fields: changedFields,
+            location: formatLocation({
+              addressLine,
+              city,
+              country,
+              postalCode,
+            }),
+            personalMessage: participantUpdateMessage,
+            recipients,
+          });
+
+          const { error: logError } = await supabase.from("event_update_notification_logs").insert({
+            actor_profile_id: profile.id,
+            event_id: existingEventId,
+            facilitator_id: facilitatorProfile.id,
+            recipient_count: mailResult.sent,
+          });
+
+          if (logError) {
+            console.error("Event update notification log error", logError);
+          }
+
+          if (mailResult.failed > 0) {
+            participantNotificationFailed = true;
+            console.error("Event update notification delivery failed", {
+              eventId: existingEventId,
+              failed: mailResult.failed,
+              sent: mailResult.sent,
+              total: mailResult.total,
+            });
+          }
+        } catch (error) {
+          participantNotificationFailed = true;
+          console.error("Event update notification error", error);
+        }
       }
     }
 
@@ -671,7 +721,12 @@ export async function createEventAction(formData: FormData) {
     }
 
     if (shouldPreservePublishedStatus) {
-      redirect("/facilitator/events?draft=" + existingEventId + "&step=" + safeStep + "&message=" + encodeURIComponent("Eventet er opdateret."));
+      const message = participantNotificationFailed
+        ? "Eventet blev opdateret. Der opstod et problem med at sende beskeden til alle deltagere."
+        : notifyParticipants
+          ? "Eventet er opdateret. De aktive deltagere har fået besked om ændringerne."
+          : "Eventet er opdateret. Der blev ikke sendt besked til deltagerne.";
+      redirect("/facilitator/events?draft=" + existingEventId + "&step=" + safeStep + "&message=" + encodeURIComponent(message));
     }
 
     if (wasAutoApproved) {

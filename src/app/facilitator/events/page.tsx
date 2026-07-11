@@ -17,6 +17,7 @@ type SubcategoryRow = {
   name: string;
   subcategory_main_categories?: MainCategoryRelationRow[] | null;
 };
+type BookingRelationRow = { status?: string | null };
 
 function isEventImageMessage(message?: string) {
   if (!message) {
@@ -72,7 +73,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
     draft && facilitatorProfile
       ? await supabase
           .from("events")
-          .select("*, event_categories(category_id), event_main_categories(main_category_id), event_subcategories(subcategory_id), event_tags(tag_id), event_images(image_path, alt_text, sort_order)")
+          .select("*, event_categories(category_id), event_main_categories(main_category_id), event_subcategories(subcategory_id), event_tags(tag_id), event_images(image_path, alt_text, sort_order), bookings(status)")
           .eq("id", draft)
           .eq("facilitator_id", facilitatorProfile.id)
           .in("status", ["draft", "active", "pending_review"])
@@ -81,6 +82,16 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
   const limitStatus = facilitatorProfile
     ? await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id, { excludeEventId: selectedDraft?.id ?? null })
     : null;
+  const { data: notificationLogs } =
+    selectedDraft && facilitatorProfile
+      ? await (supabase as any)
+          .from("event_update_notification_logs")
+          .select("created_at, recipient_count, profiles(full_name)")
+          .eq("event_id", selectedDraft.id)
+          .eq("facilitator_id", facilitatorProfile.id)
+          .order("created_at", { ascending: false })
+          .limit(5)
+      : { data: [] };
   const hasReachedDraftLimit = !selectedDraft && Boolean(limitStatus && limitStatus.draftCount >= limitStatus.maxDraftEvents);
   const hasReachedActiveLimit = Boolean(limitStatus && limitStatus.activeCount >= limitStatus.maxActiveEvents);
 
@@ -200,6 +211,14 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
             activeLimitMessage={hasReachedActiveLimit && limitStatus ? activeLimitMessage(limitStatus.maxActiveEvents) : null}
             initialStep={initialStep}
             message={draftMessage}
+            notificationLogs={(notificationLogs ?? []).map((log: any) => {
+              const actorProfile = Array.isArray(log.profiles) ? log.profiles[0] : log.profiles;
+              return {
+                actorName: actorProfile?.full_name ?? null,
+                createdAt: log.created_at,
+                recipientCount: log.recipient_count ?? 0,
+              };
+            })}
             draftEvent={
               selectedDraft
                 ? {
@@ -209,6 +228,8 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
                     mainCategoryIds: selectedDraft.event_main_categories?.map((row: MainCategoryRelationRow) => row.main_category_id) ?? [],
                     subcategoryIds: selectedDraft.event_subcategories?.map((row: SubcategoryRelationRow) => row.subcategory_id) ?? [],
                     tagIds: selectedDraft.event_tags?.map((row: { tag_id: string }) => row.tag_id) ?? [],
+                    activeBookingCount:
+                      selectedDraft.bookings?.filter((booking: BookingRelationRow) => ["pending", "confirmed"].includes(booking.status ?? "")).length ?? 0,
                   }
                 : null
             }
