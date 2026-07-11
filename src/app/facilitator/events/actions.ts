@@ -595,6 +595,7 @@ export async function createEventAction(formData: FormData) {
       title,
     };
     let participantNotificationFailed = false;
+    let participantNotificationResult: { failed: number; sent: number; total: number } | null = null;
     const { error: updateError } = await supabase
       .from("events")
       .update({
@@ -658,7 +659,7 @@ export async function createEventAction(formData: FormData) {
         try {
           const { data: participants } = await supabase
             .from("bookings")
-            .select("id, participant_email, participant_name, seats")
+            .select("id, participant_email, participant_name, seats, status")
             .eq("event_id", existingEventId)
             .in("status", ["pending", "confirmed"]);
 
@@ -667,6 +668,7 @@ export async function createEventAction(formData: FormData) {
             email: participant.participant_email,
             name: participant.participant_name,
             seats: participant.seats,
+            status: participant.status,
           }));
 
           const mailResult = await sendEventUpdateNotifications({
@@ -685,6 +687,7 @@ export async function createEventAction(formData: FormData) {
             personalMessage: participantUpdateMessage,
             recipients,
           });
+          participantNotificationResult = mailResult;
 
           const { error: logError } = await supabase.from("event_update_notification_logs").insert({
             actor_profile_id: profile.id,
@@ -722,10 +725,14 @@ export async function createEventAction(formData: FormData) {
 
     if (shouldPreservePublishedStatus) {
       const message = participantNotificationFailed
-        ? "Eventet blev opdateret. Der opstod et problem med at sende beskeden til alle deltagere."
+        ? "Eventet er opdateret, men beskeden kunne ikke sendes til alle deltagere."
         : notifyParticipants
-          ? "Eventet er opdateret. De aktive deltagere har fået besked om ændringerne."
-          : "Eventet er opdateret. Der blev ikke sendt besked til deltagerne.";
+          ? participantNotificationResult && participantNotificationResult.total > 0
+            ? participantNotificationResult.sent === participantNotificationResult.total
+              ? "Eventet er opdateret, og deltagerne har fået besked."
+              : "Eventet er opdateret. Beskeden blev sendt til " + participantNotificationResult.sent + " af " + participantNotificationResult.total + " deltagere."
+            : "Eventet er opdateret, og der var ingen aktive deltagere at sende besked til."
+          : "Eventet er opdateret uden at sende besked.";
       redirect("/facilitator/events?draft=" + existingEventId + "&step=" + safeStep + "&message=" + encodeURIComponent(message));
     }
 

@@ -22,6 +22,17 @@ type UnknownMailError = {
   statusCode?: unknown;
 };
 
+const resendSendTimeoutMs = 15000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  let timeout: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeout));
+}
+
 export function formatMoney(cents: number) {
   return `${new Intl.NumberFormat("da-DK").format(cents / 100)} kr.`;
 }
@@ -112,14 +123,18 @@ export async function sendLoggedEmail(input: SendLoggedEmailInput) {
 
   try {
     const resend = createResendClient();
-    const result = await resend.emails.send({
-      from: env.resendFromEmail,
-      to: input.to,
-      replyTo: input.replyTo || undefined,
-      subject: input.subject,
-      html: input.html,
-      text: input.text,
-    });
+    const result = await withTimeout(
+      resend.emails.send({
+        from: env.resendFromEmail,
+        to: input.to,
+        replyTo: input.replyTo || env.replyToEmail || undefined,
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+      }),
+      resendSendTimeoutMs,
+      "Resend-kaldet tog for lang tid.",
+    );
 
     if (result.error) {
       console.error("Mail delivery failed: Resend returned an error", {

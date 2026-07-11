@@ -12,6 +12,7 @@ type EventUpdateRecipient = {
   email: string;
   name: string;
   seats: number;
+  status: string;
 };
 
 type EventUpdateNotificationInput = {
@@ -40,6 +41,16 @@ function formatEventTimeOnly(value: string) {
 
 function formatSeatLabel(seats: number) {
   return seats === 1 ? "1 plads" : `${seats} pladser`;
+}
+
+function maskEmail(email: string) {
+  const [localPart, domain] = email.split("@");
+
+  if (!localPart || !domain) {
+    return "***";
+  }
+
+  return `${localPart.slice(0, 2)}***@${domain}`;
 }
 
 function buildHtml(input: EventUpdateNotificationInput, recipient: EventUpdateRecipient) {
@@ -160,6 +171,22 @@ export async function sendEventUpdateNotifications(input: EventUpdateNotificatio
       }),
     ),
   );
+
+  results.forEach((result, index) => {
+    const recipient = input.recipients[index];
+    const sent = result.status === "fulfilled" && result.value;
+    const errorMessage = result.status === "rejected" && result.reason instanceof Error ? result.reason.message : null;
+
+    console.info("Event update participant notification result", {
+      bookingId: recipient.bookingId,
+      bookingStatus: recipient.status,
+      eventId: input.eventId,
+      errorMessage,
+      recipientEmail: maskEmail(recipient.email),
+      resendResult: sent ? "sent" : "failed",
+      seats: recipient.seats,
+    });
+  });
 
   return {
     failed: results.filter((result) => result.status === "rejected" || !result.value).length,

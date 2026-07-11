@@ -714,7 +714,6 @@ export function EventForm({
   const draftEndTime = draftEnd ? formatLocalTimeInputValue(draftEnd) : "21:00";
   const formRef = useRef<HTMLFormElement | null>(null);
   const initialFormSignatureRef = useRef<string | null>(null);
-  const notifyParticipantsInputRef = useRef<HTMLInputElement | null>(null);
   const coverFileInputRef = useRef<HTMLInputElement | null>(null);
   const cropDragRef = useRef<{
     cropX: number;
@@ -777,7 +776,8 @@ export function EventForm({
   const [coverCrop, setCoverCrop] = useState<CoverCropState | null>(null);
   const [showParticipantNotificationDialog, setShowParticipantNotificationDialog] = useState(false);
   const [pendingSubmitStatus, setPendingSubmitStatus] = useState("");
-  const [isSubmittingEventUpdate, setIsSubmittingEventUpdate] = useState(false);
+  const [isSavingWithoutEmail, setIsSavingWithoutEmail] = useState(false);
+  const [isSavingAndSending, setIsSavingAndSending] = useState(false);
   const [, setFormVersion] = useState(0);
   const showAddress = hasChosenEventFormat && eventFormat === "physical";
   const showOnline = hasChosenEventFormat && eventFormat === "online";
@@ -792,6 +792,7 @@ export function EventForm({
   const draftEventStatus = draftEvent?.status ?? null;
   const isEditingPublishedEvent = draftEventStatus === "active" || draftEventStatus === "sold_out";
   const activeBookingCount = draftEvent?.activeBookingCount ?? 0;
+  const isSubmittingEventUpdate = isSavingWithoutEmail || isSavingAndSending;
   const primarySubmitStatus = isEditingPublishedEvent && draftEventStatus ? draftEventStatus : "pending_review";
   const userDraftStorageKey = `${eventDraftStoragePrefix}:${facilitator.id}`;
   const draftStorageKey = draftEvent?.id ? `${userDraftStorageKey}:event:${draftEvent.id}` : `${userDraftStorageKey}:new`;
@@ -1996,12 +1997,14 @@ export function EventForm({
       }}
       onSubmit={(event) => {
         const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+        const isDialogParticipantSubmit = submitter?.name === "notify_participants";
+        const submittedStatus = isDialogParticipantSubmit ? pendingSubmitStatus || primarySubmitStatus : submitter?.value;
         const latestMissingInvitationItems = getMissingInvitationItems();
         const latestCanPublish = latestMissingInvitationItems.length === 0 && !activeLimitBlocksSubmit;
 
         const isPrimarySubmit =
-          submitter?.value === "pending_review" ||
-          (isEditingPublishedEvent && submitter?.value === primarySubmitStatus);
+          submittedStatus === "pending_review" ||
+          (isEditingPublishedEvent && submittedStatus === primarySubmitStatus);
 
         if (isPrimarySubmit && activeLimitBlocksSubmit) {
           event.preventDefault();
@@ -2028,7 +2031,11 @@ export function EventForm({
         }
 
         if (isPrimarySubmit) {
-          setIsSubmittingEventUpdate(true);
+          if (isDialogParticipantSubmit && submitter?.value === "yes") {
+            setIsSavingAndSending(true);
+          } else {
+            setIsSavingWithoutEmail(true);
+          }
         }
       }}
       onKeyDown={(event) => {
@@ -2041,7 +2048,6 @@ export function EventForm({
       {draftEvent?.id ? <input name="event_id" type="hidden" value={draftEvent.id} /> : null}
       <input name="current_step" type="hidden" value={currentStep} />
       <input name="current_cover_image_path" type="hidden" value={value(draftEvent?.cover_image_path)} />
-      <input name="notify_participants" ref={notifyParticipantsInputRef} type="hidden" value="no" />
       {showParticipantNotificationDialog ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-midnight/35 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="event-update-dialog-title">
           <section className="w-full max-w-lg rounded-card bg-white p-5 shadow-lift sm:p-6">
@@ -2060,32 +2066,25 @@ export function EventForm({
                 placeholder="Skriv eventuelt en kort besked om ændringen..."
               />
             </label>
+            <input name="status" type="hidden" value={pendingSubmitStatus || primarySubmitStatus} />
             <div className="mt-6 grid gap-2 sm:grid-cols-2">
               <button
                 className="inline-flex h-11 items-center justify-center rounded-button bg-[#7A5D91] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={isSubmittingEventUpdate}
-                name="status"
-                onClick={() => {
-                  if (notifyParticipantsInputRef.current) notifyParticipantsInputRef.current.value = "no";
-                  setIsSubmittingEventUpdate(true);
-                }}
+                name="notify_participants"
                 type="submit"
-                value={pendingSubmitStatus}
+                value="no"
               >
-                {isSubmittingEventUpdate ? "Gemmer..." : "Gem uden at sende mail"}
+                {isSavingWithoutEmail ? "Gemmer..." : "Gem uden at sende mail"}
               </button>
               <button
                 className="inline-flex h-11 items-center justify-center rounded-button border border-[#7A4EAB]/30 bg-white px-4 text-sm font-semibold text-[#7A4EAB] disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={isSubmittingEventUpdate}
-                name="status"
-                onClick={() => {
-                  if (notifyParticipantsInputRef.current) notifyParticipantsInputRef.current.value = "yes";
-                  setIsSubmittingEventUpdate(true);
-                }}
+                name="notify_participants"
                 type="submit"
-                value={pendingSubmitStatus}
+                value="yes"
               >
-                {isSubmittingEventUpdate ? "Sender..." : "Gem og send besked"}
+                {isSavingAndSending ? "Sender..." : "Gem og send besked"}
               </button>
             </div>
             <button
@@ -2094,6 +2093,8 @@ export function EventForm({
               onClick={() => {
                 setShowParticipantNotificationDialog(false);
                 setPendingSubmitStatus("");
+                setIsSavingWithoutEmail(false);
+                setIsSavingAndSending(false);
               }}
               type="button"
             >

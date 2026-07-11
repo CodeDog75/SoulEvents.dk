@@ -11,6 +11,7 @@ export const env = {
   mapboxStyleUrl: optionalEnv("NEXT_PUBLIC_MAPBOX_STYLE_URL"),
   resendApiKey: optionalEnv("RESEND_API_KEY"),
   resendFromEmail: optionalEnv("RESEND_FROM_EMAIL"),
+  replyToEmail: optionalEnv("REPLY_TO_EMAIL"),
 };
 
 export function assertServerEnv(keys: Array<keyof typeof env>) {
