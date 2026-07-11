@@ -91,7 +91,7 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
 
       <div className="mt-6 grid gap-4 [&_input::placeholder]:text-sm [&_input::placeholder]:font-normal [&_input::placeholder]:text-ink/45 [&_textarea::placeholder]:text-sm [&_textarea::placeholder]:font-normal [&_textarea::placeholder]:text-ink/45">
         <label className="grid gap-2 text-sm font-medium text-ink/72">
-          Navn *
+          Dit navn *
           <input
             autoComplete="name"
             className={inputClass}
@@ -109,7 +109,7 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">
-          E-mail *
+          Din e-mailadresse *
           <input
             autoComplete="email"
             className={inputClass}
@@ -128,7 +128,7 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">
-          Telefon *
+          Dit telefonnummer *
           <input
             aria-describedby="participant-phone-help participant-phone-error"
             aria-invalid={showPhoneError}
@@ -154,7 +154,7 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
             value={phone}
           />
           <span className="text-xs leading-5 text-ink/58" id="participant-phone-help">
-            Dit telefonnummer deles kun med arrangøren og bruges, hvis der opstår ændringer eller en akut aflysning.
+            Dit telefonnummer deles kun med arrangøren og bruges kun, hvis der opstår ændringer eller en akut aflysning.
           </span>
           {showPhoneError && (
             <span className="rounded-md bg-white px-3 py-2 text-xs font-semibold text-[#8B1E2D] shadow-soft" id="participant-phone-error">

@@ -19,7 +19,7 @@ alter table public.event_update_notification_logs enable row level security;
 drop policy if exists "Admins can read event update notification logs" on public.event_update_notification_logs;
 create policy "Admins can read event update notification logs"
 on public.event_update_notification_logs for select
-using (public.is_admin());
+using (private.is_admin());
 
 drop policy if exists "Facilitators can read own event update notification logs" on public.event_update_notification_logs;
 create policy "Facilitators can read own event update notification logs"
@@ -27,8 +27,11 @@ on public.event_update_notification_logs for select
 using (
   exists (
     select 1
-    from public.facilitator_profiles
-    where facilitator_profiles.id = event_update_notification_logs.facilitator_id
+    from public.events
+    join public.facilitator_profiles
+      on facilitator_profiles.id = events.facilitator_id
+    where events.id = event_update_notification_logs.event_id
+      and events.facilitator_id = event_update_notification_logs.facilitator_id
       and facilitator_profiles.profile_id = auth.uid()
   )
 );
@@ -37,11 +40,16 @@ drop policy if exists "Facilitators can insert own event update notification log
 create policy "Facilitators can insert own event update notification logs"
 on public.event_update_notification_logs for insert
 with check (
-  public.is_admin()
-  or exists (
+  actor_profile_id = auth.uid()
+  and exists (
     select 1
-    from public.facilitator_profiles
-    where facilitator_profiles.id = event_update_notification_logs.facilitator_id
+    from public.events
+    join public.facilitator_profiles
+      on facilitator_profiles.id = events.facilitator_id
+    where events.id = event_update_notification_logs.event_id
+      and events.facilitator_id = event_update_notification_logs.facilitator_id
       and facilitator_profiles.profile_id = auth.uid()
   )
 );
+
+notify pgrst, 'reload schema';

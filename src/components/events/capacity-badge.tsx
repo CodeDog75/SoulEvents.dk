@@ -7,9 +7,9 @@ type CapacityBadgeProps = {
 };
 
 const toneClasses = {
-  available: "bg-[#35D06F] text-[#053B20]",
-  low: "bg-[#FFD43B] text-[#2D2400]",
-  sold_out: "bg-[#D92D20] text-white",
+  available: "bg-[#EDF3EA] text-[#4F6849]",
+  low: "bg-[#F7EEDB] text-[#6F5A35]",
+  sold_out: "bg-[#EADADB] text-[#75404A]",
 };
 
 export function CapacityBadge({ availableSeats, capacity, className = "" }: CapacityBadgeProps) {
