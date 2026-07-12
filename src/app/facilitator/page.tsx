@@ -21,12 +21,13 @@ import {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { activateFacilitatorProfileAction, requestFacilitatorProfileClosureAction, sendFacilitatorAdminMessageAction } from "@/app/facilitator/actions";
-import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction } from "@/app/facilitator/events/actions";
+import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction, publishDraftEventAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { FacilitatorProfilePreview } from "@/components/facilitator/facilitator-profile-preview";
 import { requireRole } from "@/lib/auth/roles";
 import { draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
+import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -443,12 +444,30 @@ function StatusAction({ eventId, status, children }: { eventId: string; status: 
   );
 }
 
-function EventCard({ event, tone = "default" }: { event: any; tone?: "default" | "muted" }) {
+function EventCard({
+  event,
+  facilitatorStatus,
+  maxTicketPricePerPerson,
+  tone = "default",
+}: {
+  event: any;
+  facilitatorStatus?: string | null;
+  maxTicketPricePerPerson?: number | null;
+  tone?: "default" | "muted";
+}) {
   const categories =
     event.event_categories?.map((row: any) => first(row.categories)?.name).filter((name: string | undefined): name is string => Boolean(name)) ?? [];
   const bookingCount = event.bookings?.length ?? 0;
   const location = event.event_format === "online" ? "Online" : event.city || "Lokation kommer";
   const isDraft = event.status === "draft";
+  const draftReadiness = isDraft
+    ? getDraftPublishReadiness({
+        event,
+        facilitatorStatus,
+        maxTicketPricePerPerson,
+      })
+    : null;
+  const completedChecklistItems = draftReadiness?.checklist.filter((item) => item.valid).length ?? 0;
   const isActive = event.status === "active" || event.status === "sold_out";
   const isCopyableAsDraft =
     event.status === "active" ||
@@ -508,9 +527,53 @@ function EventCard({ event, tone = "default" }: { event: any; tone?: "default" |
           ))}
         </div>
       ) : null}
+      {draftReadiness ? (
+        <div
+          className={
+            "mt-5 rounded-[18px] border px-4 py-3 text-sm leading-6 " +
+            (draftReadiness.canPublish
+              ? "border-[#CFE3C8] bg-[#F3F7F0] text-[#4F6F48]"
+              : "border-[#E8DEC9] bg-[#FBF5E8] text-[#6F5A35]")
+          }
+        >
+          <p className="font-semibold">
+            {draftReadiness.canPublish ? "🟢 Klar til offentliggørelse" : "🟡 Mangler før offentliggørelse"}
+          </p>
+          {draftReadiness.canPublish ? (
+            <p className="mt-1">Alle oplysninger er udfyldt.</p>
+          ) : (
+            <>
+              <div className="mt-3 grid gap-1">
+                {draftReadiness.checklist.map((item) => (
+                  <p className="flex items-center justify-between gap-3" key={item.key}>
+                    <span>{item.valid ? "✅" : "❌"} {item.label}</span>
+                  </p>
+                ))}
+              </div>
+              <p className="mt-3 font-semibold">
+                {completedChecklistItems} af {draftReadiness.checklist.length} krav opfyldt
+              </p>
+            </>
+          )}
+        </div>
+      ) : null}
       <div className="mt-5 flex flex-wrap gap-2">
+        {draftReadiness?.canPublish ? (
+          <form action={publishDraftEventAction}>
+            <input name="event_id" type="hidden" value={event.id} />
+            <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]" type="submit">
+              <ArrowRight className="size-4" aria-hidden="true" />
+              Offentliggør event
+            </button>
+          </form>
+        ) : null}
         <Link
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]"
+          className={
+            "inline-flex min-h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition " +
+            (draftReadiness?.canPublish
+              ? "border border-[#E5DDEA] bg-white text-[#2F2437] hover:border-[#7A5D91] hover:text-[#7A5D91]"
+              : "bg-[#7A5D91] text-white hover:bg-[#6E4F86]")
+          }
           href={"/facilitator/events?draft=" + event.id}
         >
           <PencilLine className="size-4" aria-hidden="true" />
@@ -571,14 +634,18 @@ function EventSection({
   title,
   text,
   events,
+  facilitatorStatus,
   id,
+  maxTicketPricePerPerson,
   tone = "default",
   emptyText = "Her vises dine events, når de er klar.",
 }: {
   title: string;
   text?: string;
   events: any[];
+  facilitatorStatus?: string | null;
   id?: string;
+  maxTicketPricePerPerson?: number | null;
   tone?: "default" | "muted";
   emptyText?: string;
 }) {
@@ -592,7 +659,15 @@ function EventSection({
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         {events.length > 0 ? (
-          events.map((event) => <EventCard event={event} key={event.id} tone={tone} />)
+          events.map((event) => (
+            <EventCard
+              event={event}
+              facilitatorStatus={facilitatorStatus}
+              key={event.id}
+              maxTicketPricePerPerson={maxTicketPricePerPerson}
+              tone={tone}
+            />
+          ))
         ) : (
           <div className="rounded-[24px] border border-[#E5DDEA] bg-white p-6 text-sm leading-6 text-[#6E6475] shadow-soft lg:col-span-2">
             {emptyText}
@@ -795,7 +870,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, status, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, offers_services, service_description, service_other_title, is_active_host, is_experienced_host, facilitator_categories(category_id, categories(name, color_hex)), facilitator_tags(tag_id, tags(name)), facilitator_images(image_path, alt_text, sort_order), facilitator_service_titles(service_title_id, service_titles(name, is_active))",
+      "id, status, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, offers_services, service_description, service_other_title, is_active_host, is_experienced_host, max_ticket_price_per_person, facilitator_categories(category_id, categories(name, color_hex)), facilitator_tags(tag_id, tags(name)), facilitator_images(image_path, alt_text, sort_order), facilitator_service_titles(service_title_id, service_titles(name, is_active))",
     )
     .eq("profile_id", profile.id)
     .single();
@@ -834,7 +909,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
       ? await Promise.all([
           supabase
             .from("events")
-            .select("id, title, status, starts_at, ends_at, created_at, updated_at, city, event_format, price_cents, capacity, event_reference_id, event_categories(categories(name)), bookings(id)")
+            .select("id, title, status, starts_at, ends_at, created_at, updated_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), bookings(id)")
             .eq("facilitator_id", facilitatorProfile.id)
             .order("starts_at", { ascending: false }),
           supabase
@@ -957,7 +1032,14 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           <AdminMessageCta unreadCount={unreadMessageCount} />
 
           {profileReadiness.isComplete && draftEvents.length > 0 ? (
-            <EventSection id="kladder" title="Kladder" text="Events du kan åbne og gøre færdige i dit eget tempo." events={draftEvents} />
+            <EventSection
+              facilitatorStatus={facilitatorProfile?.status}
+              id="kladder"
+              maxTicketPricePerPerson={facilitatorProfile?.max_ticket_price_per_person}
+              title="Kladder"
+              text="Events du kan åbne og gøre færdige i dit eget tempo."
+              events={draftEvents}
+            />
           ) : null}
 
           {profileReadiness.isComplete ? (

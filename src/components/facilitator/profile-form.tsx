@@ -336,7 +336,7 @@ export function ProfileForm({
       ? null
       : { focusSelector: "[name='postal_code']", key: "postal_code", label: "Postnummer", targetId: "profile-postal-code-field" },
     city.trim() ? null : { focusSelector: "[name='city']", key: "city", label: "By", targetId: "profile-city-field" },
-    categoriesComplete ? null : { key: "categories", label: "Kategorier", targetId: "profile-categories-section" },
+    categoriesComplete ? null : { key: "categories", label: "Arbejdsområder", targetId: "profile-categories-section" },
   ].filter((item): item is MissingProfileItem => Boolean(item));
 
   function guideToMissingProfileItem(item: MissingProfileItem) {
@@ -966,9 +966,9 @@ export function ProfileForm({
       <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
         <div className="flex items-center justify-between gap-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-midnight">
-            Kategorier
+            Arbejdsområder
             <FieldStatus complete={categoriesComplete} />
-            <InfoHelp>Vælg mindst én kategori, så brugerne kan finde dig under de rigtige emner.</InfoHelp>
+            <InfoHelp>Vælg de områder, arrangøren arbejder indenfor.</InfoHelp>
           </h2>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

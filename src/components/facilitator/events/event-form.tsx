@@ -109,6 +109,7 @@ type EventFormProps = {
     addressLine: string | null;
     postalCode: string | null;
     city: string | null;
+    maxTicketPricePerPerson: number | null;
   };
 };
 
@@ -231,6 +232,7 @@ function TagPill({
 const legacyEventDraftStorageKey = "soulevents:event-form-draft:v1";
 const eventDraftStoragePrefix = "soulevents:event-form-draft:v2";
 const maxEventDescriptionLength = 2000;
+const maxEventTags = 4;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 const timeOptions = Array.from({ length: 96 }, (_, index) => {
   const hour = String(Math.floor(index / 4)).padStart(2, "0");
@@ -749,7 +751,7 @@ export function EventForm({
   );
   const [isFree, setIsFree] = useState((draftEvent?.price_cents ?? 0) === 0);
   const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState<string[]>(draftEvent?.mainCategoryIds ?? []);
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>((draftEvent?.tagIds ?? []).slice(0, 3));
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>((draftEvent?.tagIds ?? []).slice(0, maxEventTags));
   const [categoryLimitMessage, setCategoryLimitMessage] = useState("");
   const [capacityValue, setCapacityValue] = useState(String(draftEvent?.capacity ?? 12));
   const [highlightedMissingKey, setHighlightedMissingKey] = useState("");
@@ -801,6 +803,15 @@ export function EventForm({
       "Når du gør eventet offentligt, bliver det enten sendt til godkendelse eller publiceret med det samme, hvis du har automatisk godkendelse.",
     [],
   );
+  const formattedMaxTicketPrice = facilitator.maxTicketPricePerPerson === null
+    ? null
+    : new Intl.NumberFormat("da-DK").format(facilitator.maxTicketPricePerPerson) + " kr.";
+  const numericPriceValue = Number(priceValue || 0);
+  const ticketPriceLimitExceeded =
+    priceMode === "paid" &&
+    facilitator.maxTicketPricePerPerson !== null &&
+    Number.isFinite(numericPriceValue) &&
+    numericPriceValue > facilitator.maxTicketPricePerPerson;
 
   const durationLabel = useMemo(() => {
     const start = new Date(startDate + "T" + startTime + ":00");
@@ -1262,7 +1273,7 @@ export function EventForm({
       }
 
       if (current.length >= 3) {
-        setCategoryLimitMessage("Du kan vælge op til 3 kategorier og op til 3 tags.");
+        setCategoryLimitMessage("Du kan vælge op til 3 kategorier og op til 4 tags.");
         return current;
       }
 
@@ -1282,8 +1293,8 @@ export function EventForm({
         return current;
       }
 
-      if (current.length >= 3) {
-        setCategoryLimitMessage("Du kan vælge op til 3 kategorier og op til 3 tags.");
+      if (current.length >= maxEventTags) {
+        setCategoryLimitMessage("Du kan vælge op til 3 kategorier og op til 4 tags.");
         return current;
       }
 
@@ -1361,6 +1372,7 @@ export function EventForm({
       const numericPrice = Number(priceValue || 0);
       if (priceMode !== "free" && priceMode !== "paid") return "missing";
       if (priceMode === "paid" && (!hasValidPrice || numericPrice <= 0)) return "missing";
+      if (ticketPriceLimitExceeded) return "missing";
       return capacityValue > 0 && capacityValue <= 500 ? "complete" : "missing";
     }
 
@@ -1405,7 +1417,9 @@ export function EventForm({
       addMissing({ key: "price-mode", label: "Prisvalg", step: 2, targetId: "event-price-field" });
     }
 
-    if (getStepStatus(2) !== "complete") {
+    if (ticketPriceLimitExceeded) {
+      addMissing({ focusSelector: "[name='price']", key: "price-limit", label: "Billetpris", step: 2, targetId: "event-price-field" });
+    } else if (getStepStatus(2) !== "complete") {
       addMissing({ focusSelector: "[name='capacity']", key: "capacity", label: "Pris og antal deltagere", step: 2, targetId: "event-price-field" });
     }
 
@@ -1660,7 +1674,7 @@ export function EventForm({
     const restoredTagIds = Array.isArray(draft.state?.selectedTagIds)
       ? draft.state.selectedTagIds.filter((tagId: unknown): tagId is string => typeof tagId === "string")
       : [];
-    setSelectedTagIds(restoredTagIds.length <= 3 ? restoredTagIds : []);
+    setSelectedTagIds(restoredTagIds.slice(0, maxEventTags));
 
     window.requestAnimationFrame(() => {
       applyDraftFields(draft.fields ?? {});
@@ -1866,7 +1880,8 @@ export function EventForm({
 
   const hasReachedActiveLimit = Boolean(activeLimitMessage);
   const activeLimitBlocksSubmit = hasReachedActiveLimit && !isEditingPublishedEvent;
-  const canPublish = missingInvitationItems.length === 0 && !activeLimitBlocksSubmit;
+  const ticketPriceLimitBlocksSubmit = ticketPriceLimitExceeded;
+  const canPublish = missingInvitationItems.length === 0 && !activeLimitBlocksSubmit && !ticketPriceLimitBlocksSubmit;
 
   function renderSubmitPanel() {
     return (
@@ -1886,6 +1901,8 @@ export function EventForm({
                 : "Din invitation er klar"
               : activeLimitBlocksSubmit
                 ? "Grænsen for aktive events er nået"
+                : ticketPriceLimitBlocksSubmit
+                  ? "Billetprisen overstiger din grænse"
                 : "Din invitation er næsten klar"}
           </p>
           {canPublish ? (
@@ -1896,6 +1913,11 @@ export function EventForm({
             </p>
           ) : activeLimitBlocksSubmit ? (
             <p className="mt-2">{activeLimitMessage}</p>
+          ) : ticketPriceLimitBlocksSubmit ? (
+            <p className="mt-2">
+              Din konto er godkendt til events med en billetpris på op til <strong>{formattedMaxTicketPrice}</strong> pr. deltager. Ønsker du at
+              annoncere dyrere events eller retreats, er du velkommen til at kontakte SoulEvents for en individuel aftale.
+            </p>
           ) : (
             <div className="mt-2">
               <p>Udfyld først:</p>
@@ -1923,7 +1945,7 @@ export function EventForm({
                 : "bg-[#D8CBE4] text-white shadow-none")
             }
             name="status"
-            disabled={activeLimitBlocksSubmit || isSubmittingEventUpdate}
+            disabled={activeLimitBlocksSubmit || ticketPriceLimitBlocksSubmit || isSubmittingEventUpdate}
             type="submit"
             value={primarySubmitStatus}
           >
@@ -1935,6 +1957,8 @@ export function EventForm({
                 : "Gør event offentlig"
               : activeLimitBlocksSubmit
                 ? "Grænsen er nået"
+                : ticketPriceLimitBlocksSubmit
+                  ? "Billetprisen er for høj"
                 : "Fuldfør eventet for at gøre det offentligt"}
             <ArrowRight className="size-4" aria-hidden="true" />
           </button>
@@ -2000,7 +2024,7 @@ export function EventForm({
         const isDialogParticipantSubmit = submitter?.name === "notify_participants";
         const submittedStatus = isDialogParticipantSubmit ? pendingSubmitStatus || primarySubmitStatus : submitter?.value;
         const latestMissingInvitationItems = getMissingInvitationItems();
-        const latestCanPublish = latestMissingInvitationItems.length === 0 && !activeLimitBlocksSubmit;
+        const latestCanPublish = latestMissingInvitationItems.length === 0 && !activeLimitBlocksSubmit && !ticketPriceLimitBlocksSubmit;
 
         const isPrimarySubmit =
           submittedStatus === "pending_review" ||
@@ -2008,6 +2032,12 @@ export function EventForm({
 
         if (isPrimarySubmit && activeLimitBlocksSubmit) {
           event.preventDefault();
+          return;
+        }
+
+        if (isPrimarySubmit && ticketPriceLimitBlocksSubmit) {
+          event.preventDefault();
+          guideToMissingItem({ focusSelector: "[name='price']", key: "price-limit", label: "Billetpris", step: 2, targetId: "event-price-field" });
           return;
         }
 
@@ -2413,6 +2443,21 @@ export function EventForm({
                 value={priceValue}
               />
               <span className="text-xs leading-5 text-ink/52">Pris inklusive moms.</span>
+              {formattedMaxTicketPrice ? (
+                <span className="rounded-md bg-[#F4F0F7] px-3 py-2 text-xs font-semibold leading-5 text-[#6E5A86]">
+                  Din maksimale billetpris: {formattedMaxTicketPrice}
+                </span>
+              ) : (
+                <span className="rounded-md bg-[#F3F7F0] px-3 py-2 text-xs font-semibold leading-5 text-[#4F6F48]">
+                  Din konto har ingen begrænsning på billetpris.
+                </span>
+              )}
+              {ticketPriceLimitExceeded && formattedMaxTicketPrice ? (
+                <span className="rounded-md border border-[#EAC6C0] bg-[#FFF8F6] px-3 py-2 text-xs font-semibold leading-5 text-[#8B3E35]">
+                  Din konto er godkendt til events med en billetpris på op til {formattedMaxTicketPrice} pr. deltager. Ønsker du at annoncere dyrere
+                  events eller retreats, er du velkommen til at kontakte SoulEvents for en individuel aftale.
+                </span>
+              ) : null}
             </label>
           ) : (
             <input name="price" type="hidden" value="0" />
@@ -2470,7 +2515,7 @@ export function EventForm({
         ))}
         <div>
           <h2 className="text-lg font-semibold text-midnight">Vælg 1-3 kategorier, som bedst beskriver dit event.</h2>
-          <p className="mt-1 text-sm leading-6 text-ink/60">Du kan vælge op til 3 kategorier og op til 3 tags.</p>
+          <p className="mt-1 text-sm leading-6 text-ink/60">Du kan vælge op til 3 kategorier og op til 4 tags.</p>
           {categoryLimitMessage ? (
             <p className="mt-3 rounded-card border border-[#E8D2CC] bg-[#FFF8F6] px-4 py-3 text-sm font-semibold text-[#8B5B68]">
               {categoryLimitMessage}

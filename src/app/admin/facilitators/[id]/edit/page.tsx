@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Save, UserCog } from "lucide-react";
 import { updateAdminFacilitatorProfileAction } from "@/app/admin/facilitators/actions";
-import { AdminTagSelector } from "./admin-tag-selector";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
@@ -70,17 +69,16 @@ function textValue(value: unknown) {
 export default async function AdminEditFacilitatorPage({ params, searchParams }: PageProps) {
   const [{ id }, { message }] = await Promise.all([params, searchParams, requireRole("admin")]);
   const supabase = await createClient();
-  const [{ data: facilitator }, { data: regions }, { data: categories }, { data: tags }, { data: reminderSubscribers }] = await Promise.all([
+  const [{ data: facilitator }, { data: regions }, { data: categories }, { data: reminderSubscribers }] = await Promise.all([
     supabase
       .from("facilitator_profiles")
       .select(
-        "*, profiles(id, full_name, email, phone), regions(id, name), facilitator_categories(category_id), facilitator_tags(tag_id)",
+        "*, profiles(id, full_name, email, phone), regions(id, name), facilitator_categories(category_id)",
       )
       .eq("id", id)
       .single(),
     supabase.from("regions").select("id, name").order("sort_order"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
-    supabase.from("tags").select("id, name").eq("is_active", true).order("sort_order"),
     supabase
       .from("facilitator_event_reminders")
       .select("email, status, created_at")
@@ -105,7 +103,6 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
   const selectedCategoryIds = new Set(
     (facilitator.facilitator_categories ?? []).map((row: { category_id: string }) => row.category_id),
   );
-  const selectedTagIds = new Set<string>((facilitator.facilitator_tags ?? []).map((row: { tag_id: string }) => row.tag_id));
 
   const { data: completedBadgeEvents } = await supabase
     .from("events")
@@ -252,6 +249,47 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
           </section>
 
           <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+            <h2 className="text-lg font-semibold text-midnight">Maksimal billetpris pr. deltager</h2>
+            <p className="mt-1 text-sm leading-6 text-ink/64">
+              Arrangøren kan oprette events med en billetpris op til dette beløb. Overskrides beløbet, skal arrangøren kontakte SoulEvents.
+            </p>
+            <div className="mt-5 grid gap-4">
+              <label className="peer flex min-h-11 items-center gap-3 rounded-md border border-[#D8CBE4] bg-[#F4F0F7] px-3 py-2 text-sm font-semibold text-midnight">
+                <input
+                  className="size-4 accent-[#7A5D91]"
+                  defaultChecked={facilitator.max_ticket_price_per_person === null}
+                  name="unlimited_ticket_price"
+                  type="checkbox"
+                />
+                Ingen beløbsgrænse
+              </label>
+              <label className="grid max-w-sm gap-2 text-sm font-semibold text-ink/72 peer-has-[:checked]:hidden">
+                Beløbsgrænse
+                <span className="flex items-center gap-2">
+                  <input
+                    className="h-11 w-36 rounded-md border border-midnight/15 px-3 text-base outline-none focus:border-sage-700"
+                    defaultValue={facilitator.max_ticket_price_per_person ?? ""}
+                    min={0}
+                    name="max_ticket_price_per_person"
+                    step={1}
+                    type="number"
+                  />
+                  <span className="text-sm font-semibold text-ink/60">kr.</span>
+                </span>
+              </label>
+              <p className="hidden rounded-md border border-[#CFE3C8] bg-[#F3F7F0] px-4 py-3 text-sm font-semibold text-[#4F6F48] peer-has-[:checked]:block">
+                ✓ Arrangøren har ingen begrænsning på billetpris.
+              </p>
+              <div>
+                <button className="inline-flex h-10 items-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700" type="submit">
+                  <Save className="size-4" aria-hidden="true" />
+                  Gem
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
             <h2 className="text-lg font-semibold text-midnight">Profiltekst</h2>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="grid gap-2 text-sm font-semibold text-ink/72">
@@ -318,11 +356,10 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
           </section>
 
           <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-            <h2 className="text-lg font-semibold text-midnight">Kategorier og tags</h2>
-            <p className="mt-1 text-sm text-ink/64">Tags bruges i arrangørsøgningen. Vælg højst fem tags.</p>
-            <div className="mt-5 grid gap-6 lg:grid-cols-2">
+            <h2 className="text-lg font-semibold text-midnight">Arbejdsområder</h2>
+            <p className="mt-1 text-sm text-ink/64">Vælg de områder, arrangøren arbejder indenfor.</p>
+            <div className="mt-5 grid gap-6">
               <div>
-                <h3 className="font-semibold text-midnight">Kategorier</h3>
                 <div className="mt-3 grid gap-2">
                   {(categories ?? []).map((category) => (
                     <label className="flex items-center gap-3 rounded-md border border-midnight/10 p-3 text-sm font-medium text-ink/75" key={category.id}>
@@ -332,10 +369,6 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
                   ))}
                 </div>
               </div>
-              <AdminTagSelector
-                selectedTagIds={Array.from(selectedTagIds)}
-                tags={(tags ?? []).map((tag) => ({ id: tag.id, name: tag.name }))}
-              />
             </div>
           </section>
           <AdminReminderEmailsSection subscribers={(reminderSubscribers ?? []).map((subscriber) => ({ email: subscriber.email, status: subscriber.status, created_at: subscriber.created_at }))} />

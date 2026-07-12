@@ -333,7 +333,7 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
       );
 
       if (categoryError) {
-        return { message: "Kategorierne kunne ikke gemmes.", ok: false };
+        return { message: "Arbejdsområderne kunne ikke gemmes.", ok: false };
       }
 
       const { error: deleteCategoryError } = await supabase
@@ -343,13 +343,13 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
         .not("category_id", "in", `(${categoryIds.join(",")})`);
 
       if (deleteCategoryError) {
-        return { message: "Kategorierne kunne ikke gemmes.", ok: false };
+        return { message: "Arbejdsområderne kunne ikke gemmes.", ok: false };
       }
     } else {
       const { error: deleteCategoryError } = await supabase.from("facilitator_categories").delete().eq("facilitator_id", facilitatorId);
 
       if (deleteCategoryError) {
-        return { message: "Kategorierne kunne ikke gemmes.", ok: false };
+        return { message: "Arbejdsområderne kunne ikke gemmes.", ok: false };
       }
     }
   }
@@ -482,7 +482,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   const { data: existingProfile, error: existingProfileError } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, address_line, city, company_name, facebook_url, instagram_url, long_description, offers_services, postal_code, profile_image_path, region_id, service_description, service_other_title, short_description, show_in_local_service_results, website_url, facilitator_categories(category_id), facilitator_tags(tag_id)",
+      "id, address_line, city, company_name, facebook_url, instagram_url, long_description, offers_services, postal_code, profile_image_path, region_id, service_description, service_other_title, short_description, show_in_local_service_results, status, website_url, facilitator_categories(category_id), facilitator_tags(tag_id)",
     )
     .eq("profile_id", profile.id)
     .single();
@@ -544,7 +544,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   }
 
   if (savesSection(section, "categories") && !uniqueCategoryIds.length) {
-    profileRedirect("Vælg mindst én kategori, så vi kan placere din profil korrekt.", redirectOrigin, "categories");
+    profileRedirect("Vælg mindst ét arbejdsområde, så vi kan placere din profil korrekt.", redirectOrigin, "categories");
   }
 
   if (
@@ -647,7 +647,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     );
 
     if (categoryError) {
-      profileRedirect("Kategorierne kunne ikke gemmes.", redirectOrigin, "categories");
+      profileRedirect("Arbejdsområderne kunne ikke gemmes.", redirectOrigin, "categories");
     }
 
     const { error: deleteCategoryError } = await supabase
@@ -657,7 +657,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       .not("category_id", "in", `(${uniqueCategoryIds.join(",")})`);
 
     if (deleteCategoryError) {
-      profileRedirect("Kategorierne kunne ikke gemmes.", redirectOrigin, "categories");
+      profileRedirect("Arbejdsområderne kunne ikke gemmes.", redirectOrigin, "categories");
     }
   }
 
@@ -731,7 +731,10 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     postalCode: savesSection(section, "location") ? postalCode : existingProfile.postal_code ?? null,
   });
 
-  if (finalReady) {
+  const shouldRequestApproval = finalReady && existingProfile.status === "pending";
+  const shouldNotifyAdmins = shouldRequestApproval && !wasReady;
+
+  if (shouldNotifyAdmins) {
     await notifyAdminsIfReady({
       facilitatorEmail: profile.email,
       facilitatorId,
@@ -743,8 +746,8 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/profile");
   profileSuccessRedirect(
-    finalReady ? "Ændringer gemt. Din profil afventer godkendelse." : "Ændringer gemt.",
-    finalReady,
+    shouldRequestApproval ? "Ændringer gemt. Din profil afventer godkendelse." : "Ændringer gemt. Din profil er opdateret.",
+    shouldRequestApproval,
     redirectOrigin,
     section,
   );

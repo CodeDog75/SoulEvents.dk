@@ -29,6 +29,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     { data: categoryRows },
     { data: serviceTitles },
     { data: serviceRows },
+    { count: publishedEventCount },
   ] = await Promise.all([
     supabase.from("facilitator_profiles").select("*").eq("profile_id", profile.id).single(),
     supabase.from("regions").select("id, name, slug").order("sort_order"),
@@ -44,6 +45,11 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
       .select("id, facilitator_service_titles(service_title_id, service_titles(id, name, is_active, sort_order))")
       .eq("profile_id", profile.id)
       .single(),
+    supabase
+      .from("events")
+      .select("id, facilitator_profiles!inner(profile_id)", { count: "exact", head: true })
+      .eq("facilitator_profiles.profile_id", profile.id)
+      .in("status", ["active", "sold_out", "completed", "cancelled"]),
   ]);
 
   const selectedCategoryIds =
@@ -76,6 +82,8 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
   }
 
   const backHref = profile.role === "admin" ? "/admin" : "/facilitator";
+  const hasPublishedEventHistory = (publishedEventCount ?? 0) > 0;
+  const eventCtaLabel = hasPublishedEventHistory ? "Opret nyt event" : "Opret dit første event";
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -120,14 +128,14 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
               Vi gennemgår din profil hurtigst muligt og glæder os til at byde dig velkommen som arrangør.
             </p>
             <p className="mt-2">
-              Mens du venter, kan du med fordel oprette dit første event og gøre det klar til offentliggørelse.
+              Mens du venter, kan du med fordel {hasPublishedEventHistory ? "oprette et nyt event" : "oprette dit første event"} og gøre det klar til offentliggørelse.
             </p>
             <div className="mt-5">
               <Link
                 className="inline-flex h-11 items-center gap-2 rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500"
                 href="/facilitator/events"
               >
-                Opret dit første event
+                {eventCtaLabel}
                 <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
             </div>

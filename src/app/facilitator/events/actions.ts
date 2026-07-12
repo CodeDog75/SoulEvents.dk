@@ -10,6 +10,7 @@ import {
 } from "@/lib/email/event-update-notification";
 import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
+import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
@@ -21,7 +22,7 @@ const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "re
 const allowedFormats = ["physical", "online"] as const;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 
-const facilitatorProfileEventSelect = "id, status, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, facilitator_categories(category_id), profiles(email, phone)";
+const facilitatorProfileEventSelect = "id, status, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles(email, phone)";
 type AdminClient = ReturnType<typeof createAdminClient>;
 type EventUpdateSnapshot = {
   address_line: string | null;
@@ -83,6 +84,19 @@ function getPriceCents(formData: FormData) {
 
   return Number(raw) * 100;
 }
+
+function formatTicketPriceLimit(limit: number) {
+  return new Intl.NumberFormat("da-DK").format(limit) + " kr.";
+}
+
+function ticketPriceLimitMessage(limit: number) {
+  return (
+    "Din konto er godkendt til events med en billetpris på op til " +
+    formatTicketPriceLimit(limit) +
+    " pr. deltager. Ønsker du at annoncere dyrere events eller retreats, er du velkommen til at kontakte SoulEvents for en individuel aftale."
+  );
+}
+
 
 function isValidUrl(value: string) {
   if (value.trim() === onlineLinkLaterText) {
@@ -465,6 +479,10 @@ export async function createEventAction(formData: FormData) {
   const facebookUrl = facilitatorProfile.facebook_url || null;
   const instagramUrl = facilitatorProfile.instagram_url || null;
   const eventFormat = getString(formData, "event_format") || "physical";
+  const maxTicketPricePerPerson =
+    typeof facilitatorProfile.max_ticket_price_per_person === "number"
+      ? facilitatorProfile.max_ticket_price_per_person
+      : null;
 
   const isDanishPhysicalEvent = eventFormat === "physical" && country.trim().toLowerCase() === "danmark";
 
@@ -536,12 +554,20 @@ export async function createEventAction(formData: FormData) {
     eventsRedirect("Kapacitet skal være mindst 1.");
   }
 
+  if (!isDraft && maxTicketPricePerPerson !== null && priceCents > maxTicketPricePerPerson * 100) {
+    eventsRedirect(ticketPriceLimitMessage(maxTicketPricePerPerson));
+  }
+
   if (capacity > 500) {
     eventsRedirect("Maks. antal deltagere er 500.");
   }
 
-  if (mainCategoryIds.length > 3 || categoryIds.length > 3 || tagIds.length > 3) {
-    eventsRedirect("Du kan vælge op til 3 kategorier og op til 3 tags.");
+  if (mainCategoryIds.length > 3 || categoryIds.length > 3 || tagIds.length > 4) {
+    eventsRedirect("Du kan vælge op til 3 kategorier og op til 4 tags.");
+  }
+
+  if (!isDraft && mainCategoryIds.length < 1) {
+    eventsRedirect("Vælg mindst én hovedkategori til eventet.");
   }
 
   if (!isDraft && eventFormat === "physical" && (!addressLine || !postalCode || !city || !country)) {
@@ -871,7 +897,7 @@ export async function updateEventStatusAction(formData: FormData) {
   const supabase = createAdminClient();
   const { data: facilitatorProfiles } = await supabase
     .from("facilitator_profiles")
-    .select("id, company_name, city, postal_code, short_description, facilitator_categories(category_id)")
+    .select("id, company_name, city, postal_code, short_description, max_ticket_price_per_person, facilitator_categories(category_id)")
     .eq("profile_id", profile.id);
   const profileReady = (facilitatorProfiles ?? []).some((facilitatorProfile) => {
     const categoryIds =
@@ -892,7 +918,28 @@ export async function updateEventStatusAction(formData: FormData) {
   }
 
   if (status === "active") {
-    const facilitatorId = facilitatorProfiles?.[0]?.id ?? "";
+    const facilitatorIds = (facilitatorProfiles ?? []).map((facilitatorProfile) => facilitatorProfile.id);
+    const { data: event } = await supabase
+      .from("events")
+      .select("id, facilitator_id, price_cents")
+      .eq("id", eventId)
+      .in("facilitator_id", facilitatorIds)
+      .maybeSingle();
+    const facilitatorProfile = (facilitatorProfiles ?? []).find((currentProfile) => currentProfile.id === event?.facilitator_id);
+    const maxTicketPricePerPerson =
+      typeof facilitatorProfile?.max_ticket_price_per_person === "number"
+        ? facilitatorProfile.max_ticket_price_per_person
+        : null;
+
+    if (!event || !facilitatorProfile) {
+      eventsRedirect("Eventet kunne ikke findes.");
+    }
+
+    if (maxTicketPricePerPerson !== null && event.price_cents > maxTicketPricePerPerson * 100) {
+      eventsRedirect(ticketPriceLimitMessage(maxTicketPricePerPerson));
+    }
+
+    const facilitatorId = facilitatorProfile.id;
     const limitStatus = facilitatorId
       ? await getFacilitatorEventLimitStatus(supabase, facilitatorId, { excludeEventId: eventId })
       : null;
@@ -924,6 +971,91 @@ export async function updateEventStatusAction(formData: FormData) {
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/events");
   facilitatorOverviewRedirect(status === "cancelled" ? "Eventet er aflyst." : "Eventstatus er opdateret.");
+}
+
+export async function publishDraftEventAction(formData: FormData) {
+  const profile = await requireRole("facilitator");
+  const eventId = getString(formData, "event_id");
+
+  if (!eventId) {
+    facilitatorOverviewRedirect("Eventet kunne ikke offentliggøres.");
+  }
+
+  const supabase = createAdminClient();
+  const { data: facilitatorProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("id, status, max_ticket_price_per_person")
+    .eq("profile_id", profile.id)
+    .maybeSingle();
+
+  if (!facilitatorProfile) {
+    facilitatorOverviewRedirect("Arrangørprofilen mangler.");
+  }
+
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, status, title, long_description, starts_at, ends_at, address_line, postal_code, city, country, price_cents, capacity, cover_image_path, event_format, online_url_or_note, event_main_categories(main_category_id), event_tags(tag_id)")
+    .eq("id", eventId)
+    .eq("facilitator_id", facilitatorProfile.id)
+    .eq("status", "draft")
+    .maybeSingle();
+
+  if (!event) {
+    facilitatorOverviewRedirect("Kladdeeventet kunne ikke findes.");
+  }
+
+  const readiness = getDraftPublishReadiness({
+    event,
+    facilitatorStatus: facilitatorProfile.status,
+    maxTicketPricePerPerson: facilitatorProfile.max_ticket_price_per_person,
+  });
+
+  if (!readiness.canPublish) {
+    facilitatorOverviewRedirect("Kladdeeventet mangler oplysninger før offentliggørelse.");
+  }
+
+  const autoApproveEvents = await getAutoApproveEvents(supabase, facilitatorProfile.id);
+  const nextStatus: EventStatus = autoApproveEvents ? "active" : "pending_review";
+
+  if (autoApproveEvents) {
+    const limitStatus = await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id, {
+      excludeEventId: event.id,
+    });
+
+    if (limitStatus.activeCount >= limitStatus.maxActiveEvents) {
+      facilitatorOverviewRedirect(activeLimitMessage(limitStatus.maxActiveEvents));
+    }
+  }
+
+  const { data: updatedEvent, error } = await supabase
+    .from("events")
+    .update({ status: nextStatus })
+    .eq("id", event.id)
+    .eq("facilitator_id", facilitatorProfile.id)
+    .eq("status", "draft")
+    .select("id")
+    .maybeSingle();
+
+  if (error || !updatedEvent) {
+    facilitatorOverviewRedirect("Eventet kunne ikke offentliggøres.");
+  }
+
+  if (autoApproveEvents) {
+    await supabase.from("admin_audit_logs").insert({
+      actor_profile_id: profile.id,
+      facilitator_id: facilitatorProfile.id,
+      event_id: event.id,
+      action: "event_auto_approved",
+      new_value: "active",
+      reason: "draft_publish",
+    });
+
+    await notifyFacilitatorEventReminderSubscribers(event.id);
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/events");
+  facilitatorOverviewRedirect(autoApproveEvents ? "Eventet er offentliggjort." : "Eventet er sendt til godkendelse.");
 }
 
 

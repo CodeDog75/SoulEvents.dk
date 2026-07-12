@@ -88,6 +88,7 @@ export type Database = {
           region_id: string | null;
           latitude: number | null;
           longitude: number | null;
+          max_ticket_price_per_person: number | null;
           accepted_terms_at: string | null;
           accepted_privacy_at: string | null;
           accepted_guidelines_at: string | null;

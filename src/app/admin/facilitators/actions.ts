@@ -205,8 +205,11 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   const isExperiencedHost = formData.get("is_experienced_host") === "on";
   const autoApproveEvents = formData.get("auto_approve_events") === "on";
   const featuredSortOrder = Number(getOptionalString(formData, "featured_sort_order") ?? 0);
+  const hasUnlimitedTicketPrice = formData.get("unlimited_ticket_price") === "on";
+  const rawMaxTicketPrice = getOptionalString(formData, "max_ticket_price_per_person");
+  const parsedMaxTicketPrice = Number(rawMaxTicketPrice);
+  const maxTicketPricePerPerson = hasUnlimitedTicketPrice ? null : parsedMaxTicketPrice;
   const categoryIds = getAllStrings(formData, "category_ids");
-  const tagIds = Array.from(new Set(getAllStrings(formData, "tag_ids")));
 
   if (!facilitatorId || !profileId) {
     adminRedirect("Arrangøren kunne ikke findes.");
@@ -224,8 +227,8 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
     adminFacilitatorEditRedirect(facilitatorId, "Vist navn skal udfyldes.");
   }
 
-  if (tagIds.length < 1 || tagIds.length > 5) {
-    adminFacilitatorEditRedirect(facilitatorId, "Vælg mindst ét tag og højst fem tags.");
+  if (!hasUnlimitedTicketPrice && (!rawMaxTicketPrice || !/^\d+$/.test(rawMaxTicketPrice) || !Number.isSafeInteger(parsedMaxTicketPrice) || parsedMaxTicketPrice < 0)) {
+    adminFacilitatorEditRedirect(facilitatorId, "Maksimal billetpris skal være et heltal på mindst 0 kr.");
   }
 
   const supabase = createAdminClient();
@@ -267,6 +270,7 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
     is_active_host: isActiveHost,
     is_experienced_host: isExperiencedHost,
     featured_sort_order: Number.isFinite(featuredSortOrder) ? featuredSortOrder : 0,
+    max_ticket_price_per_person: maxTicketPricePerPerson,
   };
 
   if (canUpdateAutoApprove) {
@@ -307,21 +311,7 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
     );
 
     if (error) {
-      adminFacilitatorEditRedirect(facilitatorId, "Kategorier kunne ikke gemmes.");
-    }
-  }
-
-  await supabase.from("facilitator_tags").delete().eq("facilitator_id", facilitatorId);
-  if (tagIds.length > 0) {
-    const { error } = await supabase.from("facilitator_tags").insert(
-      tagIds.map((tagId) => ({
-        facilitator_id: facilitatorId,
-        tag_id: tagId,
-      })),
-    );
-
-    if (error) {
-      adminFacilitatorEditRedirect(facilitatorId, "Tags kunne ikke gemmes. Tjek at migration 015_facilitator_tags.sql er kørt.");
+      adminFacilitatorEditRedirect(facilitatorId, "Arbejdsområder kunne ikke gemmes.");
     }
   }
 
