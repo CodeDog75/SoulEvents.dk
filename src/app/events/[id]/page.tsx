@@ -376,7 +376,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                 <Ticket className="mt-0.5 size-4 text-midnight" aria-hidden="true" />
                 <span>{formatPrice(event.price_cents)}</span>
               </div>
-              <CapacityBadge availableSeats={availableSeats} capacity={event.capacity} />
+              <CapacityBadge availableSeats={availableSeats} capacity={event.capacity} status={event.status} />
               {event.practical_information && (
                 <div className="rounded-md bg-sage-50 p-3">
                   <p className="font-semibold text-olive">Praktisk information til deltagere</p>
@@ -414,7 +414,6 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           {isSoldOut ? (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
               <h2 className="text-3xl font-medium text-olive">Udsolgt</h2>
-              <CapacityBadge availableSeats={availableSeats} capacity={event.capacity} className="mt-3" />
             </section>
           ) : isBookable ? (
             <BookingForm availableSeats={availableSeats} capacity={event.capacity} eventId={event.id} message={message} messageVariant={messageVariant} />

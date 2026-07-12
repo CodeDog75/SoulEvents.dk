@@ -130,7 +130,7 @@ function FacilitatorEventList({ events }: { events: any[] }) {
                   <Ticket className="size-4 shrink-0 text-sage-700" aria-hidden="true" />
                   {formatEventPrice(event.price_cents)}
                 </span>
-                <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} />
+                <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} status={event.status} />
               </div>
             </div>
             <Link

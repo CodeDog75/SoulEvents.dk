@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarPlus, HeartHandshake, MailCheck, MapPinned, Search, Sparkles, UserPlus } from "lucide-react";
+import { ArrowLeft, CalendarPlus, HeartHandshake, Leaf, MailCheck, MapPinned, Search, Sparkles, UserPlus } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import { aboutPageSettingKey, parseAboutPageContent, type AboutImageKey } from "@/lib/about-page-content";
@@ -137,6 +137,43 @@ function ValuesSection({ text, title }: { text: string; title: string }) {
   );
 }
 
+function PricingPrincipleSection() {
+  return (
+    <section className="rounded-[28px] border border-sage-700/10 bg-[#F4F7F1] p-6 shadow-soft sm:p-8">
+      <div className="grid gap-6 lg:grid-cols-[auto_1fr] lg:items-start">
+        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-white text-sage-700 shadow-soft">
+          <Leaf className="size-5" aria-hidden="true" />
+        </span>
+        <div className="max-w-[82ch]">
+          <h2 className="text-3xl font-medium leading-tight text-olive sm:text-4xl">Gratis at være en del af fællesskabet</h2>
+          <div className="mt-4 space-y-4 text-base leading-8 text-ink/72">
+            <p>
+              SoulEvents er skabt ud fra et ønske om at gøre det nemmere for mennesker at finde inspirerende events, fællesskaber og ydelser - uden
+              unødige barrierer.
+            </p>
+            <p className="font-semibold text-[#2F2633]">Derfor er SoulEvents som udgangspunkt gratis at benytte for både arrangører og deltagere.</p>
+            <p>
+              Vi ønsker, at de grundlæggende funktioner på platformen fortsat skal være frit tilgængelige i det omfang, det er foreneligt med en
+              bæredygtig drift og den fortsatte udvikling af SoulEvents.
+            </p>
+            <p>
+              SoulEvents kan løbende tilbyde betalingsbaserede funktioner, premium-services eller særlige annonceringsmuligheder, som skaber ekstra
+              værdi for arrangører og deltagere.
+            </p>
+            <p>
+              SoulEvents kan desuden vælge, at udvalgte profiler, events, ydelser eller funktioner fremover bliver omfattet af særskilte priser eller
+              betalingsvilkår.
+            </p>
+            <p>
+              Eventuelle betalingsydelser vil altid blive oplyst tydeligt, inden de vælges eller anvendes, og ændringer vil alene gælde fremadrettet.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function EditorialSection() {
   return (
     <section className="rounded-[28px] bg-white p-6 shadow-soft sm:p-8">
@@ -228,6 +265,10 @@ export default async function AboutPage() {
               </article>
             );
           })}
+        </div>
+
+        <div className="mt-8">
+          <PricingPrincipleSection />
         </div>
 
         <div className="mt-8 grid gap-6">

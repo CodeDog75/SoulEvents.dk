@@ -219,7 +219,7 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
               <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#2F2633]/12 to-transparent" aria-hidden="true" />
               <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2 sm:left-4 sm:right-4 sm:top-4">
                 <EventDateBox startsAt={event.starts_at} />
-                <EventImageStatusTag availableSeats={event.available_seats} capacity={event.capacity} />
+                <EventImageStatusTag availableSeats={event.available_seats} capacity={event.capacity} status={event.status} />
               </div>
               <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-2 sm:bottom-4 sm:left-4 sm:right-4">
                 {categories.slice(0, 2).map((category) => (
@@ -251,7 +251,7 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
                   <MapPinned className="size-4 text-sage-700" aria-hidden="true" />
                   {distance ? distance + " · " + locationText : locationText}
                 </div>
-                <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} compact />
+                <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} compact status={event.status} />
               </div>
 
               <div className="mt-4 flex items-center justify-between gap-3 border-t border-olive/10 pt-4 text-sm">

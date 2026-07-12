@@ -8,6 +8,7 @@ type EventDateBoxProps = {
 type EventImageStatusTagProps = {
   availableSeats?: number | null;
   capacity?: number | null;
+  status?: string | null;
 };
 
 const weekdayFormatter = new Intl.DateTimeFormat("da-DK", { weekday: "long" });
@@ -43,8 +44,8 @@ export function EventDateBox({ startsAt }: EventDateBoxProps) {
   );
 }
 
-export function EventImageStatusTag({ availableSeats, capacity }: EventImageStatusTagProps) {
-  const tone = getCapacityTone(availableSeats, capacity);
+export function EventImageStatusTag({ availableSeats, capacity, status }: EventImageStatusTagProps) {
+  const tone = getCapacityTone(availableSeats, capacity, status);
 
   if (tone === "available" || !tone) {
     return null;

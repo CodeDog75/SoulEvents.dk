@@ -5,6 +5,7 @@ type CapacityBadgeProps = {
   capacity?: number | null;
   className?: string;
   compact?: boolean;
+  status?: string | null;
 };
 
 export const capacityToneClasses = {
@@ -13,11 +14,11 @@ export const capacityToneClasses = {
   sold_out: "bg-[#EADADB] text-[#75404A]",
 };
 
-export function CapacityBadge({ availableSeats, capacity, className = "", compact = false }: CapacityBadgeProps) {
-  const label = formatCapacityLabel(availableSeats, capacity);
-  const tone = getCapacityTone(availableSeats, capacity);
+export function CapacityBadge({ availableSeats, capacity, className = "", compact = false, status }: CapacityBadgeProps) {
+  const label = formatCapacityLabel(availableSeats, capacity, status);
+  const tone = getCapacityTone(availableSeats, capacity, status);
 
-  if (!label || !tone) {
+  if (!label || !tone || tone === "sold_out") {
     return null;
   }
 

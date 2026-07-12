@@ -103,7 +103,7 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#2F2633]/12 to-transparent" aria-hidden="true" />
         <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2 sm:left-4 sm:right-4 sm:top-4">
           <EventDateBox startsAt={event.starts_at} />
-          <EventImageStatusTag availableSeats={event.available_seats} capacity={event.capacity} />
+          <EventImageStatusTag availableSeats={event.available_seats} capacity={event.capacity} status={event.status} />
         </div>
         <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[#2F2633]/52 to-transparent" aria-hidden="true" />
         <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-2 sm:bottom-4 sm:left-4 sm:right-4">
@@ -134,7 +134,7 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
             <MapPinned className="size-4 shrink-0 text-sage-700" aria-hidden="true" />
             <span className="truncate">{locationText}</span>
           </span>
-          <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} className="justify-center text-center" compact />
+          <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} className="justify-center text-center" compact status={event.status} />
         </div>
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-olive/10 pt-4 text-sm">
           <span className="flex items-center gap-2 font-semibold text-olive">
