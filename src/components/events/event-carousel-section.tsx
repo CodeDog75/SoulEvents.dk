@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, MapPinned, Ticket, UserRound } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Clock3, MapPinned, Ticket, UserRound } from "lucide-react";
 import { CapacityBadge } from "@/components/events/capacity-badge";
+import { EventDateBox, EventImageStatusTag, formatEventTime } from "@/components/events/event-card-overlays";
 import type { PublicEvent } from "@/components/events/public-event-list";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
 
@@ -99,8 +100,13 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
             </span>
           </div>
         )}
-        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[#2F2633]/58 to-transparent" aria-hidden="true" />
-        <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#2F2633]/12 to-transparent" aria-hidden="true" />
+        <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2 sm:left-4 sm:right-4 sm:top-4">
+          <EventDateBox startsAt={event.starts_at} />
+          <EventImageStatusTag availableSeats={event.available_seats} capacity={event.capacity} />
+        </div>
+        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-[#2F2633]/52 to-transparent" aria-hidden="true" />
+        <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-2 sm:bottom-4 sm:left-4 sm:right-4">
           {categories.slice(0, 1).map((category) => (
             <span
               className="rounded-full px-3 py-1 text-xs font-semibold text-white shadow-soft"
@@ -121,21 +127,24 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
         <p className="mt-1 truncate text-sm font-semibold text-sage-700">{facilitator}</p>
         <div className="mt-4 grid gap-2 text-sm text-ink/68">
           <span className="flex items-center gap-2">
-            <CalendarDays className="size-4 shrink-0 text-rose" aria-hidden="true" />
-            {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.starts_at))}
+            <Clock3 className="size-4 shrink-0 text-rose" aria-hidden="true" />
+            Kl. {formatEventTime(event.starts_at)}
           </span>
           <span className="flex items-center gap-2">
             <MapPinned className="size-4 shrink-0 text-sage-700" aria-hidden="true" />
             <span className="truncate">{locationText}</span>
           </span>
+          <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} className="justify-center text-center" compact />
         </div>
-        <div className="mt-4 flex items-center justify-between border-t border-olive/10 pt-4 text-sm">
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-olive/10 pt-4 text-sm">
           <span className="flex items-center gap-2 font-semibold text-olive">
             <Ticket className="size-4" aria-hidden="true" />
             {formatPrice(event.price_cents)}
           </span>
-          <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} className="justify-center text-center" />
-          <span className="font-semibold text-rose">Se event</span>
+          <span className="inline-flex items-center gap-1 font-semibold text-rose">
+            Se event
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </span>
         </div>
       </div>
     </Link>

@@ -137,6 +137,38 @@ function ValuesSection({ text, title }: { text: string; title: string }) {
   );
 }
 
+function EditorialSection() {
+  return (
+    <section className="rounded-[28px] bg-white p-6 shadow-soft sm:p-8">
+      <div className="max-w-[78ch]">
+        <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">SoulEvents Redaktion</p>
+        <h2 className="mt-3 text-3xl font-medium leading-tight text-olive sm:text-4xl">Redaktionel hjælp og sparring</h2>
+        <div className="mt-4 space-y-4 text-base leading-8 text-ink/70">
+          <p>
+            Hos SoulEvents tror vi på, at inspirerende beskrivelser, smukke billeder og et klart, nærværende sprog gør det lettere for mennesker at
+            finde de events, fællesskaber og ydelser, der passer til dem.
+          </p>
+          <p>
+            Derfor tilbyder vi gerne mindre redaktionelle forbedringer af arrangørprofiler, events og ydelser. Det kan eksempelvis være hjælp til
+            sproglig finpudsning, struktur, billedbeskæring eller mindre designmæssige tilpasninger, så indholdet fremstår indbydende, professionelt
+            og i harmoni med SoulEvents&apos; visuelle identitet.
+          </p>
+          <p>
+            Vi foretager altid sådanne forbedringer med respekt for arrangørens budskab, faglighed og indhold og uden at ændre indholdets væsentlige
+            betydning.
+          </p>
+          <p>Har du brug for sparring eller hjælp til at præsentere dine events eller ydelser bedst muligt, er du altid velkommen til at kontakte os.</p>
+          <p>
+            Mindre redaktionelle forbedringer er som udgangspunkt en del af servicen. Ønsker du derimod større designopgaver, omfattende
+            tekstbearbejdning eller anden individuel opsætning, kan dette tilbydes mod et nærmere aftalt honorar. Eventuelle omkostninger aftales altid
+            med dig på forhånd.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default async function AboutPage() {
   const supabase = await createClient();
   const { data: setting } = await supabase.from("site_settings").select("value").eq("key", aboutPageSettingKey).maybeSingle();
@@ -202,6 +234,7 @@ export default async function AboutPage() {
           <StorySection imageKey="why" images={content.images} supabase={supabase} text={content.whyText} title={content.whyTitle} />
           <StorySection imageKey="vision" imagePosition="left" images={content.images} supabase={supabase} text={content.visionText} title={content.visionTitle} />
           <StorySection imageKey="story" imageTone="prominent" images={content.images} supabase={supabase} text={content.storyText} title={content.storyTitle} />
+          <EditorialSection />
           <HowItWorksSection text={content.howText} title={content.howTitle} />
           <ValuesSection text={content.valuesText} title={content.valuesTitle} />
         </div>

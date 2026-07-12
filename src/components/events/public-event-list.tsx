@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { CalendarDays, MapPinned, Ticket } from "lucide-react";
+import { ArrowRight, CalendarDays, Clock3, MapPinned, Ticket } from "lucide-react";
 import { CapacityBadge } from "@/components/events/capacity-badge";
+import { EventDateBox, EventImageStatusTag, formatEventTime } from "@/components/events/event-card-overlays";
 
 export type PublicEvent = {
   id: string;
@@ -215,7 +216,12 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
                   </span>
                 </div>
               )}
-              <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#2F2633]/12 to-transparent" aria-hidden="true" />
+              <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2 sm:left-4 sm:right-4 sm:top-4">
+                <EventDateBox startsAt={event.starts_at} />
+                <EventImageStatusTag availableSeats={event.available_seats} capacity={event.capacity} />
+              </div>
+              <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-2 sm:bottom-4 sm:left-4 sm:right-4">
                 {categories.slice(0, 2).map((category) => (
                   <span
                     className="rounded-full px-3 py-1 text-xs font-semibold text-white shadow-soft"
@@ -238,13 +244,14 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
 
               <div className="mt-4 grid gap-2 text-sm text-ink/70">
                 <div className="flex items-center gap-2">
-                  <CalendarDays className="size-4 text-rose" aria-hidden="true" />
-                  {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.starts_at))}
+                  <Clock3 className="size-4 text-rose" aria-hidden="true" />
+                  Kl. {formatEventTime(event.starts_at)}
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPinned className="size-4 text-sage-700" aria-hidden="true" />
                   {distance ? distance + " · " + locationText : locationText}
                 </div>
+                <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} compact />
               </div>
 
               <div className="mt-4 flex items-center justify-between gap-3 border-t border-olive/10 pt-4 text-sm">
@@ -252,8 +259,10 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
                   <Ticket className="size-4 text-olive" aria-hidden="true" />
                   {formatPrice(event.price_cents)}
                 </span>
-                <CapacityBadge availableSeats={event.available_seats} capacity={event.capacity} />
-                <span className="text-xs font-semibold text-ink/50">Se event</span>
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose">
+                  Se event
+                  <ArrowRight className="size-3.5" aria-hidden="true" />
+                </span>
               </div>
             </div>
           </Link>
