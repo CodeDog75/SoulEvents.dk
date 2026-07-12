@@ -159,7 +159,7 @@ export async function createBookingAction(formData: FormData) {
   }
 
   if (acceptedGuidelines !== "yes") {
-    bookingRedirect(eventId, "Du skal acceptere eventets betingelser og SoulEvents’ brugervilkår før tilmelding.");
+    bookingRedirect(eventId, "Du skal acceptere eventets betingelser og SoulEvents’ handelsbetingelser for deltagere før tilmelding.");
   }
 
   const supabase = await createClient();

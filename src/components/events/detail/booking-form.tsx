@@ -245,33 +245,55 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
           />
         </label>
 
-        <label className="flex items-start gap-3 rounded-md border border-[#e5d4f7] bg-white/80 p-4 text-sm leading-6 text-ink/72">
+        <div className="flex items-start gap-3 rounded-md border border-[#eadff5] bg-white/70 px-4 py-3 text-sm leading-6 text-ink/72">
           <input
-            className="mt-1 size-4 accent-sage-700"
+            aria-describedby="booking-legal-acceptance-text"
+            className="mt-1 size-5 shrink-0 accent-sage-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A4EAB]"
             checked={acceptedGuidelines}
             disabled={isSoldOut}
+            id="booking-legal-acceptance"
             name="accepted_guidelines"
             onChange={(event) => setAcceptedGuidelines(event.target.checked)}
             required
             type="checkbox"
             value="yes"
           />
-          <span>
-            Jeg accepterer{" "}
-            <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="#event-betingelser">
-              eventets betingelser
-            </Link>{" "}
-            og SoulEvents&apos;{" "}
-            <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/handelsbetingelser" target="_blank">
-              brugervilkår
-            </Link>{" "}
-            og har læst{" "}
-            <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/privatlivspolitik" target="_blank">
-              privatlivspolitikken
-            </Link>
-            .
-          </span>
-        </label>
+          <div id="booking-legal-acceptance-text" className="grid gap-1">
+            <p>
+              Jeg accepterer{" "}
+              <Link
+                className="font-semibold text-[#7A4EAB] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A4EAB]"
+                href={`/events/${eventId}#event-betingelser`}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                eventets betingelser
+              </Link>{" "}
+              og SoulEvents&apos;{" "}
+              <Link
+                className="font-semibold text-[#7A4EAB] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A4EAB]"
+                href="/legal/handelsbetingelser"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                handelsbetingelser for deltagere
+              </Link>
+              .
+            </p>
+            <p className="text-xs leading-5 text-ink/58">
+              Jeg bekræfter samtidig, at jeg har læst SoulEvents&apos;{" "}
+              <Link
+                className="font-semibold text-[#7A4EAB] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A4EAB]"
+                href="/legal/privatlivspolitik"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                privatlivspolitik
+              </Link>
+              .
+            </p>
+          </div>
+        </div>
       </div>
 
       <button
