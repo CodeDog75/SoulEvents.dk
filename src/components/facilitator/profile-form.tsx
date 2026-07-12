@@ -26,6 +26,7 @@ type ServiceTitle = {
 };
 
 type FacilitatorProfile = {
+  status?: string | null;
   company_name: string | null;
   profile_image_path: string | null;
   short_description: string | null;
@@ -1169,6 +1170,28 @@ export function ProfileForm({
             <p className="font-semibold">Din profil er klar til at blive gemt samlet.</p>
           </div>
         )}
+
+        {facilitatorProfile.status === "pending" ? (
+          <label className="flex items-start gap-3 rounded-md border border-[#D8CBE4] bg-[#F7F2FB] p-4 text-sm leading-6 text-ink/72">
+            <input
+              className="mt-1 size-4 accent-sage-700"
+              name="accepted_organizer_terms"
+              type="checkbox"
+              value="yes"
+            />
+            <span>
+              Jeg accepterer SoulEvents&apos;{" "}
+              <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/arrangoervilkaar" target="_blank">
+                arrangørvilkår
+              </Link>{" "}
+              og{" "}
+              <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/platformens-retningslinjer" target="_blank">
+                retningslinjer for events og indhold
+              </Link>
+              .
+            </span>
+          </label>
+        ) : null}
 
         <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
           <div className="grid max-w-2xl gap-1">

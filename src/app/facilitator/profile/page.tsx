@@ -3,7 +3,9 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, CircleUserRound } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { ProfileForm } from "@/components/facilitator/profile-form";
+import { SecurityPasswordForm } from "@/components/facilitator/security-password-form";
 import { requireProfile } from "@/lib/auth/roles";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +22,7 @@ type FacilitatorProfilePageProps = {
 export default async function FacilitatorProfilePage({ searchParams }: FacilitatorProfilePageProps) {
   const [{ errorSection, message, ready, saved }, profile] = await Promise.all([searchParams, requireProfile()]);
   const supabase = await createClient();
+  const admin = createAdminClient();
   const isSavedMessage = message?.startsWith("Ændringer gemt");
 
   const [
@@ -30,6 +33,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     { data: serviceTitles },
     { data: serviceRows },
     { count: publishedEventCount },
+    { data: authUserData, error: authUserError },
   ] = await Promise.all([
     supabase.from("facilitator_profiles").select("*").eq("profile_id", profile.id).single(),
     supabase.from("regions").select("id, name, slug").order("sort_order"),
@@ -50,6 +54,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
       .select("id, facilitator_profiles!inner(profile_id)", { count: "exact", head: true })
       .eq("facilitator_profiles.profile_id", profile.id)
       .in("status", ["active", "sold_out", "completed", "cancelled"]),
+    admin.auth.admin.getUserById(profile.id),
   ]);
 
   const selectedCategoryIds =
@@ -84,6 +89,9 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
   const backHref = profile.role === "admin" ? "/admin" : "/facilitator";
   const hasPublishedEventHistory = (publishedEventCount ?? 0) > 0;
   const eventCtaLabel = hasPublishedEventHistory ? "Opret nyt event" : "Opret dit første event";
+  const authProviders = authUserData.user?.identities?.map((identity) => identity.provider).filter(Boolean) ?? [];
+  const passwordLoginAvailable = !authUserError && (authProviders.length === 0 || authProviders.includes("email"));
+  const primaryOauthProvider = authProviders.find((provider) => provider === "google" || provider === "facebook") ?? authProviders[0] ?? null;
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -158,6 +166,9 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
           selectedServiceTitleIds={selectedServiceTitleIds}
           serviceTitles={visibleServiceTitles}
         />
+        <div className="mt-6">
+          <SecurityPasswordForm oauthProvider={primaryOauthProvider} passwordLoginAvailable={passwordLoginAvailable} />
+        </div>
       </section>
     </main>
   );

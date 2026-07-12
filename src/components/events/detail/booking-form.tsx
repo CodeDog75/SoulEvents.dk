@@ -257,7 +257,19 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
             value="yes"
           />
           <span>
-            {"Jeg accepterer SoulEvents.dk's retningslinjer og forst\u00e5r, at min tilmelding f\u00f8rst er g\u00e6ldende, n\u00e5r arrangøren har bekr\u00e6ftet den."}
+            Jeg accepterer{" "}
+            <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="#event-betingelser">
+              eventets betingelser
+            </Link>{" "}
+            og SoulEvents&apos;{" "}
+            <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/handelsbetingelser" target="_blank">
+              brugervilkår
+            </Link>{" "}
+            og har læst{" "}
+            <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/privatlivspolitik" target="_blank">
+              privatlivspolitikken
+            </Link>
+            .
           </span>
         </label>
       </div>

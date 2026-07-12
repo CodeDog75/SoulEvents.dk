@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   ArrowLeft,
@@ -1974,6 +1975,17 @@ export function EventForm({
             </button>
           ) : null}
         </div>
+        <p className="text-xs leading-5 text-ink/58">
+          Ved at offentliggøre bekræfter du, at eventet overholder SoulEvents&apos; gældende{" "}
+          <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/arrangoervilkaar" target="_blank">
+            arrangørvilkår
+          </Link>{" "}
+          og{" "}
+          <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/platformens-retningslinjer" target="_blank">
+            retningslinjer
+          </Link>
+          .
+        </p>
         {notificationLogs.length > 0 ? (
           <div className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-4 text-sm text-ink/72">
             <h3 className="font-semibold text-midnight">Log over ændringsmails</h3>

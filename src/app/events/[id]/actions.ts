@@ -10,6 +10,7 @@ import { maxSeatsPerBooking } from "@/lib/bookings/limits";
 import { env } from "@/lib/env";
 import { getAvailableEventSeats, syncEventCapacityStatus } from "@/lib/events/capacity";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
+import { bookingAcceptanceTypes, getCurrentLegalDocumentVersions } from "@/lib/legal/documents";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -58,6 +59,7 @@ const eventSelect = [
   "starts_at,",
   "ends_at,",
   "price_cents,",
+  "practical_information,",
   "capacity,",
   "facilitator_id,",
   "facilitator_profiles!inner(",
@@ -83,6 +85,7 @@ type BookingEventResult = {
       }>;
   id: string;
   price_cents: number;
+  practical_information?: string | null;
   starts_at: string;
   ends_at: string;
   status: string;
@@ -156,10 +159,13 @@ export async function createBookingAction(formData: FormData) {
   }
 
   if (acceptedGuidelines !== "yes") {
-    bookingRedirect(eventId, "Du skal acceptere SoulEvents.dk\u2019s retningslinjer før tilmelding.");
+    bookingRedirect(eventId, "Du skal acceptere eventets betingelser og SoulEvents’ brugervilkår før tilmelding.");
   }
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data: eventResult } = await supabase
     .from("events")
     .select(eventSelect)
@@ -176,6 +182,7 @@ export async function createBookingAction(formData: FormData) {
   }
 
   const adminSupabase = createAdminClient();
+  const legalVersions = await getCurrentLegalDocumentVersions(adminSupabase, bookingAcceptanceTypes);
   const availableSeats = await getAvailableEventSeats(adminSupabase, eventId, event.capacity);
 
   if (availableSeats <= 0) {
@@ -233,6 +240,27 @@ export async function createBookingAction(formData: FormData) {
   }
 
   await syncEventCapacityStatus(adminSupabase, event.id);
+
+  const { error: bookingAcceptanceError } = await adminSupabase.from("booking_legal_acceptances").insert({
+    booking_id: booking.id,
+    event_terms_snapshot: event.practical_information ?? null,
+    guidelines_document_version_id: legalVersions.get("guidelines")?.id ?? null,
+    participant_email: participantEmail,
+    privacy_document_version_id: legalVersions.get("privacy")?.id ?? null,
+    terms_document_version_id: legalVersions.get("terms")?.id ?? null,
+    user_id: user?.id ?? null,
+  });
+
+  if (bookingAcceptanceError) {
+    console.error("Booking legal acceptance could not be saved", {
+      bookingId: booking.id,
+      error: bookingAcceptanceError.message,
+      eventId: event.id,
+    });
+    await adminSupabase.from("bookings").delete().eq("id", booking.id);
+    await syncEventCapacityStatus(adminSupabase, event.id);
+    bookingRedirect(eventId, "Accepten af vilkår kunne ikke gemmes. Prøv igen.");
+  }
 
   const requestHeaders = await headers();
   const appUrl = bookingAdminAppUrl(requestHeaders.get("origin"));

@@ -13,7 +13,7 @@ export type BookingStatus =
   | "paid";
 export type InvoiceStatus = "draft" | "approved" | "sent" | "paid" | "cancelled";
 export type EmailStatus = "queued" | "sent" | "failed";
-export type LegalDocumentType = "terms" | "privacy" | "guidelines";
+export type LegalDocumentType = "terms" | "privacy" | "guidelines" | "organizer_terms" | "cookies";
 
 type Row<T> = T;
 type Insert<T> = Partial<T>;
@@ -164,13 +164,68 @@ export type Database = {
           title: string;
           slug: string;
           body: string;
+          current_version_id: string | null;
+          effective_at: string | null;
           is_published: boolean;
+          requires_acceptance: boolean;
+          version: string;
           published_at: string | null;
           created_at: string;
           updated_at: string;
         }>;
         Insert: Insert<Database["public"]["Tables"]["legal_documents"]["Row"]>;
         Update: Update<Database["public"]["Tables"]["legal_documents"]["Row"]>;
+        Relationships: [];
+      };
+      legal_document_versions: {
+        Row: Row<{
+          id: string;
+          document_id: string;
+          document_type: LegalDocumentType;
+          title: string;
+          slug: string;
+          body: string;
+          version: string;
+          published_at: string;
+          effective_at: string;
+          requires_acceptance: boolean;
+          created_by: string | null;
+          created_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["legal_document_versions"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["legal_document_versions"]["Row"]>;
+        Relationships: [];
+      };
+      legal_document_acceptances: {
+        Row: Row<{
+          id: string;
+          profile_id: string;
+          document_version_id: string;
+          document_type: LegalDocumentType;
+          version: string;
+          action: string;
+          accepted_at: string;
+          created_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["legal_document_acceptances"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["legal_document_acceptances"]["Row"]>;
+        Relationships: [];
+      };
+      booking_legal_acceptances: {
+        Row: Row<{
+          id: string;
+          booking_id: string;
+          user_id: string | null;
+          participant_email: string;
+          terms_document_version_id: string | null;
+          privacy_document_version_id: string | null;
+          guidelines_document_version_id: string | null;
+          event_terms_snapshot: string | null;
+          accepted_at: string;
+          created_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["booking_legal_acceptances"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["booking_legal_acceptances"]["Row"]>;
         Relationships: [];
       };
       site_settings: {

@@ -12,6 +12,7 @@ import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitat
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
+import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes } from "@/lib/legal/documents";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
 import { createSlug } from "@/lib/slug";
@@ -586,6 +587,14 @@ export async function createEventAction(formData: FormData) {
     eventsRedirect("Online-link skal være et gyldigt link, fx https://zoom.us/...");
   }
 
+  if (!isDraft) {
+    const missingAcceptances = await getMissingRequiredLegalAcceptances(supabase, profile.id, organizerAcceptanceTypes);
+
+    if (missingAcceptances.length > 0) {
+      eventsRedirect("Du skal acceptere de gældende arrangørvilkår og retningslinjer, før eventet kan offentliggøres.");
+    }
+  }
+
   if (isDanishPhysicalEvent && !regionId) {
     const inferredSlug = inferRegionSlug({ city, postalCode });
 
@@ -1016,6 +1025,11 @@ export async function publishDraftEventAction(formData: FormData) {
 
   const autoApproveEvents = await getAutoApproveEvents(supabase, facilitatorProfile.id);
   const nextStatus: EventStatus = autoApproveEvents ? "active" : "pending_review";
+  const missingAcceptances = await getMissingRequiredLegalAcceptances(supabase, profile.id, organizerAcceptanceTypes);
+
+  if (missingAcceptances.length > 0) {
+    facilitatorOverviewRedirect("Du skal acceptere de gældende arrangørvilkår og retningslinjer, før eventet kan offentliggøres.");
+  }
 
   if (autoApproveEvents) {
     const limitStatus = await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id, {

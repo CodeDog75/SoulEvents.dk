@@ -5,9 +5,22 @@ import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth/roles";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { profileApprovalUrl, sendFacilitatorProfileReadyEmail } from "@/lib/email/facilitator-profile-ready";
+import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes, recordLegalAcceptances } from "@/lib/legal/documents";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
+import { assertRateLimit, isRateLimitExceededError, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+
+export type ChangePasswordFormState = {
+  fieldErrors?: {
+    confirmPassword?: string;
+    currentPassword?: string;
+    newPassword?: string;
+  };
+  message?: string;
+  status: "error" | "idle" | "success";
+};
 
 function safeRedirectOrigin(origin: string | null) {
   if (!origin) {
@@ -134,6 +147,68 @@ function profileSuccessRedirect(message: string, ready: boolean, origin?: string
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Ukendt fejl";
+}
+
+export async function changeFacilitatorPasswordAction(
+  _previousState: ChangePasswordFormState,
+  formData: FormData,
+): Promise<ChangePasswordFormState> {
+  const profile = await requireProfile();
+  const currentPassword = getString(formData, "current_password");
+  const newPassword = getString(formData, "new_password");
+  const confirmPassword = getString(formData, "confirm_password");
+  const fieldErrors: NonNullable<ChangePasswordFormState["fieldErrors"]> = {};
+
+  if (!currentPassword) {
+    fieldErrors.currentPassword = "Indtast din nuværende adgangskode.";
+  }
+
+  if (newPassword.length < 10) {
+    fieldErrors.newPassword = "Adgangskoden skal være mindst 10 tegn.";
+  }
+
+  if (newPassword !== confirmPassword) {
+    fieldErrors.confirmPassword = "De to adgangskoder er ikke ens.";
+  }
+
+  if (currentPassword && newPassword && currentPassword === newPassword) {
+    fieldErrors.newPassword = "Den nye adgangskode skal være forskellig fra den nuværende.";
+  }
+
+  if (Object.keys(fieldErrors).length > 0) {
+    return { fieldErrors, status: "error" };
+  }
+
+  try {
+    await assertRateLimit("auth:password-change");
+  } catch (error) {
+    if (isRateLimitExceededError(error)) {
+      return { message: RATE_LIMIT_MESSAGE, status: "error" };
+    }
+
+    return { message: "Adgangskoden kunne ikke ændres. Prøv igen.", status: "error" };
+  }
+
+  const supabase = await createClient();
+  const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+    email: profile.email,
+    password: currentPassword,
+  });
+
+  if (signInError || signInData.user?.id !== profile.id) {
+    return {
+      fieldErrors: { currentPassword: "Den nuværende adgangskode er forkert." },
+      status: "error",
+    };
+  }
+
+  const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+
+  if (updateError) {
+    return { message: "Adgangskoden kunne ikke ændres. Prøv igen.", status: "error" };
+  }
+
+  return { message: "Din adgangskode er ændret.", status: "success" };
 }
 
 async function notifyAdminsIfReady(input: {
@@ -732,6 +807,28 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   });
 
   const shouldRequestApproval = finalReady && existingProfile.status === "pending";
+  const acceptedOrganizerTerms = formData.get("accepted_organizer_terms") === "yes";
+
+  if (shouldRequestApproval) {
+    const missingAcceptances = await getMissingRequiredLegalAcceptances(supabase, profile.id, organizerAcceptanceTypes);
+
+    if (missingAcceptances.length > 0 && !acceptedOrganizerTerms) {
+      profileRedirect("Du skal acceptere arrangørvilkår og retningslinjer, før profilen kan sendes til godkendelse.", redirectOrigin, "contact");
+    }
+
+    if (missingAcceptances.length > 0) {
+      try {
+        await recordLegalAcceptances(supabase, {
+          action: "facilitator_profile_submission",
+          documentTypes: organizerAcceptanceTypes,
+          profileId: profile.id,
+        });
+      } catch {
+        profileRedirect("Accepten af vilkår kunne ikke gemmes. Prøv igen.", redirectOrigin, "contact");
+      }
+    }
+  }
+
   const shouldNotifyAdmins = shouldRequestApproval && !wasReady;
 
   if (shouldNotifyAdmins) {

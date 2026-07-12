@@ -337,7 +337,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         </div>
 
         <aside className="grid content-start gap-5 lg:sticky lg:top-6">
-          <section className="rounded-card bg-white p-6 shadow-soft">
+          <section className="rounded-card bg-white p-6 shadow-soft" id="event-betingelser">
             <h2 className="text-4xl font-medium text-olive">Praktisk</h2>
             <div className="mt-4 grid gap-3 text-sm text-ink/72">
               <div className="inline-flex w-fit rounded-full border border-olive/10 bg-white px-2.5 py-1 text-xs font-medium text-ink/55">

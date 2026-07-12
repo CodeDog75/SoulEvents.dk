@@ -7,6 +7,7 @@ export const RATE_LIMIT_MESSAGE = "Du har foretaget for mange forsøg. Prøv ige
 
 export type RateLimitAction =
   | "auth:login"
+  | "auth:password-change"
   | "auth:password-reset"
   | "auth:resend-verification"
   | "auth:signup";
@@ -31,6 +32,11 @@ type MemoryEntry = {
 const RATE_LIMITS: Record<RateLimitAction, RateLimitConfig> = {
   "auth:login": {
     limit: 8,
+    windowSeconds: 10 * 60,
+    blockSeconds: 10 * 60,
+  },
+  "auth:password-change": {
+    limit: 6,
     windowSeconds: 10 * 60,
     blockSeconds: 10 * 60,
   },

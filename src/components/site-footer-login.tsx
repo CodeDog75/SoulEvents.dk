@@ -17,13 +17,13 @@ export function SiteFooterLogin() {
           <Link className="transition hover:text-rose" href="/contact">
             Kontakt
           </Link>
-          <Link className="transition hover:text-rose" href="/privacy">
+          <Link className="transition hover:text-rose" href="/legal/privatlivspolitik">
             Privatlivspolitik
           </Link>
           <Link className="transition hover:text-rose" href="/data-deletion">
             Datasletning
           </Link>
-          <Link className="transition hover:text-rose" href="/terms">
+          <Link className="transition hover:text-rose" href="/legal/handelsbetingelser">
             Vilkår
           </Link>
           <Link className="transition hover:text-rose" href="/auth/login">

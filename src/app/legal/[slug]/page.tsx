@@ -16,10 +16,13 @@ export default async function LegalDocumentPage({ params }: LegalDocumentPagePro
   const { slug } = await params;
   const supabase = await createClient();
   const { data: document } = await supabase
-    .from("legal_documents")
-    .select("title, body, updated_at")
+    .from("legal_document_versions")
+    .select("title, body, version, effective_at")
     .eq("slug", slug)
-    .eq("is_published", true)
+    .lte("effective_at", new Date().toISOString())
+    .order("effective_at", { ascending: false })
+    .order("published_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (!document) {
@@ -49,8 +52,8 @@ export default async function LegalDocumentPage({ params }: LegalDocumentPagePro
           <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Juridisk dokument</p>
           <h1 className="mt-2 text-4xl font-medium text-olive">{document.title}</h1>
           <p className="mt-3 text-sm text-ink/55">
-            Senest opdateret:{" "}
-            {new Intl.DateTimeFormat("da-DK", { dateStyle: "long" }).format(new Date(document.updated_at))}
+            Version {document.version} · Gældende fra{" "}
+            {new Intl.DateTimeFormat("da-DK", { dateStyle: "long" }).format(new Date(document.effective_at))}
           </p>
           <div className="mt-8 whitespace-pre-line text-sm leading-7 text-ink/72">{document.body}</div>
         </article>

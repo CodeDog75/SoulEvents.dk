@@ -559,13 +559,26 @@ function EventCard({
       ) : null}
       <div className="mt-5 flex flex-wrap gap-2">
         {draftReadiness?.canPublish ? (
-          <form action={publishDraftEventAction}>
-            <input name="event_id" type="hidden" value={event.id} />
-            <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]" type="submit">
-              <ArrowRight className="size-4" aria-hidden="true" />
-              Offentliggør event
-            </button>
-          </form>
+          <div className="grid gap-2">
+            <form action={publishDraftEventAction}>
+              <input name="event_id" type="hidden" value={event.id} />
+              <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]" type="submit">
+                <ArrowRight className="size-4" aria-hidden="true" />
+                Offentliggør event
+              </button>
+            </form>
+            <p className="max-w-md text-xs leading-5 text-ink/58">
+              Ved at offentliggøre bekræfter du, at eventet overholder SoulEvents&apos; gældende{" "}
+              <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/arrangoervilkaar" target="_blank">
+                arrangørvilkår
+              </Link>{" "}
+              og{" "}
+              <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/platformens-retningslinjer" target="_blank">
+                retningslinjer
+              </Link>
+              .
+            </p>
+          </div>
         ) : null}
         <Link
           className={
