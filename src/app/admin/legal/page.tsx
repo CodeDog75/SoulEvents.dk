@@ -22,6 +22,22 @@ const documentLabels: Record<string, string> = {
   terms: "Brugervilkår",
 };
 
+function formatDanishDateInput(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Copenhagen",
+    year: "numeric",
+  }).formatToParts(new Date(value));
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
 export default async function AdminLegalPage({ searchParams }: AdminLegalPageProps) {
   const [{ message }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = await createClient();
@@ -116,7 +132,7 @@ export default async function AdminLegalPage({ searchParams }: AdminLegalPagePro
                   Gældende fra
                   <input
                     className="h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700"
-                    defaultValue={document.effective_at ? document.effective_at.slice(0, 10) : ""}
+                    defaultValue={formatDanishDateInput(document.effective_at)}
                     name="effective_at"
                     type="date"
                   />

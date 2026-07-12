@@ -4,26 +4,43 @@ import { ArrowLeft } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { createClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
-
 type LegalDocumentPageProps = {
   params: Promise<{
     slug: string;
   }>;
 };
 
+type LegalVersion = {
+  body: string;
+  effective_at: string;
+  id: string;
+  published_at?: string | null;
+  title: string;
+  version: string;
+};
+
 export default async function LegalDocumentPage({ params }: LegalDocumentPageProps) {
   const { slug } = await params;
   const supabase = await createClient();
-  const { data: document } = await supabase
-    .from("legal_document_versions")
-    .select("title, body, version, effective_at")
+  const now = new Date().toISOString();
+  const { data: legalDocument } = await supabase
+    .from("legal_documents")
+    .select("current_version_id")
     .eq("slug", slug)
-    .lte("effective_at", new Date().toISOString())
-    .order("effective_at", { ascending: false })
-    .order("published_at", { ascending: false })
-    .limit(1)
+    .eq("is_published", true)
     .maybeSingle();
+  const { data: versions } = await supabase
+    .from("legal_document_versions")
+    .select("id, title, body, version, effective_at, published_at")
+    .eq("slug", slug)
+    .lte("effective_at", now)
+    .order("effective_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("published_at", { ascending: false })
+    .limit(10);
+  const document =
+    ((versions ?? []) as LegalVersion[]).find((version) => version.id === legalDocument?.current_version_id) ??
+    ((versions ?? []) as LegalVersion[])[0];
 
   if (!document) {
     notFound();

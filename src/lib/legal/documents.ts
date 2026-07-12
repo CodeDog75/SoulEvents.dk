@@ -30,21 +30,36 @@ export async function getCurrentLegalDocumentVersions(supabase: SupabaseLike, ty
     return new Map<LegalDocumentType, LegalDocumentVersion>();
   }
 
-  const { data, error } = await supabase
+  const [{ data: documents, error: documentsError }, { data, error }] = await Promise.all([
+    supabase.from("legal_documents").select("type, current_version_id").in("type", types),
+    supabase
     .from("legal_document_versions")
     .select("id, document_type, title, slug, body, version, effective_at, requires_acceptance")
     .in("document_type", types)
     .lte("effective_at", new Date().toISOString())
     .order("effective_at", { ascending: false })
-    .order("published_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .order("published_at", { ascending: false }),
+  ]);
 
-  if (error) {
-    throw new Error(error.message);
+  if (documentsError || error) {
+    throw new Error(documentsError?.message ?? error?.message ?? "Juridiske dokumenter kunne ikke hentes.");
   }
 
+  const currentVersionIds = new Map(
+    ((documents ?? []) as Array<{ current_version_id: string | null; type: LegalDocumentType }>).map((document) => [
+      document.type,
+      document.current_version_id,
+    ]),
+  );
   const versions = new Map<LegalDocumentType, LegalDocumentVersion>();
 
   for (const version of (data ?? []) as LegalDocumentVersion[]) {
+    if (version.id === currentVersionIds.get(version.document_type)) {
+      versions.set(version.document_type, version);
+      continue;
+    }
+
     if (!versions.has(version.document_type)) {
       versions.set(version.document_type, version);
     }
