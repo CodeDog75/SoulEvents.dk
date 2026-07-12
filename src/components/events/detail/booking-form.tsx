@@ -260,35 +260,23 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
           />
           <div id="booking-legal-acceptance-text" className="grid gap-1">
             <p>
-              Jeg accepterer{" "}
-              <Link
-                className="font-semibold text-[#7A4EAB] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A4EAB]"
-                href={`/events/${eventId}#event-betingelser`}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                eventets betingelser
-              </Link>{" "}
-              og SoulEvents&apos;{" "}
+              Jeg accepterer SoulEvents&apos;{" "}
               <Link
                 className="font-semibold text-[#7A4EAB] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A4EAB]"
                 href="/legal/handelsbetingelser"
                 rel="noopener noreferrer"
                 target="_blank"
               >
-                handelsbetingelser for deltagere
-              </Link>
-              .
-            </p>
-            <p className="text-xs leading-5 text-ink/58">
-              Jeg bekræfter samtidig, at jeg har læst SoulEvents&apos;{" "}
+                Handelsbetingelser for deltagere
+              </Link>{" "}
+              og bekræfter, at jeg har læst{" "}
               <Link
                 className="font-semibold text-[#7A4EAB] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A4EAB]"
                 href="/legal/privatlivspolitik"
                 rel="noopener noreferrer"
                 target="_blank"
               >
-                privatlivspolitik
+                Privatlivspolitikken
               </Link>
               .
             </p>
