@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { Minus, Plus, Send } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createBookingAction } from "@/app/events/[id]/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { CapacityBadge } from "@/components/events/capacity-badge";
+import { maxSeatsPerBooking } from "@/lib/bookings/limits";
 
 type BookingFormProps = {
   eventId: string;
@@ -49,30 +50,48 @@ function validEmail(value: string) {
 
 export function BookingForm({ eventId, availableSeats, capacity, message, messageVariant = "notice" }: BookingFormProps) {
   const isSoldOut = availableSeats <= 0;
+  const formRef = useRef<HTMLFormElement>(null);
+  const highSeatSubmitConfirmedRef = useRef(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [seats, setSeats] = useState(1);
   const [acceptedGuidelines, setAcceptedGuidelines] = useState(false);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+  const [showHighSeatConfirmation, setShowHighSeatConfirmation] = useState(false);
+  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
 
   const nameComplete = Boolean(name.trim());
   const emailComplete = validEmail(email.trim());
   const phoneValid = useMemo(() => /^[\d\s]+$/.test(phone) && cleanPhone(phone).length === 8, [phone]);
-  const maxSeats = Math.max(availableSeats, 1);
-  const canDecreaseSeats = seats > 1 && !isSoldOut;
-  const canIncreaseSeats = seats < maxSeats && !isSoldOut;
+  const maxSeats = Math.max(Math.min(availableSeats, maxSeatsPerBooking), 1);
+  const canDecreaseSeats = seats > 1 && !isSoldOut && !isSubmittingBooking;
+  const canIncreaseSeats = seats < maxSeats && !isSoldOut && !isSubmittingBooking;
   const showPhoneError = (attemptedSubmit || phone.length > 0) && !phoneValid;
+  const showSeatLimitMessage = !isSoldOut && availableSeats > maxSeatsPerBooking && seats >= maxSeatsPerBooking;
+  const highSeatPersonLabel = seats === 1 ? "person" : "personer";
 
   return (
     <form
+      ref={formRef}
       action={createBookingAction}
       className="rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_18px_45px_rgba(90,59,122,0.16)]"
       onSubmit={(event) => {
         setAttemptedSubmit(true);
         if (!phoneValid) {
           event.preventDefault();
+          setIsSubmittingBooking(false);
+          return;
         }
+
+        if (seats >= 4 && !highSeatSubmitConfirmedRef.current) {
+          event.preventDefault();
+          setShowHighSeatConfirmation(true);
+          setIsSubmittingBooking(false);
+          return;
+        }
+
+        setIsSubmittingBooking(true);
       }}
     >
       <input name="event_id" type="hidden" value={eventId} />
@@ -170,7 +189,10 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
               aria-label="Vælg færre pladser"
               className="grid h-12 place-items-center border-r border-[#e5d4f7] text-olive transition hover:bg-[#FAF7F2] disabled:cursor-not-allowed disabled:text-ink/25"
               disabled={!canDecreaseSeats}
-              onClick={() => setSeats((currentSeats) => Math.max(1, currentSeats - 1))}
+              onClick={() => {
+                setSeats((currentSeats) => Math.max(1, currentSeats - 1));
+                highSeatSubmitConfirmedRef.current = false;
+              }}
               type="button"
             >
               <Minus className="size-4" aria-hidden="true" />
@@ -186,6 +208,7 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
               onChange={(event) => {
                 const numericValue = Number(event.target.value.replace(/\D/g, ""));
                 setSeats(Number.isInteger(numericValue) ? Math.min(Math.max(numericValue, 1), maxSeats) : 1);
+                highSeatSubmitConfirmedRef.current = false;
               }}
               required
               type="number"
@@ -195,12 +218,20 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
               aria-label="Vælg flere pladser"
               className="grid h-12 place-items-center border-l border-[#e5d4f7] text-olive transition hover:bg-[#FAF7F2] disabled:cursor-not-allowed disabled:text-ink/25"
               disabled={!canIncreaseSeats}
-              onClick={() => setSeats((currentSeats) => Math.min(maxSeats, currentSeats + 1))}
+              onClick={() => {
+                setSeats((currentSeats) => Math.min(maxSeats, currentSeats + 1));
+                highSeatSubmitConfirmedRef.current = false;
+              }}
               type="button"
             >
               <Plus className="size-4" aria-hidden="true" />
             </button>
           </div>
+          {showSeatLimitMessage && (
+            <span className="rounded-md bg-white px-3 py-2 text-xs font-semibold leading-5 text-ink/70 shadow-soft">
+              Du kan højst tilmelde 10 personer ad gangen. Kontakt arrangøren ved større grupper.
+            </span>
+          )}
         </label>
 
         <label className="grid gap-2 text-sm font-medium text-ink/72">
@@ -233,14 +264,60 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
 
       <button
         className="mt-6 h-12 w-full rounded-button bg-rose px-4 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:bg-rose/40"
-        disabled={isSoldOut}
+        disabled={isSoldOut || isSubmittingBooking}
         type="submit"
       >
         <span className="inline-flex items-center justify-center gap-2">
           <Send className="size-4" aria-hidden="true" />
-          Send tilmelding
+          {isSubmittingBooking ? "Sender tilmelding..." : "Send tilmelding"}
         </span>
       </button>
+
+      {showHighSeatConfirmation && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#2F2633]/45 px-4 py-6" role="presentation">
+          <div
+            aria-describedby="high-seat-booking-description"
+            aria-labelledby="high-seat-booking-title"
+            aria-modal="true"
+            className="w-full max-w-md rounded-[24px] bg-white p-6 text-left shadow-lift"
+            role="dialog"
+          >
+            <h3 className="text-2xl font-semibold leading-tight text-olive" id="high-seat-booking-title">
+              Du er ved at tilmelde {seats} {highSeatPersonLabel}
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-ink/70" id="high-seat-booking-description">
+              Er du sikker på, at du ønsker at reservere {seats} pladser til dette event?
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_1.4fr]">
+              <button
+                className="h-11 rounded-button border border-sage-700/25 bg-white px-4 text-sm font-semibold text-sage-700 transition hover:border-sage-700 hover:bg-sage-50 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSubmittingBooking}
+                onClick={() => {
+                  setShowHighSeatConfirmation(false);
+                  highSeatSubmitConfirmedRef.current = false;
+                }}
+                type="button"
+              >
+                Gå tilbage
+              </button>
+              <button
+                className="h-11 rounded-button bg-rose px-4 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:bg-rose/45"
+                disabled={isSubmittingBooking}
+                onClick={() => {
+                  highSeatSubmitConfirmedRef.current = true;
+                  setIsSubmittingBooking(true);
+                  window.requestAnimationFrame(() => {
+                    formRef.current?.requestSubmit();
+                  });
+                }}
+                type="button"
+              >
+                {isSubmittingBooking ? "Sender..." : `Ja, tilmeld ${seats} ${highSeatPersonLabel}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {message && (
         <div id="booking-response" className="mt-4 grid scroll-mt-8 gap-3">

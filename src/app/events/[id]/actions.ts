@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { sendBookingNotification } from "@/lib/email/booking-notification";
 import { sendParticipantBookingReceipt } from "@/lib/email/participant-booking-receipt";
 import { getAppUrl } from "@/lib/app-url";
+import { maxSeatsPerBooking } from "@/lib/bookings/limits";
 import { env } from "@/lib/env";
 import { getAvailableEventSeats, syncEventCapacityStatus } from "@/lib/events/capacity";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
@@ -144,6 +145,10 @@ export async function createBookingAction(formData: FormData) {
 
   if (seats <= 0) {
     bookingRedirect(eventId, "Antal pladser skal være mindst 1.");
+  }
+
+  if (seats > maxSeatsPerBooking) {
+    bookingRedirect(eventId, "Du kan højst tilmelde 10 personer ad gangen. Kontakt arrangøren ved større grupper.");
   }
 
   if (message && wordCount(message) > 200) {
