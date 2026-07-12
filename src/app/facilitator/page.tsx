@@ -567,13 +567,27 @@ function EventCard({ event, tone = "default" }: { event: any; tone?: "default" |
   );
 }
 
-function EventSection({ title, text, events, id, tone = "default" }: { title: string; text: string; events: any[]; id?: string; tone?: "default" | "muted" }) {
+function EventSection({
+  title,
+  text,
+  events,
+  id,
+  tone = "default",
+  emptyText = "Her vises dine events, når de er klar.",
+}: {
+  title: string;
+  text?: string;
+  events: any[];
+  id?: string;
+  tone?: "default" | "muted";
+  emptyText?: string;
+}) {
   return (
     <section id={id}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-[#2F2437]">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-[#6E6475]">{text}</p>
+          {text ? <p className="mt-1 text-sm leading-6 text-[#6E6475]">{text}</p> : null}
         </div>
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -581,7 +595,7 @@ function EventSection({ title, text, events, id, tone = "default" }: { title: st
           events.map((event) => <EventCard event={event} key={event.id} tone={tone} />)
         ) : (
           <div className="rounded-[24px] border border-[#E5DDEA] bg-white p-6 text-sm leading-6 text-[#6E6475] shadow-soft lg:col-span-2">
-            Her vises dine events, når de er klar.
+            {emptyText}
           </div>
         )}
       </div>
@@ -953,7 +967,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           {showPerformanceDashboard ? <InsightCard events={eventRows} /> : null}
 
           {showPerformanceDashboard ? (
-            <EventSection id="tidligere-events" title="Tidligere events" text="En rolig historik over events, du har afholdt eller aflyst. Herfra kan du kopiere et tidligere event som ny kladde." events={completedEvents.slice(0, 6)} tone="muted" />
+            <EventSection id="tidligere-events" title="Tidligere events" emptyText="Her vises dine events, når de er udløbet på dato." events={completedEvents.slice(0, 6)} tone="muted" />
           ) : null}
 
         </div>
