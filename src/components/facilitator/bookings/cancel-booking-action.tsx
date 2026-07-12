@@ -15,7 +15,7 @@ export function CancelBookingAction({ bookingId, currentEventId }: CancelBooking
   return (
     <>
       <button
-        className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
+        className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700 sm:w-auto"
         onClick={() => setIsOpen(true)}
         type="button"
       >

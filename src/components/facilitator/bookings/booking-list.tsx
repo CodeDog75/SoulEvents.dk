@@ -50,13 +50,19 @@ const statusLabels: Record<BookingStatus, string> = {
 };
 
 const statusBadgeClasses: Record<BookingStatus, string> = {
-  pending: "bg-[#FAF7F2] text-[#8A5A13]",
-  confirmed: "bg-sage-50 text-sage-700",
+  pending: "bg-[#F1E2BD] text-[#6E5528]",
+  confirmed: "bg-[#DDE8D7] text-[#4F6F48]",
   sold_out: "bg-midnight/10 text-midnight",
   cancelled: "bg-rose/10 text-rose",
   completed: "bg-sand text-midnight",
   invoiced: "bg-midnight/10 text-midnight",
   paid: "bg-sage-50 text-sage-700",
+};
+
+const bookingCardClasses: Partial<Record<BookingStatus, string>> = {
+  pending: "border-[#E6D4A8] bg-[#FBF5E8]",
+  confirmed: "border-[#C9DAC1] bg-[#F1F5EE]",
+  cancelled: "border-[#E5DDEA] bg-[#FAF7F2]",
 };
 
 function formatMoney(cents: number) {
@@ -105,13 +111,13 @@ function StatusAction({
   variant?: "primary" | "secondary";
 }) {
   return (
-    <form action={updateBookingStatusAction}>
+    <form action={updateBookingStatusAction} className="w-full sm:w-auto">
       <input name="booking_id" type="hidden" value={bookingId} />
       <input name="current_event_id" type="hidden" value={currentEventId} />
       <input name="status" type="hidden" value={status} />
       <button
         className={
-          "inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold transition " +
+          "inline-flex h-9 w-full items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition sm:w-auto " +
           (variant === "primary"
             ? "bg-sage-700 text-white hover:bg-olive"
             : "border border-midnight/15 bg-white text-midnight hover:border-sage-700 hover:text-sage-700")
@@ -133,52 +139,56 @@ function BookingArticle({
   currentEventId: string;
   showActions?: boolean;
 }) {
+  const cardClass = bookingCardClasses[booking.status] ?? "border-midnight/10 bg-white";
+
   return (
-    <article className="grid gap-5 p-5 lg:grid-cols-[1fr_auto]" key={booking.id}>
-      <div>
+    <article className={"grid gap-5 border-l-4 p-5 transition lg:grid-cols-[minmax(0,1fr)_auto] " + cardClass} key={booking.id}>
+      <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-ink/60">
           <span className={"rounded-md px-2.5 py-1 " + statusBadgeClasses[booking.status]}>
             {statusLabels[booking.status]}
           </span>
-          <span>{new Intl.DateTimeFormat("da-DK").format(new Date(booking.created_at))}</span>
+          <span>Tilmeldt {new Intl.DateTimeFormat("da-DK").format(new Date(booking.created_at))}</span>
         </div>
 
-        <h3 className="mt-3 text-lg font-semibold text-midnight">{booking.event_title_snapshot}</h3>
-        <p className="mt-1 text-sm text-ink/64">
-          {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(
-            new Date(booking.event_starts_at_snapshot),
-          )}
-        </p>
+        <div className="mt-3 grid gap-1">
+          <h3 className="text-lg font-semibold leading-snug text-midnight">{booking.event_title_snapshot}</h3>
+          <p className="text-base font-semibold text-midnight">{booking.participant_name}</p>
+          <p className="text-sm text-ink/64">
+            {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(
+              new Date(booking.event_starts_at_snapshot),
+            )}
+          </p>
+        </div>
 
-        <div className="mt-4 grid gap-2 text-sm text-ink/72 md:grid-cols-2">
-          <p>
-            <span className="font-semibold text-midnight">Deltager:</span> {booking.participant_name}
+        <div className="mt-4 grid gap-2 text-sm text-ink/72 md:grid-cols-2 xl:grid-cols-3">
+          <p className="rounded-md bg-white/70 px-3 py-2">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-ink/48">E-mail</span>
+            <span className="font-semibold text-midnight">{booking.participant_email}</span>
           </p>
-          <p>
-            <span className="font-semibold text-midnight">E-mail:</span> {booking.participant_email}
+          <p className="rounded-md bg-white/70 px-3 py-2">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-ink/48">Telefon</span>
+            <span className="font-semibold text-midnight">{booking.participant_phone || "Ikke angivet"}</span>
           </p>
-          <p>
-            <span className="font-semibold text-midnight">Telefon:</span>{" "}
-            {booking.participant_phone || "Ikke angivet"}
+          <p className="rounded-md bg-white/70 px-3 py-2">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-ink/48">Pladser</span>
+            <span className="font-semibold text-midnight">{booking.seats}</span>
           </p>
-          <p>
-            <span className="font-semibold text-midnight">Pladser:</span> {booking.seats}
-          </p>
-          <p>
-            <span className="font-semibold text-midnight">Bookingværdi:</span>{" "}
-            {formatMoney(booking.booking_value_cents)}
+          <p className="rounded-md bg-white/70 px-3 py-2 md:col-span-2 xl:col-span-1">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-ink/48">Bookingværdi</span>
+            <span className="font-semibold text-midnight">{formatMoney(booking.booking_value_cents)}</span>
           </p>
         </div>
 
         {booking.message && (
-          <p className="mt-4 max-w-3xl rounded-md bg-sage-50 p-3 text-sm leading-6 text-ink/70">
+          <p className="mt-4 max-w-3xl rounded-md border border-white/70 bg-white/75 p-3 text-sm leading-6 text-ink/70">
             {booking.message}
           </p>
         )}
       </div>
 
       {showActions ? (
-        <div className="flex flex-wrap content-start gap-2 lg:justify-end">
+        <div className="flex flex-wrap content-start gap-2 lg:max-w-xs lg:justify-end">
           <SeatAdjustmentAction booking={booking} currentEventId={currentEventId} />
           {booking.status === "pending" && (
             <StatusAction bookingId={booking.id} currentEventId={currentEventId} status="confirmed" variant="primary">
@@ -207,14 +217,14 @@ function SeatAdjustmentAction({
   }
 
   return (
-    <form action={updateBookingSeatsAction} className="flex flex-wrap items-center gap-2">
+    <form action={updateBookingSeatsAction} className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
       <input name="booking_id" type="hidden" value={booking.id} />
       <input name="current_event_id" type="hidden" value={currentEventId} />
       <label className="sr-only" htmlFor={"booking-seats-" + booking.id}>
         Antal pladser
       </label>
       <input
-        className="h-9 w-20 rounded-md border border-midnight/15 bg-white px-2 text-sm font-semibold text-midnight"
+        className="h-9 w-24 rounded-md border border-midnight/15 bg-white px-2 text-sm font-semibold text-midnight sm:w-20"
         defaultValue={booking.seats}
         id={"booking-seats-" + booking.id}
         max={booking.seats}
@@ -223,7 +233,7 @@ function SeatAdjustmentAction({
         type="number"
       />
       <button
-        className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
+        className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700 sm:flex-none"
         type="submit"
       >
         Opdater pladser
