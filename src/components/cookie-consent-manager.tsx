@@ -216,7 +216,7 @@ export function CookieConsentManager() {
                 Vi bruger nødvendige cookies for at få SoulEvents til at fungere. Med dit samtykke kan vi også bruge
                 cookies til statistik og markedsføring. Du kan altid ændre dit valg senere.
               </p>
-              <Link className="mt-2 inline-flex text-sm font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/cookies">
+              <Link className="mt-2 inline-flex text-sm font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/cookiepolitik">
                 Se cookieoversigt
               </Link>
             </div>
