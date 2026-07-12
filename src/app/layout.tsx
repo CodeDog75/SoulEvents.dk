@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CookieConsentManager } from "@/components/cookie-consent-manager";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -43,6 +44,7 @@ export default function RootLayout({
     <html lang="da" suppressHydrationWarning>
       <body>
         {children}
+        <CookieConsentManager />
         <script dangerouslySetInnerHTML={{ __html: browserInjectedAttributeCleanup }} />
       </body>
     </html>

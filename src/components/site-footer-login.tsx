@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
+import { CookieSettingsButton } from "@/components/cookie-settings-button";
 
 export function SiteFooterLogin() {
   return (
@@ -26,6 +27,7 @@ export function SiteFooterLogin() {
           <Link className="transition hover:text-rose" href="/legal/handelsbetingelser">
             Vilkår
           </Link>
+          <CookieSettingsButton />
           <Link className="transition hover:text-rose" href="/auth/login">
             Log ind
           </Link>
