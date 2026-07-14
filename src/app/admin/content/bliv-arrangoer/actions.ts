@@ -18,6 +18,9 @@ import { requireRole } from "@/lib/auth/roles";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+const benefitSlotCount = 8;
+const faqSlotCount = 18;
+
 function go(message: string): never {
   redirect("/admin/content/bliv-arrangoer?message=" + encodeURIComponent(message));
 }
@@ -132,7 +135,7 @@ function cta(formData: FormData, prefix: string, fallback: BecomeOrganizerCta) {
 }
 
 function benefits(formData: FormData, fallback: Extract<BecomeOrganizerSection, { type: "benefits" }>["items"]) {
-  const items = Array.from({ length: 8 }, (_, index) => ({
+  const items = Array.from({ length: benefitSlotCount }, (_, index) => ({
     title: getString(formData, `benefit${index}Title`),
     text: getString(formData, `benefit${index}Text`),
   })).filter((item) => item.title || item.text);
@@ -141,7 +144,7 @@ function benefits(formData: FormData, fallback: Extract<BecomeOrganizerSection, 
 }
 
 function faqItems(formData: FormData, fallback: Extract<BecomeOrganizerSection, { type: "faq" }>["items"]) {
-  const items = Array.from({ length: 8 }, (_, index) => ({
+  const items = Array.from({ length: faqSlotCount }, (_, index) => ({
     question: getString(formData, `faq${index}Question`),
     answer: getString(formData, `faq${index}Answer`),
   })).filter((item) => item.question || item.answer);

@@ -23,6 +23,8 @@ type AdminBecomeOrganizerPageProps = {
 
 const inputClass = "h-11 rounded-md border border-midnight/15 px-3 text-base outline-none transition focus:border-sage-700";
 const textareaClass = "min-h-28 rounded-md border border-midnight/15 p-3 text-base outline-none transition focus:border-sage-700";
+const benefitSlotCount = 8;
+const faqSlotCount = 18;
 
 function Field({ children, label }: { children: React.ReactNode; label: string }) {
   return (
@@ -60,11 +62,11 @@ function CtaFields({ labelPrefix, namePrefix, primaryLabel, primaryHref }: { lab
 }
 
 function padBenefits(items: BecomeOrganizerBenefit[]) {
-  return Array.from({ length: 8 }, (_, index) => items[index] ?? { title: "", text: "" });
+  return Array.from({ length: benefitSlotCount }, (_, index) => items[index] ?? { title: "", text: "" });
 }
 
 function padFaq(items: BecomeOrganizerFaqItem[]) {
-  return Array.from({ length: 8 }, (_, index) => items[index] ?? { question: "", answer: "" });
+  return Array.from({ length: faqSlotCount }, (_, index) => items[index] ?? { question: "", answer: "" });
 }
 
 export default async function AdminBecomeOrganizerPage({ searchParams }: AdminBecomeOrganizerPageProps) {
