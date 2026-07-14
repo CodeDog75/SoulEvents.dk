@@ -103,9 +103,10 @@ function Toggle({
 }
 
 export function CookieConsentManager() {
-  const [consent, setConsent] = useState<CookieConsent | null>(() => readConsentCookie());
-  const [draft, setDraft] = useState<CookieConsent>(() => readConsentCookie() ?? defaultCookieConsent);
-  const [isBannerVisible, setIsBannerVisible] = useState(() => !readConsentCookie());
+  const [isMounted, setIsMounted] = useState(false);
+  const [consent, setConsent] = useState<CookieConsent | null>(null);
+  const [draft, setDraft] = useState<CookieConsent>(defaultCookieConsent);
+  const [isBannerVisible, setIsBannerVisible] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -121,6 +122,22 @@ export function CookieConsentManager() {
   );
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const latestConsent = readConsentCookie();
+      setConsent(latestConsent);
+      setDraft(latestConsent ?? defaultCookieConsent);
+      setIsBannerVisible(!latestConsent);
+      setIsMounted(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) {
+      return;
+    }
+
     const openSettings = () => {
       previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       const latestConsent = readConsentCookie();
@@ -132,7 +149,7 @@ export function CookieConsentManager() {
 
     window.addEventListener("soulevents:open-cookie-settings", openSettings);
     return () => window.removeEventListener("soulevents:open-cookie-settings", openSettings);
-  }, []);
+  }, [isMounted]);
 
   useEffect(() => {
     if (!isSettingsOpen) {
@@ -197,6 +214,10 @@ export function CookieConsentManager() {
 
   function saveDraft() {
     saveConsent(createCookieConsent(categories));
+  }
+
+  if (!isMounted) {
+    return null;
   }
 
   return (

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { CookieConsentManager } from "@/components/cookie-consent-manager";
 import "./globals.css";
 
@@ -45,7 +46,11 @@ export default function RootLayout({
       <body>
         {children}
         <CookieConsentManager />
-        <script dangerouslySetInnerHTML={{ __html: browserInjectedAttributeCleanup }} />
+        <Script
+          dangerouslySetInnerHTML={{ __html: browserInjectedAttributeCleanup }}
+          id="browser-injected-attribute-cleanup"
+          strategy="beforeInteractive"
+        />
       </body>
     </html>
   );
