@@ -1,3 +1,4 @@
+import { getEmailBrandLogoUrl } from "@/lib/brand-logo";
 import { renderEmailLayout, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, formatDate, formatMoney, sendLoggedEmail } from "@/lib/email/resend-mail";
 
@@ -53,7 +54,7 @@ function maskEmail(email: string) {
   return `${localPart.slice(0, 2)}***@${domain}`;
 }
 
-function buildHtml(input: EventUpdateNotificationInput, recipient: EventUpdateRecipient) {
+async function buildHtml(input: EventUpdateNotificationInput, recipient: EventUpdateRecipient, logoUrl?: string) {
   const rows = input.fields
     .map(
       (field) => `
@@ -77,6 +78,7 @@ function buildHtml(input: EventUpdateNotificationInput, recipient: EventUpdateRe
     .join("");
 
   return renderEmailLayout({
+    logoUrl,
     title: "Der er nyt om " + input.eventTitle,
     children: `
       <p style="margin: 0 0 16px;">Hej ${escapeHtml(firstName(recipient.name))}</p>
@@ -166,13 +168,14 @@ export async function sendEventUpdateNotifications(input: EventUpdateNotificatio
     return { failed: 0, sent: 0, total: 0 };
   }
 
+  const logoUrl = await getEmailBrandLogoUrl();
   const results = await Promise.allSettled(
-    input.recipients.map((recipient) =>
+    input.recipients.map(async (recipient) =>
       sendLoggedEmail({
         type: "event_updated_participant",
         to: recipient.email,
         subject: "Der er nyt om " + input.eventTitle + " 💜",
-        html: buildHtml(input, recipient),
+        html: await buildHtml(input, recipient, logoUrl),
         text: buildText(input, recipient),
         bookingId: recipient.bookingId,
         eventId: input.eventId,

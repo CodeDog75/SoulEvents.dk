@@ -1,13 +1,17 @@
 import { escapeHtml } from "@/lib/email/resend-mail";
+import { getEmailBrandLogoUrl } from "@/lib/brand-logo";
 
 const footerText = "Et fælles sted for nærvær, udvikling og meningsfulde oplevelser.";
 
 type EmailLayoutInput = {
   children: string;
+  logoUrl?: string;
   title: string;
 };
 
-export function renderEmailLayout(input: EmailLayoutInput) {
+export async function renderEmailLayout(input: EmailLayoutInput) {
+  const logoUrl = input.logoUrl ?? (await getEmailBrandLogoUrl());
+
   return `
     <div style="margin: 0; padding: 0; background: #F7F2FB; font-family: Arial, sans-serif; color: #2F2633;">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; background: #F7F2FB;">
@@ -18,7 +22,7 @@ export function renderEmailLayout(input: EmailLayoutInput) {
                 <tbody>
                   <tr>
                     <td style="padding: 0 0 16px; text-align: center;">
-                      <div style="display: inline-block; width: 48px; height: 48px; border-radius: 999px; background: #7A4EAB; color: #ffffff; font-size: 24px; line-height: 48px; text-align: center;">💜</div>
+                      <img src="${escapeHtml(logoUrl)}" alt="SoulEvents.dk" width="48" height="48" style="display: inline-block; width: 48px; height: 48px; border: 0; object-fit: contain;" />
                       <div style="margin-top: 10px; color: #7A4EAB; font-size: 15px; font-weight: 700; letter-spacing: 0.02em;">SoulEvents.dk</div>
                     </td>
                   </tr>

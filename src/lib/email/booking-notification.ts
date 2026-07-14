@@ -19,7 +19,7 @@ function formatSeats(seats: number) {
   return seats === 1 ? "1 plads" : `${seats} pladser`;
 }
 
-function buildHtml(input: BookingNotificationInput) {
+async function buildHtml(input: BookingNotificationInput) {
   const rows: Array<[string, string]> = [
     ["Tilmeldt af", input.participantName],
     ["Antal reserverede pladser", String(input.seats)],
@@ -68,7 +68,7 @@ export async function sendBookingNotification(input: BookingNotificationInput) {
     type: "booking_created_facilitator",
     to: input.facilitatorEmail,
     subject,
-    html: buildHtml(input),
+    html: await buildHtml(input),
     text: buildText(input),
     bookingId: input.bookingId,
     eventId: input.eventId,

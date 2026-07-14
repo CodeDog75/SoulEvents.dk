@@ -19,6 +19,7 @@ import {
 import { WeeklyReflectionImageField } from "@/components/admin/weekly-reflection-image-field";
 import { BrandLogo } from "@/components/brand-logo";
 import { AuthMessage } from "@/components/auth/auth-message";
+import { brandLogoSettingKey, resolveBrandLogoUrl } from "@/lib/brand-logo";
 import { requireRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -524,9 +525,9 @@ function TileForm({ tile, title }: { tile?: Tile; title: string }) {
 export default async function AdminHomepagePage({ searchParams }: AdminHomepagePageProps) {
   const [{ message, logo_message: logoMessage, reflection_message: reflectionMessage }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = createAdminClient();
-  const { data: logoSetting } = await supabase.from("site_settings").select("value").eq("key", "brand_logo_path").maybeSingle();
+  const { data: logoSetting } = await supabase.from("site_settings").select("value").eq("key", brandLogoSettingKey).maybeSingle();
   const logoPath = logoSetting?.value ?? null;
-  const logoUrl = logoPath ? supabase.storage.from("media").getPublicUrl(logoPath).data.publicUrl : null;
+  const logoUrl = resolveBrandLogoUrl(logoPath);
   const [{ data: tiles }, { data: categories }, { data: heroImages, error: heroImagesError }, { data: weeklyReflections, error: weeklyReflectionError }] = await Promise.all([
     supabase.from("homepage_tiles").select("*").order("sort_order"),
     supabase.from("main_categories").select("id, name").eq("is_active", true).order("sort_order"),

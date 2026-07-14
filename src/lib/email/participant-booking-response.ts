@@ -32,7 +32,7 @@ const statusText: Partial<Record<BookingStatus, { subject: string; headline: str
   },
 };
 
-function buildHtml(input: ParticipantBookingResponseInput) {
+async function buildHtml(input: ParticipantBookingResponseInput) {
   const copy = statusText[input.status] ?? statusText.confirmed;
   const rows: Array<[string, string]> = [
     ["Event", input.eventTitle],
@@ -83,7 +83,7 @@ export async function sendParticipantBookingResponse(input: ParticipantBookingRe
     type: `booking_${input.status}_participant`,
     to: input.participantEmail,
     subject: `${copy.subject}: ${input.eventTitle}`,
-    html: buildHtml(input),
+    html: await buildHtml(input),
     text: buildText(input),
     bookingId: input.bookingId,
     eventId: input.eventId,

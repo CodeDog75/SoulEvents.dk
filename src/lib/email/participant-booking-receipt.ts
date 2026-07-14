@@ -18,7 +18,7 @@ const guidelines = [
   "Kontakt arrangøren direkte, hvis du har spørgsmål til praktiske forhold, betaling, ændringer eller aflysning.",
 ];
 
-function buildHtml(input: ParticipantBookingReceiptInput) {
+async function buildHtml(input: ParticipantBookingReceiptInput) {
   const rows: Array<[string, string]> = [
     ["Event", input.eventTitle],
     ["Dato", formatDate(input.eventStartsAt)],
@@ -66,7 +66,7 @@ export async function sendParticipantBookingReceipt(input: ParticipantBookingRec
     type: "booking_created_participant_receipt",
     to: input.participantEmail,
     subject: "Vi har modtaget din tilmelding: " + input.eventTitle,
-    html: buildHtml(input),
+    html: await buildHtml(input),
     text: buildText(input),
     bookingId: input.bookingId,
     eventId: input.eventId,

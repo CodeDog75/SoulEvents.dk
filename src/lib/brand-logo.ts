@@ -1,0 +1,87 @@
+import { env } from "@/lib/env";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+export const brandLogoSettingKey = "brand_logo_path";
+export const fallbackBrandLogoPath = "/brand/soulevents-logo.png";
+export const mediaBucketName = "media";
+
+export type LogoSettingClient = {
+  from(table: "site_settings"): {
+    select(columns: "value"): {
+      eq(column: "key", value: string): {
+        maybeSingle(): PromiseLike<{ data: { value: string | null } | null }>;
+      };
+    };
+  };
+};
+
+function appBaseUrl() {
+  const baseUrl = (env.appUrl || "https://www.soulevents.dk").replace(/\/$/, "");
+
+  if (baseUrl.startsWith("http://") && !baseUrl.includes("localhost") && !baseUrl.includes("127.0.0.1")) {
+    return "https://" + baseUrl.slice("http://".length);
+  }
+
+  return baseUrl;
+}
+
+function encodeStoragePath(path: string) {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
+function isAbsoluteUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
+function toAbsoluteSiteUrl(path: string) {
+  if (isAbsoluteUrl(path)) {
+    return path;
+  }
+
+  return appBaseUrl() + (path.startsWith("/") ? path : "/" + path);
+}
+
+export function resolveBrandLogoUrl(value?: string | null, options: { absolute?: boolean } = {}) {
+  const logoValue = value?.trim();
+
+  if (!logoValue) {
+    return options.absolute ? toAbsoluteSiteUrl(fallbackBrandLogoPath) : fallbackBrandLogoPath;
+  }
+
+  if (isAbsoluteUrl(logoValue)) {
+    return logoValue;
+  }
+
+  if (logoValue.startsWith("/")) {
+    return options.absolute ? toAbsoluteSiteUrl(logoValue) : logoValue;
+  }
+
+  if (!env.supabaseUrl) {
+    return options.absolute ? toAbsoluteSiteUrl(fallbackBrandLogoPath) : fallbackBrandLogoPath;
+  }
+
+  return env.supabaseUrl.replace(/\/$/, "") + "/storage/v1/object/public/" + mediaBucketName + "/" + encodeStoragePath(logoValue);
+}
+
+export function isSvgLogoUrl(src: string) {
+  try {
+    return new URL(src, appBaseUrl()).pathname.toLowerCase().endsWith(".svg");
+  } catch {
+    return src.split("?")[0]?.toLowerCase().endsWith(".svg") ?? false;
+  }
+}
+
+export async function getBrandLogoSettingValue(supabase: LogoSettingClient) {
+  const { data } = await supabase.from("site_settings").select("value").eq("key", brandLogoSettingKey).maybeSingle();
+  return data?.value ?? null;
+}
+
+export async function getEmailBrandLogoUrl() {
+  try {
+    const supabase = createAdminClient() as unknown as LogoSettingClient;
+    const value = await getBrandLogoSettingValue(supabase);
+    return resolveBrandLogoUrl(value, { absolute: true });
+  } catch {
+    return resolveBrandLogoUrl(null, { absolute: true });
+  }
+}

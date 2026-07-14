@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { brandLogoSettingKey, mediaBucketName } from "@/lib/brand-logo";
 import { requireRole } from "@/lib/auth/roles";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -77,6 +78,19 @@ function extensionFromFile(file: File) {
   return "jpg";
 }
 
+function logoExtensionFromFile(file: File) {
+  const fromName = file.name.split(".").pop()?.toLowerCase();
+  if (fromName && ["jpg", "jpeg", "png", "webp", "svg"].includes(fromName)) {
+    return fromName === "jpeg" ? "jpg" : fromName;
+  }
+
+  if (file.type === "image/png") return "png";
+  if (file.type === "image/webp") return "webp";
+  if (file.type === "image/svg+xml") return "svg";
+  if (file.type === "image/jpeg") return "jpg";
+  return null;
+}
+
 function imageContentType(extension: string, fallback: string) {
   if (fallback && fallback !== "application/octet-stream") {
     return fallback;
@@ -85,6 +99,11 @@ function imageContentType(extension: string, fallback: string) {
   if (extension === "png") return "image/png";
   if (extension === "webp") return "image/webp";
   return "image/jpeg";
+}
+
+function logoContentType(extension: string, fallback: string) {
+  if (extension === "svg") return "image/svg+xml";
+  return imageContentType(extension, fallback);
 }
 
 function safeFileName(file: File, fallback: string) {
@@ -111,8 +130,16 @@ async function uploadSiteLogo(formData: FormData, currentLogoPath: string | null
     return currentLogoPath;
   }
 
-  if (!file.type.startsWith("image/") && file.type !== "image/svg+xml") {
-    logoGo("Logoet skal være en billedfil.");
+  const extension = logoExtensionFromFile(file);
+  const isAllowedType = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"].includes(file.type);
+  const isAllowedExtension = extension !== null;
+
+  if (!isAllowedType && !isAllowedExtension) {
+    logoGo("Logoet skal være SVG, PNG, JPG eller WEBP.");
+  }
+
+  if (!extension) {
+    logoGo("Logoet skal have en gyldig filtype.");
   }
 
   if (file.size > 4 * 1024 * 1024) {
@@ -120,17 +147,17 @@ async function uploadSiteLogo(formData: FormData, currentLogoPath: string | null
   }
 
   const supabase = createAdminClient();
-  const extension = extensionFromFile(file);
-  const logoPath = "brand/" + Date.now() + "-logo." + extension;
+  const logoPath = "brand/" + Date.now() + "-" + safeFileName(file, "logo") + "." + extension;
 
-  const { error } = await supabase.storage.from("media").upload(logoPath, file, {
+  const { error } = await supabase.storage.from(mediaBucketName).upload(logoPath, file, {
     cacheControl: "31536000",
-    contentType: file.type || "image/png",
+    contentType: logoContentType(extension, file.type),
     upsert: false,
   });
 
   if (error) {
-    logoGo("Logoet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
+    logSupabaseError("Site logo upload failed", error, { logoPath });
+    logoGo("Logoet kunne ikke uploades. Tjek at media-bucket findes og tillader SVG, PNG, JPG og WEBP.");
   }
 
   return logoPath;
@@ -333,7 +360,7 @@ export async function updateSiteLogoAction(formData: FormData) {
 
   const { error } = await supabase
     .from("site_settings")
-    .upsert({ key: "brand_logo_path", value: logoPath }, { onConflict: "key" });
+    .upsert({ key: brandLogoSettingKey, value: logoPath }, { onConflict: "key" });
 
   if (error) {
     logoGo("Logoet kunne ikke gemmes. Kør database-migrationen til site_settings først.");

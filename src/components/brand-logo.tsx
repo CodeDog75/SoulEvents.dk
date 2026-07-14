@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { env } from "@/lib/env";
+import { getBrandLogoSettingValue, isSvgLogoUrl, resolveBrandLogoUrl, type LogoSettingClient } from "@/lib/brand-logo";
 import { createClient } from "@/lib/supabase/server";
 
 type BrandLogoProps = {
@@ -7,31 +7,29 @@ type BrandLogoProps = {
   priority?: boolean;
 };
 
-function publicMediaUrl(imagePath?: string | null) {
-  if (!env.supabaseUrl || !imagePath) {
-    return null;
-  }
-
-  return env.supabaseUrl.replace(/\/$/, "") + "/storage/v1/object/public/media/" + imagePath.split("/").map(encodeURIComponent).join("/");
-}
-
 async function getLogoSrc() {
   try {
     const supabase = await createClient();
-    const { data } = await supabase.from("site_settings").select("value").eq("key", "brand_logo_path").maybeSingle();
-    return publicMediaUrl(data?.value) ?? "/brand/soulevents-logo.png";
+    const value = await getBrandLogoSettingValue(supabase as unknown as LogoSettingClient);
+    return resolveBrandLogoUrl(value);
   } catch {
-    return "/brand/soulevents-logo.png";
+    return resolveBrandLogoUrl(null);
   }
 }
 
 export async function BrandLogo({ className = "h-20 w-20", priority = false }: BrandLogoProps) {
   const src = await getLogoSrc();
+  const logoClassName = "object-contain " + className;
+
+  if (isSvgLogoUrl(src)) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img alt="SoulEvents.dk" className={logoClassName} height={900} src={src} width={900} />;
+  }
 
   return (
     <Image
       alt="SoulEvents.dk"
-      className={"object-contain " + className}
+      className={logoClassName}
       height={900}
       priority={priority}
       src={src}
