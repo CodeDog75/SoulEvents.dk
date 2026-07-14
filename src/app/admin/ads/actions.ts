@@ -6,6 +6,9 @@ import { requireRole } from "@/lib/auth/roles";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+const maxAdImageBytes = 8 * 1024 * 1024;
+const maxAdVideoBytes = 100 * 1024 * 1024;
+
 function go(message: string): never {
   redirect("/admin/ads?message=" + encodeURIComponent(message));
 }
@@ -117,12 +120,12 @@ async function uploadAdMedia(
   }
 
   const isVideo = extensionFromFile(file) === "mp4";
-  const maxSize = isVideo ? 30 * 1024 * 1024 : 8 * 1024 * 1024;
+  const maxSize = isVideo ? maxAdVideoBytes : maxAdImageBytes;
   if (file.size > maxSize) {
     return {
       path: currentImagePath,
       uploadedPath: null,
-      error: isVideo ? "Videoen er for stor. Vælg en MP4 under 30 MB." : "Billedet er for stort. Vælg et billede under 8 MB.",
+      error: isVideo ? "Videoen er for stor. Vælg en MP4 under 100 MB." : "Billedet er for stort. Vælg et billede under 8 MB.",
     };
   }
 
@@ -150,7 +153,7 @@ async function uploadAdMedia(
       type: file.type || "unknown",
       size: file.size,
     });
-    return { path: currentImagePath, uploadedPath: null, error: "Filen kunne ikke uploades. Tjek at media-bucket findes i Supabase." };
+    return { path: currentImagePath, uploadedPath: null, error: "Filen kunne ikke uploades: " + error.message };
   }
 
   return { path: imagePath, uploadedPath: imagePath, error: null };
