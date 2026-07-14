@@ -7,7 +7,7 @@ type AdFormCategoryGuardProps = {
   formId: string;
 };
 
-const maxAdImageBytes = 8 * 1024 * 1024;
+const maxAdImageBytes = 20 * 1024 * 1024;
 const maxAdVideoBytes = 100 * 1024 * 1024;
 const minDesktopImageWidth = 2400;
 const minDesktopImageHeight = 900;
@@ -105,7 +105,7 @@ async function validateAdFile(file: File, prefix: "desktop" | "mobile") {
   if (file.size > maxSize) {
     return isVideo
       ? `Videoen er for stor. Den må højst fylde 100 MB. Den valgte fil fylder ${formatMegabytes(file.size)} MB.`
-      : `Billedet er for stort. Det må højst fylde 8 MB. Den valgte fil fylder ${formatMegabytes(file.size)} MB.`;
+      : `Billedet er for stort. Det må højst fylde 20 MB. Den valgte fil fylder ${formatMegabytes(file.size)} MB.`;
   }
 
   if (!(await hasExpectedSignature(file, extension))) {

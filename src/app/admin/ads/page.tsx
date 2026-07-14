@@ -137,7 +137,7 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
                   Desktopbanner
                   <input accept="image/png,image/jpeg,image/webp,video/mp4" className="block w-full text-sm text-ink/70 file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-3 file:py-2 file:text-sm file:font-semibold file:text-sage-700" name="image_file" type="file" />
                 </label>
-                <p className="mt-2 text-xs leading-5 text-ink/55">Anbefalet: 2800 x 1050 px. Minimum: 2400 x 900 px. JPG/PNG/WEBP op til 8 MB eller MP4 op til 100 MB.</p>
+                <p className="mt-2 text-xs leading-5 text-ink/55">Anbefalet: 2800 x 1050 px. Minimum: 2400 x 900 px. JPG/PNG/WEBP op til 20 MB eller MP4 op til 100 MB.</p>
                 {ad?.image_path && (
                   <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-terracotta">
                     <input className="size-4 accent-terracotta" name="remove_image" type="checkbox" />

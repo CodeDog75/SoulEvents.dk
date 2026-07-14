@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth/roles";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const maxAdImageBytes = 8 * 1024 * 1024;
+const maxAdImageBytes = 20 * 1024 * 1024;
 const maxAdVideoBytes = 100 * 1024 * 1024;
 
 function go(message: string): never {
@@ -140,7 +140,7 @@ async function uploadAdMedia(
     return {
       path: currentImagePath,
       uploadedPath: null,
-      error: isVideo ? "Videoen er for stor. Vælg en MP4 under 100 MB." : "Billedet er for stort. Vælg et billede under 8 MB.",
+      error: isVideo ? "Videoen er for stor. Vælg en MP4 under 100 MB." : "Billedet er for stort. Vælg et billede under 20 MB.",
     };
   }
 
