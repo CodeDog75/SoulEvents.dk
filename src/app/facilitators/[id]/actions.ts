@@ -26,6 +26,8 @@ export async function subscribeToFacilitatorReminderAction(facilitatorId: string
     .select("id")
     .eq("id", facilitatorId)
     .eq("status", "approved")
+    .eq("is_paused", false)
+    .eq("is_disabled", false)
     .maybeSingle();
 
   if (!facilitator) {

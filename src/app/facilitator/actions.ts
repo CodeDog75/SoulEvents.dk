@@ -19,7 +19,7 @@ async function getFacilitatorForCurrentUser() {
   const admin = createAdminClient();
   const { data: facilitator } = await admin
     .from("facilitator_profiles")
-    .select("id, company_name, status")
+    .select("id, company_name, status, is_disabled, is_paused")
     .eq("profile_id", profile.id)
     .single();
 
@@ -88,7 +88,7 @@ export async function requestFacilitatorProfileClosureAction(formData: FormData)
     go("Anmodningen kunne ikke sendes. Prøv igen.");
   }
 
-  await admin.from("facilitator_profiles").update({ status: "disabled" }).eq("id", facilitator.id);
+  await admin.from("facilitator_profiles").update({ is_paused: true }).eq("id", facilitator.id);
 
   revalidatePath("/facilitator");
   revalidatePath("/admin");
@@ -101,11 +101,15 @@ export async function requestFacilitatorProfileClosureAction(formData: FormData)
 export async function activateFacilitatorProfileAction() {
   const { admin, facilitator } = await getFacilitatorForCurrentUser();
 
-  if (facilitator.status !== "disabled") {
+  if (facilitator.is_disabled) {
+    go("Din arrangørkonto er deaktiveret. Kontakt SoulEvents, hvis du mener, at dette er en fejl.");
+  }
+
+  if (!facilitator.is_paused) {
     go("Din arrangørprofil er allerede aktiv eller afventer godkendelse.");
   }
 
-  const { error } = await admin.from("facilitator_profiles").update({ status: "approved" }).eq("id", facilitator.id);
+  const { error } = await admin.from("facilitator_profiles").update({ is_paused: false }).eq("id", facilitator.id);
 
   if (error) {
     console.error("activateFacilitatorProfileAction failed", error);

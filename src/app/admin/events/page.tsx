@@ -86,7 +86,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
 
   let query = supabase
     .from("events")
-    .select("id, title, status, starts_at, created_at, updated_at, city, event_format, facilitator_profiles(status, company_name, profiles(full_name, email)), regions(name), event_categories(categories(name))")
+    .select("id, title, status, starts_at, created_at, updated_at, city, event_format, facilitator_profiles(status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name, email)), regions(name), event_categories(categories(name))")
     .order("created_at", { ascending: false })
     .limit(queryText ? 300 : 80);
 

@@ -36,7 +36,7 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
 
   const { data: facilitators } = await supabase
     .from("facilitator_profiles")
-    .select("id, company_name, profiles(full_name)")
+    .select("id, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)")
     .order("company_name");
 
   let query = supabase

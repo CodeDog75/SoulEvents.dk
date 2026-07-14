@@ -7,6 +7,7 @@ import {
   Mail,
   PauseCircle,
   Pencil,
+  RotateCcw,
   ShieldCheck,
   Sparkles,
   Star,
@@ -37,6 +38,8 @@ type FacilitatorOverviewRow = {
   full_name: string;
   host_reference_id?: string | null;
   id: string;
+  is_disabled?: boolean | null;
+  is_paused?: boolean | null;
   is_active_host?: boolean | null;
   is_experienced_host?: boolean | null;
   is_featured?: boolean | null;
@@ -53,6 +56,7 @@ type FacilitatorOverviewRow = {
   status: FacilitatorStatus;
   total_bookings: number;
   website_url?: string | null;
+  can_delete: boolean;
 };
 
 type UserRoleTableProps = {
@@ -67,17 +71,19 @@ const roleLabels: Record<AppRole, string> = {
   facilitator: "Arrangør",
 };
 
-const statusLabels: Record<FacilitatorStatus, string> = {
-  approved: "Godkendt",
-  disabled: "Pauset",
-  pending: "Afventer",
-};
+function facilitatorStatusLabel(facilitator: FacilitatorOverviewRow) {
+  if (facilitator.is_disabled) return "Deaktiveret";
+  if (facilitator.is_paused) return "Sat på pause";
+  if (facilitator.status === "approved") return "Aktiv";
+  return "Afventer";
+}
 
-const statusClasses: Record<FacilitatorStatus, string> = {
-  approved: "bg-sage-50 text-sage-700",
-  disabled: "bg-midnight/10 text-midnight",
-  pending: "bg-terracotta/10 text-terracotta",
-};
+function facilitatorStatusClass(facilitator: FacilitatorOverviewRow) {
+  if (facilitator.is_disabled) return "bg-midnight/10 text-midnight";
+  if (facilitator.is_paused) return "bg-[#F4F0F7] text-[#6E5A86]";
+  if (facilitator.status === "approved") return "bg-sage-50 text-sage-700";
+  return "bg-terracotta/10 text-terracotta";
+}
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Ikke registreret";
@@ -136,26 +142,55 @@ function FacilitatorToggle({
   );
 }
 
-function StatusButton({ facilitatorId, returnHref, status }: { facilitatorId: string; returnHref: string; status: FacilitatorStatus }) {
-  const nextStatus = status === "approved" ? "disabled" : "approved";
+function StatusButton({ facilitator, returnHref }: { facilitator: FacilitatorOverviewRow; returnHref: string }) {
+  const nextValue = facilitator.is_disabled ? "false" : "true";
 
   return (
     <form action={updateFacilitatorOverviewAction}>
-      <input name="facilitator_id" type="hidden" value={facilitatorId} />
-      <input name="field" type="hidden" value="status" />
+      <input name="facilitator_id" type="hidden" value={facilitator.id} />
+      <input name="field" type="hidden" value="is_disabled" />
       <input name="return_to" type="hidden" value={returnHref} />
-      <input name="value" type="hidden" value={nextStatus} />
+      <input name="value" type="hidden" value={nextValue} />
       <button
         className={
           "inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold transition " +
-          (nextStatus === "approved"
+          (facilitator.is_disabled
             ? "bg-sage-700 text-white hover:bg-sage-800"
             : "border border-midnight/15 bg-white text-midnight hover:border-terracotta hover:text-terracotta")
         }
         type="submit"
       >
-        {nextStatus === "approved" ? <Check className="size-4" aria-hidden="true" /> : <PauseCircle className="size-4" aria-hidden="true" />}
-        {nextStatus === "approved" ? "Aktivér arrangør" : "Pause arrangør"}
+        {facilitator.is_disabled ? <Check className="size-4" aria-hidden="true" /> : <PauseCircle className="size-4" aria-hidden="true" />}
+        {facilitator.is_disabled ? "Genaktivér arrangør" : "Deaktiver arrangør"}
+      </button>
+    </form>
+  );
+}
+
+function PauseButton({ facilitator, returnHref }: { facilitator: FacilitatorOverviewRow; returnHref: string }) {
+  if (facilitator.is_disabled) {
+    return null;
+  }
+
+  const nextValue = facilitator.is_paused ? "false" : "true";
+
+  return (
+    <form action={updateFacilitatorOverviewAction}>
+      <input name="facilitator_id" type="hidden" value={facilitator.id} />
+      <input name="field" type="hidden" value="is_paused" />
+      <input name="return_to" type="hidden" value={returnHref} />
+      <input name="value" type="hidden" value={nextValue} />
+      <button
+        className={
+          "inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold transition " +
+          (facilitator.is_paused
+            ? "bg-sage-700 text-white hover:bg-sage-800"
+            : "border border-midnight/15 bg-white text-midnight hover:border-sage-700 hover:text-sage-700")
+        }
+        type="submit"
+      >
+        {facilitator.is_paused ? <RotateCcw className="size-4" aria-hidden="true" /> : <PauseCircle className="size-4" aria-hidden="true" />}
+        {facilitator.is_paused ? "Genåbn profil" : "Sæt på pause"}
       </button>
     </form>
   );
@@ -184,6 +219,15 @@ function FeaturedPriorityForm({ facilitator, returnHref }: { facilitator: Facili
 function DeleteFacilitatorForm({ facilitator, returnHref }: { facilitator: FacilitatorOverviewRow; returnHref: string }) {
   const confirmation = "SLET " + (facilitator.host_reference_id || facilitator.email);
 
+  if (!facilitator.can_delete) {
+    return (
+      <div className="rounded-md border border-midnight/10 bg-sage-50 p-3 text-sm leading-6 text-ink/70">
+        <p className="font-bold text-midnight">Denne arrangør kan ikke slettes</p>
+        <p>Arrangøren har aktivitet eller historik, som skal bevares. Deaktivér arrangøren, hvis vedkommende ikke længere skal have adgang til SoulEvents.</p>
+      </div>
+    );
+  }
+
   return (
     <details className="rounded-md border border-terracotta/25 bg-[#FFF8F6] p-3">
       <summary className="cursor-pointer text-sm font-semibold text-terracotta">Slet arrangør</summary>
@@ -192,7 +236,7 @@ function DeleteFacilitatorForm({ facilitator, returnHref }: { facilitator: Facil
         <input name="profile_id" type="hidden" value={facilitator.profile_id} />
         <input name="return_to" type="hidden" value={returnHref} />
         <p className="text-xs leading-5 text-ink/64">
-          Sletning er kun mulig, hvis arrangøren ikke har bookings, rapporter eller fakturadata. Skriv <strong>{confirmation}</strong> for at bekræfte.
+          Sletning er kun mulig for ubrugte profiler uden aktivitet eller historik. Skriv <strong>{confirmation}</strong> for at bekræfte.
         </p>
         <input
           className="h-9 rounded-md border border-terracotta/30 px-3 text-sm outline-none focus:border-terracotta"
@@ -243,8 +287,8 @@ export function UserRoleTable({ currentProfileId, exportHref, facilitators, retu
               <article className="grid gap-5 p-5 xl:grid-cols-[1fr_340px]" key={facilitator.id}>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={"rounded-md px-4 py-2 text-sm font-bold " + statusClasses[facilitator.status]}>
-                      {statusLabels[facilitator.status]}
+                    <span className={"rounded-md px-4 py-2 text-sm font-bold " + facilitatorStatusClass(facilitator)}>
+                      {facilitatorStatusLabel(facilitator)}
                     </span>
                     <span className={`rounded-md px-4 py-2 text-sm font-bold ${facilitator.role === "admin" ? "bg-sage-50 text-sage-700" : "bg-midnight/10 text-midnight"}`}>
                       {roleLabels[facilitator.role]}
@@ -316,7 +360,7 @@ export function UserRoleTable({ currentProfileId, exportHref, facilitators, retu
                       <Eye className="size-4" aria-hidden="true" />
                       Vis profil
                     </Link>
-                    <Link className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={"/admin/facilitators/" + facilitator.id + "/edit"}>
+                    <Link className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={"/admin/facilitators/" + facilitator.id + "/edit?return_to=" + encodeURIComponent(returnHref)}>
                       <Pencil className="size-4" aria-hidden="true" />
                       Rediger
                     </Link>
@@ -327,7 +371,8 @@ export function UserRoleTable({ currentProfileId, exportHref, facilitators, retu
                   </div>
 
                   <div className="flex flex-wrap gap-2 xl:justify-end">
-                    <StatusButton facilitatorId={facilitator.id} returnHref={returnHref} status={facilitator.status} />
+                    <PauseButton facilitator={facilitator} returnHref={returnHref} />
+                    <StatusButton facilitator={facilitator} returnHref={returnHref} />
                     {facilitator.role !== "admin" && <RoleButton label="Gør til admin" profileId={facilitator.profile_id} returnHref={returnHref} role="admin" />}
                     {facilitator.role !== "facilitator" && <RoleButton label="Fjern admin" profileId={facilitator.profile_id} returnHref={returnHref} role="facilitator" />}
                   </div>

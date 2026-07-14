@@ -70,6 +70,11 @@ export type Database = {
           id: string;
           profile_id: string;
           status: FacilitatorStatus;
+          is_paused: boolean;
+          is_disabled: boolean;
+          disabled_at: string | null;
+          disabled_by: string | null;
+          disabled_reason: string | null;
           company_name: string | null;
           profile_image_path: string | null;
           short_description: string;

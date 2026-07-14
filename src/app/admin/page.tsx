@@ -62,28 +62,22 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { data: recentEvents },
     { data: latestBookings },
     { count: openAdminMessages },
-    { data: ownedFacilitatorProfile },
   ] = await Promise.all([
-    supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "approved"),
+    supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "approved").eq("is_paused", false).eq("is_disabled", false),
     supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "active").gte("starts_at", today.toISOString()),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "active").eq("event_format", "online").gte("starts_at", today.toISOString()),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "pending_review"),
     supabase.from("bookings").select("id", { count: "exact", head: true }).gte("created_at", thirtyDaysAgo.toISOString()),
     supabase.from("facilitator_event_reminders").select("id", { count: "exact", head: true }).eq("status", "active"),
-    supabase.from("facilitator_profiles").select("id, host_reference_id, status, company_name, created_at, profiles(full_name, email)").order("created_at", { ascending: false }).limit(5),
-    supabase.from("events").select("id, title, status, starts_at, created_at, updated_at, facilitator_profiles(company_name, profiles(full_name))").order("created_at", { ascending: false }).limit(5),
+    supabase.from("facilitator_profiles").select("id, host_reference_id, status, company_name, created_at, profiles!facilitator_profiles_profile_id_fkey(full_name, email)").order("created_at", { ascending: false }).limit(5),
+    supabase.from("events").select("id, title, status, starts_at, created_at, updated_at, facilitator_profiles(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))").order("created_at", { ascending: false }).limit(5),
     supabase.from("bookings").select("id, participant_name, created_at, events(title)").order("created_at", { ascending: false }).limit(5),
     supabase
       .from("facilitator_admin_messages")
       .select("id", { count: "exact", head: true })
       .in("type", ["message", "closure_request"])
       .in("status", ["unread", "read"]),
-    supabase
-      .from("facilitator_profiles")
-      .select("id, host_reference_id, company_name")
-      .eq("profile_id", profile.id)
-      .maybeSingle(),
   ]);
 
   const stats = [
@@ -97,16 +91,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   ];
 
   const adminLinks = [
-    ...(ownedFacilitatorProfile
-      ? [
-          {
-            href: "/facilitator/profile",
-            title: `${ownedFacilitatorProfile.company_name || "SoulEvents"} profil`,
-            text: `Rediger profilbillede og stemningsbilleder for ${ownedFacilitatorProfile.host_reference_id || "din arrangørprofil"}.`,
-            icon: UserCog,
-          },
-        ]
-      : []),
     { href: "/admin/events", title: "Eventmoderation", text: "Godkend, afvis, skjul og arkiver events.", icon: CalendarDays },
     { href: "/admin/bookings", title: "Tilmeldinger", text: "Se deltagere, status og antal pladser.", icon: ReceiptText },
     { href: "/admin/messages", title: "Beskeder", text: "Indbakke, sendte svar og arkiverede beskeder.", icon: Mail, badge: openAdminMessages ? `${formatNumber(openAdminMessages)} ubesvarede` : undefined },

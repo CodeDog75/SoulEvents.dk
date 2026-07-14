@@ -21,6 +21,8 @@ type FacilitatorRow = {
   created_at: string;
   host_reference_id: string | null;
   id: string;
+  is_disabled: boolean | null;
+  is_paused: boolean | null;
   long_description: string | null;
   postal_code: string | null;
   profile_id: string;
@@ -44,6 +46,15 @@ type FacilitatorRow = {
   short_description: string | null;
   status: "approved" | "disabled" | "pending";
   website_url: string | null;
+};
+
+type ProfileRow = {
+  created_at?: string | null;
+  email?: string | null;
+  full_name?: string | null;
+  id?: string | null;
+  phone?: string | null;
+  role?: "admin" | "facilitator" | null;
 };
 
 type EventRow = {
@@ -103,6 +114,17 @@ type SearchableFacilitator = {
   website_url?: string | null;
 };
 
+type SupabaseListResult = {
+  data: unknown[] | null;
+  error: { code?: string | null; message?: string | null } | null;
+};
+
+type FacilitatorProfilesQuery = {
+  select: (columns: string) => {
+    order: (column: string, options: { ascending: boolean }) => Promise<SupabaseListResult>;
+  };
+};
+
 function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -120,7 +142,14 @@ function optionalFieldMap(rows: OptionalFacilitatorFieldRow[] | null | undefined
 }
 
 function normalizeSearchValue(value: string | number | boolean | null | undefined) {
-  return String(value ?? "").trim().toLowerCase();
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function includesQuery(values: Array<string | number | boolean | null | undefined>, queryText: string) {
@@ -170,16 +199,65 @@ function searchScore(facilitator: SearchableFacilitator, queryText: string) {
   return -1;
 }
 
+function isMissingVisibilityColumnError(error: { code?: string | null; message?: string | null } | null | undefined) {
+  const message = error?.message ?? "";
+  return error?.code === "42703" || error?.code === "PGRST204" || message.includes("is_paused") || message.includes("is_disabled");
+}
+
+const facilitatorSelectWithProfiles =
+  "id, profile_id, host_reference_id, status, is_paused, is_disabled, company_name, short_description, long_description, address_line, city, postal_code, public_email, public_phone, website_url, created_at, profiles!facilitator_profiles_profile_id_fkey(id, role, full_name, email, phone, created_at)";
+
+const facilitatorSelectWithoutProfiles =
+  "id, profile_id, host_reference_id, status, is_paused, is_disabled, company_name, short_description, long_description, address_line, city, postal_code, public_email, public_phone, website_url, created_at";
+
+const legacyFacilitatorSelectWithoutProfiles =
+  "id, profile_id, host_reference_id, status, company_name, short_description, long_description, address_line, city, postal_code, public_email, public_phone, website_url, created_at";
+
 export default async function AdminUsersPage({ searchParams }: AdminUsersPageProps) {
   const [{ message, q }, profile] = await Promise.all([searchParams, requireRole("admin")]);
-  const queryText = (q ?? "").trim().toLowerCase();
+  const queryText = normalizeSearchValue(q);
   const supabase = createAdminClient();
+  const facilitatorProfilesQuery = supabase.from("facilitator_profiles") as unknown as FacilitatorProfilesQuery;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  let facilitatorResult = await facilitatorProfilesQuery
+    .select(facilitatorSelectWithProfiles)
+    .order("created_at", { ascending: false });
+
+  if (facilitatorResult.error) {
+    const fallbackSelect = isMissingVisibilityColumnError(facilitatorResult.error) ? legacyFacilitatorSelectWithoutProfiles : facilitatorSelectWithoutProfiles;
+    const fallbackResult = await facilitatorProfilesQuery
+      .select(fallbackSelect)
+      .order("created_at", { ascending: false });
+    facilitatorResult = {
+      data: fallbackResult.data as unknown[] | null,
+      error: fallbackResult.error,
+    };
+  }
+
+  let facilitators = (facilitatorResult.data ?? []) as FacilitatorRow[];
+
+  if (facilitators.length > 0 && facilitators.some((facilitator) => !facilitator.profiles)) {
+    const profileIds = Array.from(new Set(facilitators.map((facilitator) => facilitator.profile_id).filter(Boolean)));
+    const { data: profileRows } = profileIds.length
+      ? await supabase.from("profiles").select("id, role, full_name, email, phone, created_at").in("id", profileIds)
+      : { data: [] as ProfileRow[] };
+    const profilesById = new Map(((profileRows ?? []) as ProfileRow[]).map((row) => [row.id, row]));
+    facilitators = facilitators.map((facilitator) => ({
+      ...facilitator,
+      profiles: profilesById.get(facilitator.profile_id) ?? null,
+    }));
+  }
+
   const [
-    { data: facilitators },
     { data: events },
     { data: bookings },
+    { data: reports },
+    { data: invoices },
+    { data: notificationLogs },
+    { data: adminMessages },
+    { data: auditLogs },
+    { data: legalAcceptances },
     { data: categoryRows },
     { data: tagRows },
     { data: featuredRows },
@@ -189,17 +267,17 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     { data: experiencedBadgeRows },
   ] = await Promise.all([
     supabase
-      .from("facilitator_profiles")
-      .select(
-        "id, profile_id, host_reference_id, status, company_name, short_description, long_description, address_line, city, postal_code, public_email, public_phone, website_url, created_at, profiles(id, role, full_name, email, phone, created_at)",
-      )
-      .order("created_at", { ascending: false }),
-    supabase
       .from("events")
       .select("id, facilitator_id, status, starts_at, created_at"),
     supabase
       .from("bookings")
       .select("id, facilitator_id, status"),
+    supabase.from("monthly_reports").select("id, facilitator_id"),
+    supabase.from("invoice_drafts").select("id, facilitator_id"),
+    supabase.from("event_update_notification_logs").select("id, facilitator_id"),
+    supabase.from("facilitator_admin_messages").select("id, facilitator_id, profile_id"),
+    supabase.from("admin_audit_log").select("id, facilitator_id"),
+    supabase.from("legal_document_acceptances").select("id, profile_id"),
     supabase
       .from("facilitator_categories")
       .select("facilitator_id, categories(name)"),
@@ -212,7 +290,6 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     supabase.from("facilitator_profiles").select("id, is_active_host"),
     supabase.from("facilitator_profiles").select("id, is_experienced_host"),
   ]);
-
   const eventStatsByFacilitator = new Map<string, {
     activeEvents: number;
     completedEvents: number;
@@ -251,6 +328,29 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     bookingStatsByFacilitator.set(booking.facilitator_id, stats);
   }
 
+  const relationCountByFacilitator = new Map<string, number>();
+  const bumpRelationCount = (facilitatorId?: string | null) => {
+    if (!facilitatorId) return;
+    relationCountByFacilitator.set(facilitatorId, (relationCountByFacilitator.get(facilitatorId) ?? 0) + 1);
+  };
+
+  for (const report of (reports ?? []) as Array<{ facilitator_id?: string | null }>) bumpRelationCount(report.facilitator_id);
+  for (const invoice of (invoices ?? []) as Array<{ facilitator_id?: string | null }>) bumpRelationCount(invoice.facilitator_id);
+  for (const log of (notificationLogs ?? []) as Array<{ facilitator_id?: string | null }>) bumpRelationCount(log.facilitator_id);
+  for (const log of (auditLogs ?? []) as Array<{ facilitator_id?: string | null }>) bumpRelationCount(log.facilitator_id);
+
+  const messageCountsByFacilitator = new Map<string, number>();
+  const messageCountsByProfile = new Map<string, number>();
+  for (const message of (adminMessages ?? []) as Array<{ facilitator_id?: string | null; profile_id?: string | null }>) {
+    if (message.facilitator_id) messageCountsByFacilitator.set(message.facilitator_id, (messageCountsByFacilitator.get(message.facilitator_id) ?? 0) + 1);
+    if (message.profile_id) messageCountsByProfile.set(message.profile_id, (messageCountsByProfile.get(message.profile_id) ?? 0) + 1);
+  }
+
+  const legalAcceptancesByProfile = new Map<string, number>();
+  for (const acceptance of (legalAcceptances ?? []) as Array<{ profile_id?: string | null }>) {
+    if (acceptance.profile_id) legalAcceptancesByProfile.set(acceptance.profile_id, (legalAcceptancesByProfile.get(acceptance.profile_id) ?? 0) + 1);
+  }
+
   const categoriesByFacilitator = new Map<string, string[]>();
   for (const row of ((categoryRows ?? []) as CategoryRelationRow[])) {
     appendToMap(categoriesByFacilitator, row.facilitator_id, first(row.categories)?.name);
@@ -267,7 +367,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
   const activeBadgeByFacilitator = optionalFieldMap(activeBadgeRows as OptionalFacilitatorFieldRow[] | null, "is_active_host");
   const experiencedBadgeByFacilitator = optionalFieldMap(experiencedBadgeRows as OptionalFacilitatorFieldRow[] | null, "is_experienced_host");
 
-  const enrichedFacilitators = ((facilitators ?? []) as FacilitatorRow[]).map((facilitator) => {
+  const enrichedFacilitators = facilitators.map((facilitator) => {
     const user = first(facilitator.profiles);
     const eventStats = eventStatsByFacilitator.get(facilitator.id) ?? {
       activeEvents: 0,
@@ -277,6 +377,14 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       latestEventAt: null,
     };
     const bookingStats = bookingStatsByFacilitator.get(facilitator.id) ?? { pendingBookings: 0, totalBookings: 0 };
+    const nonDraftEvents = eventStats.eventCount - eventStats.draftEvents;
+    const historyCount =
+      nonDraftEvents +
+      bookingStats.totalBookings +
+      (relationCountByFacilitator.get(facilitator.id) ?? 0) +
+      (messageCountsByFacilitator.get(facilitator.id) ?? 0) +
+      (messageCountsByProfile.get(facilitator.profile_id) ?? 0) +
+      (legalAcceptancesByProfile.get(facilitator.profile_id) ?? 0);
     const categories = categoriesByFacilitator.get(facilitator.id) ?? [];
     const tags = tagsByFacilitator.get(facilitator.id) ?? [];
 
@@ -285,6 +393,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       address_line: facilitator.address_line,
       auto_approve_events: Boolean(autoApproveByFacilitator.get(facilitator.id)),
       city: facilitator.city,
+      can_delete: historyCount === 0,
       company_name: facilitator.company_name,
       completed_events: eventStats.completedEvents,
       created_at: facilitator.created_at,
@@ -297,6 +406,8 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       full_name: user?.full_name ?? "",
       host_reference_id: facilitator.host_reference_id,
       id: facilitator.id,
+      is_disabled: Boolean(facilitator.is_disabled),
+      is_paused: Boolean(facilitator.is_paused),
       is_active_host: Boolean(activeBadgeByFacilitator.get(facilitator.id)),
       is_experienced_host: Boolean(experiencedBadgeByFacilitator.get(facilitator.id)),
       is_featured: Boolean(featuredByFacilitator.get(facilitator.id)),

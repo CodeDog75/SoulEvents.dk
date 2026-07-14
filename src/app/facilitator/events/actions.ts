@@ -23,7 +23,7 @@ const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "re
 const allowedFormats = ["physical", "online"] as const;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 
-const facilitatorProfileEventSelect = "id, status, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles(email, phone)";
+const facilitatorProfileEventSelect = "id, status, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)";
 type AdminClient = ReturnType<typeof createAdminClient>;
 type EventUpdateSnapshot = {
   address_line: string | null;

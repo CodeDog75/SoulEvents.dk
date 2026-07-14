@@ -31,12 +31,18 @@ type FacilitatorProfile = {
   profile_image_path: string | null;
   short_description: string | null;
   long_description: string | null;
+  public_email?: string | null;
+  public_phone?: string | null;
   website_url: string | null;
   facebook_url: string | null;
   instagram_url: string | null;
+  youtube_url?: string | null;
+  tiktok_url?: string | null;
   address_line: string | null;
   postal_code: string | null;
   city: string | null;
+  country?: string | null;
+  is_online_facilitator?: boolean | null;
   region_id: string | null;
   offers_services?: boolean | null;
   service_description?: string | null;
@@ -50,6 +56,11 @@ type GalleryImage = {
 };
 
 type ProfileFormProps = {
+  adminReturnTo?: string | null;
+  adminTargetFacilitatorId?: string | null;
+  autosaveEnabled?: boolean;
+  backHref?: string;
+  backLabel?: string;
   errorSection?: string | null;
   feedbackMessage?: string | null;
   profile: {
@@ -65,6 +76,7 @@ type ProfileFormProps = {
   savedSection?: string | null;
   serviceTitles: ServiceTitle[];
   selectedServiceTitleIds: string[];
+  submitLabel?: string;
 };
 
 const profileFormSections = ["contact", "location", "social", "images", "categories", "services"] as const;
@@ -271,6 +283,11 @@ function InfoHelp({ children }: { children: string }) {
 }
 
 export function ProfileForm({
+  adminReturnTo = null,
+  adminTargetFacilitatorId = null,
+  autosaveEnabled = true,
+  backHref = "/facilitator",
+  backLabel = "Tilbage til forsiden",
   errorSection = null,
   feedbackMessage = null,
   profile,
@@ -282,6 +299,7 @@ export function ProfileForm({
   savedSection = null,
   serviceTitles,
   selectedServiceTitleIds,
+  submitLabel = "Gem hele profilen",
 }: ProfileFormProps) {
   const [postalCode, setPostalCode] = useState(value(facilitatorProfile.postal_code));
   const [city, setCity] = useState(value(facilitatorProfile.city));
@@ -291,9 +309,15 @@ export function ProfileForm({
   const [longDescription, setLongDescription] = useState(value(facilitatorProfile.long_description));
   const [phone, setPhone] = useState(value(profile.phone));
   const [addressLine, setAddressLine] = useState(value(facilitatorProfile.address_line));
+  const [country, setCountry] = useState(value(facilitatorProfile.country ?? "Danmark") || "Danmark");
+  const [isOnlineFacilitator, setIsOnlineFacilitator] = useState(Boolean(facilitatorProfile.is_online_facilitator));
+  const [publicEmail, setPublicEmail] = useState(value(facilitatorProfile.public_email));
+  const [publicPhone, setPublicPhone] = useState(value(facilitatorProfile.public_phone));
   const [websiteUrl, setWebsiteUrl] = useState(value(facilitatorProfile.website_url));
   const [facebookUrl, setFacebookUrl] = useState(value(facilitatorProfile.facebook_url));
   const [instagramUrl, setInstagramUrl] = useState(value(facilitatorProfile.instagram_url));
+  const [youtubeUrl, setYoutubeUrl] = useState(value(facilitatorProfile.youtube_url));
+  const [tiktokUrl, setTiktokUrl] = useState(value(facilitatorProfile.tiktok_url));
   const [selectedCategories, setSelectedCategories] = useState(selectedCategoryIds);
   const [offersServices, setOffersServices] = useState(Boolean(facilitatorProfile.offers_services));
   const [selectedServiceTitles, setSelectedServiceTitles] = useState(selectedServiceTitleIds);
@@ -381,6 +405,8 @@ export function ProfileForm({
           values: {
             address_line: addressLine,
             city,
+            country,
+            is_online_facilitator: isOnlineFacilitator,
             postal_code: postalCode,
           },
         };
@@ -392,7 +418,11 @@ export function ProfileForm({
           values: {
             facebook_url: facebookUrl,
             instagram_url: instagramUrl,
+            public_email: publicEmail,
+            public_phone: publicPhone,
+            tiktok_url: tiktokUrl,
             website_url: websiteUrl,
+            youtube_url: youtubeUrl,
           },
         };
       }
@@ -420,20 +450,26 @@ export function ProfileForm({
       addressLine,
       city,
       companyName,
+      country,
       facebookUrl,
       fullName,
       instagramUrl,
+      isOnlineFacilitator,
       longDescription,
       offersServices,
       phone,
       postalCode,
+      publicEmail,
+      publicPhone,
       selectedCategories,
       selectedServiceTitles,
       serviceDescription,
       serviceOtherTitle,
       shortDescription,
       showInLocalServiceResults,
+      tiktokUrl,
       websiteUrl,
+      youtubeUrl,
     ],
   );
 
@@ -510,6 +546,10 @@ export function ProfileForm({
 
   const markSectionDirty = useCallback(
     (section: ProfileFormSection) => {
+      if (!autosaveEnabled) {
+        return;
+      }
+
       dirtySectionsRef.current.add(section);
       setAutosaveStatus("idle");
       setAutosaveMessage("");
@@ -522,10 +562,14 @@ export function ProfileForm({
         void flushAutosaveNow();
       }, 1000);
     },
-    [flushAutosaveNow],
+    [autosaveEnabled, flushAutosaveNow],
   );
 
   function handleFormBlur() {
+    if (!autosaveEnabled) {
+      return;
+    }
+
     void flushAutosaveNow();
   }
 
@@ -543,7 +587,7 @@ export function ProfileForm({
       return;
     }
 
-    if (submitter?.value === "all") {
+    if (submitter?.value === "all" || !autosaveEnabled) {
       return;
     }
 
@@ -565,12 +609,12 @@ export function ProfileForm({
   useEffect(() => {
     if (!hasMountedAutosaveRef.current) return;
     markSectionDirty("location");
-  }, [addressLine, city, markSectionDirty, postalCode]);
+  }, [addressLine, city, country, isOnlineFacilitator, markSectionDirty, postalCode]);
 
   useEffect(() => {
     if (!hasMountedAutosaveRef.current) return;
     markSectionDirty("social");
-  }, [facebookUrl, instagramUrl, markSectionDirty, websiteUrl]);
+  }, [facebookUrl, instagramUrl, markSectionDirty, publicEmail, publicPhone, tiktokUrl, websiteUrl, youtubeUrl]);
 
   useEffect(() => {
     if (!hasMountedAutosaveRef.current) return;
@@ -635,6 +679,8 @@ export function ProfileForm({
       ref={formRef}
     >
       <input name="current_origin" suppressHydrationWarning type="hidden" value={currentOrigin} />
+      {adminTargetFacilitatorId ? <input name="admin_target_facilitator_id" type="hidden" value={adminTargetFacilitatorId} /> : null}
+      {adminReturnTo ? <input name="admin_return_to" type="hidden" value={adminReturnTo} /> : null}
       <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-midnight">Kontakt og præsentation</h2>
@@ -832,6 +878,30 @@ export function ProfileForm({
             </div>
           </div>
 
+          <label className="grid gap-2 text-sm font-medium text-ink/72">
+            Land
+            <input
+              autoComplete="off"
+              className={`h-11 ${fieldClass(Boolean(country.trim()))}`}
+              maxLength={80}
+              name="country"
+              onChange={(event) => setCountry(event.target.value)}
+              placeholder="Danmark"
+              value={country}
+            />
+          </label>
+
+          <label className="flex min-h-11 items-center gap-3 rounded-md border border-midnight/10 bg-white px-3 py-2 text-sm font-semibold text-midnight">
+            <input
+              checked={isOnlineFacilitator}
+              className="size-4 accent-sage-700"
+              name="is_online_facilitator"
+              onChange={(event) => setIsOnlineFacilitator(event.target.checked)}
+              type="checkbox"
+            />
+            Kan også tilbyde online forløb eller events
+          </label>
+
           <p className="rounded-md bg-sage-50 p-3 text-sm leading-6 text-ink/65">
             Kortplacering oprettes automatisk ud fra postnummer og by. Hvis du udfylder adresse, bliver placeringen
             mere præcis.
@@ -866,6 +936,33 @@ export function ProfileForm({
         </div>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="grid gap-2 text-sm font-medium text-ink/72">
+            Offentlig e-mail
+            <input
+              autoComplete="off"
+              className={`h-11 ${fieldClass(Boolean(publicEmail.trim()), true)}`}
+              maxLength={180}
+              name="public_email"
+              onChange={(event) => setPublicEmail(event.target.value)}
+              placeholder="Valgfrit - ellers bruges kontoens e-mail offentligt"
+              type="email"
+              value={publicEmail}
+            />
+          </label>
+
+          <label className="grid gap-2 text-sm font-medium text-ink/72">
+            Offentlig telefon
+            <input
+              autoComplete="off"
+              className={`h-11 ${fieldClass(Boolean(publicPhone.trim()), true)}`}
+              maxLength={40}
+              name="public_phone"
+              onChange={(event) => setPublicPhone(formatPhoneInput(event.target.value))}
+              placeholder="Valgfrit - ellers bruges kontoens telefon offentligt"
+              value={publicPhone}
+            />
+          </label>
+
           <label className="grid gap-2 text-sm font-medium text-ink/72">
             <span className="flex flex-wrap items-center gap-2">
               Hjemmeside
@@ -917,6 +1014,40 @@ export function ProfileForm({
               placeholder="Valgfrit"
               type="url"
               value={instagramUrl}
+            />
+          </label>
+
+          <label className="grid gap-2 text-sm font-medium text-ink/72">
+            <span className="flex flex-wrap items-center gap-2">
+              YouTube
+              <InfoHelp>Eksempel: https://www.youtube.com/@soulevents</InfoHelp>
+            </span>
+            <input
+              autoComplete="off"
+              className={`h-11 ${fieldClass(Boolean(youtubeUrl.trim()), true)}`}
+              maxLength={300}
+              name="youtube_url"
+              onChange={(event) => setYoutubeUrl(event.target.value)}
+              placeholder="Valgfrit"
+              type="url"
+              value={youtubeUrl}
+            />
+          </label>
+
+          <label className="grid gap-2 text-sm font-medium text-ink/72">
+            <span className="flex flex-wrap items-center gap-2">
+              TikTok
+              <InfoHelp>Eksempel: https://www.tiktok.com/@soulevents</InfoHelp>
+            </span>
+            <input
+              autoComplete="off"
+              className={`h-11 ${fieldClass(Boolean(tiktokUrl.trim()), true)}`}
+              maxLength={300}
+              name="tiktok_url"
+              onChange={(event) => setTiktokUrl(event.target.value)}
+              placeholder="Valgfrit"
+              type="url"
+              value={tiktokUrl}
             />
           </label>
         </div>
@@ -1215,9 +1346,9 @@ export function ProfileForm({
           <div className="flex flex-col gap-2 sm:flex-row">
             <Link
               className="inline-flex h-11 items-center justify-center rounded-md border border-midnight/15 bg-white px-5 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
-              href="/facilitator"
+              href={backHref}
             >
-              Tilbage til forsiden
+              {backLabel}
             </Link>
             <button
               className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700"
@@ -1226,7 +1357,7 @@ export function ProfileForm({
               value="all"
             >
               <Save className="size-4" aria-hidden="true" />
-              Gem hele profilen
+              {submitLabel}
             </button>
           </div>
         </div>

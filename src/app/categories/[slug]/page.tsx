@@ -156,10 +156,12 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
   const { data: rawEvents } = await supabase
     .from("events")
     .select(
-      "id, status, title, short_description, starts_at, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, company_name, profiles(full_name)), regions(name, slug), event_categories(categories(name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug))",
+      "id, status, title, short_description, starts_at, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), regions(name, slug), event_categories(categories(name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug))",
     )
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
+    .eq("facilitator_profiles.is_paused", false)
+    .eq("facilitator_profiles.is_disabled", false)
     .gte("ends_at", new Date().toISOString())
     .order("starts_at", { ascending: true });
 

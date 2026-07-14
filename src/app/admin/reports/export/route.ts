@@ -113,7 +113,7 @@ export async function GET(request: Request) {
     supabase
       .from("facilitator_profiles")
       .select(
-        "id, host_reference_id, status, company_name, public_email, public_phone, website_url, facebook_url, instagram_url, address_line, postal_code, city, country, created_at, offers_services, service_description, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name)), facilitator_tags(tags(name)), facilitator_service_titles(service_titles(name))",
+        "id, host_reference_id, status, company_name, public_email, public_phone, website_url, facebook_url, instagram_url, address_line, postal_code, city, country, created_at, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name)), facilitator_tags(tags(name)), facilitator_service_titles(service_titles(name))",
       )
       .order("created_at", { ascending: false }),
     eventsQuery,

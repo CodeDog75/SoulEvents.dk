@@ -63,7 +63,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
     supabase
       .from("facilitator_profiles")
       .select(
-        "id, status, company_name, short_description, address_line, postal_code, city, region_id, max_ticket_price_per_person, facilitator_categories(category_id), profiles(email, phone)",
+        "id, status, company_name, short_description, address_line, postal_code, city, region_id, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)",
       )
       .eq("profile_id", profile.id)
       .single(),

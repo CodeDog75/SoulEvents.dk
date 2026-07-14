@@ -152,9 +152,11 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
   const supabase = await createClient();
   const { data: facilitator } = await supabase
     .from("facilitator_profiles")
-    .select("company_name, short_description, profiles(full_name)")
+    .select("company_name, short_description, profiles!facilitator_profiles_profile_id_fkey(full_name)")
     .eq("id", id)
     .eq("status", "approved")
+    .eq("is_paused", false)
+    .eq("is_disabled", false)
     .single();
 
   if (!facilitator) return {};
@@ -177,17 +179,34 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   const viewer = await getCurrentProfile();
 
   const facilitatorSelect =
-    "id, profile_id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, profiles(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
-  const { data: publicFacilitator } = await supabase
+    "id, profile_id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
+  const { data: publicFacilitator, error: publicFacilitatorError } = await supabase
     .from("facilitator_profiles")
     .select(facilitatorSelect)
     .eq("id", id)
     .eq("status", "approved")
+    .eq("is_paused", false)
+    .eq("is_disabled", false)
     .single();
-  const { data: previewFacilitator } =
+  if (publicFacilitatorError && publicFacilitatorError.code !== "PGRST116") {
+    console.error("[facilitator-profile] public lookup failed", {
+      code: publicFacilitatorError.code,
+      id,
+      message: publicFacilitatorError.message,
+    });
+  }
+
+  const { data: previewFacilitator, error: previewFacilitatorError } =
     !publicFacilitator && ((adminReturnLink && viewer?.role === "admin") || (facilitatorReturnLink && viewer?.role === "facilitator"))
       ? await createAdminClient().from("facilitator_profiles").select(facilitatorSelect).eq("id", id).single()
-      : { data: null };
+      : { data: null, error: null };
+  if (previewFacilitatorError) {
+    console.error("[facilitator-profile] preview lookup failed", {
+      code: previewFacilitatorError.code,
+      id,
+      message: previewFacilitatorError.message,
+    });
+  }
   const facilitator = publicFacilitator ?? previewFacilitator;
 
   const facilitatorData = facilitator as any;
@@ -207,11 +226,13 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   const { data: events } = await supabase
     .from("events")
     .select(
-      "id, status, title, short_description, starts_at, ends_at, city, price_cents, capacity, event_format, facilitator_profiles!inner(status, company_name, profiles(full_name)), regions(name), event_categories(categories(name, color_hex))",
+      "id, status, title, short_description, starts_at, ends_at, city, price_cents, capacity, event_format, facilitator_profiles!inner(status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), regions(name), event_categories(categories(name, color_hex))",
     )
     .eq("facilitator_id", id)
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
+    .eq("facilitator_profiles.is_paused", false)
+    .eq("facilitator_profiles.is_disabled", false)
     .gte("ends_at", new Date().toISOString())
     .order("starts_at", { ascending: true });
   const availableSeatsByEventId = await getAvailableEventSeatsByEventId(createAdminClient(), events ?? []);

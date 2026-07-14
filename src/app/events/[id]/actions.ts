@@ -65,7 +65,7 @@ const eventSelect = [
   "facilitator_profiles!inner(",
   "status,",
   "company_name,",
-  "profiles(full_name, email)",
+  "profiles!facilitator_profiles_profile_id_fkey(full_name, email)",
   "),",
   "event_categories(categories(name))",
 ].join("\n");
@@ -172,6 +172,8 @@ export async function createBookingAction(formData: FormData) {
     .eq("id", eventId)
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
+    .eq("facilitator_profiles.is_paused", false)
+    .eq("facilitator_profiles.is_disabled", false)
     .gte("ends_at", new Date().toISOString())
     .single();
 
@@ -267,7 +269,7 @@ export async function createBookingAction(formData: FormData) {
   const bookingsUrl = appUrl + "/facilitator/bookings?event=" + encodeURIComponent(event.id);
   const { data: facilitatorContact, error: facilitatorContactError } = await adminSupabase
     .from("facilitator_profiles")
-    .select("profiles(email)")
+    .select("profiles!facilitator_profiles_profile_id_fkey(email)")
     .eq("id", event.facilitator_id)
     .maybeSingle();
 

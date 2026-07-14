@@ -7,7 +7,8 @@ import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-da
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { FacilitatorStatus } from "@/types/database";
 
-const allowedStatuses: FacilitatorStatus[] = ["pending", "approved", "disabled"];
+const allowedStatuses: FacilitatorStatus[] = ["pending", "approved"];
+const editableStatuses: FacilitatorStatus[] = ["pending", "approved"];
 const missingColumnErrorCodes = ["42703", "PGRST204"];
 
 function adminRedirect(message: string): never {
@@ -179,6 +180,192 @@ const supabase = createAdminClient();
   adminRedirect(`Arrangør er ${labels[status]}.`);
 }
 
+export async function disableFacilitatorAction(formData: FormData) {
+  const adminProfile = await requireRole("admin");
+
+  const facilitatorId = getString(formData, "facilitator_id");
+  const reason = getOptionalString(formData, "disabled_reason");
+
+  if (!facilitatorId) {
+    adminRedirect("Ugyldig arrangørhandling.");
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("facilitator_profiles")
+    .update({
+      disabled_at: new Date().toISOString(),
+      disabled_by: adminProfile.id,
+      disabled_reason: reason,
+      is_disabled: true,
+    })
+    .eq("id", facilitatorId);
+
+  if (error) {
+    adminRedirect("Arrangøren kunne ikke deaktiveres.");
+  }
+
+  await supabase.from("admin_audit_log").insert({
+    actor_profile_id: adminProfile.id,
+    action: "facilitator_disabled",
+    facilitator_id: facilitatorId,
+    new_value: reason ?? "disabled",
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/users");
+  revalidatePath("/facilitators");
+  revalidatePath("/facilitators/" + facilitatorId);
+  revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
+  adminRedirect("Arrangør er deaktiveret.");
+}
+
+export async function reactivateFacilitatorAction(formData: FormData) {
+  const adminProfile = await requireRole("admin");
+
+  const facilitatorId = getString(formData, "facilitator_id");
+
+  if (!facilitatorId) {
+    adminRedirect("Ugyldig arrangørhandling.");
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("facilitator_profiles")
+    .update({
+      disabled_at: null,
+      disabled_by: null,
+      disabled_reason: null,
+      is_disabled: false,
+    })
+    .eq("id", facilitatorId);
+
+  if (error) {
+    adminRedirect("Arrangøren kunne ikke genaktiveres.");
+  }
+
+  await supabase.from("admin_audit_log").insert({
+    actor_profile_id: adminProfile.id,
+    action: "facilitator_reactivated",
+    facilitator_id: facilitatorId,
+    new_value: "enabled",
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/users");
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitators");
+  revalidatePath("/facilitators/" + facilitatorId);
+  revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
+  adminRedirect("Arrangør er genaktiveret.");
+}
+
+export async function updateFacilitatorTemporaryPasswordAction(formData: FormData) {
+  const adminProfile = await requireRole("admin");
+
+  const facilitatorId = getString(formData, "facilitator_id");
+  const profileId = getString(formData, "profile_id");
+  const password = getString(formData, "temporary_password");
+  const confirmPassword = getString(formData, "confirm_temporary_password");
+  const confirmed = getString(formData, "confirm_support_password_change") === "yes";
+
+  if (!facilitatorId || !profileId) {
+    adminRedirect("Arrangøren kunne ikke findes.");
+  }
+
+  if (!confirmed) {
+    adminFacilitatorEditRedirect(facilitatorId, "Bekræft at adgangskoden kun ændres som supporthandling.");
+  }
+
+  if (password.length < 10) {
+    adminFacilitatorEditRedirect(facilitatorId, "Den midlertidige adgangskode skal være mindst 10 tegn.");
+  }
+
+  if (password !== confirmPassword) {
+    adminFacilitatorEditRedirect(facilitatorId, "De to adgangskoder er ikke ens.");
+  }
+
+  const supabase = createAdminClient();
+  const { data: facilitator, error: facilitatorError } = await supabase
+    .from("facilitator_profiles")
+    .select("id, profile_id")
+    .eq("id", facilitatorId)
+    .maybeSingle();
+
+  if (facilitatorError || !facilitator || facilitator.profile_id !== profileId) {
+    adminFacilitatorEditRedirect(facilitatorId, "Arrangøren kunne ikke findes.");
+  }
+
+  const { error } = await supabase.auth.admin.updateUserById(profileId, { password });
+
+  if (error) {
+    adminFacilitatorEditRedirect(facilitatorId, "Adgangskoden kunne ikke ændres.");
+  }
+
+  await supabase.from("admin_audit_log").insert({
+    action: "facilitator_password_reset",
+    actor_profile_id: adminProfile.id,
+    facilitator_id: facilitatorId,
+    new_value: "temporary_password_set",
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
+  adminFacilitatorEditRedirect(facilitatorId, "Midlertidig adgangskode er gemt.");
+}
+
+export async function updateFacilitatorAdminSettingsAction(formData: FormData) {
+  const adminProfile = await requireRole("admin");
+
+  const facilitatorId = getString(formData, "facilitator_id");
+  const featuredSortOrder = Number(getOptionalString(formData, "featured_sort_order") ?? 0);
+  const rawMaxTicketPrice = getOptionalString(formData, "max_ticket_price_per_person");
+  const hasUnlimitedTicketPrice = formData.get("unlimited_ticket_price") === "on";
+  const parsedMaxTicketPrice = Number(rawMaxTicketPrice);
+
+  if (!facilitatorId) {
+    adminRedirect("Arrangøren kunne ikke findes.");
+  }
+
+  if (!hasUnlimitedTicketPrice && (!rawMaxTicketPrice || !/^\d+$/.test(rawMaxTicketPrice) || !Number.isSafeInteger(parsedMaxTicketPrice) || parsedMaxTicketPrice < 0)) {
+    adminFacilitatorEditRedirect(facilitatorId, "Maksimal billetpris skal være et heltal på mindst 0 kr.");
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("facilitator_profiles")
+    .update({
+      auto_approve_events: formData.get("auto_approve_events") === "on",
+      featured_sort_order: Number.isFinite(featuredSortOrder) ? featuredSortOrder : 0,
+      is_active_host: formData.get("is_active_host") === "on",
+      is_experienced_host: formData.get("is_experienced_host") === "on",
+      is_featured: formData.get("is_featured") === "on",
+      max_ticket_price_per_person: hasUnlimitedTicketPrice ? null : parsedMaxTicketPrice,
+    })
+    .eq("id", facilitatorId);
+
+  if (error) {
+    adminFacilitatorEditRedirect(
+      facilitatorId,
+      missingColumnErrorCodes.includes(error.code ?? "")
+        ? "Databasen mangler et felt til denne handling. Kør de nyeste Supabase-migrationer og prøv igen."
+        : "Adminindstillingerne kunne ikke gemmes.",
+    );
+  }
+
+  await supabase.from("admin_audit_log").insert({
+    action: "facilitator_admin_settings_changed",
+    actor_profile_id: adminProfile.id,
+    facilitator_id: facilitatorId,
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/featured-facilitators");
+  revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
+  revalidatePath("/facilitators/" + facilitatorId);
+  adminFacilitatorEditRedirect(facilitatorId, "Adminindstillingerne er gemt.");
+}
 
 export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   const adminProfile = await requireRole("admin");
@@ -215,7 +402,7 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
     adminRedirect("Arrangøren kunne ikke findes.");
   }
 
-  if (!allowedStatuses.includes(status)) {
+  if (!editableStatuses.includes(status)) {
     adminFacilitatorEditRedirect(facilitatorId, "Ugyldig arrangørtatus.");
   }
 

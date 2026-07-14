@@ -82,6 +82,30 @@ function profileRedirect(message: string, origin?: string | null, errorSection?:
   redirect(redirectOrigin ? `${redirectOrigin}${path}` : path);
 }
 
+function safeAdminReturnPath(value: string | null | undefined, fallback = "/admin/users") {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return fallback;
+
+  try {
+    const url = new URL(value, "https://soulevents.local");
+    if (!url.pathname.startsWith("/admin")) return fallback;
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return fallback;
+  }
+}
+
+function adminProfileRedirect(message: string, returnTo: string | null | undefined, errorSection?: EditableProfileSection): never {
+  const safeReturnTo = safeAdminReturnPath(returnTo);
+  const params = new URLSearchParams({ message });
+
+  if (errorSection) {
+    params.set("errorSection", errorSection);
+  }
+
+  const separator = safeReturnTo.includes("?") ? "&" : "?";
+  redirect(`${safeReturnTo}${separator}${params.toString()}`);
+}
+
 function normalizeImageRows(paths: string[], alts: string[]) {
   return paths.slice(0, 3).map((imagePath, index) => ({
     image_path: imagePath,
@@ -143,6 +167,18 @@ function profileSuccessRedirect(message: string, ready: boolean, origin?: string
   const redirectOrigin = safeRedirectOrigin(origin ?? null);
 
   redirect(redirectOrigin ? `${redirectOrigin}${path}` : path);
+}
+
+function adminProfileSuccessRedirect(message: string, returnTo: string | null | undefined, savedSection?: ProfileSection): never {
+  const safeReturnTo = safeAdminReturnPath(returnTo);
+  const params = new URLSearchParams({ message });
+
+  if (savedSection) {
+    params.set("saved", savedSection);
+  }
+
+  const separator = safeReturnTo.includes("?") ? "&" : "?";
+  redirect(`${safeReturnTo}${separator}${params.toString()}`);
 }
 
 function errorMessage(error: unknown) {
@@ -319,8 +355,10 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
     const addressLine = valueForAutosave(input.values.address_line);
     const postalCode = valueForAutosave(input.values.postal_code);
     const city = valueForAutosave(input.values.city);
+    const country = valueForAutosave(input.values.country) || "Danmark";
+    const isOnlineFacilitator = input.values.is_online_facilitator === true;
 
-    if (addressLine.length > 120 || postalCode.length > 20 || city.length > 80) {
+    if (addressLine.length > 120 || postalCode.length > 20 || city.length > 80 || country.length > 80) {
       return { message: "Et lokationsfelt er længere end tilladt.", ok: false };
     }
 
@@ -336,6 +374,8 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
 
     updates.address_line = addressLine;
     updates.city = city;
+    updates.country = country;
+    updates.is_online_facilitator = isOnlineFacilitator;
     updates.latitude = coordinates?.latitude ?? null;
     updates.longitude = coordinates?.longitude ?? null;
     updates.postal_code = postalCode;
@@ -343,17 +383,33 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
   }
 
   if (section === "social") {
+    const publicEmail = valueForAutosave(input.values.public_email);
+    const publicPhone = valueForAutosave(input.values.public_phone);
     const websiteUrl = valueForAutosave(input.values.website_url);
     const facebookUrl = valueForAutosave(input.values.facebook_url);
     const instagramUrl = valueForAutosave(input.values.instagram_url);
+    const youtubeUrl = valueForAutosave(input.values.youtube_url);
+    const tiktokUrl = valueForAutosave(input.values.tiktok_url);
 
-    if (websiteUrl.length > 300 || facebookUrl.length > 300 || instagramUrl.length > 300) {
+    if (
+      publicEmail.length > 180 ||
+      publicPhone.length > 40 ||
+      websiteUrl.length > 300 ||
+      facebookUrl.length > 300 ||
+      instagramUrl.length > 300 ||
+      youtubeUrl.length > 300 ||
+      tiktokUrl.length > 300
+    ) {
       return { message: "Et link er længere end tilladt.", ok: false };
     }
 
     updates.facebook_url = facebookUrl;
     updates.instagram_url = instagramUrl;
+    updates.public_email = publicEmail;
+    updates.public_phone = publicPhone;
+    updates.tiktok_url = tiktokUrl;
     updates.website_url = websiteUrl;
+    updates.youtube_url = youtubeUrl;
   }
 
   if (section === "services") {
@@ -455,6 +511,7 @@ async function ensureMediaBucket(
   supabase: ReturnType<typeof createAdminClient>,
   redirectOrigin?: string | null,
   errorSection: EditableProfileSection = "images",
+  adminReturnTo?: string | null,
 ) {
   const { data: bucket } = await supabase.storage.getBucket("media");
 
@@ -469,6 +526,13 @@ async function ensureMediaBucket(
   });
 
   if (error && !error.message.toLowerCase().includes("already exists")) {
+    if (adminReturnTo) {
+      adminProfileRedirect(
+        "Storage-bucket 'media' kunne ikke oprettes automatisk. Kør storage-migrationen i Supabase.",
+        adminReturnTo,
+        errorSection,
+      );
+    }
     profileRedirect(
       "Storage-bucket 'media' kunne ikke oprettes automatisk. Kør storage-migrationen i Supabase.",
       redirectOrigin,
@@ -483,24 +547,34 @@ async function uploadImage(
   prefix: string,
   redirectOrigin?: string | null,
   errorSection: EditableProfileSection = "images",
+  adminReturnTo?: string | null,
 ) {
   if (!(file instanceof File) || file.size === 0) {
     return null;
   }
 
   if (isHeicImage(file)) {
+    if (adminReturnTo) {
+      adminProfileRedirect("HEIC-billedet kunne ikke konverteres. Prøv et andet billede eller eksportér som JPG.", adminReturnTo, errorSection);
+    }
     profileRedirect("HEIC-billedet kunne ikke konverteres. Prøv et andet billede eller eksportér som JPG.", redirectOrigin, errorSection);
   }
 
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    if (adminReturnTo) {
+      adminProfileRedirect("Du kan uploade JPG, PNG, WEBP eller HEIC. HEIC konverteres automatisk i browseren.", adminReturnTo, errorSection);
+    }
     profileRedirect("Du kan uploade JPG, PNG, WEBP eller HEIC. HEIC konverteres automatisk i browseren.", redirectOrigin, errorSection);
   }
 
   if (file.size > 10 * 1024 * 1024) {
+    if (adminReturnTo) {
+      adminProfileRedirect("Billedet må højst fylde 10 MB.", adminReturnTo, errorSection);
+    }
     profileRedirect("Billedet må højst fylde 10 MB.", redirectOrigin, errorSection);
   }
 
-  await ensureMediaBucket(supabase, redirectOrigin, errorSection);
+  await ensureMediaBucket(supabase, redirectOrigin, errorSection, adminReturnTo);
 
   const path = `${prefix}/${crypto.randomUUID()}.${extensionForUpload(file)}`;
   const { error } = await supabase.storage.from("media").upload(path, file, {
@@ -509,6 +583,13 @@ async function uploadImage(
   });
 
   if (error) {
+    if (adminReturnTo) {
+      adminProfileRedirect(
+        "Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase, og at filen er JPG, PNG eller WebP under 10 MB.",
+        adminReturnTo,
+        errorSection,
+      );
+    }
     profileRedirect(
       "Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase, og at filen er JPG, PNG eller WebP under 10 MB.",
       redirectOrigin,
@@ -523,10 +604,21 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   const profile = await requireProfile();
   const supabase = createAdminClient();
   const redirectOrigin = getOptionalString(formData, "current_origin");
+  const adminTargetFacilitatorId = getOptionalString(formData, "admin_target_facilitator_id");
+  const adminReturnTo = getOptionalString(formData, "admin_return_to");
+  const isAdminEdit = Boolean(adminTargetFacilitatorId);
   const section = normalizeProfileSection(getString(formData, "section"));
 
   if (!section) {
-    profileRedirect("Profilen blev ikke gemt, fordi gemmehandlingen manglede. Prøv igen.", redirectOrigin, "contact");
+    const message = "Profilen blev ikke gemt, fordi gemmehandlingen manglede. Prøv igen.";
+    if (isAdminEdit) {
+      adminProfileRedirect(message, adminReturnTo, "contact");
+    }
+    profileRedirect(message, redirectOrigin, "contact");
+  }
+
+  if (isAdminEdit && profile.role !== "admin") {
+    adminProfileRedirect("Du har ikke adgang til at redigere denne arrangør.", adminReturnTo, "contact");
   }
 
   const fullName = getString(formData, "full_name");
@@ -535,12 +627,18 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   const shortDescription = getString(formData, "short_description");
   const longDescription = getString(formData, "long_description");
   let profileImagePath = getOptionalString(formData, "profile_image_path");
+  const publicEmail = getOptionalString(formData, "public_email");
+  const publicPhone = getOptionalString(formData, "public_phone");
   const websiteUrl = getOptionalString(formData, "website_url");
   const facebookUrl = getOptionalString(formData, "facebook_url");
   const instagramUrl = getOptionalString(formData, "instagram_url");
+  const youtubeUrl = getOptionalString(formData, "youtube_url");
+  const tiktokUrl = getOptionalString(formData, "tiktok_url");
   const addressLine = getOptionalString(formData, "address_line");
   const postalCode = getOptionalString(formData, "postal_code");
   const city = getOptionalString(formData, "city");
+  const country = getOptionalString(formData, "country") || "Danmark";
+  const isOnlineFacilitator = formData.get("is_online_facilitator") === "on";
   let regionId: string | null = null;
   const categoryIds = getAllStrings(formData, "category_ids");
   const uniqueCategoryIds = [...new Set(categoryIds)];
@@ -554,30 +652,51 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     .slice(0, 3)
     .map((item) => (typeof item === "string" ? item.trim() : ""));
 
-  const { data: existingProfile, error: existingProfileError } = await supabase
+  let existingProfileQuery = supabase
     .from("facilitator_profiles")
     .select(
-      "id, address_line, city, company_name, facebook_url, instagram_url, long_description, offers_services, postal_code, profile_image_path, region_id, service_description, service_other_title, short_description, show_in_local_service_results, status, website_url, facilitator_categories(category_id), facilitator_tags(tag_id)",
-    )
-    .eq("profile_id", profile.id)
-    .single();
+      "id, profile_id, address_line, city, company_name, country, facebook_url, instagram_url, is_online_facilitator, long_description, offers_services, postal_code, profile_image_path, public_email, public_phone, region_id, service_description, service_other_title, short_description, show_in_local_service_results, status, tiktok_url, website_url, youtube_url, facilitator_categories(category_id), facilitator_tags(tag_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)",
+    );
+
+  existingProfileQuery = isAdminEdit
+    ? existingProfileQuery.eq("id", adminTargetFacilitatorId as string)
+    : existingProfileQuery.eq("profile_id", profile.id);
+
+  const { data: existingProfile, error: existingProfileError } = await existingProfileQuery.single();
 
   if (existingProfileError || !existingProfile) {
-    profileRedirect("Arrangørprofilen kunne ikke hentes.", redirectOrigin, fallbackErrorSection(section, "contact"));
+    const message = "Arrangørprofilen kunne ikke hentes.";
+    if (isAdminEdit) {
+      adminProfileRedirect(message, adminReturnTo, fallbackErrorSection(section, "contact"));
+    }
+    profileRedirect(message, redirectOrigin, fallbackErrorSection(section, "contact"));
   }
 
   const facilitatorId = existingProfile.id as string;
+  const targetProfileRelation = Array.isArray(existingProfile.profiles) ? existingProfile.profiles[0] : existingProfile.profiles;
+  const targetProfile = isAdminEdit
+    ? {
+        email: targetProfileRelation?.email ?? "",
+        full_name: targetProfileRelation?.full_name ?? "",
+        id: targetProfileRelation?.id ?? existingProfile.profile_id,
+        phone: targetProfileRelation?.phone ?? null,
+        role: "facilitator",
+      }
+    : profile;
   const existingCategoryIds =
     existingProfile.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [];
   const wasReady = isProfileReady({
     categoryIds: existingCategoryIds,
     city: existingProfile.city ?? null,
     companyName: existingProfile.company_name ?? null,
-    fullName: profile.full_name ?? null,
+    fullName: targetProfile.full_name ?? null,
     postalCode: existingProfile.postal_code ?? null,
   });
 
   if (savesSection(section, "contact") && !fullName) {
+    if (isAdminEdit) {
+      adminProfileRedirect("Det rigtige navn skal udfyldes.", adminReturnTo, "contact");
+    }
     profileRedirect("Dit rigtige navn skal udfyldes.", redirectOrigin, "contact");
   }
 
@@ -589,36 +708,59 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     [savesSection(section, "location"), addressLine, 120, "Adresse", "location"],
     [savesSection(section, "location"), postalCode, 20, "Postnummer", "location"],
     [savesSection(section, "location"), city, 80, "By", "location"],
+    [savesSection(section, "location"), country, 80, "Land", "location"],
+    [savesSection(section, "social"), publicEmail, 180, "Offentlig e-mail", "social"],
+    [savesSection(section, "social"), publicPhone, 40, "Offentlig telefon", "social"],
     [savesSection(section, "social"), websiteUrl, 300, "Website", "social"],
     [savesSection(section, "social"), facebookUrl, 300, "Facebook-link", "social"],
     [savesSection(section, "social"), instagramUrl, 300, "Instagram-link", "social"],
+    [savesSection(section, "social"), youtubeUrl, 300, "YouTube-link", "social"],
+    [savesSection(section, "social"), tiktokUrl, 300, "TikTok-link", "social"],
     [savesSection(section, "services"), serviceDescription, 500, "Kort beskrivelse af ydelser", "services"],
     [savesSection(section, "services"), serviceOtherTitle, 120, "Anden titel eller uddybning", "services"],
   ];
 
   for (const [shouldValidate, value, maxLength, label, errorSection] of lengthChecks) {
     if (shouldValidate && value && value.length > maxLength) {
+      if (isAdminEdit) {
+        adminProfileRedirect(label + " må højst være " + maxLength + " tegn.", adminReturnTo, errorSection);
+      }
       profileRedirect(label + " må højst være " + maxLength + " tegn.", redirectOrigin, errorSection);
     }
   }
 
   if (savesSection(section, "images") && galleryPaths.some((galleryPath) => galleryPath.length > 300)) {
+    if (isAdminEdit) {
+      adminProfileRedirect("Billedstier må højst være 300 tegn.", adminReturnTo, "images");
+    }
     profileRedirect("Billedstier må højst være 300 tegn.", redirectOrigin, "images");
   }
 
   if (savesSection(section, "contact") && !companyName) {
+    if (isAdminEdit) {
+      adminProfileRedirect("Det viste navn skal udfyldes.", adminReturnTo, "contact");
+    }
     profileRedirect("Det navn du ønsker at blive vist under skal udfyldes.", redirectOrigin, "contact");
   }
 
   if (savesSection(section, "contact") && phone && !isValidPhoneNumber(phone)) {
+    if (isAdminEdit) {
+      adminProfileRedirect("Telefonnummer skal bestå af præcis 8 tal. Kun tal og mellemrum er tilladt.", adminReturnTo, "contact");
+    }
     profileRedirect("Telefonnummer skal bestå af præcis 8 tal. Kun tal og mellemrum er tilladt.", redirectOrigin, "contact");
   }
 
   if (savesSection(section, "location") && (!postalCode || !city)) {
+    if (isAdminEdit) {
+      adminProfileRedirect("Postnummer og by skal udfyldes.", adminReturnTo, "location");
+    }
     profileRedirect("Postnummer og by skal udfyldes.", redirectOrigin, "location");
   }
 
   if (savesSection(section, "categories") && !uniqueCategoryIds.length) {
+    if (isAdminEdit) {
+      adminProfileRedirect("Vælg mindst ét arbejdsområde.", adminReturnTo, "categories");
+    }
     profileRedirect("Vælg mindst ét arbejdsområde, så vi kan placere din profil korrekt.", redirectOrigin, "categories");
   }
 
@@ -629,6 +771,9 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     !serviceOtherTitle &&
     !serviceDescription
   ) {
+    if (isAdminEdit) {
+      adminProfileRedirect("Vælg mindst én titel/ydelse fra listen, eller skriv en egen titel eller uddybning.", adminReturnTo, "services");
+    }
     profileRedirect("Vælg mindst én titel/ydelse fra listen, eller skriv din egen titel eller uddybning.", redirectOrigin, "services");
   }
 
@@ -636,12 +781,15 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
-        full_name: fullName || profile.full_name || "",
+        full_name: fullName || targetProfile.full_name || "",
         phone,
       })
-      .eq("id", profile.id);
+      .eq("id", targetProfile.id);
 
     if (profileError) {
+      if (isAdminEdit) {
+        adminProfileRedirect("Profilen kunne ikke gemmes.", adminReturnTo, "contact");
+      }
       profileRedirect("Profilen kunne ikke gemmes.", redirectOrigin, "contact");
     }
   }
@@ -657,7 +805,11 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   if (savesSection(section, "social")) {
     facilitatorUpdates.facebook_url = facebookUrl;
     facilitatorUpdates.instagram_url = instagramUrl;
+    facilitatorUpdates.public_email = publicEmail;
+    facilitatorUpdates.public_phone = publicPhone;
+    facilitatorUpdates.tiktok_url = tiktokUrl;
     facilitatorUpdates.website_url = websiteUrl;
+    facilitatorUpdates.youtube_url = youtubeUrl;
   }
 
   if (savesSection(section, "location")) {
@@ -672,6 +824,8 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
 
     facilitatorUpdates.address_line = addressLine;
     facilitatorUpdates.city = city;
+    facilitatorUpdates.country = country;
+    facilitatorUpdates.is_online_facilitator = isOnlineFacilitator;
     facilitatorUpdates.latitude = coordinates?.latitude ?? null;
     facilitatorUpdates.longitude = coordinates?.longitude ?? null;
     facilitatorUpdates.postal_code = postalCode;
@@ -682,9 +836,10 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     const uploadedProfileImage = await uploadImage(
       supabase,
       formData.get("profile_image_file"),
-      `hosts/${profile.id}/profile`,
+      `hosts/${targetProfile.id}/profile`,
       redirectOrigin,
       "images",
+      isAdminEdit ? adminReturnTo : null,
     );
 
     if (uploadedProfileImage) {
@@ -705,10 +860,14 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     const { error: facilitatorError } = await supabase
       .from("facilitator_profiles")
       .update(facilitatorUpdates)
-      .eq("profile_id", profile.id);
+      .eq("id", facilitatorId);
 
     if (facilitatorError) {
-      profileRedirect("Arrangørprofilen kunne ikke gemmes.", redirectOrigin, fallbackErrorSection(section, "contact"));
+      const message = "Arrangørprofilen kunne ikke gemmes.";
+      if (isAdminEdit) {
+        adminProfileRedirect(message, adminReturnTo, fallbackErrorSection(section, "contact"));
+      }
+      profileRedirect(message, redirectOrigin, fallbackErrorSection(section, "contact"));
     }
   }
 
@@ -722,6 +881,9 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     );
 
     if (categoryError) {
+      if (isAdminEdit) {
+        adminProfileRedirect("Arbejdsområderne kunne ikke gemmes.", adminReturnTo, "categories");
+      }
       profileRedirect("Arbejdsområderne kunne ikke gemmes.", redirectOrigin, "categories");
     }
 
@@ -732,6 +894,9 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       .not("category_id", "in", `(${uniqueCategoryIds.join(",")})`);
 
     if (deleteCategoryError) {
+      if (isAdminEdit) {
+        adminProfileRedirect("Arbejdsområderne kunne ikke gemmes.", adminReturnTo, "categories");
+      }
       profileRedirect("Arbejdsområderne kunne ikke gemmes.", redirectOrigin, "categories");
     }
   }
@@ -743,6 +908,9 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       .eq("facilitator_id", facilitatorId);
 
     if (deleteServiceTitleError) {
+      if (isAdminEdit) {
+        adminProfileRedirect("Behandlertitlerne kunne ikke gemmes.", adminReturnTo, "services");
+      }
       profileRedirect("Behandlertitlerne kunne ikke gemmes.", redirectOrigin, "services");
     }
 
@@ -755,6 +923,9 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       );
 
       if (serviceTitleError) {
+        if (isAdminEdit) {
+          adminProfileRedirect("Behandlertitlerne kunne ikke gemmes.", adminReturnTo, "services");
+        }
         profileRedirect("Behandlertitlerne kunne ikke gemmes.", redirectOrigin, "services");
       }
     }
@@ -764,6 +935,9 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     const { error: deleteImageError } = await supabase.from("facilitator_images").delete().eq("facilitator_id", facilitatorId);
 
     if (deleteImageError) {
+      if (isAdminEdit) {
+        adminProfileRedirect("Billedgalleriet kunne ikke gemmes.", adminReturnTo, "images");
+      }
       profileRedirect("Billedgalleriet kunne ikke gemmes.", redirectOrigin, "images");
     }
 
@@ -772,9 +946,10 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
         uploadImage(
           supabase,
           formData.get(`gallery_image_file_${index}`),
-          `hosts/${profile.id}/gallery/${index + 1}`,
+          `hosts/${targetProfile.id}/gallery/${index + 1}`,
           redirectOrigin,
           "images",
+          isAdminEdit ? adminReturnTo : null,
         ),
       ),
     );
@@ -793,6 +968,9 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       );
 
       if (imageError) {
+        if (isAdminEdit) {
+          adminProfileRedirect("Billedgalleriet kunne ikke gemmes.", adminReturnTo, "images");
+        }
         profileRedirect("Billedgalleriet kunne ikke gemmes.", redirectOrigin, "images");
       }
     }
@@ -802,15 +980,15 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     categoryIds: savesSection(section, "categories") ? uniqueCategoryIds : existingCategoryIds,
     city: savesSection(section, "location") ? city : existingProfile.city ?? null,
     companyName: savesSection(section, "contact") ? companyName : existingProfile.company_name ?? null,
-    fullName: savesSection(section, "contact") ? fullName : profile.full_name ?? null,
+    fullName: savesSection(section, "contact") ? fullName : targetProfile.full_name ?? null,
     postalCode: savesSection(section, "location") ? postalCode : existingProfile.postal_code ?? null,
   });
 
-  const shouldRequestApproval = finalReady && existingProfile.status === "pending";
+  const shouldRequestApproval = !isAdminEdit && finalReady && existingProfile.status === "pending";
   const acceptedOrganizerTerms = formData.get("accepted_organizer_terms") === "yes";
 
   if (shouldRequestApproval) {
-    const missingAcceptances = await getMissingRequiredLegalAcceptances(supabase, profile.id, organizerAcceptanceTypes);
+    const missingAcceptances = await getMissingRequiredLegalAcceptances(supabase, targetProfile.id, organizerAcceptanceTypes);
 
     if (missingAcceptances.length > 0 && !acceptedOrganizerTerms) {
       profileRedirect("Du skal acceptere arrangørvilkår og retningslinjer, før profilen kan sendes til godkendelse.", redirectOrigin, "contact");
@@ -821,7 +999,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
         await recordLegalAcceptances(supabase, {
           action: "facilitator_profile_submission",
           documentTypes: organizerAcceptanceTypes,
-          profileId: profile.id,
+          profileId: targetProfile.id,
         });
       } catch {
         profileRedirect("Accepten af vilkår kunne ikke gemmes. Prøv igen.", redirectOrigin, "contact");
@@ -835,13 +1013,19 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     await notifyAdminsIfReady({
       facilitatorEmail: profile.email,
       facilitatorId,
-      facilitatorName: companyName || existingProfile.company_name || fullName || profile.full_name || profile.email,
+      facilitatorName: companyName || existingProfile.company_name || fullName || targetProfile.full_name || targetProfile.email,
       wasReady,
     });
   }
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/profile");
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
+  revalidatePath("/facilitators/" + facilitatorId);
+  if (isAdminEdit) {
+    adminProfileSuccessRedirect("Ændringer gemt. Arrangørprofilen er opdateret.", adminReturnTo, section);
+  }
   profileSuccessRedirect(
     shouldRequestApproval ? "Ændringer gemt. Din profil afventer godkendelse." : "Ændringer gemt. Din profil er opdateret.",
     shouldRequestApproval,

@@ -40,8 +40,10 @@ export default async function FeaturedFacilitatorsAdminPage({ searchParams }: Pa
   const supabase = await createClient();
   const { data: facilitators, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, company_name, profile_image_path, short_description, city, is_featured, featured_sort_order, profiles(full_name), facilitator_categories(categories(name, color_hex))")
+    .select("id, company_name, profile_image_path, short_description, city, is_featured, featured_sort_order, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex))")
     .eq("status", "approved")
+    .eq("is_paused", false)
+    .eq("is_disabled", false)
     .order("featured_sort_order", { ascending: true })
     .order("created_at", { ascending: false });
 

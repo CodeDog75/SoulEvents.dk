@@ -444,6 +444,8 @@ export default async function AdminCurrentExperiencesPage({ searchParams }: Page
       .select("id, event_reference_id, title, starts_at, ends_at, status, facilitator_profiles!inner(status)")
       .in("status", ["active", "sold_out"])
       .eq("facilitator_profiles.status", "approved")
+      .eq("facilitator_profiles.is_paused", false)
+      .eq("facilitator_profiles.is_disabled", false)
       .gte("ends_at", new Date().toISOString())
       .order("starts_at", { ascending: true })
       .limit(250),

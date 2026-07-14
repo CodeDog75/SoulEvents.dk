@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { Check, ExternalLink, Eye, Pencil, Slash, UserRoundCheck } from "lucide-react";
-import { updateFacilitatorStatusAction } from "@/app/admin/facilitators/actions";
+import { disableFacilitatorAction, reactivateFacilitatorAction, updateFacilitatorStatusAction } from "@/app/admin/facilitators/actions";
 import type { FacilitatorStatus } from "@/types/database";
 
 type FacilitatorRow = {
   id: string;
   status: FacilitatorStatus;
+  is_disabled?: boolean | null;
+  is_paused?: boolean | null;
   company_name: string | null;
   short_description: string | null;
   city: string | null;
@@ -34,17 +36,19 @@ type FacilitatorApprovalTableProps = {
   facilitators: FacilitatorRow[];
 };
 
-const statusLabels: Record<FacilitatorStatus, string> = {
-  pending: "Afventer",
-  approved: "Godkendt",
-  disabled: "Deaktiveret",
-};
+function statusLabel(facilitator: FacilitatorRow) {
+  if (facilitator.is_disabled) return "Deaktiveret";
+  if (facilitator.is_paused) return "Sat på pause";
+  if (facilitator.status === "approved") return "Aktiv";
+  return "Afventer";
+}
 
-const statusClasses: Record<FacilitatorStatus, string> = {
-  pending: "bg-terracotta/10 text-terracotta",
-  approved: "bg-sage-50 text-sage-700",
-  disabled: "bg-midnight/10 text-midnight",
-};
+function statusClass(facilitator: FacilitatorRow) {
+  if (facilitator.is_disabled) return "bg-midnight/10 text-midnight";
+  if (facilitator.is_paused) return "bg-[#F4F0F7] text-[#6E5A86]";
+  if (facilitator.status === "approved") return "bg-sage-50 text-sage-700";
+  return "bg-terracotta/10 text-terracotta";
+}
 
 function StatusButton({
   facilitatorId,
@@ -99,9 +103,9 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span
-                    className={`rounded-md px-2.5 py-1 text-xs font-semibold ${statusClasses[facilitator.status]}`}
+                    className={`rounded-md px-2.5 py-1 text-xs font-semibold ${statusClass(facilitator)}`}
                   >
-                    {statusLabels[facilitator.status]}
+                    {statusLabel(facilitator)}
                   </span>
                   <span className="text-xs text-ink/52">
                     Oprettet {new Intl.DateTimeFormat("da-DK").format(new Date(facilitator.created_at))}
@@ -183,11 +187,22 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
                     Godkend
                   </StatusButton>
                 )}
-                {facilitator.status !== "disabled" && (
-                  <StatusButton facilitatorId={facilitator.id} status="disabled">
+                {facilitator.is_disabled ? (
+                  <form action={reactivateFacilitatorAction}>
+                    <input name="facilitator_id" type="hidden" value={facilitator.id} />
+                    <button className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" type="submit">
+                      <Check className="size-4" aria-hidden="true" />
+                      Genaktivér arrangør
+                    </button>
+                  </form>
+                ) : (
+                  <form action={disableFacilitatorAction}>
+                    <input name="facilitator_id" type="hidden" value={facilitator.id} />
+                    <button className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" type="submit">
                     <Slash className="size-4" aria-hidden="true" />
-                    {facilitator.status === "pending" ? "Afvis" : "Deaktiver"}
-                  </StatusButton>
+                    Deaktiver arrangør
+                    </button>
+                  </form>
                 )}
               </div>
             </article>

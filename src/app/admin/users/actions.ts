@@ -14,7 +14,8 @@ function usersRedirect(message: string, returnTo = "/admin/users"): never {
 }
 
 const overviewBooleanFields = ["auto_approve_events", "is_active_host", "is_experienced_host", "is_featured"] as const;
-const overviewStatuses: FacilitatorStatus[] = ["approved", "disabled", "pending"];
+const overviewVisibilityFields = ["is_disabled", "is_paused"] as const;
+const overviewStatuses: FacilitatorStatus[] = ["approved", "pending"];
 const missingColumnErrorCodes = ["42703", "PGRST204"];
 
 async function ensureAnotherAdminIsLeft(profileId: string) {
@@ -126,7 +127,7 @@ export async function transferAdminByEmailAction(formData: FormData) {
 }
 
 export async function updateFacilitatorOverviewAction(formData: FormData) {
-  await requireRole("admin");
+  const adminProfile = await requireRole("admin");
 
   const facilitatorId = getString(formData, "facilitator_id");
   const field = getString(formData, "field");
@@ -137,10 +138,36 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
     usersRedirect("Arrangørhandlingen kunne ikke udføres.", returnTo);
   }
 
-  const update: Record<string, boolean | number | string> = {};
+  const update: Record<string, boolean | number | string | null> = {};
 
   if (overviewBooleanFields.includes(field as (typeof overviewBooleanFields)[number])) {
     update[field] = value === "true";
+  } else if (field === "is_disabled") {
+    update.is_disabled = value === "true";
+    if (value === "true") {
+      update.disabled_at = new Date().toISOString();
+      update.disabled_by = adminProfile.id;
+    } else {
+      update.disabled_at = null;
+      update.disabled_by = null;
+      update.disabled_reason = null;
+    }
+  } else if (field === "is_paused") {
+    const { data: facilitator, error: facilitatorError } = await createAdminClient()
+      .from("facilitator_profiles")
+      .select("id, is_disabled")
+      .eq("id", facilitatorId)
+      .maybeSingle();
+
+    if (facilitatorError || !facilitator) {
+      usersRedirect("Arrangøren kunne ikke findes.", returnTo);
+    }
+
+    if (facilitator.is_disabled) {
+      usersRedirect("En deaktiveret arrangør skal genaktiveres, før pause kan ændres.", returnTo);
+    }
+
+    update.is_paused = value === "true";
   } else if (field === "featured_sort_order") {
     const sortOrder = Number(value);
     update.featured_sort_order = Number.isFinite(sortOrder) ? sortOrder : 0;
@@ -157,9 +184,14 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
   const { error } = await supabase.from("facilitator_profiles").update(update).eq("id", facilitatorId);
 
   if (error) {
+    const migrationName =
+      overviewVisibilityFields.includes(field as (typeof overviewVisibilityFields)[number])
+        ? "061_facilitator_pause_and_admin_disable.sql"
+        : "046_admin_facilitator_overview_fields.sql";
+
     usersRedirect(
       missingColumnErrorCodes.includes(error.code ?? "")
-        ? "Databasen mangler feltet til denne handling. Kør migration 046_admin_facilitator_overview_fields.sql og prøv igen."
+        ? "Databasen mangler feltet til denne handling. Kør migration " + migrationName + " og prøv igen."
         : "Arrangøren kunne ikke opdateres.",
       returnTo,
     );
@@ -170,7 +202,7 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
   revalidatePath("/admin/featured-facilitators");
   revalidatePath("/facilitators");
   revalidatePath("/facilitators/" + facilitatorId);
-  usersRedirect("Arrangøren er opdateret.", returnTo);
+  usersRedirect(field === "is_paused" ? (value === "true" ? "Arrangøren er sat på pause." : "Arrangørprofilen er genåbnet.") : "Arrangøren er opdateret.", returnTo);
 }
 
 export async function deleteFacilitatorFromOverviewAction(formData: FormData) {
@@ -188,7 +220,7 @@ export async function deleteFacilitatorFromOverviewAction(formData: FormData) {
   const supabase = createAdminClient();
   const { data: facilitator } = await supabase
     .from("facilitator_profiles")
-    .select("id, profile_id, host_reference_id, company_name, profiles(email)")
+    .select("id, profile_id, host_reference_id, company_name, profiles!facilitator_profiles_profile_id_fkey(email)")
     .eq("id", facilitatorId)
     .maybeSingle();
   const profile = Array.isArray(facilitator?.profiles) ? facilitator?.profiles[0] : facilitator?.profiles;
@@ -198,20 +230,38 @@ export async function deleteFacilitatorFromOverviewAction(formData: FormData) {
     usersRedirect("Sletning blev ikke bekræftet korrekt.", returnTo);
   }
 
-  const [{ count: bookings }, { count: reports }, { count: invoices }] = await Promise.all([
+  const [
+    { count: nonDraftEvents },
+    { count: bookings },
+    { count: reports },
+    { count: invoices },
+    { count: notificationLogs },
+    { count: adminMessages },
+    { count: auditLogs },
+    { count: legalAcceptances },
+  ] = await Promise.all([
+    supabase.from("events").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId).neq("status", "draft"),
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId),
     supabase.from("monthly_reports").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId),
     supabase.from("invoice_drafts").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId),
+    supabase.from("event_update_notification_logs").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId),
+    supabase.from("facilitator_admin_messages").select("id", { count: "exact", head: true }).or(`facilitator_id.eq.${facilitatorId},profile_id.eq.${profileId}`),
+    supabase.from("admin_audit_log").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId),
+    supabase.from("legal_document_acceptances").select("id", { count: "exact", head: true }).eq("profile_id", profileId),
   ]);
 
-  if ((bookings ?? 0) > 0 || (reports ?? 0) > 0 || (invoices ?? 0) > 0) {
-    usersRedirect("Arrangøren har bookings, rapporter eller fakturadata. Brug Pause i stedet, så historikken bevares.", returnTo);
+  if (
+    (nonDraftEvents ?? 0) > 0 ||
+    (bookings ?? 0) > 0 ||
+    (reports ?? 0) > 0 ||
+    (invoices ?? 0) > 0 ||
+    (notificationLogs ?? 0) > 0 ||
+    (adminMessages ?? 0) > 0 ||
+    (auditLogs ?? 0) > 0 ||
+    (legalAcceptances ?? 0) > 0
+  ) {
+    usersRedirect("Arrangøren har aktivitet eller historik, som skal bevares. Deaktivér arrangøren i stedet.", returnTo);
   }
-
-  await Promise.all([
-    supabase.from("facilitator_admin_messages").update({ facilitator_id: null, profile_id: null }).eq("facilitator_id", facilitatorId),
-    supabase.from("admin_audit_log").update({ facilitator_id: null }).eq("facilitator_id", facilitatorId),
-  ]);
 
   const { error } = await supabase.auth.admin.deleteUser(profileId);
 

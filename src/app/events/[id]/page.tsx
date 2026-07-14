@@ -94,6 +94,8 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         id,
         profile_id,
         status,
+        is_paused,
+        is_disabled,
         company_name,
         profile_image_path,
         short_description,
@@ -102,7 +104,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         instagram_url,
         is_active_host,
         is_experienced_host,
-        profiles(full_name)
+        profiles!facilitator_profiles_profile_id_fkey(full_name)
       ),
       regions(name),
       event_categories(categories(name, color_hex)),
@@ -124,7 +126,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const isPublishedEvent = ["active", "sold_out"].includes(event.status);
   const isSoldOut = event.status === "sold_out" || availableSeats <= 0;
   const isExpiredEvent = new Date(event.ends_at ?? event.starts_at) < new Date();
-  const isPublicEvent = isPublishedEvent && !isExpiredEvent && facilitatorProfile?.status === "approved";
+  const isPublicEvent = isPublishedEvent && !isExpiredEvent && facilitatorProfile?.status === "approved" && !facilitatorProfile.is_paused && !facilitatorProfile.is_disabled;
   const canPreviewEvent = viewer?.role === "admin" || viewer?.id === facilitatorProfile?.profile_id;
   if (!isPublicEvent && !canPreviewEvent) {
     notFound();

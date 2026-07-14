@@ -68,9 +68,11 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
     supabase
       .from("facilitator_profiles")
       .select(
-        "id, host_reference_id, company_name, profile_image_path, short_description, city, is_online_facilitator, is_active_host, is_experienced_host, profiles(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))",
+        "id, host_reference_id, company_name, profile_image_path, short_description, city, is_online_facilitator, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))",
       )
       .eq("status", "approved")
+      .eq("is_paused", false)
+      .eq("is_disabled", false)
       .neq("host_reference_id", "V101"),
     supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
     supabase.from("regions").select("slug, name").order("sort_order"),

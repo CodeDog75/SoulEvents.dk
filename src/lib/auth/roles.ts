@@ -11,6 +11,9 @@ export type AuthProfile = {
   phone: string | null;
 };
 
+export const disabledFacilitatorLoginMessage =
+  "Din arrangørkonto er deaktiveret. Kontakt SoulEvents, hvis du mener, at dette er en fejl.";
+
 async function ensureFacilitatorProfileExists(admin: ReturnType<typeof createAdminClient>, profileId: string) {
   const { data: facilitatorProfile } = await admin
     .from("facilitator_profiles")
@@ -96,6 +99,21 @@ export async function requireProfile() {
 
   if (!profile) {
     redirect("/auth/login");
+  }
+
+  if (profile.role === "facilitator") {
+    const admin = createAdminClient();
+    const { data: facilitator } = await admin
+      .from("facilitator_profiles")
+      .select("is_disabled")
+      .eq("profile_id", profile.id)
+      .maybeSingle();
+
+    if (facilitator?.is_disabled) {
+      const supabase = await createClient();
+      await supabase.auth.signOut();
+      redirect("/auth/login?message=" + encodeURIComponent(disabledFacilitatorLoginMessage));
+    }
   }
 
   return profile;

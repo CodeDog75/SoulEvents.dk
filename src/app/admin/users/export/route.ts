@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     supabase
       .from("facilitator_profiles")
       .select(
-        "id, profile_id, host_reference_id, status, company_name, short_description, long_description, address_line, city, postal_code, public_email, public_phone, website_url, created_at, profiles(role, full_name, email, phone)",
+        "id, profile_id, host_reference_id, status, company_name, short_description, long_description, address_line, city, postal_code, public_email, public_phone, website_url, created_at, profiles!facilitator_profiles_profile_id_fkey(role, full_name, email, phone)",
       )
       .order("created_at", { ascending: false }),
     supabase.from("events").select("id, facilitator_id, status, starts_at"),

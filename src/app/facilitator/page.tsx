@@ -143,7 +143,7 @@ function getProfileReadiness({
     missingItems.push("Mindst én kategori");
   }
 
-  if (facilitatorProfile?.status === "disabled") {
+  if (facilitatorProfile?.is_paused) {
     return {
       isComplete: missingItems.length === 0,
       label: "Profil på pause",
@@ -772,8 +772,7 @@ function AdminMessageCta({ unreadCount }: { unreadCount: number }) {
   );
 }
 
-function SettingsPanel({ adminMessages, profileStatus, unreadMessageCount }: { adminMessages: any[]; profileStatus: string; unreadMessageCount: number }) {
-  const isPaused = profileStatus === "disabled";
+function SettingsPanel({ adminMessages, isPaused, unreadMessageCount }: { adminMessages: any[]; isPaused: boolean; unreadMessageCount: number }) {
 
   return (
     <details className="rounded-[18px] border border-[#E5DDEA] bg-white/70 shadow-soft" id="beskeder-admin" open>
@@ -883,7 +882,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, status, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, offers_services, service_description, service_other_title, is_active_host, is_experienced_host, max_ticket_price_per_person, facilitator_categories(category_id, categories(name, color_hex)), facilitator_tags(tag_id, tags(name)), facilitator_images(image_path, alt_text, sort_order), facilitator_service_titles(service_title_id, service_titles(name, is_active))",
+      "id, status, is_paused, is_disabled, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, offers_services, service_description, service_other_title, is_active_host, is_experienced_host, max_ticket_price_per_person, facilitator_categories(category_id, categories(name, color_hex)), facilitator_tags(tag_id, tags(name)), facilitator_images(image_path, alt_text, sort_order), facilitator_service_titles(service_title_id, service_titles(name, is_active))",
     )
     .eq("profile_id", profile.id)
     .single();
@@ -1103,7 +1102,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
         </aside>
 
         <section className="lg:col-span-2">
-          <SettingsPanel adminMessages={messageRows} profileStatus={status} unreadMessageCount={0} />
+          <SettingsPanel adminMessages={messageRows} isPaused={Boolean(facilitatorProfile?.is_paused)} unreadMessageCount={0} />
         </section>
       </section>
     </main>

@@ -613,10 +613,12 @@ async function getSearchEvents(selected: {
   let query = supabase
     .from("events")
     .select(
-      "id, status, title, short_description, starts_at, created_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, host_reference_id, company_name, profiles(full_name)), regions(name), event_categories(categories(id, name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug)), event_tags(tag_id, tags(name))",
+      "id, status, title, short_description, starts_at, created_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, host_reference_id, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), regions(name), event_categories(categories(id, name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug)), event_tags(tag_id, tags(name))",
     )
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
+    .eq("facilitator_profiles.is_paused", false)
+    .eq("facilitator_profiles.is_disabled", false)
     .gte("ends_at", new Date().toISOString())
     .order("starts_at", { ascending: true });
 
@@ -847,9 +849,11 @@ async function getLocalServiceProviders(selected: {
   const { data: providers } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, host_reference_id, company_name, profile_image_path, short_description, service_description, service_other_title, city, country, latitude, longitude, offers_services, show_in_local_service_results, profiles(full_name), regions(name, slug), facilitator_categories(categories(name)), facilitator_tags(tags(name)), facilitator_service_titles(service_titles(name, is_active))",
+      "id, host_reference_id, company_name, profile_image_path, short_description, service_description, service_other_title, city, country, latitude, longitude, offers_services, show_in_local_service_results, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name, slug), facilitator_categories(categories(name)), facilitator_tags(tags(name)), facilitator_service_titles(service_titles(name, is_active))",
     )
     .eq("status", "approved")
+    .eq("is_paused", false)
+    .eq("is_disabled", false)
     .eq("offers_services", true)
     .eq("show_in_local_service_results", true)
     .not("latitude", "is", null)
@@ -1003,8 +1007,10 @@ async function getFeaturedHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles(full_name), facilitator_categories(categories(name, color_hex))")
+    .select("id, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex))")
     .eq("status", "approved")
+    .eq("is_paused", false)
+    .eq("is_disabled", false)
     .eq("is_featured", true)
     .order("featured_sort_order", { ascending: true })
     .order("created_at", { ascending: false })
@@ -1025,8 +1031,10 @@ async function getNewHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles(full_name), facilitator_categories(categories(name, color_hex))")
+    .select("id, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex))")
     .eq("status", "approved")
+    .eq("is_paused", false)
+    .eq("is_disabled", false)
     .order("created_at", { ascending: false })
     .limit(8);
 
@@ -1046,9 +1054,11 @@ async function getHomeFacilitators(queryText: string) {
   const { data: facilitators } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, host_reference_id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, is_online_facilitator, is_active_host, is_experienced_host, website_url, facebook_url, instagram_url, profiles(full_name), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_tags(tags(name))",
+      "id, host_reference_id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, is_online_facilitator, is_active_host, is_experienced_host, website_url, facebook_url, instagram_url, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_tags(tags(name))",
     )
-    .eq("status", "approved");
+    .eq("status", "approved")
+    .eq("is_paused", false)
+    .eq("is_disabled", false);
 
   const term = normalizeText(queryText);
   const filtered = (facilitators ?? []).filter((facilitator: any) => {

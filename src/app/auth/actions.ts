@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAppUrl } from "@/lib/app-url";
 import { env } from "@/lib/env";
+import { disabledFacilitatorLoginMessage } from "@/lib/auth/roles";
 import {
   assertPasswordResetRateLimit,
   assertRateLimit,
@@ -134,6 +135,23 @@ async function ensureStoredUserProfile(user: {
   return null;
 }
 
+async function isDisabledFacilitator(userId: string) {
+  const admin = createAdminClient();
+  const { data: profile } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
+
+  if (profile?.role !== "facilitator") {
+    return false;
+  }
+
+  const { data: facilitator } = await admin
+    .from("facilitator_profiles")
+    .select("is_disabled")
+    .eq("profile_id", userId)
+    .maybeSingle();
+
+  return Boolean(facilitator?.is_disabled);
+}
+
 export async function signInAction(formData: FormData) {
   const email = getString(formData, "email").toLowerCase();
   const password = getString(formData, "password");
@@ -176,6 +194,11 @@ export async function signInAction(formData: FormData) {
 
   if (profileError) {
     authRedirect("/auth/login", "Login lykkedes, men profilen kunne ikke gøres klar.");
+  }
+
+  if (await isDisabledFacilitator(data.user.id)) {
+    await supabase.auth.signOut();
+    authRedirect("/auth/login", disabledFacilitatorLoginMessage);
   }
 
   revalidatePath("/", "layout");
