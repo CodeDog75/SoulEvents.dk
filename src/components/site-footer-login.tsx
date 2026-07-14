@@ -33,6 +33,9 @@ export function SiteFooterLogin() {
           </Link>
         </div>
       </div>
+      <p className="mx-auto mt-6 max-w-[1200px] px-5 pb-8 text-center text-xs text-ink/50 sm:px-8">
+        © 2026 SoulEvents. Alle rettigheder forbeholdes.
+      </p>
     </footer>
   );
 }
