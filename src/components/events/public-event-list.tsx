@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, CalendarDays, Clock3, MapPinned, Ticket } from "lucide-react";
 import { CapacityBadge } from "@/components/events/capacity-badge";
 import { EventDateBox, EventImageStatusTag, formatEventTime } from "@/components/events/event-card-overlays";
@@ -207,8 +208,13 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
               }
             >
               {eventImageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" src={eventImageUrl} />
+                <Image
+                  alt=""
+                  className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                  fill
+                  sizes={layout === "stack" ? "(min-width: 768px) 360px, 100vw" : "(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"}
+                  src={eventImageUrl}
+                />
               ) : (
                 <div className="flex h-full items-center justify-center px-6 text-center">
                   <span className="font-serif text-3xl font-medium leading-tight text-olive">

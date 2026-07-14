@@ -5,6 +5,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Fragment } from "react";
 import { PartnerAdCarousel } from "@/components/ads/partner-ad-carousel";
@@ -474,6 +475,19 @@ const homeTileFallbackImages = {
   fallback: "https://images.unsplash.com/photo-1490730141103-6cac27aaab94?auto=format&fit=crop&w=900&q=80",
 };
 
+function HomeHeroImage({ altText, className, imageUrl }: { altText?: string | null; className?: string; imageUrl: string }) {
+  return (
+    <Image
+      alt={altText || ""}
+      className={"object-cover " + (className ?? "")}
+      fill
+      priority
+      sizes="100vw"
+      src={imageUrl}
+    />
+  );
+}
+
 type HeroImage = {
   image_path: string;
   alt_text: string | null;
@@ -591,7 +605,10 @@ async function getSearchEvents(selected: {
   }
 
   const supabase = await createClient();
-  const { data: regions } = await supabase.from("regions").select("id, name, slug").order("sort_order");
+  const selectedArea = getAreaOption(selected.area);
+  const regionsPromise = selectedArea
+    ? supabase.from("regions").select("id, name, slug").order("sort_order")
+    : Promise.resolve({ data: null });
 
   let query = supabase
     .from("events")
@@ -607,7 +624,7 @@ async function getSearchEvents(selected: {
     query = query.neq("country", "Danmark");
   }
 
-  const selectedArea = getAreaOption(selected.area);
+  const { data: regions } = await regionsPromise;
   if (selectedArea && regions) {
     const areaRegionIds = regions.filter((region) => selectedArea.slugs.includes(region.slug)).map((region) => region.id);
 
@@ -919,8 +936,14 @@ function LocalServiceProviderSection({ providers }: { providers: LocalServicePro
           >
             <div className="flex items-start gap-3">
               {provider.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img alt="" className="size-14 rounded-full object-cover" src={provider.imageUrl} />
+                <Image
+                  alt=""
+                  className="rounded-full object-cover"
+                  height={56}
+                  sizes="56px"
+                  src={provider.imageUrl}
+                  width={56}
+                />
               ) : (
                 <span className="flex size-14 items-center justify-center rounded-full bg-[#EDE4F7] text-lg font-semibold text-[#7A4EAB]">
                   {provider.name.slice(0, 1)}
@@ -1182,12 +1205,6 @@ export default async function Home({ searchParams }: HomeProps) {
     redirect(`/auth/callback?${callbackParams.toString()}`);
   }
 
-  const homeHeroImage = await getHomepageHeroImage();
-  const weeklyReflection = await getActiveWeeklyReflection();
-  const [homepageMiddleAds, homepageBottomAds] = await Promise.all([
-    getHomepageAds("middle"),
-    getHomepageAds("bottom"),
-  ]);
   const facilitatorQuery = (params.facilitator_q ?? params.q ?? "").trim();
   const selected = {
     q: params.q?.trim() ?? "",
@@ -1215,51 +1232,71 @@ export default async function Home({ searchParams }: HomeProps) {
       selectedCollectionId ||
       selectedHomepageView,
   );
-  const upcomingEvents = await getSearchEvents({
-    ...selected,
-    q: "",
-    area: "",
-    categoryLabel: "",
-    date: "",
-    distance: "",
-    latitude: "",
-    longitude: "",
-    country: "",
-    format: "",
-  });
-  const categoryAvailabilityEvents = await getSearchEvents({
-    ...selected,
-    q: "",
-    categoryLabel: "",
-    date: "",
-    distance: "",
-    latitude: "",
-    longitude: "",
-    format: "",
-  });
-  const mapOverviewEvents = await getSearchEvents({
-    ...selected,
-    q: "",
-    area: "",
-    date: "",
-    distance: "",
-    latitude: "",
-    longitude: "",
-    format: "",
-  });
+  const [
+    homeHeroImage,
+    weeklyReflection,
+    homepageMiddleAds,
+    homepageBottomAds,
+    upcomingEvents,
+    categoryAvailabilityEvents,
+    mapOverviewEvents,
+    experienceGroups,
+    searchEvents,
+    facilitatorCards,
+    featuredFacilitators,
+    newFacilitators,
+    adminHomepageEventCollections,
+    localServiceProvidersForSearch,
+  ] = await Promise.all([
+    getHomepageHeroImage(),
+    getActiveWeeklyReflection(),
+    getHomepageAds("middle"),
+    getHomepageAds("bottom"),
+    getSearchEvents({
+      ...selected,
+      q: "",
+      area: "",
+      categoryLabel: "",
+      date: "",
+      distance: "",
+      latitude: "",
+      longitude: "",
+      country: "",
+      format: "",
+    }),
+    getSearchEvents({
+      ...selected,
+      q: "",
+      categoryLabel: "",
+      date: "",
+      distance: "",
+      latitude: "",
+      longitude: "",
+      format: "",
+    }),
+    getSearchEvents({
+      ...selected,
+      q: "",
+      area: "",
+      date: "",
+      distance: "",
+      latitude: "",
+      longitude: "",
+      format: "",
+    }),
+    getExperienceGroups(),
+    hasSearch ? getSearchEvents(selected) : Promise.resolve([]),
+    getHomeFacilitators(facilitatorQuery),
+    getFeaturedHomeFacilitators(),
+    getNewHomeFacilitators(),
+    getHomepageEventCollections(),
+    selectedHomepageView ? Promise.resolve([]) : getLocalServiceProviders(selected),
+  ]);
   const categoryEventCounts = getCategoryEventCounts(categoryAvailabilityEvents);
-  const experienceGroups = await getExperienceGroups();
   const mainCategoryEventCounts = getMainCategoryEventCounts(categoryAvailabilityEvents);
   const homepageExperienceGroups = experienceGroups.filter((group) => experienceGroupHasEvents(group, mainCategoryEventCounts));
   const homepageExperienceGroupCounts = getExperienceGroupEventCounts(homepageExperienceGroups, categoryAvailabilityEvents);
-  const searchEvents = hasSearch ? await getSearchEvents(selected) : [];
   const mapSourceEvents = uniqueEventsById(mapOverviewEvents);
-  const facilitatorCards = await getHomeFacilitators(facilitatorQuery);
-  const [featuredFacilitators, newFacilitators] = await Promise.all([
-    getFeaturedHomeFacilitators(),
-    getNewHomeFacilitators(),
-  ]);
-  const adminHomepageEventCollections = await getHomepageEventCollections();
   const homepageEventPool = uniqueEventsById(upcomingEvents as PublicEvent[]);
   const selectedHomepageEventCollection = adminHomepageEventCollections.find((collection) => collection.id === selectedCollectionId);
   const newHomepageEvents = [...homepageEventPool].sort(
@@ -1277,7 +1314,7 @@ export default async function Home({ searchParams }: HomeProps) {
     : selectedHomepageView
       ? selectedViewEvents
       : searchEvents;
-  const localServiceProviders = selectedHomepageEventCollection || selectedHomepageView ? [] : await getLocalServiceProviders(selected);
+  const localServiceProviders = selectedHomepageEventCollection || selectedHomepageView ? [] : localServiceProvidersForSearch;
   const adminHomepageEventSections = adminHomepageEventCollections
     .map((collection) => ({
       events: eventsForHomepageCollection(collection).slice(0, 10),
@@ -1350,6 +1387,7 @@ export default async function Home({ searchParams }: HomeProps) {
           return { ...option, href: "/?" + params.toString() + "#events" };
         })
       : [];
+  const heroImageUrl = homeHeroImage?.imageUrl ?? homeTileFallbackImages.fallback;
 
   const activeFilters = [
     selected.categoryLabel
@@ -1376,11 +1414,9 @@ export default async function Home({ searchParams }: HomeProps) {
   return (
     <main className="min-h-screen overflow-x-clip bg-[#FAF6EF] text-[#2F2633]">
       <section className="relative overflow-hidden bg-[#FAF6EF] pb-8 md:bg-[linear-gradient(180deg,#FAF6EF_0%,#F7F0FA_58%,#FAF6EF_100%)] md:pb-10">
-        <div
-          className="absolute inset-x-0 top-0 h-[405px] bg-cover bg-center md:hidden"
-          style={{ backgroundImage: "url('" + (homeHeroImage?.imageUrl ?? homeTileFallbackImages.fallback) + "')" }}
-          aria-hidden="true"
-        />
+        <div className="absolute inset-x-0 top-0 h-[405px] md:hidden" aria-hidden="true">
+          <HomeHeroImage altText={homeHeroImage?.altText} imageUrl={heroImageUrl} />
+        </div>
         <div
           className="absolute inset-x-0 top-0 h-[405px] bg-[linear-gradient(90deg,rgba(250,246,239,0.84)_0%,rgba(250,246,239,0.36)_55%,rgba(250,246,239,0.08)_100%)] md:hidden"
           aria-hidden="true"
@@ -1394,7 +1430,7 @@ export default async function Home({ searchParams }: HomeProps) {
         <header className="relative z-20 md:absolute md:inset-x-0 md:top-0">
           <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 sm:px-8 md:py-5">
             <Link aria-label="SoulEvents.dk forside" className="inline-flex items-center gap-2.5" href="/">
-              <BrandLogo className="h-12 w-12 sm:h-16 sm:w-16 md:h-28 md:w-28 lg:h-32 lg:w-32" priority />
+              <BrandLogo className="h-12 w-12 sm:h-16 sm:w-16 md:h-28 md:w-28 lg:h-32 lg:w-32" />
               <span className="font-serif text-xl font-semibold leading-none text-[#2F2633] md:hidden">SoulEvents</span>
             </Link>
 
@@ -1437,9 +1473,9 @@ export default async function Home({ searchParams }: HomeProps) {
           </section>
 
           <section
-            className="relative hidden min-h-[540px] overflow-hidden bg-[#FAF6EF] bg-cover bg-center md:block lg:min-h-[580px] xl:min-h-[620px]"
-            style={{ backgroundImage: "url('" + (homeHeroImage?.imageUrl ?? homeTileFallbackImages.fallback) + "')" }}
+            className="relative hidden min-h-[540px] overflow-hidden bg-[#FAF6EF] md:block lg:min-h-[580px] xl:min-h-[620px]"
           >
+            <HomeHeroImage altText={homeHeroImage?.altText} imageUrl={heroImageUrl} />
             <div className="absolute inset-0 bg-[linear-gradient(90deg,#FAF6EF_0%,rgba(250,246,239,0.92)_9%,rgba(250,246,239,0.55)_42%,rgba(250,246,239,0.12)_72%,#FAF6EF_100%)]" aria-hidden="true" />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(250,246,239,0.28)_0%,rgba(250,246,239,0.03)_46%,rgba(250,246,239,0.82)_86%,#FAF6EF_100%)]" aria-hidden="true" />
             <div className="relative flex min-h-[540px] max-w-[760px] flex-col justify-center px-9 pb-16 pt-40 lg:min-h-[580px] lg:px-12 xl:min-h-[620px]">
@@ -1657,12 +1693,12 @@ export default async function Home({ searchParams }: HomeProps) {
               </div>
               <div className={"relative mx-auto grid gap-8 " + (weeklyReflection.imageUrl ? "max-w-[980px] lg:grid-cols-[1fr_minmax(280px,38%)] lg:items-center" : "max-w-[760px]")}>
                 {weeklyReflection.imageUrl && (
-                  <div className="overflow-hidden rounded-[22px] bg-white/45 shadow-soft lg:order-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-[22px] bg-white/45 shadow-soft lg:order-2">
+                    <Image
                       alt={weeklyReflection.imageAltText}
-                      className="aspect-[4/3] w-full object-cover"
-                      loading="lazy"
+                      className="object-cover"
+                      fill
+                      sizes="(min-width: 1024px) 372px, 100vw"
                       src={weeklyReflection.imageUrl}
                     />
                   </div>

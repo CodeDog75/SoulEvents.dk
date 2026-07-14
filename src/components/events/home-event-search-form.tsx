@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { LocateFixed, MapPin, Search, X } from "lucide-react";
 import type { FormEvent } from "react";
@@ -90,10 +91,11 @@ export function HomeEventSearchForm({
         {hasHeroImage ? (
           <>
             <span className="relative block aspect-[4/3] overflow-hidden bg-[#FAF6EF]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 alt=""
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                fill
+                sizes="(min-width: 1024px) 280px, (min-width: 640px) 50vw, 178px"
                 src={group.imageUrl ?? ""}
               />
               <span className="absolute bottom-3 right-3 hidden rounded-full bg-[#EDE4F7]/92 px-3 py-1 text-xs font-bold text-[#2F2633] shadow-soft backdrop-blur sm:inline-flex">

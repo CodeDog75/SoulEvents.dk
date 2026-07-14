@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Search, Sparkles, UserRound } from "lucide-react";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
 
@@ -75,8 +76,13 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
                     <OrganizerImageBadge type="active" />
                   ) : null}
                   {facilitator.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img alt={facilitator.name} className="h-full w-full object-cover" src={facilitator.imageUrl} />
+                    <Image
+                      alt={facilitator.name}
+                      className="object-cover"
+                      fill
+                      sizes="(min-width: 640px) 300px, 250px"
+                      src={facilitator.imageUrl}
+                    />
                   ) : (
                     <div className="grid h-full place-items-center bg-sage-50 text-sage-700">
                       <UserRound className="size-14" aria-hidden="true" />

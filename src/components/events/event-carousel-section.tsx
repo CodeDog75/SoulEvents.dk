@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight, Clock3, MapPinned, Ticket, UserRound } from "lucide-react";
 import { CapacityBadge } from "@/components/events/capacity-badge";
@@ -91,8 +92,13 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
         }
       >
         {eventImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]" loading="lazy" src={eventImageUrl} />
+          <Image
+            alt=""
+            className="object-cover transition duration-500 group-hover:scale-[1.04]"
+            fill
+            sizes="(min-width: 1024px) 340px, (min-width: 640px) 320px, 280px"
+            src={eventImageUrl}
+          />
         ) : (
           <div className="flex h-full items-center justify-center px-6 text-center">
             <span className="font-serif text-3xl font-medium leading-tight text-olive">
@@ -264,8 +270,13 @@ function FacilitatorCardVisual({ facilitator }: { facilitator: FacilitatorCarous
           <OrganizerImageBadge type="active" />
         ) : null}
         {facilitator.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img alt={facilitator.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]" loading="lazy" src={facilitator.imageUrl} />
+          <Image
+            alt={facilitator.name}
+            className="object-cover transition duration-500 group-hover:scale-[1.04]"
+            fill
+            sizes="(min-width: 1024px) 300px, (min-width: 640px) 280px, 72vw"
+            src={facilitator.imageUrl}
+          />
         ) : (
           <div className="grid h-full place-items-center text-sage-700">
             <UserRound className="size-14" aria-hidden="true" />

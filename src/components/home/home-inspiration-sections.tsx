@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { UserRound } from "lucide-react";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
 
@@ -28,8 +29,13 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
         <OrganizerImageBadge type="active" />
       ) : null}
         {facilitator.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img alt={facilitator.name} className="h-full w-full object-cover" src={facilitator.imageUrl} />
+          <Image
+            alt={facilitator.name}
+            className="object-cover"
+            fill
+            sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 300px"
+            src={facilitator.imageUrl}
+          />
         ) : (
           <div className="grid h-full place-items-center text-sage-700">
             <UserRound className="size-14" aria-hidden="true" />

@@ -53,7 +53,7 @@ function AdMedia({
   }
 
   if (isVideoAd(url)) {
-    return <video autoPlay className={className} loop muted onError={() => setFailedUrl(url)} playsInline preload="metadata" src={url} />;
+    return <video autoPlay className={className} loop muted onError={() => setFailedUrl(url)} playsInline preload="none" src={url} />;
   }
 
   // eslint-disable-next-line @next/next/no-img-element

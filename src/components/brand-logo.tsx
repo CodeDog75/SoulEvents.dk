@@ -35,7 +35,6 @@ export async function BrandLogo({ className = "h-20 w-20", priority = false }: B
       height={900}
       priority={priority}
       src={src}
-      unoptimized={src.startsWith("http")}
       width={900}
     />
   );
