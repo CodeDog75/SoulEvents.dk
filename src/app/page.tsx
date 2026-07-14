@@ -1431,7 +1431,6 @@ export default async function Home({ searchParams }: HomeProps) {
           <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 sm:px-8 md:py-5">
             <Link aria-label="SoulEvents.dk forside" className="inline-flex items-center gap-2.5" href="/">
               <BrandLogo className="h-12 w-12 sm:h-16 sm:w-16 md:h-28 md:w-28 lg:h-32 lg:w-32" />
-              <span className="font-serif text-xl font-semibold leading-none text-[#2F2633] md:hidden">SoulEvents</span>
             </Link>
 
             <nav className="hidden items-center gap-9 text-[15px] font-semibold tracking-[0.01em] text-[#2F2633] md:flex">

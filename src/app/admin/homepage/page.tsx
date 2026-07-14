@@ -19,7 +19,7 @@ import {
 import { WeeklyReflectionImageField } from "@/components/admin/weekly-reflection-image-field";
 import { BrandLogo } from "@/components/brand-logo";
 import { AuthMessage } from "@/components/auth/auth-message";
-import { brandLogoSettingKey, resolveBrandLogoUrl } from "@/lib/brand-logo";
+import { desktopBrandLogoSettingKey, faviconSettingKey, mobileBrandLogoSettingKey, resolveBrandLogoUrl } from "@/lib/brand-logo";
 import { requireRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -235,14 +235,28 @@ function tileTypeLabel(type: string) {
   return labels[type] ?? type;
 }
 
-function LogoForm({ logoPath, logoUrl }: { logoPath: string | null; logoUrl: string | null }) {
+function LogoForm({
+  desktopLogoPath,
+  desktopLogoUrl,
+  faviconPath,
+  faviconUrl,
+  mobileLogoPath,
+  mobileLogoUrl,
+}: {
+  desktopLogoPath: string | null;
+  desktopLogoUrl: string | null;
+  faviconPath: string | null;
+  faviconUrl: string | null;
+  mobileLogoPath: string | null;
+  mobileLogoUrl: string | null;
+}) {
   return (
     <details className="overflow-hidden rounded-card border border-midnight/10 bg-white shadow-soft" id="logo" open suppressHydrationWarning>
       <summary className="cursor-pointer list-none border-b border-midnight/10 bg-[#FAF6EF] px-5 py-4 marker:hidden sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-sage-700">Logo</p>
-            <h2 className="mt-1 text-xl font-semibold text-midnight">Upload logo</h2>
+            <h2 className="mt-1 text-xl font-semibold text-midnight">Upload logoer</h2>
           </div>
           <span className="rounded-full border border-midnight/10 bg-white px-3 py-1 text-xs font-semibold text-ink/60">
             Klik for at åbne/lukke
@@ -251,41 +265,96 @@ function LogoForm({ logoPath, logoUrl }: { logoPath: string | null; logoUrl: str
       </summary>
 
       <form action={updateSiteLogoAction} className="p-5 sm:p-6">
-        <input name="current_logo_path" type="hidden" value={logoPath ?? ""} />
-        <div className="grid gap-6 lg:grid-cols-[260px_1fr] lg:items-start">
+        <input name="current_desktop_logo_path" type="hidden" value={desktopLogoPath ?? ""} />
+        <input name="current_mobile_logo_path" type="hidden" value={mobileLogoPath ?? ""} />
+        <input name="current_favicon_path" type="hidden" value={faviconPath ?? ""} />
+        <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
           <div className="grid gap-3">
             <div className="grid min-h-[200px] place-items-center rounded-md border border-midnight/10 bg-[#FAF6EF] p-6">
-              {logoUrl ? (
+              {desktopLogoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img alt="Nuværende logo" className="max-h-36 max-w-full object-contain" src={logoUrl} />
+                <img alt="Nuværende desktop-logo" className="max-h-36 max-w-full object-contain" src={desktopLogoUrl} />
               ) : (
                 <BrandLogo className="h-32 w-32" />
               )}
             </div>
+            <p className="text-sm font-semibold text-midnight">Desktop-logo</p>
             <p className="text-xs leading-5 text-ink/55">
-              Anbefalet: transparent PNG eller SVG. Undgå hvid baggrund i selve filen.
-            </p>
-          </div>
-
-          <div>
-            <p className="max-w-2xl text-sm leading-6 text-ink/68">
-              Logoet bruges i toppen af siden og på forsiden. Upload gerne en transparent PNG eller SVG, så logoet passer på farvede baggrunde.
+              Brug versionen med teksten SoulEvents. Den vises fra md-breakpointet og op.
             </p>
             <label className="mt-5 grid gap-2 text-sm font-medium text-ink/72">
-              Vælg logo
-              <input accept="image/png,image/webp,image/jpeg,image/svg+xml" className="rounded-md border border-midnight/15 bg-white px-3 py-2 text-sm" name="logo_file" type="file" />
+              Vælg desktop-logo
+              <input accept="image/png,image/webp,image/jpeg,image/svg+xml" className="rounded-md border border-midnight/15 bg-white px-3 py-2 text-sm" name="desktop_logo_file" type="file" />
             </label>
-            {logoPath && (
+            {desktopLogoPath && (
               <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-ink/70">
-                <input className="size-4 accent-terracotta" name="remove_logo" type="checkbox" />
-                Fjern uploadet logo og brug standardlogo
+                <input className="size-4 accent-terracotta" name="remove_desktop_logo" type="checkbox" />
+                Fjern desktop-logo og brug standardlogo
               </label>
             )}
-            <button className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700" type="submit">
-              <Save className="size-4" aria-hidden="true" />
-              Gem logo
-            </button>
           </div>
+
+          <div className="grid gap-3">
+            <div className="grid min-h-[200px] place-items-center rounded-md border border-midnight/10 bg-[#FAF6EF] p-6">
+              {mobileLogoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img alt="Nuværende mobil-logo" className="max-h-36 max-w-full object-contain" src={mobileLogoUrl} />
+              ) : (
+                <BrandLogo className="h-32 w-32" />
+              )}
+            </div>
+            <p className="text-sm font-semibold text-midnight">Mobil-logo</p>
+            <p className="text-xs leading-5 text-ink/55">
+              Brug ikon-/træversionen uden tekst. Den vises på små skærme.
+            </p>
+            <label className="mt-5 grid gap-2 text-sm font-medium text-ink/72">
+              Vælg mobil-logo
+              <input accept="image/png,image/webp,image/jpeg,image/svg+xml" className="rounded-md border border-midnight/15 bg-white px-3 py-2 text-sm" name="mobile_logo_file" type="file" />
+            </label>
+            {mobileLogoPath && (
+              <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-ink/70">
+                <input className="size-4 accent-terracotta" name="remove_mobile_logo" type="checkbox" />
+                Fjern mobil-logo og brug desktop-logo på mobil
+              </label>
+            )}
+          </div>
+
+          <div className="grid gap-3">
+            <div className="grid min-h-[200px] place-items-center rounded-md border border-midnight/10 bg-[#FAF6EF] p-6">
+              {faviconUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img alt="Nuværende favicon" className="size-20 object-contain" src={faviconUrl} />
+              ) : (
+                <div className="grid size-20 place-items-center rounded-md border border-dashed border-midnight/20 bg-white text-xs font-semibold text-ink/45">
+                  Favicon
+                </div>
+              )}
+            </div>
+            <p className="text-sm font-semibold text-midnight">Favicon</p>
+            <p className="text-xs leading-5 text-ink/55">
+              Brug et enkelt ikon i ICO, PNG eller SVG. Det vises i browserfanen.
+            </p>
+            <label className="mt-5 grid gap-2 text-sm font-medium text-ink/72">
+              Vælg favicon
+              <input accept="image/png,image/svg+xml,image/x-icon,.ico" className="rounded-md border border-midnight/15 bg-white px-3 py-2 text-sm" name="favicon_file" type="file" />
+            </label>
+            {faviconPath && (
+              <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-ink/70">
+                <input className="size-4 accent-terracotta" name="remove_favicon" type="checkbox" />
+                Fjern favicon
+              </label>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-6 border-t border-midnight/10 pt-5">
+          <p className="max-w-2xl text-sm leading-6 text-ink/68">
+            Upload gerne transparente SVG-filer til logoerne, så de står skarpt på Retina-skærme og passer på farvede baggrunde.
+          </p>
+          <button className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white transition hover:bg-sage-700" type="submit">
+            <Save className="size-4" aria-hidden="true" />
+            Gem logoer
+          </button>
         </div>
       </form>
     </details>
@@ -525,9 +594,17 @@ function TileForm({ tile, title }: { tile?: Tile; title: string }) {
 export default async function AdminHomepagePage({ searchParams }: AdminHomepagePageProps) {
   const [{ message, logo_message: logoMessage, reflection_message: reflectionMessage }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = createAdminClient();
-  const { data: logoSetting } = await supabase.from("site_settings").select("value").eq("key", brandLogoSettingKey).maybeSingle();
-  const logoPath = logoSetting?.value ?? null;
-  const logoUrl = resolveBrandLogoUrl(logoPath);
+  const [{ data: desktopLogoSetting }, { data: mobileLogoSetting }, { data: faviconSetting }] = await Promise.all([
+    supabase.from("site_settings").select("value").eq("key", desktopBrandLogoSettingKey).maybeSingle(),
+    supabase.from("site_settings").select("value").eq("key", mobileBrandLogoSettingKey).maybeSingle(),
+    supabase.from("site_settings").select("value").eq("key", faviconSettingKey).maybeSingle(),
+  ]);
+  const desktopLogoPath = desktopLogoSetting?.value ?? null;
+  const mobileLogoPath = mobileLogoSetting?.value ?? null;
+  const faviconPath = faviconSetting?.value ?? null;
+  const desktopLogoUrl = resolveBrandLogoUrl(desktopLogoPath);
+  const mobileLogoUrl = mobileLogoPath ? resolveBrandLogoUrl(mobileLogoPath) : null;
+  const faviconUrl = faviconPath ? resolveBrandLogoUrl(faviconPath) : null;
   const [{ data: tiles }, { data: categories }, { data: heroImages, error: heroImagesError }, { data: weeklyReflections, error: weeklyReflectionError }] = await Promise.all([
     supabase.from("homepage_tiles").select("*").order("sort_order"),
     supabase.from("main_categories").select("id, name").eq("is_active", true).order("sort_order"),
@@ -598,7 +675,7 @@ export default async function AdminHomepagePage({ searchParams }: AdminHomepageP
           </div>
         </section>
 
-        <LogoForm logoPath={logoPath} logoUrl={logoUrl} />
+        <LogoForm desktopLogoPath={desktopLogoPath} desktopLogoUrl={desktopLogoUrl} faviconPath={faviconPath} faviconUrl={faviconUrl} mobileLogoPath={mobileLogoPath} mobileLogoUrl={mobileLogoUrl} />
 
         {weeklyReflectionError ? (
           <section className="rounded-card border border-terracotta/30 bg-terracotta/10 p-5 text-sm font-semibold leading-6 text-terracotta shadow-soft" id="weekly-reflection">

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { brandLogoSettingKey, mediaBucketName } from "@/lib/brand-logo";
+import { desktopBrandLogoSettingKey, faviconSettingKey, mediaBucketName, mobileBrandLogoSettingKey } from "@/lib/brand-logo";
 import { requireRole } from "@/lib/auth/roles";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -91,6 +91,18 @@ function logoExtensionFromFile(file: File) {
   return null;
 }
 
+function faviconExtensionFromFile(file: File) {
+  const fromName = file.name.split(".").pop()?.toLowerCase();
+  if (fromName && ["ico", "png", "svg"].includes(fromName)) {
+    return fromName;
+  }
+
+  if (file.type === "image/png") return "png";
+  if (file.type === "image/svg+xml") return "svg";
+  if (file.type === "image/x-icon" || file.type === "image/vnd.microsoft.icon") return "ico";
+  return null;
+}
+
 function imageContentType(extension: string, fallback: string) {
   if (fallback && fallback !== "application/octet-stream") {
     return fallback;
@@ -106,6 +118,11 @@ function logoContentType(extension: string, fallback: string) {
   return imageContentType(extension, fallback);
 }
 
+function faviconContentType(extension: string, fallback: string) {
+  if (extension === "ico") return "image/x-icon";
+  return logoContentType(extension, fallback);
+}
+
 function safeFileName(file: File, fallback: string) {
   return (
     file.name
@@ -119,13 +136,13 @@ function safeFileName(file: File, fallback: string) {
   );
 }
 
-async function uploadSiteLogo(formData: FormData, currentLogoPath: string | null) {
-  const removeLogo = formData.get("remove_logo") === "on";
+async function uploadSiteLogo(formData: FormData, currentLogoPath: string | null, fieldName: string, removeFieldName: string, fallbackName: string) {
+  const removeLogo = formData.get(removeFieldName) === "on";
   if (removeLogo) {
     return null;
   }
 
-  const file = formData.get("logo_file");
+  const file = formData.get(fieldName);
   if (!(file instanceof File) || file.size === 0) {
     return currentLogoPath;
   }
@@ -147,7 +164,7 @@ async function uploadSiteLogo(formData: FormData, currentLogoPath: string | null
   }
 
   const supabase = createAdminClient();
-  const logoPath = "brand/" + Date.now() + "-" + safeFileName(file, "logo") + "." + extension;
+  const logoPath = "brand/" + Date.now() + "-" + safeFileName(file, fallbackName) + "." + extension;
 
   const { error } = await supabase.storage.from(mediaBucketName).upload(logoPath, file, {
     cacheControl: "31536000",
@@ -161,6 +178,50 @@ async function uploadSiteLogo(formData: FormData, currentLogoPath: string | null
   }
 
   return logoPath;
+}
+
+async function uploadSiteFavicon(formData: FormData, currentFaviconPath: string | null) {
+  const removeFavicon = formData.get("remove_favicon") === "on";
+  if (removeFavicon) {
+    return null;
+  }
+
+  const file = formData.get("favicon_file");
+  if (!(file instanceof File) || file.size === 0) {
+    return currentFaviconPath;
+  }
+
+  const extension = faviconExtensionFromFile(file);
+  const isAllowedType = ["image/png", "image/svg+xml", "image/x-icon", "image/vnd.microsoft.icon"].includes(file.type);
+  const isAllowedExtension = extension !== null;
+
+  if (!isAllowedType && !isAllowedExtension) {
+    logoGo("Favicon skal være ICO, PNG eller SVG.");
+  }
+
+  if (!extension) {
+    logoGo("Favicon skal have en gyldig filtype.");
+  }
+
+  if (file.size > 1024 * 1024) {
+    logoGo("Favicon er for stort. Vælg en fil under 1 MB.");
+  }
+
+  const supabase = createAdminClient();
+  const faviconPath = "brand/" + Date.now() + "-" + safeFileName(file, "favicon") + "." + extension;
+
+  const { error } = await supabase.storage.from(mediaBucketName).upload(faviconPath, file, {
+    cacheControl: "31536000",
+    contentType: faviconContentType(extension, file.type),
+    upsert: false,
+  });
+
+  if (error) {
+    logSupabaseError("Site favicon upload failed", error, { faviconPath });
+    logoGo("Favicon kunne ikke uploades. Tjek at media-bucket findes og tillader ICO, PNG og SVG.");
+  }
+
+  return faviconPath;
 }
 
 async function uploadHomepageImage(formData: FormData, currentImagePath: string | null) {
@@ -354,13 +415,24 @@ export async function deleteHomepageTileAction(formData: FormData) {
 export async function updateSiteLogoAction(formData: FormData) {
   await requireRole("admin");
 
-  const currentLogoPath = getOptionalString(formData, "current_logo_path");
-  const logoPath = await uploadSiteLogo(formData, currentLogoPath || null);
+  const currentDesktopLogoPath = getOptionalString(formData, "current_desktop_logo_path");
+  const currentMobileLogoPath = getOptionalString(formData, "current_mobile_logo_path");
+  const currentFaviconPath = getOptionalString(formData, "current_favicon_path");
+  const desktopLogoPath = await uploadSiteLogo(formData, currentDesktopLogoPath || null, "desktop_logo_file", "remove_desktop_logo", "desktop-logo");
+  const mobileLogoPath = await uploadSiteLogo(formData, currentMobileLogoPath || null, "mobile_logo_file", "remove_mobile_logo", "mobile-logo");
+  const faviconPath = await uploadSiteFavicon(formData, currentFaviconPath || null);
   const supabase = createAdminClient();
 
   const { error } = await supabase
     .from("site_settings")
-    .upsert({ key: brandLogoSettingKey, value: logoPath }, { onConflict: "key" });
+    .upsert(
+      [
+        { key: desktopBrandLogoSettingKey, value: desktopLogoPath },
+        { key: mobileBrandLogoSettingKey, value: mobileLogoPath },
+        { key: faviconSettingKey, value: faviconPath },
+      ],
+      { onConflict: "key" },
+    );
 
   if (error) {
     logoGo("Logoet kunne ikke gemmes. Kør database-migrationen til site_settings først.");

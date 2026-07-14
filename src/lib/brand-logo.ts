@@ -2,6 +2,9 @@ import { env } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const brandLogoSettingKey = "brand_logo_path";
+export const desktopBrandLogoSettingKey = brandLogoSettingKey;
+export const mobileBrandLogoSettingKey = "brand_logo_mobile_path";
+export const faviconSettingKey = "favicon_path";
 export const fallbackBrandLogoPath = "/brand/soulevents-logo.png";
 export const mediaBucketName = "media";
 
@@ -76,6 +79,17 @@ export async function getBrandLogoSettingValue(supabase: LogoSettingClient) {
   return data?.value ?? null;
 }
 
+export async function getBrandLogoSettingValues(supabase: LogoSettingClient) {
+  const [desktopResult, mobileResult] = await Promise.all([
+    supabase.from("site_settings").select("value").eq("key", desktopBrandLogoSettingKey).maybeSingle(),
+    supabase.from("site_settings").select("value").eq("key", mobileBrandLogoSettingKey).maybeSingle(),
+  ]);
+
+  const desktop = desktopResult.data?.value ?? null;
+  const mobile = mobileResult.data?.value ?? null;
+  return { desktop, mobile };
+}
+
 export async function getEmailBrandLogoUrl() {
   try {
     const supabase = createAdminClient() as unknown as LogoSettingClient;
@@ -83,5 +97,15 @@ export async function getEmailBrandLogoUrl() {
     return resolveBrandLogoUrl(value, { absolute: true });
   } catch {
     return resolveBrandLogoUrl(null, { absolute: true });
+  }
+}
+
+export async function getSiteFaviconUrl() {
+  try {
+    const supabase = createAdminClient() as unknown as LogoSettingClient;
+    const { data } = await supabase.from("site_settings").select("value").eq("key", faviconSettingKey).maybeSingle();
+    return data?.value ? resolveBrandLogoUrl(data.value) : null;
+  } catch {
+    return null;
   }
 }

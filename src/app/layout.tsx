@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { CookieConsentManager } from "@/components/cookie-consent-manager";
+import { getSiteFaviconUrl } from "@/lib/brand-logo";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "SoulEvents.dk",
-  description: "Find events, arrangører og fællesskaber i Danmark.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const faviconUrl = await getSiteFaviconUrl();
+
+  return {
+    title: "SoulEvents.dk",
+    description: "Find events, arrangører og fællesskaber i Danmark.",
+    icons: faviconUrl ? { icon: [{ url: faviconUrl }] } : undefined,
+  };
+}
 
 const browserInjectedAttributeCleanup = `
 (() => {
