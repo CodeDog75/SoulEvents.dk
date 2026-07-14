@@ -131,7 +131,7 @@ export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProp
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
-      <div className="relative aspect-square bg-[#F6F1E7] lg:aspect-[16/5]">
+      <div className="relative aspect-square bg-[#F6F1E7] lg:aspect-[8/3]">
         {slideIndexes.map((index) => {
           const ad = visibleAds[index];
           if (!ad) return null;
