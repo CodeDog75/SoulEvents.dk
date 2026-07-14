@@ -97,6 +97,7 @@ type EventFormProps = {
   draftEvent?: DraftEvent | null;
   initialStep?: number;
   message?: string;
+  requiresOrganizerAcceptance?: boolean;
   notificationLogs?: Array<{
     actorName?: string | null;
     createdAt: string;
@@ -701,6 +702,7 @@ export function EventForm({
   draftEvent = null,
   initialStep = 0,
   message,
+  requiresOrganizerAcceptance = false,
   notificationLogs = [],
   facilitator,
 }: EventFormProps) {
@@ -781,6 +783,7 @@ export function EventForm({
   const [pendingSubmitStatus, setPendingSubmitStatus] = useState("");
   const [isSavingWithoutEmail, setIsSavingWithoutEmail] = useState(false);
   const [isSavingAndSending, setIsSavingAndSending] = useState(false);
+  const [acceptedOrganizerTerms, setAcceptedOrganizerTerms] = useState(false);
   const [, setFormVersion] = useState(0);
   const showAddress = hasChosenEventFormat && eventFormat === "physical";
   const showOnline = hasChosenEventFormat && eventFormat === "online";
@@ -813,6 +816,10 @@ export function EventForm({
     facilitator.maxTicketPricePerPerson !== null &&
     Number.isFinite(numericPriceValue) &&
     numericPriceValue > facilitator.maxTicketPricePerPerson;
+  const organizerAcceptanceMessage =
+    message && (message.toLowerCase().includes("arrangørvilkår") || message.toLowerCase().includes("retningslinjer"))
+      ? message
+      : "";
 
   const durationLabel = useMemo(() => {
     const start = new Date(startDate + "T" + startTime + ":00");
@@ -1713,6 +1720,18 @@ export function EventForm({
       }, 0);
     }
 
+    if (organizerAcceptanceMessage) {
+      window.setTimeout(() => {
+        guideToMissingItem({
+          focusSelector: "[name='accepted_organizer_terms']",
+          key: "organizer-terms",
+          label: "Arrangørvilkår",
+          step: steps.length - 1,
+          targetId: "event-organizer-terms-field",
+        });
+      }, 0);
+    }
+
     if (normalizedMessage.includes("oprettet") || normalizedMessage.includes("gemt") || normalizedMessage.includes("opdateret")) {
       window.localStorage.removeItem(draftStorageKey);
       window.localStorage.removeItem(userDraftStorageKey + ":new");
@@ -1883,6 +1902,8 @@ export function EventForm({
   const activeLimitBlocksSubmit = hasReachedActiveLimit && !isEditingPublishedEvent;
   const ticketPriceLimitBlocksSubmit = ticketPriceLimitExceeded;
   const canPublish = missingInvitationItems.length === 0 && !activeLimitBlocksSubmit && !ticketPriceLimitBlocksSubmit;
+  const legalAcceptanceBlocksSubmit = requiresOrganizerAcceptance && !acceptedOrganizerTerms;
+  const canSubmitEvent = canPublish && !legalAcceptanceBlocksSubmit;
 
   function renderSubmitPanel() {
     return (
@@ -1890,13 +1911,13 @@ export function EventForm({
         <div
           className={
             "rounded-card border px-4 py-3 text-sm leading-6 " +
-            (canPublish
+            (canSubmitEvent
               ? "border-[#CFE3C8] bg-[#F3F7F0] text-[#4F6F48]"
               : "border-[#D8CBE4] bg-[#F4F0F7] text-[#6E5A86]")
           }
         >
           <p className="font-semibold">
-            {canPublish
+            {canSubmitEvent
               ? isEditingPublishedEvent
                 ? "Ændringerne er klar"
                 : "Din invitation er klar"
@@ -1904,9 +1925,11 @@ export function EventForm({
                 ? "Grænsen for aktive events er nået"
                 : ticketPriceLimitBlocksSubmit
                   ? "Billetprisen overstiger din grænse"
+                : legalAcceptanceBlocksSubmit
+                  ? "Før eventet kan offentliggøres"
                 : "Din invitation er næsten klar"}
           </p>
-          {canPublish ? (
+          {canSubmitEvent ? (
             <p>
               {isEditingPublishedEvent
                 ? "Du kan nu gemme ændringerne på eventet."
@@ -1918,6 +1941,10 @@ export function EventForm({
             <p className="mt-2">
               Din konto er godkendt til events med en billetpris på op til <strong>{formattedMaxTicketPrice}</strong> pr. deltager. Ønsker du at
               annoncere dyrere events eller retreats, er du velkommen til at kontakte SoulEvents for en individuel aftale.
+            </p>
+          ) : legalAcceptanceBlocksSubmit ? (
+            <p className="mt-2">
+              Før eventet kan offentliggøres, skal du acceptere de gældende arrangørvilkår og retningslinjer nedenfor.
             </p>
           ) : (
             <div className="mt-2">
@@ -1937,16 +1964,66 @@ export function EventForm({
             </div>
           )}
         </div>
+        {requiresOrganizerAcceptance ? (
+          <div
+            className={
+              "rounded-card border px-4 py-3 text-sm leading-6 transition " +
+              (legalAcceptanceBlocksSubmit
+                ? "border-[#E8D2CC] bg-[#FFF8F6] text-[#6E3A4A]"
+                : "border-[#CFE3C8] bg-[#F6FBF3] text-[#4F6F48]") +
+              " " +
+              highlightMissingClass("organizer-terms")
+            }
+            id="event-organizer-terms-field"
+          >
+            <label className="flex items-start gap-3">
+              <input
+                checked={acceptedOrganizerTerms}
+                className="mt-1 size-4 shrink-0 accent-[#7A4EAB]"
+                name="accepted_organizer_terms"
+                onChange={(event) => {
+                  setAcceptedOrganizerTerms(event.currentTarget.checked);
+                  setFormVersion((version) => version + 1);
+                  window.setTimeout(() => {
+                    writeDraft();
+                    refreshFormValidationState();
+                  }, 0);
+                }}
+                type="checkbox"
+                value="yes"
+              />
+              <span>
+                <span className="block font-semibold text-[#2F2633]">Jeg accepterer de gældende arrangørvilkår og retningslinjer for SoulEvents.</span>
+                <span className="mt-1 block text-xs leading-5 text-ink/62">
+                  Læs{" "}
+                  <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/arrangoervilkaar" target="_blank">
+                    arrangørvilkår
+                  </Link>{" "}
+                  og{" "}
+                  <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/platformens-retningslinjer" target="_blank">
+                    retningslinjer
+                  </Link>
+                  . Dit valg gemmes for den aktuelle version, når eventet offentliggøres.
+                </span>
+              </span>
+            </label>
+            {organizerAcceptanceMessage ? (
+              <p className="mt-3 rounded-md border border-[#E8D2CC] bg-white px-3 py-2 text-sm font-semibold text-[#8B3E5A]">
+                {organizerAcceptanceMessage}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <div className="grid gap-2 sm:grid-cols-2">
           <button
             className={
               "inline-flex h-11 items-center justify-center gap-2 rounded-button px-5 text-sm font-semibold shadow-soft transition " +
-              (canPublish
+              (canSubmitEvent
                 ? "bg-[#7A5D91] text-white hover:bg-[#6E5285]"
                 : "bg-[#D8CBE4] text-white shadow-none")
             }
             name="status"
-            disabled={activeLimitBlocksSubmit || ticketPriceLimitBlocksSubmit || isSubmittingEventUpdate}
+            disabled={activeLimitBlocksSubmit || ticketPriceLimitBlocksSubmit || legalAcceptanceBlocksSubmit || isSubmittingEventUpdate}
             type="submit"
             value={primarySubmitStatus}
           >
@@ -1960,6 +2037,8 @@ export function EventForm({
                 ? "Grænsen er nået"
                 : ticketPriceLimitBlocksSubmit
                   ? "Billetprisen er for høj"
+                : legalAcceptanceBlocksSubmit
+                  ? "Accepter vilkår for at fortsætte"
                 : "Fuldfør eventet for at gøre det offentligt"}
             <ArrowRight className="size-4" aria-hidden="true" />
           </button>
@@ -2056,6 +2135,18 @@ export function EventForm({
         if (isPrimarySubmit && !latestCanPublish) {
           event.preventDefault();
           guideToMissingItem(latestMissingInvitationItems[0]);
+          return;
+        }
+
+        if (isPrimarySubmit && legalAcceptanceBlocksSubmit) {
+          event.preventDefault();
+          guideToMissingItem({
+            focusSelector: "[name='accepted_organizer_terms']",
+            key: "organizer-terms",
+            label: "Arrangørvilkår",
+            step: steps.length - 1,
+            targetId: "event-organizer-terms-field",
+          });
           return;
         }
 

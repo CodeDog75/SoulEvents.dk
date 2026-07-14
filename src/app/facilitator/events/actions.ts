@@ -12,7 +12,7 @@ import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitat
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
-import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes } from "@/lib/legal/documents";
+import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes, recordLegalAcceptances } from "@/lib/legal/documents";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
 import { createSlug } from "@/lib/slug";
@@ -56,6 +56,18 @@ async function getAutoApproveEvents(supabase: AdminClient, facilitatorId: string
 
 function eventsRedirect(message: string): never {
   redirect(`/facilitator/events?message=${encodeURIComponent(message)}`);
+}
+
+function eventFormRedirect(message: string, input: { eventId?: string | null; step?: string | null } = {}): never {
+  const params = new URLSearchParams();
+  if (input.eventId) {
+    params.set("draft", input.eventId);
+  }
+  if (input.step) {
+    params.set("step", input.step);
+  }
+  params.set("message", message);
+  redirect("/facilitator/events?" + params.toString());
 }
 
 function facilitatorOverviewRedirect(message: string): never {
@@ -459,7 +471,7 @@ export async function createEventAction(formData: FormData) {
     getString(formData, "short_description");
   const shortDescription = eventDescription.slice(0, 220);
   const longDescription = eventDescription;
-  const coverImagePath = await uploadEventCoverImage(formData, getOptionalString(formData, "current_cover_image_path"));
+  const currentCoverImagePath = getOptionalString(formData, "current_cover_image_path");
   const startsAt = toDateTime(getString(formData, "start_date"), getString(formData, "start_time"));
   const endsAt = toDateTime(getString(formData, "end_date"), getString(formData, "end_time"));
   const addressLine = getOptionalString(formData, "address_line");
@@ -505,7 +517,7 @@ export async function createEventAction(formData: FormData) {
   }
 
   const lengthChecks: Array<[string | null, number, string]> = [
-    [coverImagePath, 300, "Eventbillede"],
+    [currentCoverImagePath, 300, "Eventbillede"],
     [addressLine, 120, "Adresse"],
     [postalCode, 20, "Postnummer"],
     [city, 80, "By"],
@@ -589,9 +601,28 @@ export async function createEventAction(formData: FormData) {
 
   if (!isDraft) {
     const missingAcceptances = await getMissingRequiredLegalAcceptances(supabase, profile.id, organizerAcceptanceTypes);
+    const acceptedOrganizerTerms = formData.get("accepted_organizer_terms") === "yes";
+
+    if (missingAcceptances.length > 0 && !acceptedOrganizerTerms) {
+      eventFormRedirect("Før eventet kan offentliggøres, skal du acceptere de gældende arrangørvilkår og retningslinjer nedenfor.", {
+        eventId: existingEventId,
+        step: "4",
+      });
+    }
 
     if (missingAcceptances.length > 0) {
-      eventsRedirect("Du skal acceptere de gældende arrangørvilkår og retningslinjer, før eventet kan offentliggøres.");
+      try {
+        await recordLegalAcceptances(supabase, {
+          action: "event_publication",
+          documentTypes: organizerAcceptanceTypes,
+          profileId: profile.id,
+        });
+      } catch {
+        eventFormRedirect("Accepten af vilkår kunne ikke gemmes. Prøv igen.", {
+          eventId: existingEventId,
+          step: "4",
+        });
+      }
     }
   }
 
@@ -613,6 +644,7 @@ export async function createEventAction(formData: FormData) {
     !isDanishPhysicalEvent || !hasAddressForGeocoding
       ? null
       : await geocodeDanishAddress({ addressLine, postalCode, city });
+  const coverImagePath = await uploadEventCoverImage(formData, currentCoverImagePath);
 
   if (existingEventId) {
     const nextEventSnapshot: EventUpdateSnapshot = {
@@ -1028,7 +1060,10 @@ export async function publishDraftEventAction(formData: FormData) {
   const missingAcceptances = await getMissingRequiredLegalAcceptances(supabase, profile.id, organizerAcceptanceTypes);
 
   if (missingAcceptances.length > 0) {
-    facilitatorOverviewRedirect("Du skal acceptere de gældende arrangørvilkår og retningslinjer, før eventet kan offentliggøres.");
+    eventFormRedirect("Før eventet kan offentliggøres, skal du acceptere de gældende arrangørvilkår og retningslinjer nedenfor.", {
+      eventId: event.id,
+      step: "4",
+    });
   }
 
   if (autoApproveEvents) {

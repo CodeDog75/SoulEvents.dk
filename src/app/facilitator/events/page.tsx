@@ -4,6 +4,7 @@ import { AuthMessage } from "@/components/auth/auth-message";
 import { EventForm } from "@/components/facilitator/events/event-form";
 import { requireRole } from "@/lib/auth/roles";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
+import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes } from "@/lib/legal/documents";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,15 @@ function isEventImageMessage(message?: string) {
 
   const normalized = message.toLowerCase();
   return normalized.includes("billedet") || normalized.includes("eventbillede") || normalized.includes("forsidebillede");
+}
+
+function isOrganizerAcceptanceMessage(message?: string) {
+  if (!message) {
+    return false;
+  }
+
+  const normalized = message.toLowerCase();
+  return normalized.includes("arrangørvilkår") || normalized.includes("retningslinjer");
 }
 
 type FacilitatorEventsPageProps = {
@@ -82,6 +92,9 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
   const limitStatus = facilitatorProfile
     ? await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id, { excludeEventId: selectedDraft?.id ?? null })
     : null;
+  const missingOrganizerAcceptances = facilitatorProfile
+    ? await getMissingRequiredLegalAcceptances(supabase as any, profile.id, organizerAcceptanceTypes)
+    : [];
   const { data: notificationLogs } =
     selectedDraft && facilitatorProfile
       ? await (supabase as any)
@@ -100,6 +113,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
     : facilitatorProfile?.profiles;
   const initialStep = Math.min(Math.max(Number(step ?? "0") || 0, 0), 4);
   const draftMessage = message && message.toLowerCase().includes("kladde") ? message : undefined;
+  const eventFormMessage = isOrganizerAcceptanceMessage(message) ? message : draftMessage;
   const profileReady =
     Boolean(profile.full_name) &&
     Boolean(facilitatorProfile?.company_name) &&
@@ -210,7 +224,8 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
           <EventForm
             activeLimitMessage={hasReachedActiveLimit && limitStatus ? activeLimitMessage(limitStatus.maxActiveEvents) : null}
             initialStep={initialStep}
-            message={draftMessage}
+            message={eventFormMessage}
+            requiresOrganizerAcceptance={missingOrganizerAcceptances.length > 0}
             notificationLogs={(notificationLogs ?? []).map((log: any) => {
               const actorProfile = Array.isArray(log.profiles) ? log.profiles[0] : log.profiles;
               return {
