@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CheckCircle2, Play, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Play, Sparkles } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import {
@@ -175,8 +175,7 @@ function BenefitsSection({ section }: { section: Extract<BecomeOrganizerSection,
       <div className="mt-7 grid gap-4 md:grid-cols-2">
         {section.items.map((item) => (
           <article className="rounded-[22px] border border-sage-700/12 bg-[#FAF6EF] p-5" key={item.title + item.text}>
-            <CheckCircle2 className="size-5 text-sage-700" aria-hidden="true" />
-            <h3 className="mt-4 text-xl font-medium text-[#2F2633]">{item.title}</h3>
+            <h3 className="text-xl font-medium text-[#2F2633]">{item.title}</h3>
             <p className="mt-2 text-sm leading-6 text-ink/68">{item.text}</p>
           </article>
         ))}
