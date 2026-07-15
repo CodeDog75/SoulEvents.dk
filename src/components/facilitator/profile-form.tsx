@@ -4,6 +4,7 @@ import { Camera, CheckCircle2, CircleAlert, CircleDashed, Info, Link2, Save, X }
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { autosaveFacilitatorProfileAction, updateFacilitatorProfileAction } from "@/app/facilitator/profile/actions";
 import { ProfileImageManager } from "@/components/facilitator/profile-image-manager";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
@@ -83,6 +84,7 @@ const profileFormSections = ["contact", "location", "social", "images", "categor
 
 type ProfileFormSection = (typeof profileFormSections)[number];
 type ProfileSavedSection = ProfileFormSection | "all";
+type SaveUiStatus = "idle" | "saved" | "saving";
 type MissingProfileItem = {
   focusSelector?: string;
   key: string;
@@ -191,17 +193,53 @@ function fieldClass(complete: boolean, optional = false) {
   return `${base} border-red-500 bg-red-50`;
 }
 
-function SectionSaveButton({ children, section }: { children: string; section: ProfileFormSection }) {
+function saveButtonLabel(defaultLabel: string, status: SaveUiStatus, pending: boolean) {
+  if (pending || status === "saving") return "⏳ Gemmer...";
+  if (status === "saved") return "✅ Gemt";
+  return defaultLabel;
+}
+
+function SectionSaveButton({ children, section, status }: { children: string; section: ProfileFormSection; status: SaveUiStatus }) {
+  const { pending } = useFormStatus();
+
   return (
     <button
-      className="inline-flex h-10 items-center justify-center gap-2 rounded-button bg-olive px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500"
+      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-button bg-olive px-4 py-2 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500 disabled:cursor-wait disabled:opacity-75 sm:w-auto"
+      disabled={pending || status === "saving"}
       name="section"
       type="submit"
       value={section}
     >
       <Save className="size-4" aria-hidden="true" />
-      {children}
+      {saveButtonLabel(children, status, pending)}
     </button>
+  );
+}
+
+function FullProfileSaveButton({ children, status }: { children: string; status: SaveUiStatus }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-midnight px-5 py-2 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700 disabled:cursor-wait disabled:opacity-75 sm:w-auto"
+      disabled={pending || status === "saving"}
+      name="section"
+      type="submit"
+      value="all"
+    >
+      <Save className="size-4" aria-hidden="true" />
+      {saveButtonLabel(children, status, pending)}
+    </button>
+  );
+}
+
+function LocalSaveFeedback({ message }: { message: string | null }) {
+  if (!message) return null;
+
+  return (
+    <p className="mt-3 rounded-md border border-sage-700/20 bg-sage-50 px-3 py-2 text-center text-sm font-semibold text-sage-700 sm:text-left">
+      {message}
+    </p>
   );
 }
 
@@ -242,7 +280,7 @@ function InfoHelp({ children }: { children: string }) {
   const popoverId = useId();
 
   return (
-    <span className="relative inline-block">
+    <span className="relative inline-block max-w-full">
       {isOpen ? (
         <button
           aria-label="Luk hjælp"
@@ -263,7 +301,7 @@ function InfoHelp({ children }: { children: string }) {
       </button>
       {isOpen ? (
         <span
-          className="absolute left-0 z-30 mt-2 grid w-[min(18rem,calc(100vw-3rem))] gap-2 rounded-md border border-midnight/10 bg-white p-3 text-xs font-normal leading-5 text-ink/70 shadow-lift sm:left-auto sm:right-0"
+          className="fixed inset-x-4 top-24 z-30 grid max-h-[calc(100vh-8rem)] gap-2 overflow-y-auto rounded-md border border-midnight/10 bg-white p-3 text-xs font-normal leading-5 text-ink/70 shadow-lift sm:absolute sm:inset-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[min(18rem,calc(100vw-3rem))]"
           id={popoverId}
           role="dialog"
         >
@@ -301,6 +339,7 @@ export function ProfileForm({
   selectedServiceTitleIds,
   submitLabel = "Gem hele profilen",
 }: ProfileFormProps) {
+  const initialSavedSection = isProfileSavedSection(savedSection) ? savedSection : null;
   const [postalCode, setPostalCode] = useState(value(facilitatorProfile.postal_code));
   const [city, setCity] = useState(value(facilitatorProfile.city));
   const [fullName, setFullName] = useState(value(profile.full_name));
@@ -334,8 +373,26 @@ export function ProfileForm({
   const lastAutosaveFailedRef = useRef(false);
   const skipSubmitAutosaveRef = useRef(false);
   const saveSequenceRef = useRef(0);
+  const saveStatusTimeoutRef = useRef<number | null>(null);
+  const initialSavedSectionRef = useRef<ProfileSavedSection | null>(initialSavedSection);
   const [autosaveStatus, setAutosaveStatus] = useState<"error" | "idle" | "saved" | "saving">("idle");
   const [autosaveMessage, setAutosaveMessage] = useState("");
+  const [saveUiStatus, setSaveUiStatus] = useState<Record<ProfileSavedSection, SaveUiStatus>>({
+    all: initialSavedSection === "all" ? "saved" : "idle",
+    categories: initialSavedSection === "categories" ? "saved" : "idle",
+    contact: initialSavedSection === "contact" ? "saved" : "idle",
+    images: initialSavedSection === "images" ? "saved" : "idle",
+    location: initialSavedSection === "location" ? "saved" : "idle",
+    services: initialSavedSection === "services" ? "saved" : "idle",
+    social: initialSavedSection === "social" ? "saved" : "idle",
+  });
+  const [localSaveFeedback, setLocalSaveFeedback] = useState<Partial<Record<ProfileSavedSection, string>>>(
+    initialSavedSection
+      ? {
+          [initialSavedSection]: initialSavedSection === "all" ? "✓ Profilen er opdateret" : "✓ Afsnittet er gemt",
+        }
+      : {},
+  );
   const currentOrigin = typeof window === "undefined" ? "" : window.location.origin;
   const fullNameComplete = Boolean(fullName.trim());
   const companyNameComplete = Boolean(companyName.trim());
@@ -351,7 +408,7 @@ export function ProfileForm({
     regions.find((region) => region.slug === inferredRegionSlug) ??
     regions.find((region) => region.id === facilitatorProfile.region_id);
   const normalizedErrorSection = isProfileFormSection(errorSection) ? errorSection : null;
-  const normalizedSavedSection = isProfileSavedSection(savedSection) ? savedSection : null;
+  const normalizedSavedSection = initialSavedSection;
   const missingProfileItems: MissingProfileItem[] = [
     fullNameComplete ? null : { focusSelector: "[name='full_name']", key: "full_name", label: "Privat navn", targetId: "profile-full-name-field" },
     companyNameComplete
@@ -382,6 +439,30 @@ export function ProfileForm({
 
   function highlightMissingClass(key: string) {
     return highlightedMissingKey === key ? "ring-4 ring-[#D89A94]/35" : "";
+  }
+
+  function setSaveStatus(section: ProfileSavedSection, status: SaveUiStatus) {
+    setSaveUiStatus((current) => ({ ...current, [section]: status }));
+  }
+
+  function clearSaveStatusLater(section: ProfileSavedSection) {
+    if (saveStatusTimeoutRef.current) {
+      window.clearTimeout(saveStatusTimeoutRef.current);
+    }
+
+    saveStatusTimeoutRef.current = window.setTimeout(() => {
+      setSaveStatus(section, "idle");
+      setLocalSaveFeedback((current) => ({ ...current, [section]: undefined }));
+    }, 2000);
+  }
+
+  function showLocalSaved(section: ProfileSavedSection) {
+    setSaveStatus(section, "saved");
+    setLocalSaveFeedback((current) => ({
+      ...current,
+      [section]: section === "all" ? "✓ Profilen er opdateret" : "✓ Afsnittet er gemt",
+    }));
+    clearSaveStatusLater(section);
   }
 
   const buildAutosaveInput = useCallback(
@@ -575,14 +656,21 @@ export function ProfileForm({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const submittedSection = isProfileSavedSection(submitter?.value) ? submitter.value : null;
 
     if (skipSubmitAutosaveRef.current) {
       skipSubmitAutosaveRef.current = false;
       return;
     }
 
+    if (submittedSection) {
+      setSaveStatus(submittedSection, "saving");
+      setLocalSaveFeedback((current) => ({ ...current, [submittedSection]: undefined }));
+    }
+
     if (submitter?.value === "all" && missingProfileItems.length > 0) {
       event.preventDefault();
+      setSaveStatus("all", "idle");
       guideToMissingProfileItem(missingProfileItems[0]);
       return;
     }
@@ -596,8 +684,14 @@ export function ProfileForm({
     const didSave = await flushAutosaveNow();
 
     if (didSave) {
+      if (submittedSection) {
+        showLocalSaved(submittedSection);
+      }
+
       skipSubmitAutosaveRef.current = true;
       formRef.current?.requestSubmit(submitter ?? undefined);
+    } else if (submittedSection) {
+      setSaveStatus(submittedSection, "idle");
     }
   }
 
@@ -629,9 +723,21 @@ export function ProfileForm({
   useEffect(() => {
     hasMountedAutosaveRef.current = true;
 
+    if (initialSavedSectionRef.current) {
+      const section = initialSavedSectionRef.current;
+      saveStatusTimeoutRef.current = window.setTimeout(() => {
+        setSaveUiStatus((current) => ({ ...current, [section]: "idle" }));
+        setLocalSaveFeedback((current) => ({ ...current, [section]: undefined }));
+      }, 2000);
+    }
+
     return () => {
       if (autosaveTimerRef.current) {
         window.clearTimeout(autosaveTimerRef.current);
+      }
+
+      if (saveStatusTimeoutRef.current) {
+        window.clearTimeout(saveStatusTimeoutRef.current);
       }
     };
   }, []);
@@ -808,7 +914,10 @@ export function ProfileForm({
         />
 
         <div className="mt-5 flex justify-center sm:justify-end">
-          <SectionSaveButton section="contact">Gem dette afsnit</SectionSaveButton>
+          <div className="w-full sm:w-auto">
+            <SectionSaveButton section="contact" status={saveUiStatus.contact}>💾 Gem dette afsnit</SectionSaveButton>
+            <LocalSaveFeedback message={localSaveFeedback.contact ?? null} />
+          </div>
         </div>
       </section>
 
@@ -916,7 +1025,10 @@ export function ProfileForm({
         />
 
         <div className="mt-5 flex justify-center sm:justify-end">
-          <SectionSaveButton section="location">Gem dette afsnit</SectionSaveButton>
+          <div className="w-full sm:w-auto">
+            <SectionSaveButton section="location" status={saveUiStatus.location}>💾 Gem dette afsnit</SectionSaveButton>
+            <LocalSaveFeedback message={localSaveFeedback.location ?? null} />
+          </div>
         </div>
       </section>
 
@@ -1060,11 +1172,14 @@ export function ProfileForm({
         />
 
         <div className="mt-5 flex justify-center sm:justify-end">
-          <SectionSaveButton section="social">Gem dette afsnit</SectionSaveButton>
+          <div className="w-full sm:w-auto">
+            <SectionSaveButton section="social" status={saveUiStatus.social}>💾 Gem dette afsnit</SectionSaveButton>
+            <LocalSaveFeedback message={localSaveFeedback.social ?? null} />
+          </div>
         </div>
       </section>
 
-      <section className={"rounded-md border border-midnight/10 bg-white p-5 shadow-soft " + highlightMissingClass("categories")} id="profile-categories-section">
+      <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-md bg-sage-50 text-sage-700">
@@ -1091,18 +1206,20 @@ export function ProfileForm({
         />
 
         <div className="mt-5 flex justify-center sm:justify-end">
-          <SectionSaveButton section="images">Gem dette afsnit</SectionSaveButton>
+          <div className="w-full sm:w-auto">
+            <SectionSaveButton section="images" status={saveUiStatus.images}>💾 Gem dette afsnit</SectionSaveButton>
+            <LocalSaveFeedback message={localSaveFeedback.images ?? null} />
+          </div>
         </div>
       </section>
 
-      <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+      <section className={"rounded-md border border-midnight/10 bg-white p-5 shadow-soft " + highlightMissingClass("categories")} id="profile-categories-section">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-midnight">
-            Arbejdsområder
-            <FieldStatus complete={categoriesComplete} />
-            <InfoHelp>Vælg de områder, arrangøren arbejder indenfor.</InfoHelp>
-          </h2>
+          <h2 className="text-lg font-semibold text-midnight">Arbejdsområder</h2>
         </div>
+        <p className={categoriesComplete ? "mt-2 text-sm font-semibold text-sage-700" : "mt-2 text-sm font-semibold text-red-700"}>
+          {categoriesComplete ? "✓ Mindst ét arbejdsområde valgt." : "Vælg mindst ét arbejdsområde."}
+        </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[...categories].sort((a, b) => a.name.localeCompare(b.name, "da-DK")).map((category) => (
             <label
@@ -1136,7 +1253,10 @@ export function ProfileForm({
         />
 
         <div className="mt-5 flex justify-center sm:justify-end">
-          <SectionSaveButton section="categories">Gem dette afsnit</SectionSaveButton>
+          <div className="w-full sm:w-auto">
+            <SectionSaveButton section="categories" status={saveUiStatus.categories}>💾 Gem dette afsnit</SectionSaveButton>
+            <LocalSaveFeedback message={localSaveFeedback.categories ?? null} />
+          </div>
         </div>
       </section>
 
@@ -1261,7 +1381,10 @@ export function ProfileForm({
         />
 
         <div className="mt-5 flex justify-center sm:justify-end">
-          <SectionSaveButton section="services">Gem dette afsnit</SectionSaveButton>
+          <div className="w-full sm:w-auto">
+            <SectionSaveButton section="services" status={saveUiStatus.services}>💾 Gem dette afsnit</SectionSaveButton>
+            <LocalSaveFeedback message={localSaveFeedback.services ?? null} />
+          </div>
         </div>
       </section>
 
@@ -1350,15 +1473,10 @@ export function ProfileForm({
             >
               {backLabel}
             </Link>
-            <button
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700"
-              name="section"
-              type="submit"
-              value="all"
-            >
-              <Save className="size-4" aria-hidden="true" />
-              {submitLabel}
-            </button>
+            <div className="w-full sm:w-auto">
+              <FullProfileSaveButton status={saveUiStatus.all}>{"💾 " + submitLabel}</FullProfileSaveButton>
+              <LocalSaveFeedback message={localSaveFeedback.all ?? null} />
+            </div>
           </div>
         </div>
       </div>

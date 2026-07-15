@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff, LockKeyhole, Save } from "lucide-react";
+import { ChevronDown, Eye, EyeOff, LockKeyhole, Save } from "lucide-react";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { changeFacilitatorPasswordAction, type ChangePasswordFormState } from "@/app/facilitator/profile/actions";
 
@@ -88,18 +88,19 @@ export function SecurityPasswordForm({ oauthProvider, passwordLoginAvailable }: 
   }, [state]);
 
   return (
-    <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+    <details className="group rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-4 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sage-700">
+        <div className="flex min-w-0 items-center gap-3">
           <div className="grid size-10 place-items-center rounded-md bg-sage-50 text-sage-700">
             <LockKeyhole className="size-4" aria-hidden="true" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold text-midnight">Sikkerhed</h2>
             <p className="mt-1 text-sm leading-6 text-ink/64">Skift adgangskode for din SoulEvents-konto.</p>
           </div>
         </div>
-      </div>
+        <ChevronDown className="size-5 text-ink/45 transition group-open:rotate-180" aria-hidden="true" />
+      </summary>
 
       {!passwordLoginAvailable ? (
         <div className="mt-5 rounded-md border border-sage-700/15 bg-sage-50 p-4 text-sm leading-6 text-ink/72">
@@ -157,6 +158,6 @@ export function SecurityPasswordForm({ oauthProvider, passwordLoginAvailable }: 
           </div>
         </form>
       )}
-    </section>
+    </details>
   );
 }
