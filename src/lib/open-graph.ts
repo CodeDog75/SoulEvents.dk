@@ -1,10 +1,17 @@
 import type { Metadata } from "next";
-import { env } from "@/lib/env";
 import { getBrandLogoSettingValue, mediaBucketName, resolveBrandLogoUrl, type LogoSettingClient } from "@/lib/brand-logo";
+import {
+  absoluteUrl,
+  ogImageHeight,
+  ogImageWidth,
+  siteBaseUrl,
+  storagePublicUrl,
+  stripHtml,
+  truncateText,
+} from "@/lib/open-graph-core";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export const ogImageWidth = 1200;
-export const ogImageHeight = 630;
+export { absoluteUrl, ogImageHeight, ogImageWidth, siteBaseUrl, stripHtml, truncateText };
 
 type StorageClient = {
   storage: {
@@ -18,37 +25,10 @@ type SiteSettingClient = LogoSettingClient & StorageClient & {
   from(table: "hero_images"): any;
 };
 
-export function siteBaseUrl() {
-  const baseUrl = (env.appUrl || "https://www.soulevents.dk").replace(/\/$/, "");
-
-  if (baseUrl.startsWith("http://") && !baseUrl.includes("localhost") && !baseUrl.includes("127.0.0.1")) {
-    return "https://" + baseUrl.slice("http://".length);
-  }
-
-  return baseUrl;
-}
-
-export function absoluteUrl(path: string) {
-  if (/^https?:\/\//i.test(path)) return path;
-  return siteBaseUrl() + (path.startsWith("/") ? path : "/" + path);
-}
-
 export function publicMediaUrl(client: StorageClient, path: string | null | undefined, bucket = mediaBucketName) {
   if (!path) return null;
   if (/^https?:\/\//i.test(path)) return path;
-  return client.storage.from(bucket).getPublicUrl(path).data.publicUrl;
-}
-
-export function stripHtml(value: string | null | undefined) {
-  return (value ?? "")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-export function truncateText(value: string, maxLength: number) {
-  if (value.length <= maxLength) return value;
-  return value.slice(0, maxLength - 1).trimEnd() + "…";
+  return storagePublicUrl(path, bucket) ?? client.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 
 export async function getHomepageOgImageUrl(client?: SiteSettingClient) {
