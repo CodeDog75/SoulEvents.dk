@@ -9,10 +9,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const maxAdImageBytes = 20 * 1024 * 1024;
 const maxAdVideoBytes = 100 * 1024 * 1024;
 
-function adSaveDebug(step: string, details?: Record<string, unknown>) {
-  console.info("[ad-save-debug] " + new Date().toISOString() + " " + step, details ?? {});
-}
-
 function go(message: string): never {
   redirect("/admin/ads?message=" + encodeURIComponent(message));
 }
@@ -270,13 +266,6 @@ export async function upsertAdAction(formData: FormData) {
   const startsAt = dateValue(formData, "starts_at");
   const endsAt = dateValue(formData, "ends_at");
 
-  adSaveDebug("Ad save action started", {
-    hasBinaryUpload: containsBinaryUpload,
-    hasDesktopPath: Boolean(getOptionalString(formData, "image_path")),
-    hasMobilePath: Boolean(getOptionalString(formData, "mobile_image_path")),
-    mode: id ? "update" : "create",
-  });
-
   if (!title) await failAdSave("Titel er påkrævet.", uploadedImagePath, uploadedMobileImagePath);
   if (containsBinaryUpload) {
     await failAdSave("Upload fejlede: filerne må ikke sendes direkte med formularen. Vælg filerne igen og prøv at gemme.", uploadedImagePath, uploadedMobileImagePath);
@@ -322,18 +311,9 @@ export async function upsertAdAction(formData: FormData) {
   };
 
   let savedMobileImagePath = true;
-  adSaveDebug("database update starts", {
-    hasDesktopPath: Boolean(imagePath),
-    hasMobilePath: Boolean(mobileImagePath),
-    mode: id ? "update" : "create",
-  });
   let result = id
     ? await supabase.from("ads").update(payload).eq("id", id).select("id").single()
     : await supabase.from("ads").insert(payload).select("id").single();
-  adSaveDebug("database update ends", {
-    error: result.error?.message ?? null,
-    mode: id ? "update" : "create",
-  });
 
   if (result.error) {
     console.error("Ad save failed", {
@@ -348,16 +328,9 @@ export async function upsertAdAction(formData: FormData) {
   if (result.error && isMissingOptionalAdColumnError(result.error)) {
     savedMobileImagePath = false;
     const retryPayload = legacyAdPayload(payload);
-    adSaveDebug("legacy database update starts", {
-      mode: id ? "update" : "create",
-    });
     result = id
       ? await supabase.from("ads").update(retryPayload).eq("id", id).select("id").single()
       : await supabase.from("ads").insert(retryPayload).select("id").single();
-    adSaveDebug("legacy database update ends", {
-      error: result.error?.message ?? null,
-      mode: id ? "update" : "create",
-    });
 
     if (result.error) {
       console.error("Ad legacy save failed", {
@@ -393,17 +366,9 @@ export async function upsertAdAction(formData: FormData) {
     savedMobileImagePath ? removeReplacedAdMedia(currentMobileImagePath || null, mobileImagePath) : Promise.resolve(),
   ]);
 
-  adSaveDebug("Ad save action completed", {
-    adId,
-    hasDesktopPath: Boolean(imagePath),
-    hasMobilePath: Boolean(mobileImagePath),
-    mode: id ? "update" : "create",
-  });
-
   revalidatePath("/admin/ads");
   revalidatePath("/");
   revalidatePath("/categories/[slug]", "page");
-  adSaveDebug("redirect success", { message: "Reklamen er gemt." });
   go("Reklamen er gemt.");
 }
 

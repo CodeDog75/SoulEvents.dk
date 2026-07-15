@@ -92,7 +92,7 @@ export async function updateBookingStatusAction(formData: FormData) {
 
   await syncEventCapacityStatus(supabase, booking.event_id);
 
-  await sendParticipantBookingResponse({
+  const participantMailSent = await sendParticipantBookingResponse({
     bookingId: booking.id,
     eventId: booking.event_id,
     status,
@@ -114,7 +114,12 @@ export async function updateBookingStatusAction(formData: FormData) {
     cancelled: "aflyst",
   };
 
-  bookingsRedirect(`Tilmeldingen er ${labels[status]}, og deltageren har fået besked.`, booking.event_id);
+  bookingsRedirect(
+    participantMailSent
+      ? `Tilmeldingen er ${labels[status]}, og deltageren har fået besked.`
+      : `Tilmeldingen er ${labels[status]}, men beskeden kunne ikke sendes.`,
+    booking.event_id,
+  );
 }
 
 export async function updateBookingSeatsAction(formData: FormData) {

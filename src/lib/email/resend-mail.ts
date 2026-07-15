@@ -24,6 +24,21 @@ type UnknownMailError = {
 
 const resendSendTimeoutMs = 15000;
 
+function sanitizeMailErrorMessage(message: string | null | undefined) {
+  return (message || "Ukendt mailfejl.").replace(/[^\s@]+@[^\s@]+\.[^\s@]+/g, "[email]").slice(0, 240);
+}
+
+function mailLogContext(input: SendLoggedEmailInput, details?: { errorCode?: string | null; errorMessage?: string | null; httpStatus?: number | null }) {
+  return {
+    bookingId: input.bookingId ?? null,
+    eventId: input.eventId ?? null,
+    errorCode: details?.errorCode ?? null,
+    errorMessage: sanitizeMailErrorMessage(details?.errorMessage),
+    httpStatus: details?.httpStatus ?? null,
+    type: input.type,
+  };
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
   let timeout: ReturnType<typeof setTimeout>;
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -84,31 +99,16 @@ async function logEmail(input: {
 
 export async function sendLoggedEmail(input: SendLoggedEmailInput) {
   if (!input.to) {
-    console.error("Mail delivery skipped: missing recipient", {
-      bookingId: input.bookingId ?? null,
-      eventId: input.eventId ?? null,
-      subject: input.subject,
-      type: input.type,
-    });
+    console.error("Mail delivery skipped: missing recipient", mailLogContext(input, { errorCode: "missing_recipient", errorMessage: "Modtager mangler." }));
     return false;
   }
 
   if (!env.resendApiKey || !env.resendFromEmail) {
-    console.error("Mail delivery failed: missing Resend environment variables", {
-      bookingId: input.bookingId ?? null,
-      eventId: input.eventId ?? null,
+    console.error("Mail delivery failed: missing Resend environment variables", mailLogContext(input, {
       errorCode: "missing_resend_environment",
       errorMessage: "Resend miljøvariabler mangler.",
-      errorStack: null,
-      hasResendApiKey: Boolean(env.resendApiKey),
-      hasResendFromEmail: Boolean(env.resendFromEmail),
       httpStatus: null,
-      recipientEmail: input.to,
-      resendCalled: false,
-      resendResponse: null,
-      subject: input.subject,
-      type: input.type,
-    });
+    }));
     await logEmail({
       type: input.type,
       bookingId: input.bookingId,
@@ -137,23 +137,11 @@ export async function sendLoggedEmail(input: SendLoggedEmailInput) {
     );
 
     if (result.error) {
-      console.error("Mail delivery failed: Resend returned an error", {
-        bookingId: input.bookingId ?? null,
-        eventId: input.eventId ?? null,
+      console.error("Mail delivery failed: Resend returned an error", mailLogContext(input, {
         errorCode: result.error.name ?? null,
         errorMessage: result.error.message,
-        errorStack: null,
         httpStatus: result.error.statusCode ?? null,
-        recipientEmail: input.to,
-        resendCalled: true,
-        resendResponse: {
-          data: result.data ?? null,
-          error: result.error,
-          headers: result.headers ?? null,
-        },
-        subject: input.subject,
-        type: input.type,
-      });
+      }));
       await logEmail({
         type: input.type,
         bookingId: input.bookingId,
@@ -179,26 +167,16 @@ export async function sendLoggedEmail(input: SendLoggedEmailInput) {
     return true;
   } catch (error) {
     const mailError = error as UnknownMailError;
-    console.error("Mail delivery failed: unexpected exception", {
-      bookingId: input.bookingId ?? null,
-      eventId: input.eventId ?? null,
+    console.error("Mail delivery failed: unexpected exception", mailLogContext(input, {
       errorCode: typeof mailError.code === "string" ? mailError.code : null,
       errorMessage: error instanceof Error ? error.message : "Ukendt mailfejl.",
-      errorName: error instanceof Error ? error.name : typeof mailError.name === "string" ? mailError.name : null,
-      errorStack: error instanceof Error ? error.stack : typeof mailError.stack === "string" ? mailError.stack : null,
-      fullException: error,
       httpStatus:
         typeof mailError.statusCode === "number"
           ? mailError.statusCode
           : typeof mailError.status === "number"
             ? mailError.status
             : null,
-      recipientEmail: input.to,
-      resendCalled: true,
-      resendResponse: null,
-      subject: input.subject,
-      type: input.type,
-    });
+    }));
     await logEmail({
       type: input.type,
       bookingId: input.bookingId,

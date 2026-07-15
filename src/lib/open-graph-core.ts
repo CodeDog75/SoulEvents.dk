@@ -4,7 +4,7 @@ export const mediaBucketName = "media";
 export const fallbackBrandLogoPath = "/brand/soulevents-logo.png";
 
 function appUrl() {
-  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://www.soulevents.dk").replace(/\/$/, "");
+  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.soulevents.dk").replace(/\/$/, "");
 
   if (baseUrl.startsWith("http://") && !baseUrl.includes("localhost") && !baseUrl.includes("127.0.0.1")) {
     return "https://" + baseUrl.slice("http://".length);
@@ -31,10 +31,17 @@ export function storagePublicUrl(path: string | null | undefined, bucket = media
   return supabaseUrl + "/storage/v1/object/public/" + bucket + "/" + encodedPath;
 }
 
+export function isValidSharingImageUrl(value: string | null | undefined): value is string {
+  if (!value || !/^https:\/\//i.test(value)) return false;
+  return !/\.svg(?:$|[?#])/i.test(value);
+}
+
 export function resolveLogoUrl(value?: string | null) {
   const logoValue = value?.trim();
 
   if (!logoValue) return absoluteUrl(fallbackBrandLogoPath);
+  if (/\.svg(?:$|[?#])/i.test(logoValue)) return absoluteUrl(fallbackBrandLogoPath);
+  if (/^http:\/\//i.test(logoValue)) return absoluteUrl(fallbackBrandLogoPath);
   if (/^https?:\/\//i.test(logoValue)) return logoValue;
   if (logoValue.startsWith("/")) return absoluteUrl(logoValue);
 

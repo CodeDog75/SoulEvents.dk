@@ -65,7 +65,12 @@ export async function updateSession(request: NextRequest) {
       return clearSupabaseCookies();
     }
 
-    if (request.nextUrl.pathname.startsWith("/admin") || request.nextUrl.pathname.startsWith("/dashboard") || request.nextUrl.pathname.startsWith("/facilitator")) {
+    if (
+      request.nextUrl.pathname.startsWith("/admin") ||
+      request.nextUrl.pathname.startsWith("/dashboard") ||
+      request.nextUrl.pathname === "/facilitator" ||
+      request.nextUrl.pathname.startsWith("/facilitator/")
+    ) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = "/auth/login";
       redirectUrl.search = "";

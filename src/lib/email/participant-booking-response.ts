@@ -76,10 +76,10 @@ export async function sendParticipantBookingResponse(input: ParticipantBookingRe
   const copy = statusText[input.status];
 
   if (!copy) {
-    return;
+    return false;
   }
 
-  await sendLoggedEmail({
+  return sendLoggedEmail({
     type: `booking_${input.status}_participant`,
     to: input.participantEmail,
     subject: `${copy.subject}: ${input.eventTitle}`,

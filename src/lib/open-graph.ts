@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { mediaBucketName } from "@/lib/brand-logo";
 import {
   absoluteUrl,
+  isValidSharingImageUrl,
   ogImageHeight,
   ogImageWidth,
   siteBaseUrl,
@@ -77,11 +78,11 @@ export function createPageMetadata({
   type?: "website" | "article";
 }): Metadata {
   void imageSubtitle;
-  void imageUrl;
 
   const canonical = absoluteUrl(path);
   const normalizedDescription = truncateText(stripHtml(description), 180);
-  const ogImage = ogImageUrlForPath(path);
+  const ogImage = isValidSharingImageUrl(imageUrl) ? imageUrl : ogImageUrlForPath(path);
+  const imageAlt = imageTitle ?? title;
 
   return {
     title,
@@ -92,7 +93,8 @@ export function createPageMetadata({
     openGraph: {
       title,
       description: normalizedDescription,
-      images: [{ url: ogImage, width: ogImageWidth, height: ogImageHeight, alt: imageTitle ?? title }],
+      images: [{ url: ogImage, width: ogImageWidth, height: ogImageHeight, alt: imageAlt }],
+      siteName: "SoulEvents.dk",
       type,
       url: canonical,
     },
@@ -100,7 +102,7 @@ export function createPageMetadata({
       card: "summary_large_image",
       title,
       description: normalizedDescription,
-      images: [ogImage],
+      images: [{ url: ogImage, alt: imageAlt }],
     },
   };
 }

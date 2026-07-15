@@ -1090,7 +1090,7 @@ export async function publishDraftEventAction(formData: FormData) {
   }
 
   if (autoApproveEvents) {
-    await supabase.from("admin_audit_logs").insert({
+    await supabase.from("admin_audit_log").insert({
       actor_profile_id: profile.id,
       facilitator_id: facilitatorProfile.id,
       event_id: event.id,

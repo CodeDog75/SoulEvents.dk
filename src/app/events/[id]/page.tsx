@@ -9,7 +9,7 @@ import { BookingForm } from "@/components/events/detail/booking-form";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
-import { createPageMetadata, getHomepageOgImageUrl, publicMediaUrl, stripHtml } from "@/lib/open-graph";
+import { createPageMetadata, publicMediaUrl, stripHtml } from "@/lib/open-graph";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -81,7 +81,7 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
       .filter((category: any): category is { name: string | null; image_path: string | null } => Boolean(category)) ?? [];
   const categoryCoverPath = mainCategories.find((category) => category.image_path)?.image_path ?? null;
   const eventImagePath = event.cover_image_path || images.find((image) => image.image_path)?.image_path || categoryCoverPath;
-  const imageUrl = publicMediaUrl(supabase, eventImagePath) ?? (await getHomepageOgImageUrl(supabase as any));
+  const imageUrl = eventImagePath ? publicMediaUrl(supabase, eventImagePath) : null;
   const facilitatorUser = first(facilitator?.profiles);
   const facilitatorName = facilitator?.company_name || facilitatorUser?.full_name || "SoulEvents";
   const description = stripHtml(event.short_description || event.long_description) || "Se eventet og arrangøren på SoulEvents.dk.";

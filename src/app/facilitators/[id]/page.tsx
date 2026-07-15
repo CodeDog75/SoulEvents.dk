@@ -11,7 +11,7 @@ import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitat
 import { subscribeToFacilitatorReminderAction } from "./actions";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
-import { createPageMetadata, getHomepageOgImageUrl, publicMediaUrl, stripHtml } from "@/lib/open-graph";
+import { createPageMetadata, publicMediaUrl, stripHtml } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -160,13 +160,19 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
     .eq("is_disabled", false)
     .single();
 
-  if (!facilitator) return {};
+  if (!facilitator) {
+    return createPageMetadata({
+      title: "Arrangør | SoulEvents.dk",
+      description: "Find arrangører på SoulEvents.dk.",
+      path: "/facilitators/" + id,
+    });
+  }
 
   const name = nameOf(facilitator);
   const galleryImages = [...(((facilitator as any).facilitator_images ?? []) as Array<{ image_path: string | null; sort_order: number | null }>)]
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   const imagePath = facilitator.profile_image_path || galleryImages.find((image) => image.image_path)?.image_path || null;
-  const imageUrl = publicMediaUrl(supabase, imagePath) ?? (await getHomepageOgImageUrl(supabase as any));
+  const imageUrl = imagePath ? publicMediaUrl(supabase, imagePath) : null;
   const description = stripHtml(facilitator.short_description || facilitator.long_description) || "Find arrangørprofil på SoulEvents.dk.";
 
   return createPageMetadata({

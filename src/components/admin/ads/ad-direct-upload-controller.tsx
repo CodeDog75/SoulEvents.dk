@@ -13,10 +13,6 @@ type UploadState = {
 const maxAdImageBytes = 20 * 1024 * 1024;
 const maxAdVideoBytes = 100 * 1024 * 1024;
 
-function adUploadDebug(step: string, details?: Record<string, unknown>) {
-  console.info("[ad-upload-debug] " + new Date().toISOString() + " " + step, details ?? {});
-}
-
 function formatMb(bytes: number) {
   return (bytes / 1024 / 1024).toLocaleString("da-DK", { maximumFractionDigits: 1 });
 }
@@ -63,11 +59,6 @@ async function uploadFile(input: {
     throw new Error(validationError);
   }
 
-  adUploadDebug("upload starts", {
-    fileSize: input.file.size,
-    fileType: input.file.type,
-    slot: input.slot,
-  });
   input.setStatus("Klargør upload...");
   const signedUpload = await createSignedAdUploadAction({
     contentType: input.file.type,
@@ -91,10 +82,6 @@ async function uploadFile(input: {
     throw new Error("Upload fejlede: " + error.message);
   }
 
-  adUploadDebug("upload ends", {
-    path: signedUpload.path,
-    slot: input.slot,
-  });
   input.setStatus("Upload færdig.");
   return signedUpload.path;
 }
@@ -106,11 +93,6 @@ export function AdDirectUploadController({ formId }: { formId: string }) {
   useEffect(() => {
     const form = document.getElementById(formId);
     if (!(form instanceof HTMLFormElement)) return undefined;
-    const submitButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('button[type="submit"][form="' + formId + '"]'));
-
-    const onSubmitButtonClick = () => {
-      adUploadDebug("submit button clicked", { formId });
-    };
 
     const saveAfterValidation = async () => {
       const desktopFileInput = fileInputFor(form, "desktop");
@@ -124,21 +106,11 @@ export function AdDirectUploadController({ formId }: { formId: string }) {
       const desktopFile = desktopFileInput?.files?.[0] ?? null;
       const mobileFile = mobileFileInput?.files?.[0] ?? null;
 
-      adUploadDebug("direct upload controller starts", { formId });
-      adUploadDebug("direct upload decision", {
-        hasDesktopFile: Boolean(desktopFile),
-        hasMobileFile: Boolean(mobileFile),
-      });
-
       setState({ desktop: "", error: "", mobile: "" });
 
       const uploadedPaths: string[] = [];
 
       try {
-        if (!desktopFile && !mobileFile) {
-          adUploadDebug("no new files selected - calling upsertAdAction directly", { formId });
-        }
-
         if (desktopFile) {
           const path = await uploadFile({
             file: desktopFile,
@@ -176,10 +148,6 @@ export function AdDirectUploadController({ formId }: { formId: string }) {
         finalFormData.delete("image_file");
         finalFormData.delete("mobile_image_file");
 
-        adUploadDebug("upsertAdAction called from direct upload controller", {
-          hasDesktopPath: Boolean(finalFormData.get("image_path")),
-          hasMobilePath: Boolean(finalFormData.get("mobile_image_path")),
-        });
         startTransition(() => {
           void upsertAdAction(finalFormData);
         });
@@ -195,24 +163,13 @@ export function AdDirectUploadController({ formId }: { formId: string }) {
       }
     };
 
-    const onSubmit = (event: SubmitEvent) => {
-      adUploadDebug("direct upload controller saw submit event", {
-        defaultPrevented: event.defaultPrevented,
-        formId,
-      });
-    };
-
     const onValidationApproved = (event: Event) => {
       event.preventDefault();
       void saveAfterValidation();
     };
 
-    submitButtons.forEach((button) => button.addEventListener("click", onSubmitButtonClick));
-    form.addEventListener("submit", onSubmit);
     form.addEventListener("ad-category-guard-approved", onValidationApproved);
     return () => {
-      submitButtons.forEach((button) => button.removeEventListener("click", onSubmitButtonClick));
-      form.removeEventListener("submit", onSubmit);
       form.removeEventListener("ad-category-guard-approved", onValidationApproved);
     };
   }, [formId, startTransition]);

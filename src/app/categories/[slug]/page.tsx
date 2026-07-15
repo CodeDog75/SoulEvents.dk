@@ -7,7 +7,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { CategoryEventExplorer } from "@/components/categories/category-event-explorer";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
 import { publicMediaUrl } from "@/lib/media/public-url";
-import { createPageMetadata, getHomepageOgImageUrl, stripHtml } from "@/lib/open-graph";
+import { createPageMetadata, stripHtml } from "@/lib/open-graph";
 import { areaOptions } from "@/lib/regions/areas";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -100,7 +100,7 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
     });
   }
 
-  const imageUrl = (await getCategoryHeroImage(supabase, mainCategory.id, mainCategory.image_path)) ?? (await getHomepageOgImageUrl(supabase as any));
+  const imageUrl = await getCategoryHeroImage(supabase, mainCategory.id, mainCategory.image_path);
   const description = stripHtml(mainCategory.description) || "Find events og arrangører inden for " + mainCategory.name + " på SoulEvents.dk.";
 
   return createPageMetadata({
