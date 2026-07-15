@@ -11,6 +11,7 @@ import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitat
 import { subscribeToFacilitatorReminderAction } from "./actions";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
+import { createPageMetadata, getHomepageOgImageUrl, publicMediaUrl, stripHtml } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -152,7 +153,7 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
   const supabase = await createClient();
   const { data: facilitator } = await supabase
     .from("facilitator_profiles")
-    .select("company_name, short_description, profiles!facilitator_profiles_profile_id_fkey(full_name)")
+    .select("company_name, profile_image_path, short_description, long_description, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_images(image_path, sort_order)")
     .eq("id", id)
     .eq("status", "approved")
     .eq("is_paused", false)
@@ -162,10 +163,21 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
   if (!facilitator) return {};
 
   const name = nameOf(facilitator);
-  return {
-    title: name + " | Arrangør på SoulEvents",
-    description: facilitator.short_description || "Find arrangørerprofil på SoulEvents.",
-  };
+  const galleryImages = [...(((facilitator as any).facilitator_images ?? []) as Array<{ image_path: string | null; sort_order: number | null }>)]
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const imagePath = facilitator.profile_image_path || galleryImages.find((image) => image.image_path)?.image_path || null;
+  const imageUrl = publicMediaUrl(supabase, imagePath) ?? (await getHomepageOgImageUrl(supabase as any));
+  const description = stripHtml(facilitator.short_description || facilitator.long_description) || "Find arrangørprofil på SoulEvents.dk.";
+
+  return createPageMetadata({
+    title: name + " | Arrangør på SoulEvents.dk",
+    description,
+    imageTitle: name,
+    imageSubtitle: "Arrangør på SoulEvents.dk",
+    imageUrl,
+    path: "/facilitators/" + id,
+    type: "article",
+  });
 }
 
 export default async function PublicFacilitatorPage({ params, searchParams }: FacilitatorPageProps) {

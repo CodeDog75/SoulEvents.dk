@@ -3,11 +3,15 @@ import Link from "next/link";
 import { ArrowLeft, Mail, Trash2 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteFooterLogin } from "@/components/site-footer-login";
+import { createPageMetadata } from "@/lib/open-graph";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Sletning af data | SoulEvents.dk",
   description: "Sådan kan du anmode om at få slettet din profil og dine oplysninger hos SoulEvents.dk.",
-};
+  imageTitle: "Sletning af data",
+  imageSubtitle: "Sådan kan du få slettet dine oplysninger hos SoulEvents.dk.",
+  path: "/data-deletion",
+});
 
 const deletionSteps = [
   {

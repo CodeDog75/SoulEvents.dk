@@ -1,8 +1,18 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Mail } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { ContactForm } from "@/components/contact/contact-form";
 import { SiteFooterLogin } from "@/components/site-footer-login";
+import { createPageMetadata } from "@/lib/open-graph";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Kontakt SoulEvents.dk",
+  description: "Skriv til SoulEvents.dk, hvis du har spørgsmål, ideer eller brug for hjælp.",
+  imageTitle: "Kontakt SoulEvents.dk",
+  imageSubtitle: "Vi hjælper gerne med spørgsmål om platformen.",
+  path: "/contact",
+});
 
 type ContactPageProps = {
   searchParams?: Promise<{

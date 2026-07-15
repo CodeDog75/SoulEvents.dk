@@ -1,9 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
 import { ClearSignupDraft, SignupForm } from "@/components/auth/signup-form";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
+import { createPageMetadata } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Opret arrangørprofil | SoulEvents.dk",
+  description: "Opret en gratis arrangørprofil på SoulEvents.dk og del dine events, ydelser og oplevelser.",
+  imageTitle: "Opret arrangørprofil",
+  imageSubtitle: "Del events, ydelser og oplevelser på SoulEvents.dk.",
+  path: "/auth/signup",
+});
 
 type SignUpPageProps = {
   searchParams: Promise<{

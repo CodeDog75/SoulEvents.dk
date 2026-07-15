@@ -3,11 +3,15 @@ import Link from "next/link";
 import { ArrowLeft, FileText, Mail } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteFooterLogin } from "@/components/site-footer-login";
+import { createPageMetadata } from "@/lib/open-graph";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Vilkår og betingelser | SoulEvents.dk",
   description: "Læs vilkår og betingelser for brug af SoulEvents.dk.",
-};
+  imageTitle: "Vilkår og betingelser",
+  imageSubtitle: "Læs vilkår for brug af SoulEvents.dk.",
+  path: "/terms",
+});
 
 const terms = [
   {

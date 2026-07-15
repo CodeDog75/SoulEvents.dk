@@ -155,10 +155,13 @@ async function uploadDirectAdMedia(file: File, prefix: "desktop" | "mobile") {
     if (error) {
       const message = error.message.toLowerCase();
       if (message.includes("exceeded") || message.includes("too large") || error.statusCode === "413") {
-        return { path: null, error: "Filen er større end den aktuelle Storage-grænse. Kør migration 064 og prøv igen." };
+        return { path: null, error: "Filen er større end den aktuelle Storage-grænse. Kør migration 065 og prøv igen." };
       }
       if (message.includes("mime") || message.includes("type")) {
         return { path: null, error: "Storage afviser filtypen. Tjek at video/mp4 er tilladt i media-bucketten." };
+      }
+      if (message.includes("row-level security") || message.includes("violates row-level security")) {
+        return { path: null, error: "Storage afviser uploaden på grund af manglende admin-policy. Kør migration 065 og prøv igen." };
       }
 
       return { path: null, error: "Upload fejlede: " + error.message };

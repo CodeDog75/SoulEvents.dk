@@ -3,11 +3,15 @@ import Link from "next/link";
 import { ArrowLeft, Mail, ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteFooterLogin } from "@/components/site-footer-login";
+import { createPageMetadata } from "@/lib/open-graph";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Privatlivspolitik | SoulEvents.dk",
   description: "Læs hvordan SoulEvents.dk behandler personoplysninger.",
-};
+  imageTitle: "Privatlivspolitik",
+  imageSubtitle: "Sådan passer SoulEvents.dk på dine oplysninger.",
+  path: "/privacy",
+});
 
 const sections = [
   {

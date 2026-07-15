@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, CalendarPlus, HeartHandshake, Leaf, MailCheck, MapPinned, Search, Sparkles, UserPlus } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import { aboutPageSettingKey, parseAboutPageContent, type AboutImageKey } from "@/lib/about-page-content";
+import { createPageMetadata, getHomepageOgImageUrl } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -204,6 +206,22 @@ function EditorialSection() {
       </div>
     </section>
   );
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const supabase = await createClient();
+  const { data: setting } = await supabase.from("site_settings").select("value").eq("key", aboutPageSettingKey).maybeSingle();
+  const content = parseAboutPageContent(setting?.value);
+  const homepageImageUrl = await getHomepageOgImageUrl(supabase as any);
+
+  return createPageMetadata({
+    title: "Om SoulEvents.dk",
+    description: content.introduction || "Læs om SoulEvents.dk og platformens fællesskab for events, ydelser og arrangører.",
+    imageTitle: content.headline || "Om SoulEvents.dk",
+    imageSubtitle: "Events for krop, sind og sjæl",
+    imageUrl: homepageImageUrl,
+    path: "/about",
+  });
 }
 
 export default async function AboutPage() {

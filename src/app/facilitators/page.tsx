@@ -1,11 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, Filter, Search, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
+import { createPageMetadata } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Arrangører | SoulEvents.dk",
+  description: "Find godkendte arrangører, undervisere og fællesskaber på SoulEvents.dk.",
+  imageTitle: "Arrangører på SoulEvents.dk",
+  imageSubtitle: "Find profiler, events og ydelser.",
+  path: "/facilitators",
+});
 
 type FacilitatorDirectoryProps = {
   searchParams?: Promise<{

@@ -1,9 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { createPageMetadata } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Inspiration | SoulEvents.dk",
+  description: "Mød inspirerende mennesker i SoulEvents-universet.",
+  imageTitle: "Inspiration",
+  imageSubtitle: "Mennesker, der inspirerer fællesskabet.",
+  path: "/inspiration",
+});
 
 function publicMediaUrl(imagePath: string | null) {
   if (!imagePath) return null;

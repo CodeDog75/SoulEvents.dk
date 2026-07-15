@@ -2,15 +2,24 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { CookieConsentManager } from "@/components/cookie-consent-manager";
 import { getSiteFaviconUrl } from "@/lib/brand-logo";
+import { createPageMetadata, getHomepageOgImageUrl, siteBaseUrl } from "@/lib/open-graph";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const faviconUrl = await getSiteFaviconUrl();
-
-  return {
+  const [faviconUrl, homepageImageUrl] = await Promise.all([getSiteFaviconUrl(), getHomepageOgImageUrl()]);
+  const metadata = createPageMetadata({
     title: "SoulEvents.dk",
     description: "Find events, arrangører og fællesskaber i Danmark.",
+    imageTitle: "SoulEvents.dk",
+    imageSubtitle: "Find events, arrangører og fællesskaber i Danmark.",
+    imageUrl: homepageImageUrl,
+    path: "/",
+  });
+
+  return {
+    ...metadata,
     icons: faviconUrl ? { icon: [{ url: faviconUrl }] } : undefined,
+    metadataBase: new URL(siteBaseUrl()),
   };
 }
 

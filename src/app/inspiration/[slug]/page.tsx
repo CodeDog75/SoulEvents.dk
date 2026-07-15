@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, Mail, Sparkles } from "lucide-react";
 import { sendInspiratorContactAction } from "@/app/inspiration/[slug]/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
+import { createPageMetadata, getHomepageOgImageUrl, stripHtml } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +41,38 @@ function linkItems(profile: any) {
     ["Spotify", profile.spotify_url],
     ["Webshop", profile.webshop_url],
   ].filter(([, url]) => Boolean(url));
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = await createClient();
+  const { data: profile } = await supabase
+    .from("inspirator_profiles")
+    .select("slug, name, title, short_intro, body, profile_image_path, hero_image_path")
+    .eq("slug", slug)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!profile) {
+    return createPageMetadata({
+      title: "Inspiration | SoulEvents.dk",
+      description: "Mød inspirerende mennesker i SoulEvents-universet.",
+      path: "/inspiration/" + slug,
+    });
+  }
+
+  const imageUrl = publicMediaUrl(profile.hero_image_path || profile.profile_image_path) ?? (await getHomepageOgImageUrl(supabase as any));
+  const description = stripHtml(profile.short_intro || profile.body) || "Mød " + profile.name + " i SoulEvents-universet.";
+
+  return createPageMetadata({
+    title: profile.name + " | Inspiration på SoulEvents.dk",
+    description,
+    imageTitle: profile.name,
+    imageSubtitle: profile.title || "Inspiration på SoulEvents.dk",
+    imageUrl,
+    path: "/inspiration/" + slug,
+    type: "article",
+  });
 }
 
 export default async function InspiratorProfilePage({ params, searchParams }: PageProps) {

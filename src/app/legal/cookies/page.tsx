@@ -1,12 +1,17 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteFooterLogin } from "@/components/site-footer-login";
+import { createPageMetadata } from "@/lib/open-graph";
 
-export const metadata = {
+export const metadata: Metadata = createPageMetadata({
   title: "Cookieoversigt | SoulEvents.dk",
   description: "Se hvilke cookies og lagringsteknologier SoulEvents bruger.",
-};
+  imageTitle: "Cookieoversigt",
+  imageSubtitle: "Cookies og lagringsteknologier på SoulEvents.dk.",
+  path: "/legal/cookies",
+});
 
 const technologies = [
   {

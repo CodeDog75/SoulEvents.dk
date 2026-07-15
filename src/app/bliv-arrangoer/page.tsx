@@ -11,6 +11,7 @@ import {
   type BecomeOrganizerImage,
   type BecomeOrganizerSection,
 } from "@/lib/become-organizer-page-content";
+import { createPageMetadata, getHomepageOgImageUrl } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -283,20 +284,17 @@ function SectionRenderer({ section, supabase }: { section: BecomeOrganizerSectio
 
 export async function generateMetadata(): Promise<Metadata> {
   const { content } = await getContent();
+  const homepageImageUrl = await getHomepageOgImageUrl();
+  const heroSection = content.sections.find((section): section is Extract<BecomeOrganizerSection, { type: "hero" }> => section.type === "hero");
 
-  return {
+  return createPageMetadata({
     title: content.seoTitle,
     description: content.seoDescription,
-    alternates: {
-      canonical: "/bliv-arrangoer",
-    },
-    openGraph: {
-      title: content.seoTitle,
-      description: content.seoDescription,
-      type: "website",
-      url: "/bliv-arrangoer",
-    },
-  };
+    imageTitle: heroSection?.title || content.seoTitle,
+    imageSubtitle: content.seoDescription,
+    imageUrl: homepageImageUrl,
+    path: "/bliv-arrangoer",
+  });
 }
 
 export default async function BecomeOrganizerPage() {

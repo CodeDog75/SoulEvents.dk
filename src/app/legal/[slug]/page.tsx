@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { createPageMetadata, stripHtml } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
 
 type LegalDocumentPageProps = {
@@ -19,8 +21,7 @@ type LegalVersion = {
   version: string;
 };
 
-export default async function LegalDocumentPage({ params }: LegalDocumentPageProps) {
-  const { slug } = await params;
+async function getPublishedLegalDocument(slug: string) {
   const supabase = await createClient();
   const now = new Date().toISOString();
   const { data: legalDocument } = await supabase
@@ -38,9 +39,38 @@ export default async function LegalDocumentPage({ params }: LegalDocumentPagePro
     .order("created_at", { ascending: false })
     .order("published_at", { ascending: false })
     .limit(10);
-  const document =
+
+  return (
     ((versions ?? []) as LegalVersion[]).find((version) => version.id === legalDocument?.current_version_id) ??
-    ((versions ?? []) as LegalVersion[])[0];
+    ((versions ?? []) as LegalVersion[])[0] ??
+    null
+  );
+}
+
+export async function generateMetadata({ params }: LegalDocumentPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const document = await getPublishedLegalDocument(slug);
+
+  if (!document) {
+    return createPageMetadata({
+      title: "Juridisk dokument | SoulEvents.dk",
+      description: "Læs juridiske dokumenter fra SoulEvents.dk.",
+      path: "/legal/" + slug,
+    });
+  }
+
+  return createPageMetadata({
+    title: document.title + " | SoulEvents.dk",
+    description: stripHtml(document.body) || "Læs " + document.title + " fra SoulEvents.dk.",
+    imageTitle: document.title,
+    imageSubtitle: "Juridisk dokument fra SoulEvents.dk",
+    path: "/legal/" + slug,
+  });
+}
+
+export default async function LegalDocumentPage({ params }: LegalDocumentPageProps) {
+  const { slug } = await params;
+  const document = await getPublishedLegalDocument(slug);
 
   if (!document) {
     notFound();

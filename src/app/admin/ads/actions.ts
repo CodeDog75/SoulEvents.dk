@@ -54,6 +54,25 @@ function adErrorText(error: { message?: string; details?: string; code?: string 
   return text;
 }
 
+function adUploadErrorMessage(error: { message?: string; statusCode?: string | number } | null | undefined) {
+  const message = (error?.message ?? "").toLowerCase();
+  const statusCode = String(error?.statusCode ?? "");
+
+  if (message.includes("row-level security") || message.includes("violates row-level security")) {
+    return "Storage afviser uploaden på grund af manglende admin-policy. Kør migration 065 og prøv igen.";
+  }
+
+  if (message.includes("exceeded") || message.includes("too large") || statusCode === "413") {
+    return "Filen er større end den aktuelle Storage-grænse. Kør migration 065 og prøv igen.";
+  }
+
+  if (message.includes("mime") || message.includes("type")) {
+    return "Storage afviser filtypen. Tjek at video/mp4 er tilladt i media-bucketten.";
+  }
+
+  return "Filen kunne ikke uploades: " + (error?.message ?? "Ukendt Storage-fejl");
+}
+
 function isMissingOptionalAdColumnError(error: { message?: string; details?: string; code?: string } | null | undefined) {
   const text = adErrorText(error);
   return text.includes("schema cache") || optionalAdColumns.some((column) => text.includes(column));
@@ -168,7 +187,7 @@ async function uploadAdMedia(
       type: file.type || "unknown",
       size: file.size,
     });
-    return { path: currentImagePath, uploadedPath: null, error: "Filen kunne ikke uploades: " + error.message };
+    return { path: currentImagePath, uploadedPath: null, error: adUploadErrorMessage(error) };
   }
 
   return { path: imagePath, uploadedPath: imagePath, error: null };

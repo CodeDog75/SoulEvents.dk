@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, CircleUserRound, ExternalLink, Mail, MapPinned, Phone, Ticket } from "lucide-react";
@@ -8,6 +9,7 @@ import { BookingForm } from "@/components/events/detail/booking-form";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
+import { createPageMetadata, getHomepageOgImageUrl, publicMediaUrl, stripHtml } from "@/lib/open-graph";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,6 +21,81 @@ type EventDetailPageProps = {
   }>;
   searchParams: Promise<{ admin_return?: string; booking?: string; message?: string }>;
 };
+
+function first<T>(value: T | T[] | null | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export async function generateMetadata({ params }: EventDetailPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data: event } = await supabase
+    .from("events")
+    .select(
+      `
+      id,
+      status,
+      title,
+      short_description,
+      long_description,
+      starts_at,
+      ends_at,
+      cover_image_path,
+      facilitator_profiles!inner(
+        status,
+        is_paused,
+        is_disabled,
+        company_name,
+        profiles!facilitator_profiles_profile_id_fkey(full_name)
+      ),
+      event_main_categories(main_categories(name, image_path)),
+      event_images(image_path, sort_order)
+    `,
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  const facilitator = first((event as any)?.facilitator_profiles);
+  const isPublishedEvent = event ? ["active", "sold_out"].includes(event.status) : false;
+  const isExpiredEvent = event ? new Date(event.ends_at ?? event.starts_at) < new Date() : true;
+  const isPublicEvent =
+    isPublishedEvent &&
+    !isExpiredEvent &&
+    facilitator?.status === "approved" &&
+    !facilitator?.is_paused &&
+    !facilitator?.is_disabled;
+
+  if (!event || !isPublicEvent) {
+    return createPageMetadata({
+      title: "Event | SoulEvents.dk",
+      description: "Find nærværende events på SoulEvents.dk.",
+      path: "/events/" + id,
+    });
+  }
+
+  const images = [...(((event as any).event_images ?? []) as Array<{ image_path: string | null; sort_order: number | null }>)]
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const mainCategories: Array<{ name: string | null; image_path: string | null }> =
+    ((event as any).event_main_categories ?? [])
+      .map((row: any) => first(row.main_categories))
+      .filter((category: any): category is { name: string | null; image_path: string | null } => Boolean(category)) ?? [];
+  const categoryCoverPath = mainCategories.find((category) => category.image_path)?.image_path ?? null;
+  const eventImagePath = event.cover_image_path || images.find((image) => image.image_path)?.image_path || categoryCoverPath;
+  const imageUrl = publicMediaUrl(supabase, eventImagePath) ?? (await getHomepageOgImageUrl(supabase as any));
+  const facilitatorUser = first(facilitator?.profiles);
+  const facilitatorName = facilitator?.company_name || facilitatorUser?.full_name || "SoulEvents";
+  const description = stripHtml(event.short_description || event.long_description) || "Se eventet og arrangøren på SoulEvents.dk.";
+
+  return createPageMetadata({
+    title: event.title + " | SoulEvents.dk",
+    description,
+    imageTitle: event.title,
+    imageSubtitle: "Event af " + facilitatorName,
+    imageUrl,
+    path: "/events/" + id,
+    type: "article",
+  });
+}
 
 function formatEventFormat(format?: string | null) {
   if (format === "online") return "💻 Online";

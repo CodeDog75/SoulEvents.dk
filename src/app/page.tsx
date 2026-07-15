@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Metadata } from "next";
 import {
   CalendarDays,
   Mail,
@@ -20,11 +21,25 @@ import { PublicFacilitatorCarousel } from "@/components/facilitator/public-facil
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import { env } from "@/lib/env";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
+import { createPageMetadata, getHomepageOgImageUrl } from "@/lib/open-graph";
 import { getAreaOption } from "@/lib/regions/areas";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const homepageImageUrl = await getHomepageOgImageUrl();
+
+  return createPageMetadata({
+    title: "SoulEvents.dk | Events for krop, sind og sjæl",
+    description: "Find yoga, meditation, retreats, healing, ceremonier og andre nærværende oplevelser i Danmark.",
+    imageTitle: "SoulEvents.dk",
+    imageSubtitle: "Find nærværende events, ydelser og fællesskaber.",
+    imageUrl: homepageImageUrl,
+    path: "/",
+  });
+}
 
 const hiddenHomepageFacilitatorReferenceIds = new Set(["V101"]);
 

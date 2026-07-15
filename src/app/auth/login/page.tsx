@@ -1,8 +1,18 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { resendConfirmationAction, signInAction } from "@/app/auth/actions";
+import { createPageMetadata } from "@/lib/open-graph";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Log ind | SoulEvents.dk",
+  description: "Log ind på SoulEvents.dk som arrangør eller administrator.",
+  imageTitle: "Log ind på SoulEvents.dk",
+  imageSubtitle: "Administrer profil, events og tilmeldinger.",
+  path: "/auth/login",
+});
 
 type LoginPageProps = {
   searchParams: Promise<{

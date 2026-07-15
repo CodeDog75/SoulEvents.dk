@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CategoryEventExplorer } from "@/components/categories/category-event-explorer";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
+import { createPageMetadata, getHomepageOgImageUrl, stripHtml } from "@/lib/open-graph";
 import { areaOptions } from "@/lib/regions/areas";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -77,6 +79,37 @@ async function getCategoryHeroImage(
   }
 
   return null;
+}
+
+export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = await createClient();
+  const { data: mainCategory } = await supabase
+    .from("main_categories")
+    .select("id, name, slug, description, image_path")
+    .eq("slug", slug)
+    .eq("is_active", true)
+    .single();
+
+  if (!mainCategory) {
+    return createPageMetadata({
+      title: "Kategori | SoulEvents.dk",
+      description: "Find events og arrangører på SoulEvents.dk.",
+      path: "/categories/" + slug,
+    });
+  }
+
+  const imageUrl = (await getCategoryHeroImage(supabase, mainCategory.id, mainCategory.image_path)) ?? (await getHomepageOgImageUrl(supabase as any));
+  const description = stripHtml(mainCategory.description) || "Find events og arrangører inden for " + mainCategory.name + " på SoulEvents.dk.";
+
+  return createPageMetadata({
+    title: mainCategory.name + " | SoulEvents.dk",
+    description,
+    imageTitle: mainCategory.name,
+    imageSubtitle: "Find events og arrangører på SoulEvents.dk",
+    imageUrl,
+    path: "/categories/" + slug,
+  });
 }
 
 export default async function MainCategoryPage({ params, searchParams }: CategoryPageProps) {
