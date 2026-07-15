@@ -107,8 +107,8 @@ export function AdPreviewTabs({
     };
 
     const syncPreview = () => {
-      const desktopFileInput = form.elements.namedItem("image_file");
-      const mobileFileInput = form.elements.namedItem("mobile_image_file");
+      const desktopFileInput = form.querySelector<HTMLInputElement>('input[data-ad-file-input="desktop"]');
+      const mobileFileInput = form.querySelector<HTMLInputElement>('input[data-ad-file-input="mobile"]');
       const removeDesktopInput = form.elements.namedItem("remove_image");
       const removeMobileInput = form.elements.namedItem("remove_mobile_image");
       const titleInput = form.elements.namedItem("title");
@@ -172,7 +172,7 @@ export function AdPreviewTabs({
     const syncAfterReset = () => window.setTimeout(syncPreview, 0);
     const fields = Array.from(
       form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
-        'input[name="image_file"], input[name="mobile_image_file"], input[name="remove_image"], input[name="remove_mobile_image"], input[name="title"], input[name="sponsor_name"], input[name="alt_text"], input[name="show_title_on_banner"], input[name="show_sponsor_on_banner"]',
+        'input[data-ad-file-input="desktop"], input[data-ad-file-input="mobile"], input[name="remove_image"], input[name="remove_mobile_image"], input[name="title"], input[name="sponsor_name"], input[name="alt_text"], input[name="show_title_on_banner"], input[name="show_sponsor_on_banner"]',
       ),
     );
 

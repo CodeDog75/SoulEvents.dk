@@ -142,8 +142,8 @@ export function AdFormCategoryGuard({ formId }: AdFormCategoryGuardProps) {
       const showOnHomepage = form?.querySelector<HTMLInputElement>('input[name="show_on_homepage"]');
       const checkedCategories = form?.querySelectorAll<HTMLInputElement>('input[name="main_category_ids"]:checked');
       const currentDesktopPath = form?.querySelector<HTMLInputElement>('input[name="image_path"]')?.value.trim();
-      const desktopFileInput = form?.querySelector<HTMLInputElement>('input[name="image_file"]');
-      const mobileFileInput = form?.querySelector<HTMLInputElement>('input[name="mobile_image_file"]');
+      const desktopFileInput = form?.querySelector<HTMLInputElement>('input[data-ad-file-input="desktop"]');
+      const mobileFileInput = form?.querySelector<HTMLInputElement>('input[data-ad-file-input="mobile"]');
       const desktopFile = desktopFileInput?.files?.[0];
       const mobileFile = mobileFileInput?.files?.[0];
       const removeDesktop = form?.querySelector<HTMLInputElement>('input[name="remove_image"]')?.checked;
