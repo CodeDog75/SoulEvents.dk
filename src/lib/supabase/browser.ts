@@ -1,4 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { supabaseCookieOptions } from "@/lib/supabase/auth-cookies";
 
 export function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -8,5 +9,9 @@ export function createClient() {
     throw new Error("Supabase browser credentials are missing.");
   }
 
-  return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  const hostname = typeof window === "undefined" ? null : window.location.hostname;
+
+  return createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    cookieOptions: supabaseCookieOptions(hostname),
+  });
 }

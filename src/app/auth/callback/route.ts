@@ -5,6 +5,7 @@ import { getAppUrl } from "@/lib/app-url";
 import { env } from "@/lib/env";
 import { disabledFacilitatorLoginMessage } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeSupabaseCookieOptions, supabaseCookieOptions } from "@/lib/supabase/auth-cookies";
 import type { AppRole } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -47,19 +48,10 @@ function createPasswordResetClient(request: NextRequest) {
   }
 
   const callbackHostname = new URL(request.url).hostname;
-  const shouldUseProductionCookieDomain = callbackHostname === "soulevents.dk" || callbackHostname === "www.soulevents.dk";
-  const passwordResetCookieOptions: CookieOptions | undefined = shouldUseProductionCookieDomain
-    ? {
-        domain: ".soulevents.dk",
-        path: "/",
-        sameSite: "lax",
-        secure: true,
-      }
-    : undefined;
   const cookiesToSet: Array<{ name: string; value: string; options: CookieOptions }> = [];
   const responseHeaders: Record<string, string> = {};
   const supabase = createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
-    cookieOptions: passwordResetCookieOptions,
+    cookieOptions: supabaseCookieOptions(callbackHostname),
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -78,7 +70,7 @@ function createPasswordResetClient(request: NextRequest) {
     supabase,
     applyCookies(response: NextResponse) {
       cookiesToSet.forEach(({ name, value, options }) => {
-        response.cookies.set(name, value, options);
+        response.cookies.set(name, value, normalizeSupabaseCookieOptions(options, callbackHostname));
       });
       Object.entries(responseHeaders).forEach(([key, value]) => {
         response.headers.set(key, value);
