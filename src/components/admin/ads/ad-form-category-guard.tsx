@@ -13,6 +13,10 @@ const minDesktopImageHeight = 900;
 const minMobileImageWidth = 1200;
 const minMobileImageHeight = 1200;
 
+function adGuardDebug(step: string, details?: Record<string, unknown>) {
+  console.info("[ad-guard-debug] " + new Date().toISOString() + " " + step, details ?? {});
+}
+
 function formatMegabytes(bytes: number) {
   return (bytes / (1024 * 1024)).toLocaleString("da-DK", {
     maximumFractionDigits: 1,
@@ -119,7 +123,6 @@ export function AdFormCategoryGuard({ formId }: AdFormCategoryGuardProps) {
   useEffect(() => {
     const form = document.getElementById(formId) as HTMLFormElement | null;
     if (!form) return;
-    let isResubmitting = false;
     const showOnCategoryPages = form.querySelector<HTMLInputElement>('input[name="show_on_category_pages"]');
     const categoriesSection = form.querySelector<HTMLElement>("[data-ad-categories-section]");
 
@@ -133,11 +136,16 @@ export function AdFormCategoryGuard({ formId }: AdFormCategoryGuardProps) {
     syncCategoryVisibility();
     showOnCategoryPages?.addEventListener("change", syncCategoryVisibility);
 
+    function showValidationMessage(nextMessage: string) {
+      setIsSubmitting(false);
+      setMessage(nextMessage);
+    }
+
     async function validate(event: SubmitEvent) {
-      if (isResubmitting) {
-        isResubmitting = false;
-        return;
-      }
+      adGuardDebug("category guard starts", {
+        defaultPrevented: event.defaultPrevented,
+        formId,
+      });
 
       const showOnHomepage = form?.querySelector<HTMLInputElement>('input[name="show_on_homepage"]');
       const checkedCategories = form?.querySelectorAll<HTMLInputElement>('input[name="main_category_ids"]:checked');
@@ -153,59 +161,71 @@ export function AdFormCategoryGuard({ formId }: AdFormCategoryGuardProps) {
       const title = form?.querySelector<HTMLInputElement>('input[name="title"]')?.value.trim();
 
       if (!title) {
+        adGuardDebug("category guard blocks submit: missing title", { formId });
         event.preventDefault();
-        setMessage("Titel er påkrævet.");
+        showValidationMessage("Titel er påkrævet.");
         form?.closest("details")?.setAttribute("open", "");
         form?.querySelector<HTMLInputElement>('input[name="title"]')?.focus();
         return;
       }
 
       if ((!currentDesktopPath || removeDesktop) && !desktopFile) {
+        adGuardDebug("category guard blocks submit: missing desktop banner", { formId });
         event.preventDefault();
-        setMessage("Desktopbanner er påkrævet. Upload et banner i 1600 x 600-format.");
+        showValidationMessage("Desktopbanner er påkrævet. Upload et banner i 1600 x 600-format.");
         form?.closest("details")?.setAttribute("open", "");
         form?.querySelector('[data-ad-media-section="true"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
       }
 
       if (targetUrl && !/^https?:\/\//i.test(targetUrl) && !/^\/(?!\/)/.test(targetUrl)) {
+        adGuardDebug("category guard blocks submit: invalid target url", { formId });
         event.preventDefault();
-        setMessage("Link skal starte med https:// eller være et internt link som /kontakt.");
+        showValidationMessage("Link skal starte med https:// eller være et internt link som /kontakt.");
         form?.closest("details")?.setAttribute("open", "");
         form?.querySelector<HTMLInputElement>('input[name="target_url"]')?.focus();
         return;
       }
 
       if (startsAt && endsAt && endsAt < startsAt) {
+        adGuardDebug("category guard blocks submit: invalid date range", { formId });
         event.preventDefault();
-        setMessage("Slutdato skal være efter startdato.");
+        showValidationMessage("Slutdato skal være efter startdato.");
         form?.closest("details")?.setAttribute("open", "");
         form?.querySelector<HTMLInputElement>('input[name="ends_at"]')?.focus();
         return;
       }
 
       if (!showOnHomepage?.checked && !showOnCategoryPages?.checked) {
+        adGuardDebug("category guard blocks submit: missing placement", { formId });
         event.preventDefault();
-        setMessage("Vælg mindst én placering: forsiden eller hovedkategorisider.");
+        showValidationMessage("Vælg mindst én placering: forsiden eller hovedkategorisider.");
         form?.closest("details")?.setAttribute("open", "");
         form?.querySelector('[data-ad-category-error="true"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
       }
 
       if (showOnCategoryPages?.checked && (!checkedCategories || checkedCategories.length === 0)) {
+        adGuardDebug("category guard blocks submit: missing categories", { formId });
         event.preventDefault();
-        setMessage("Vælg mindst én hovedkategori - kun fordi du har valgt, at reklamen også skal vises på hovedkategorisider.");
+        showValidationMessage("Vælg mindst én hovedkategori - kun fordi du har valgt, at reklamen også skal vises på hovedkategorisider.");
         form?.closest("details")?.setAttribute("open", "");
         form?.querySelector('[data-ad-category-error="true"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
       }
 
       event.preventDefault();
+      adGuardDebug("category guard prevents submit for async validation", {
+        hasDesktopFile: Boolean(desktopFile),
+        hasMobileFile: Boolean(mobileFile),
+      });
 
       if (desktopFile) {
+        adGuardDebug("category guard desktop validation starts", { formId });
         const validationError = await validateAdFile(desktopFile, "desktop");
         if (validationError) {
-          setMessage(validationError);
+          adGuardDebug("category guard desktop validation fails", { message: validationError });
+          showValidationMessage(validationError);
           form?.closest("details")?.setAttribute("open", "");
           form?.querySelector('[data-ad-media-section="true"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
           return;
@@ -213,9 +233,11 @@ export function AdFormCategoryGuard({ formId }: AdFormCategoryGuardProps) {
       }
 
       if (mobileFile) {
+        adGuardDebug("category guard mobile validation starts", { formId });
         const validationError = await validateAdFile(mobileFile, "mobile");
         if (validationError) {
-          setMessage(validationError);
+          adGuardDebug("category guard mobile validation fails", { message: validationError });
+          showValidationMessage(validationError);
           form?.closest("details")?.setAttribute("open", "");
           form?.querySelector('[data-ad-media-section="true"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
           return;
@@ -224,14 +246,20 @@ export function AdFormCategoryGuard({ formId }: AdFormCategoryGuardProps) {
 
       setIsSubmitting(true);
       setMessage("Gemmer reklame...");
-      isResubmitting = true;
-      form?.requestSubmit();
+      adGuardDebug("category guard approves submit", { formId });
+      form?.dispatchEvent(new CustomEvent("ad-category-guard-approved"));
+    }
+
+    function resetLoadingState() {
+      setIsSubmitting(false);
     }
 
     const handleSubmit = (event: SubmitEvent) => void validate(event);
     form.addEventListener("submit", handleSubmit);
+    form.addEventListener("ad-direct-upload-error", resetLoadingState);
     return () => {
       form.removeEventListener("submit", handleSubmit);
+      form.removeEventListener("ad-direct-upload-error", resetLoadingState);
       showOnCategoryPages?.removeEventListener("change", syncCategoryVisibility);
     };
   }, [formId]);
