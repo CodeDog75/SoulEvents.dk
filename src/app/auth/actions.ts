@@ -3,10 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getAppUrl } from "@/lib/app-url";
+import { getPostAuthRedirect, type PostAuthResult } from "@/lib/auth/post-auth";
 import { env } from "@/lib/env";
-import { disabledFacilitatorLoginMessage } from "@/lib/auth/roles";
 import {
   assertPasswordResetRateLimit,
   assertRateLimit,
@@ -14,8 +13,8 @@ import {
   RATE_LIMIT_MESSAGE,
   type RateLimitAction,
 } from "@/lib/rate-limit";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import type { AppRole } from "@/types/database";
 
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -35,6 +34,7 @@ async function enforceAuthRateLimit(
   action: RateLimitAction,
   path: string,
   params?: Record<string, string>,
+  message = RATE_LIMIT_MESSAGE,
 ) {
   try {
     await assertRateLimit(action);
@@ -42,7 +42,7 @@ async function enforceAuthRateLimit(
     if (isRateLimitExceededError(error)) {
       authRedirectWithParams(path, {
         ...(params ?? {}),
-        message: RATE_LIMIT_MESSAGE,
+        message,
         status: "429",
       });
     }
@@ -78,78 +78,24 @@ async function getAuthUserByEmail(email: string) {
   return data.users.find((user) => user.email?.toLowerCase() === email.toLowerCase()) ?? null;
 }
 
-async function ensureStoredUserProfile(user: {
-  id: string;
-  email?: string;
-  user_metadata?: {
-    avatar_url?: string;
-    full_name?: string;
-    name?: string;
-    picture?: string;
-    role?: string;
-  };
-}) {
-  const admin = createAdminClient();
-  const { data: existingProfile } = await admin.from("profiles").select("id, role").eq("id", user.id).maybeSingle();
-  const role = (user.user_metadata?.role === "admin" ? "admin" : "facilitator") satisfies AppRole;
+export async function continueWithEmailAction(formData: FormData) {
+  const email = getString(formData, "email").toLowerCase();
 
-  if (!existingProfile) {
-    const { error: profileError } = await admin.from("profiles").insert({
-      id: user.id,
-      role,
-      full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Bruger",
-      email: user.email || "",
-      phone: null,
-    });
-
-    if (profileError) {
-      return profileError;
-    }
+  if (!email) {
+    authRedirect("/auth/login", "Skriv din e-mailadresse for at fortsætte.");
   }
 
-  const profileRole = (existingProfile?.role ?? role) as AppRole;
+  await enforceAuthRateLimit(
+    "auth:email-start",
+    "/auth/login",
+    undefined,
+    "Der er foretaget mange forsøg på kort tid. Vent et øjeblik, og prøv igen.",
+  );
 
-  if (profileRole === "facilitator") {
-    const { data: existingFacilitatorProfile, error: lookupError } = await admin
-      .from("facilitator_profiles")
-      .select("id")
-      .eq("profile_id", user.id)
-      .maybeSingle();
+  const existingUser = await getAuthUserByEmail(email);
+  const step = existingUser ? "password" : "signup";
 
-    if (lookupError) {
-      return lookupError;
-    }
-
-    const { error: facilitatorError } = existingFacilitatorProfile
-      ? { error: null }
-      : await admin.from("facilitator_profiles").insert({
-          profile_id: user.id,
-          status: "pending",
-        });
-
-    if (facilitatorError) {
-      return facilitatorError;
-    }
-  }
-
-  return null;
-}
-
-async function isDisabledFacilitator(userId: string) {
-  const admin = createAdminClient();
-  const { data: profile } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
-
-  if (profile?.role !== "facilitator") {
-    return false;
-  }
-
-  const { data: facilitator } = await admin
-    .from("facilitator_profiles")
-    .select("is_disabled")
-    .eq("profile_id", userId)
-    .maybeSingle();
-
-  return Boolean(facilitator?.is_disabled);
+  redirect(`/auth/login?step=${step}&email=${encodeURIComponent(email)}`);
 }
 
 export async function signInAction(formData: FormData) {
@@ -160,7 +106,7 @@ export async function signInAction(formData: FormData) {
     authRedirect("/auth/login", "Udfyld både e-mail og adgangskode.");
   }
 
-  await enforceAuthRateLimit("auth:login", "/auth/login");
+  await enforceAuthRateLimit("auth:password-login", "/auth/login");
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -190,19 +136,24 @@ export async function signInAction(formData: FormData) {
     authRedirect("/auth/login", "Login mislykkedes. Tjek e-mail og adgangskode.");
   }
 
-  const profileError = await ensureStoredUserProfile(data.user);
+  let postAuthResult: PostAuthResult;
 
-  if (profileError) {
+  try {
+    postAuthResult = await getPostAuthRedirect({ email, user: data.user });
+  } catch (error) {
+    console.error("Password login profile preparation failed", {
+      message: error instanceof Error ? error.message : "Unknown profile error",
+    });
     authRedirect("/auth/login", "Login lykkedes, men profilen kunne ikke gøres klar.");
   }
 
-  if (await isDisabledFacilitator(data.user.id)) {
+  if (postAuthResult.type === "disabled") {
     await supabase.auth.signOut();
-    authRedirect("/auth/login", disabledFacilitatorLoginMessage);
+    authRedirect(postAuthResult.path, postAuthResult.message);
   }
 
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect(postAuthResult.path);
 }
 
 export async function resendConfirmationAction(formData: FormData) {
@@ -331,33 +282,38 @@ export async function signUpFacilitatorAction(formData: FormData) {
   const phone = getString(formData, "phone");
   const password = getString(formData, "password");
   const successTarget = getString(formData, "success_target");
+  const authReturnPath = getString(formData, "auth_return_path");
   const acceptedTerms = formData.get("accepted_terms") === "on";
+  const signupPath =
+    authReturnPath === "email-first" && email
+      ? `/auth/login?step=signup&email=${encodeURIComponent(email)}`
+      : "/auth/signup";
 
   const phoneDigits = phone.replace(/\D/g, "");
 
   if (!fullName || !email || !password) {
-    authRedirect("/auth/signup", "Udfyld e-mail, adgangskode og dit rigtige navn for at oprette profilen.");
+    authRedirect(signupPath, "Udfyld e-mail, adgangskode og dit rigtige navn for at oprette profilen.");
   }
 
   if (phone && (!/^[\d\s]+$/.test(phone) || phoneDigits.length !== 8)) {
-    authRedirect("/auth/signup", "Telefonnummer skal bestå af præcis 8 tal. Feltet kan også stå tomt.");
+    authRedirect(signupPath, "Telefonnummer skal bestå af præcis 8 tal. Feltet kan også stå tomt.");
   }
 
   if (password.length < 8) {
-    authRedirect("/auth/signup", "Adgangskoden skal være mindst 8 tegn.");
+    authRedirect(signupPath, "Adgangskoden skal være mindst 8 tegn.");
   }
 
   if (!acceptedTerms) {
-    authRedirect("/auth/signup", "Du skal acceptere betingelserne for at fortsætte.");
+    authRedirect(signupPath, "Du skal acceptere betingelserne for at fortsætte.");
   }
 
-  await enforceAuthRateLimit("auth:signup", "/auth/signup");
+  await enforceAuthRateLimit("auth:signup", signupPath);
 
   const existingUser = await getAuthUserByEmail(email);
 
   if (existingUser) {
     authRedirect(
-      "/auth/signup",
+      signupPath,
       "Der findes allerede en konto med denne e-mail. Log ind i stedet, eller brug Glemt adgangskode, hvis du ikke kan huske din adgangskode.",
     );
   }
@@ -381,7 +337,7 @@ export async function signUpFacilitatorAction(formData: FormData) {
 
   if (error?.message.toLowerCase().includes("already registered")) {
     authRedirect(
-      "/auth/signup",
+      signupPath,
       "Der findes allerede en konto med denne e-mail. Log ind i stedet, eller brug Glemt adgangskode, hvis du ikke kan huske din adgangskode.",
     );
   }
@@ -391,16 +347,16 @@ export async function signUpFacilitatorAction(formData: FormData) {
 
     if (errorMessage.includes("rate limit")) {
       authRedirect(
-        "/auth/signup",
+        signupPath,
         "Der er sendt for mange mails på kort tid. Vent lidt og prøv igen, eller brug login hvis du allerede har oprettet en konto.",
       );
     }
 
-    authRedirect("/auth/signup", "Oprettelsen kunne ikke gennemføres lige nu. Prøv igen om lidt.");
+    authRedirect(signupPath, "Oprettelsen kunne ikke gennemføres lige nu. Prøv igen om lidt.");
   }
 
   if (!user) {
-    authRedirect("/auth/signup", "Oprettelse mislykkedes: Supabase returnerede ingen bruger.");
+    authRedirect(signupPath, "Oprettelse mislykkedes: Supabase returnerede ingen bruger.");
   }
 
   const admin = createAdminClient();
@@ -418,7 +374,7 @@ export async function signUpFacilitatorAction(formData: FormData) {
   );
 
   if (profileError) {
-    authRedirect("/auth/signup", "Kontoen blev oprettet, men profilen kunne ikke gemmes.");
+    authRedirect(signupPath, "Kontoen blev oprettet, men profilen kunne ikke gemmes.");
   }
 
   const { error: facilitatorError } = await admin.from("facilitator_profiles").upsert(
@@ -434,7 +390,7 @@ export async function signUpFacilitatorAction(formData: FormData) {
   );
 
   if (facilitatorError) {
-    authRedirect("/auth/signup", "Kontoen blev oprettet, men arrangørprofilen kunne ikke gemmes.");
+    authRedirect(signupPath, "Kontoen blev oprettet, men arrangørprofilen kunne ikke gemmes.");
   }
 
   revalidatePath("/", "layout");

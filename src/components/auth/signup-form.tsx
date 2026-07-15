@@ -20,7 +20,9 @@ type SignupFormValues = {
 
 type SignupFormProps = {
   documents: LegalDocument[];
+  initialEmail?: string;
   restoreValues?: boolean;
+  returnToEmailFirstLogin?: boolean;
 };
 
 const signupDraftKey = "soulevents:signup-form-draft:v1";
@@ -45,8 +47,8 @@ function normalizePhone(value: string) {
   return value.replace(/\D/g, "").slice(0, 8);
 }
 
-export function SignupForm({ documents, restoreValues = false }: SignupFormProps) {
-  const [values, setValues] = useState<SignupFormValues>(emptyValues);
+export function SignupForm({ documents, initialEmail = "", restoreValues = false, returnToEmailFirstLogin = false }: SignupFormProps) {
+  const [values, setValues] = useState<SignupFormValues>({ ...emptyValues, email: initialEmail });
   const [successTarget, setSuccessTarget] = useState("login");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -57,11 +59,12 @@ export function SignupForm({ documents, restoreValues = false }: SignupFormProps
         return;
       }
 
+      setValues({ ...emptyValues, email: initialEmail });
       window.sessionStorage.removeItem(signupDraftKey);
     }, 0);
 
     return () => window.clearTimeout(timeout);
-  }, [restoreValues]);
+  }, [initialEmail, restoreValues]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 767px)");
@@ -88,7 +91,8 @@ export function SignupForm({ documents, restoreValues = false }: SignupFormProps
       className="mt-6 grid gap-5 [&_input::placeholder]:text-sm [&_input::placeholder]:font-normal [&_input::placeholder]:text-[#2F2633]/42"
       onSubmit={rememberValues}
     >
-      <input name="success_target" type="hidden" value={successTarget} />
+      <input name="success_target" type="hidden" value={returnToEmailFirstLogin ? "login" : successTarget} />
+      {returnToEmailFirstLogin ? <input name="auth_return_path" type="hidden" value="email-first" /> : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">

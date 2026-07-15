@@ -6,8 +6,9 @@ import { env } from "@/lib/env";
 export const RATE_LIMIT_MESSAGE = "Du har foretaget for mange forsøg. Prøv igen om et øjeblik.";
 
 export type RateLimitAction =
-  | "auth:login"
+  | "auth:email-start"
   | "auth:password-change"
+  | "auth:password-login"
   | "auth:password-reset"
   | "auth:resend-verification"
   | "auth:signup";
@@ -30,7 +31,12 @@ type MemoryEntry = {
 };
 
 const RATE_LIMITS: Record<RateLimitAction, RateLimitConfig> = {
-  "auth:login": {
+  "auth:email-start": {
+    limit: 30,
+    windowSeconds: 10 * 60,
+    blockSeconds: 10 * 60,
+  },
+  "auth:password-login": {
     limit: 8,
     windowSeconds: 10 * 60,
     blockSeconds: 10 * 60,

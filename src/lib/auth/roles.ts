@@ -1,33 +1,14 @@
 import { redirect } from "next/navigation";
+import {
+  disabledFacilitatorLoginMessage,
+  ensureAppProfileForAuthUser,
+  type AppProfile,
+} from "@/lib/auth/post-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/types/database";
 
-export type AuthProfile = {
-  id: string;
-  role: AppRole;
-  full_name: string;
-  email: string;
-  phone: string | null;
-};
-
-export const disabledFacilitatorLoginMessage =
-  "Din arrangørkonto er deaktiveret. Kontakt SoulEvents, hvis du mener, at dette er en fejl.";
-
-async function ensureFacilitatorProfileExists(admin: ReturnType<typeof createAdminClient>, profileId: string) {
-  const { data: facilitatorProfile } = await admin
-    .from("facilitator_profiles")
-    .select("id")
-    .eq("profile_id", profileId)
-    .maybeSingle();
-
-  if (!facilitatorProfile) {
-    await admin.from("facilitator_profiles").insert({
-      profile_id: profileId,
-      status: "pending",
-    });
-  }
-}
+export type AuthProfile = AppProfile;
 
 export async function getCurrentProfile() {
   const supabase = await createClient();
@@ -52,59 +33,15 @@ export async function getCurrentProfile() {
     return null;
   }
 
-  const admin = createAdminClient();
-  const { data: existingProfile } = await admin
-    .from("profiles")
-    .select("id, role, full_name, email, phone")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!existingProfile) {
-    const { data: emailProfile } = user.email
-      ? await admin
-          .from("profiles")
-          .select("id, role, full_name, email, phone")
-          .eq("email", user.email)
-          .maybeSingle()
-      : { data: null };
-
-    if (emailProfile) {
-      if (emailProfile.role === "facilitator") {
-        await ensureFacilitatorProfileExists(admin, emailProfile.id);
-      }
-
-      return emailProfile as AuthProfile;
-    }
-
-    const role = (user.user_metadata?.role === "admin" ? "admin" : "facilitator") satisfies AppRole;
-    const { data: repairedProfile, error: repairError } = await admin
-      .from("profiles")
-      .insert({
-        id: user.id,
-        role,
-        full_name: user.user_metadata?.full_name || user.email || "Bruger",
-        email: user.email || "",
-        phone: null,
-      })
-      .select("id, role, full_name, email, phone")
-      .single();
-
-    if (repairError || !repairedProfile) {
-      return null;
-    }
-
-    if (role === "facilitator") {
-      await ensureFacilitatorProfileExists(admin, user.id);
-    }
-
-    return repairedProfile as AuthProfile;
+  try {
+    const { profile } = await ensureAppProfileForAuthUser(user);
+    return profile;
+  } catch (error) {
+    console.warn("App profile could not be prepared", {
+      message: error instanceof Error ? error.message : "Unknown profile error",
+    });
+    return null;
   }
-
-  if (existingProfile.role === "facilitator") {
-    await ensureFacilitatorProfileExists(admin, user.id);
-  }
-
-  return existingProfile as AuthProfile;
 }
 
 export async function requireProfile() {

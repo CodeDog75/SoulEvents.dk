@@ -1,12 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getAppUrl } from "@/lib/app-url";
+import { getPostAuthRedirect, type PostAuthResult } from "@/lib/auth/post-auth";
 import { env } from "@/lib/env";
-import { disabledFacilitatorLoginMessage } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeSupabaseCookieOptions, supabaseCookieOptions } from "@/lib/supabase/auth-cookies";
-import type { AppRole } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 const oauthFlowCookie = "soulevents_oauth_flow";
@@ -109,16 +107,6 @@ function isExpiredOrInvalidLink(errorText: string) {
   );
 }
 
-function userDisplayName(user: {
-  email?: string;
-  user_metadata?: {
-    full_name?: string;
-    name?: string;
-  };
-}) {
-  return user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Arrangør";
-}
-
 function isOAuthUser(user: {
   app_metadata?: {
     provider?: string;
@@ -136,144 +124,14 @@ function isOAuthUser(user: {
   return Boolean(user.identities?.some((identity) => identity.provider && identity.provider !== "email"));
 }
 
-function isFacilitatorProfileComplete(facilitatorProfile: {
-  city: string | null;
-  company_name: string | null;
-  facilitator_categories?: Array<{ category_id: string }> | null;
-  postal_code: string | null;
-  short_description: string | null;
-}) {
-  return (
-    Boolean(facilitatorProfile.company_name) &&
-    Boolean(facilitatorProfile.postal_code) &&
-    Boolean(facilitatorProfile.city) &&
-    Boolean(facilitatorProfile.short_description && facilitatorProfile.short_description.trim().length >= 20) &&
-    Boolean(facilitatorProfile.facilitator_categories?.length)
-  );
-}
+function postAuthRedirectResponse(requestUrl: URL, result: PostAuthResult) {
+  console.info("Auth callback redirecting after profile preparation", {
+    path: result.path,
+    role: result.profile.role,
+    type: result.type,
+  });
 
-async function ensureOAuthProfile(user: {
-  id: string;
-  email?: string;
-  app_metadata?: {
-    provider?: string;
-  };
-  identities?: Array<{
-    provider?: string;
-  }>;
-  user_metadata?: {
-    full_name?: string;
-    name?: string;
-    role?: string;
-  };
-}) {
-  const admin = createAdminClient();
-  const { data: existingProfile, error: profileLookupError } = await admin
-    .from("profiles")
-    .select("id, role, full_name, email, phone")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profileLookupError) {
-    return { error: profileLookupError, isNewProfile: false, needsProfileCompletion: true, role: "facilitator" as AppRole };
-  }
-
-  let appProfile = existingProfile;
-
-  if (!appProfile && user.email) {
-    const { data: emailProfile, error: emailProfileError } = await admin
-      .from("profiles")
-      .select("id, role, full_name, email, phone")
-      .eq("email", user.email)
-      .maybeSingle();
-
-    if (emailProfileError) {
-      return { error: emailProfileError, isNewProfile: false, needsProfileCompletion: true, role: "facilitator" as AppRole };
-    }
-
-    appProfile = emailProfile;
-  }
-
-  const role = (appProfile?.role ?? (user.user_metadata?.role === "admin" ? "admin" : "facilitator")) as AppRole;
-  const isNewProfile = !appProfile;
-  const appProfileId = appProfile?.id ?? user.id;
-
-  if (!appProfile) {
-    const { error: profileError } = await admin.from("profiles").insert({
-      email: user.email || "",
-      full_name: userDisplayName(user),
-      id: user.id,
-      phone: null,
-      role,
-    });
-
-    if (profileError) {
-      return { error: profileError, isNewProfile, needsProfileCompletion: true, role };
-    }
-  }
-
-  let needsProfileCompletion = role === "facilitator";
-
-  if (role === "facilitator") {
-    const { data: facilitatorProfile, error: facilitatorLookupError } = await admin
-      .from("facilitator_profiles")
-    .select("id, company_name, short_description, postal_code, city, is_disabled, facilitator_categories(category_id)")
-      .eq("profile_id", appProfileId)
-      .maybeSingle();
-
-    if (facilitatorLookupError) {
-      return { error: facilitatorLookupError, isNewProfile, needsProfileCompletion, role };
-    }
-
-    if (!facilitatorProfile) {
-      const { error: facilitatorError } = await admin.from("facilitator_profiles").insert({
-        profile_id: appProfileId,
-        status: "pending",
-      });
-
-      if (facilitatorError) {
-        return { error: facilitatorError, isNewProfile, needsProfileCompletion, role };
-      }
-    } else {
-      if (facilitatorProfile.is_disabled) {
-        return {
-          error: new Error(disabledFacilitatorLoginMessage),
-          isDisabled: true,
-          isNewProfile,
-          needsProfileCompletion,
-          role,
-        };
-      }
-
-      needsProfileCompletion = !isFacilitatorProfileComplete(facilitatorProfile);
-    }
-  }
-
-  return { error: null, isDisabled: false, isNewProfile, needsProfileCompletion, role };
-}
-
-function oauthRedirectFor(requestUrl: URL, input: { isNewProfile: boolean; needsProfileCompletion: boolean; role: AppRole }) {
-  if (input.role === "admin") {
-    console.info("OAuth callback redirecting admin to /admin");
-    return NextResponse.redirect(new URL("/admin", getAppUrl(requestUrl.origin)));
-  }
-
-  if (input.needsProfileCompletion) {
-    console.info("OAuth callback redirecting facilitator to /facilitator/profile");
-    const profileUrl = new URL("/facilitator/profile", getAppUrl(requestUrl.origin));
-
-    if (input.isNewProfile) {
-      profileUrl.searchParams.set(
-        "message",
-        "Velkommen til SoulEvents. Færdiggør din profil, så vi kan gøre den klar til godkendelse.",
-      );
-    }
-
-    return NextResponse.redirect(profileUrl);
-  }
-
-  console.info("OAuth callback redirecting facilitator to /facilitator");
-  return NextResponse.redirect(new URL("/facilitator", getAppUrl(requestUrl.origin)));
+  return NextResponse.redirect(new URL(result.path, getAppUrl(requestUrl.origin)));
 }
 
 export async function GET(request: NextRequest) {
@@ -401,23 +259,27 @@ export async function GET(request: NextRequest) {
     }
 
     if (isOAuthFlow || isOAuthUser(user)) {
-      const { error: profileError, isDisabled, isNewProfile, needsProfileCompletion, role } = await ensureOAuthProfile(user);
+      let postAuthResult: PostAuthResult;
 
-      if (profileError) {
-        if (isDisabled) {
-          await supabase.auth.signOut();
-          return redirectAndClearOAuthCookie(loginErrorRedirect(requestUrl, disabledFacilitatorLoginMessage), hasOAuthCookie);
-        }
-
-        console.error("OAuth profile preparation failed", profileError);
+      try {
+        postAuthResult = await getPostAuthRedirect({ user });
+      } catch (profileError) {
+        console.error("OAuth profile preparation failed", {
+          message: profileError instanceof Error ? profileError.message : "Unknown profile error",
+        });
         return redirectAndClearOAuthCookie(
           loginErrorRedirect(requestUrl, "Login lykkedes, men profilen kunne ikke gøres klar. Prøv igen om lidt."),
           hasOAuthCookie,
         );
       }
 
+      if (postAuthResult.type === "disabled") {
+        await supabase.auth.signOut();
+        return redirectAndClearOAuthCookie(loginErrorRedirect(requestUrl, postAuthResult.message), hasOAuthCookie);
+      }
+
       return redirectAndClearOAuthCookie(
-        oauthRedirectFor(requestUrl, { isNewProfile, needsProfileCompletion, role }),
+        postAuthRedirectResponse(requestUrl, postAuthResult),
         hasOAuthCookie,
       );
     }
@@ -433,23 +295,27 @@ export async function GET(request: NextRequest) {
       } = await supabase.auth.getUser();
 
       if (user) {
-        const { error: profileError, isDisabled, isNewProfile, needsProfileCompletion, role } = await ensureOAuthProfile(user);
+        let postAuthResult: PostAuthResult;
 
-        if (profileError) {
-          if (isDisabled) {
-            await supabase.auth.signOut();
-            return redirectAndClearOAuthCookie(loginErrorRedirect(requestUrl, disabledFacilitatorLoginMessage), hasOAuthCookie);
-          }
-
-          console.error("OAuth profile preparation failed without callback code", profileError);
+        try {
+          postAuthResult = await getPostAuthRedirect({ user });
+        } catch (profileError) {
+          console.error("OAuth profile preparation failed without callback code", {
+            message: profileError instanceof Error ? profileError.message : "Unknown profile error",
+          });
           return redirectAndClearOAuthCookie(
             loginErrorRedirect(requestUrl, "Login lykkedes, men profilen kunne ikke gøres klar. Prøv igen om lidt."),
             hasOAuthCookie,
           );
         }
 
+        if (postAuthResult.type === "disabled") {
+          await supabase.auth.signOut();
+          return redirectAndClearOAuthCookie(loginErrorRedirect(requestUrl, postAuthResult.message), hasOAuthCookie);
+        }
+
         return redirectAndClearOAuthCookie(
-          oauthRedirectFor(requestUrl, { isNewProfile, needsProfileCompletion, role }),
+          postAuthRedirectResponse(requestUrl, postAuthResult),
           hasOAuthCookie,
         );
       }
