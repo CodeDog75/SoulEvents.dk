@@ -134,6 +134,18 @@ function postAuthRedirectResponse(requestUrl: URL, result: PostAuthResult) {
   return NextResponse.redirect(new URL(result.path, getAppUrl(requestUrl.origin)));
 }
 
+function emailConfirmationRedirectResponse(requestUrl: URL, result: PostAuthResult) {
+  if (result.profile.role !== "facilitator") {
+    return postAuthRedirectResponse(requestUrl, result);
+  }
+
+  if (result.path === "/facilitator/profile") {
+    return NextResponse.redirect(new URL("/facilitator/welcome", getAppUrl(requestUrl.origin)));
+  }
+
+  return postAuthRedirectResponse(requestUrl, result);
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
@@ -287,6 +299,27 @@ export async function GET(request: NextRequest) {
     if (isPasswordResetFlow) {
       return passwordResetClient?.applyCookies(passwordResetRedirect(requestUrl)) ?? passwordResetRedirect(requestUrl);
     }
+
+    let postAuthResult: PostAuthResult;
+
+    try {
+      postAuthResult = await getPostAuthRedirect({ user });
+    } catch (profileError) {
+      console.error("Email confirmation profile preparation failed", {
+        message: profileError instanceof Error ? profileError.message : "Unknown profile error",
+      });
+
+      return confirmedRedirect(requestUrl, {
+        next,
+      });
+    }
+
+    if (postAuthResult.type === "disabled") {
+      await supabase.auth.signOut();
+      return loginErrorRedirect(requestUrl, postAuthResult.message);
+    }
+
+    return emailConfirmationRedirectResponse(requestUrl, postAuthResult);
   } else {
     if (isOAuthFlow) {
       const supabase = await createClient();

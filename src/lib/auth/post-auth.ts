@@ -202,8 +202,7 @@ export async function getPostAuthRedirect(context: PostAuthContext): Promise<Pos
 
   if (ensuredProfile.needsProfileCompletion) {
     const path = ensuredProfile.isNewProfile
-      ? "/facilitator/profile?message=" +
-        encodeURIComponent("Velkommen til SoulEvents. Færdiggør din profil, så vi kan gøre den klar til godkendelse.")
+      ? "/facilitator/welcome"
       : "/facilitator/profile";
 
     return {

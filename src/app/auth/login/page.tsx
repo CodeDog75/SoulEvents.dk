@@ -213,7 +213,29 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             ) : null}
 
             {currentStep === "signup" ? (
-              <div className="mt-7">
+              <div className="mt-7 space-y-6">
+                <section className="rounded-[1.5rem] border border-[#A8BFA3]/30 bg-[#F2F8EF] p-5 shadow-soft">
+                  <h2 className="text-lg font-semibold leading-snug text-[#2F2633]">
+                    Vi kunne ikke finde en konto med denne e-mail.
+                  </h2>
+                  <p className="mt-3 text-sm leading-6 text-[#2F2633]/70">
+                    Det ser ud til, at du er ny hos SoulEvents. Hvis du ønsker at oprette en arrangørprofil, kan du gøre det her. Det er gratis og tager kun et par minutter.
+                  </p>
+                  <div className="mt-4 rounded-2xl border border-[#7A4EAB]/12 bg-white/75 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#4B5645]/70">E-mail</p>
+                    <p className="mt-1 break-all text-sm font-semibold text-[#2F2633]">{selectedEmail}</p>
+                  </div>
+                  <p className="mt-4 text-sm text-[#2F2633]/64">
+                    Har du skrevet forkert?{" "}
+                    <Link
+                      className="font-semibold text-[#7A4EAB] hover:text-[#D8A7B1]"
+                      href={selectedEmail ? `/auth/login?email=${encodeURIComponent(selectedEmail)}` : "/auth/login"}
+                    >
+                      Brug en anden e-mail
+                    </Link>
+                  </p>
+                </section>
+
                 <SignupForm
                   documents={legalDocuments ?? []}
                   initialEmail={selectedEmail}
