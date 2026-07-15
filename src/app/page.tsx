@@ -1484,9 +1484,9 @@ export default async function Home({ searchParams }: HomeProps) {
 
         <div className="relative z-10 mx-auto grid max-w-[1200px] min-w-0 gap-3 px-4 pb-6 pt-1 sm:gap-6 sm:px-8 sm:pb-8 md:pt-0">
           <section className="min-h-[265px] pt-16 md:hidden">
-            <h1 className="max-w-[20rem] font-serif text-[2.22rem] font-semibold leading-[1.02] text-[#2F2633] drop-shadow-[0_2px_16px_rgba(255,255,255,0.55)]">
+            <p className="max-w-[20rem] font-serif text-[2.22rem] font-semibold leading-[1.02] text-[#2F2633] drop-shadow-[0_2px_16px_rgba(255,255,255,0.55)]">
               Oplevelser der nærer krop, sind og sjæl
-            </h1>
+            </p>
           </section>
 
           <section
