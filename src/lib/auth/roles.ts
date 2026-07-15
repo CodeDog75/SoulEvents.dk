@@ -31,9 +31,22 @@ async function ensureFacilitatorProfileExists(admin: ReturnType<typeof createAdm
 
 export async function getCurrentProfile() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user;
+  try {
+    const result = await supabase.auth.getUser();
+    if (result.error) {
+      console.warn("Supabase auth session is invalid", {
+        message: result.error.message,
+      });
+      return null;
+    }
+    user = result.data.user;
+  } catch (error) {
+    console.warn("Supabase auth session could not be refreshed", {
+      message: error instanceof Error ? error.message : "Unknown auth error",
+    });
+    return null;
+  }
 
   if (!user) {
     return null;

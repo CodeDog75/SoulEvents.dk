@@ -26,7 +26,29 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  const clearSupabaseCookies = () => {
+    request.cookies.getAll().forEach((cookie) => {
+      if (cookie.name.startsWith("sb-")) {
+        request.cookies.delete(cookie.name);
+        response.cookies.delete(cookie.name);
+      }
+    });
+  };
+
+  try {
+    const result = await supabase.auth.getUser();
+    if (result.error) {
+      console.warn("Supabase middleware session is invalid", {
+        message: result.error.message,
+      });
+      clearSupabaseCookies();
+    }
+  } catch (error) {
+    console.warn("Supabase middleware session refresh failed", {
+      message: error instanceof Error ? error.message : "Unknown auth error",
+    });
+    clearSupabaseCookies();
+  }
 
   return response;
 }
