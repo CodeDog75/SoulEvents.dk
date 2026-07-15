@@ -34,6 +34,21 @@ function isExternalUrl(url: string | null) {
   return Boolean(url && /^https?:\/\//i.test(url));
 }
 
+function cleanMediaUrl(url: string | null | undefined) {
+  const cleanUrl = url?.trim();
+  return cleanUrl || null;
+}
+
+function adMediaUrl(ad: PartnerAd, isDesktopMedia: boolean) {
+  const desktopUrl = cleanMediaUrl(ad.imageUrl);
+  const mobileUrl = cleanMediaUrl(ad.mobileImageUrl);
+  return isDesktopMedia ? desktopUrl : mobileUrl ?? desktopUrl;
+}
+
+function hasMobileMedia(ad: PartnerAd) {
+  return Boolean(cleanMediaUrl(ad.mobileImageUrl));
+}
+
 function AdMedia({
   altText,
   className,
@@ -136,9 +151,9 @@ export function PartnerAdCarousel({ ads, className = "" }: PartnerAdCarouselProp
           const ad = visibleAds[index];
           if (!ad) return null;
           const isActive = index === safeActiveIndex;
-          const mobileMediaUrl = ad.mobileImageUrl || ad.imageUrl;
-          const mediaUrl = isDesktopMedia ? ad.imageUrl : mobileMediaUrl;
-          const mediaClass = !isDesktopMedia && !ad.mobileImageUrl
+          const useDesktopMedia = isDesktopMedia === true;
+          const mediaUrl = adMediaUrl(ad, useDesktopMedia);
+          const mediaClass = !useDesktopMedia && !hasMobileMedia(ad)
             ? "h-full w-full object-contain object-center"
             : "h-full w-full object-cover object-center";
 

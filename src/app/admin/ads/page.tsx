@@ -5,6 +5,7 @@ import { AdFormCategoryGuard } from "@/components/admin/ads/ad-form-category-gua
 import { AdPreviewTabs } from "@/components/admin/ads/ad-preview-tabs";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
+import { publicMediaUrl } from "@/lib/media/public-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -50,21 +51,6 @@ function dateInputValue(value: string | null) {
 function formatDate(value: string | null) {
   if (!value) return "Ingen dato";
   return new Intl.DateTimeFormat("da-DK", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
-}
-
-function publicMediaUrl(imagePath: string | null) {
-  if (!imagePath) return null;
-  if (/^https?:\/\//i.test(imagePath)) return imagePath;
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) return null;
-
-  const encodedPath = imagePath
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/");
-
-  return supabaseUrl.replace(/\/$/, "") + "/storage/v1/object/public/media/" + encodedPath;
 }
 
 function campaignStatus(ad: Ad) {

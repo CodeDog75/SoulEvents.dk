@@ -21,6 +21,7 @@ import { PublicFacilitatorCarousel } from "@/components/facilitator/public-facil
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import { env } from "@/lib/env";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
+import { publicMediaUrl } from "@/lib/media/public-url";
 import { createPageMetadata, getHomepageOgImageUrl } from "@/lib/open-graph";
 import { getAreaOption } from "@/lib/regions/areas";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -461,14 +462,6 @@ function parseCoordinate(value: string) {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function publicMediaUrl(imagePath?: string | null) {
-  if (!env.supabaseUrl || !imagePath) {
-    return null;
-  }
-
-  return env.supabaseUrl.replace(/\/$/, "") + "/storage/v1/object/public/media/" + imagePath.split("/").map(encodeURIComponent).join("/");
 }
 
 function distanceInKm(from: { latitude: number; longitude: number }, to: { latitude: number; longitude: number }) {

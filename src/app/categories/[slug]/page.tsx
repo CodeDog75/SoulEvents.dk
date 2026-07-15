@@ -6,6 +6,7 @@ import { ArrowLeft, Sparkles } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { CategoryEventExplorer } from "@/components/categories/category-event-explorer";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
+import { publicMediaUrl } from "@/lib/media/public-url";
 import { createPageMetadata, getHomepageOgImageUrl, stripHtml } from "@/lib/open-graph";
 import { areaOptions } from "@/lib/regions/areas";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -176,8 +177,8 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
     .map((ad: any) => ({
       id: ad.id,
       title: ad.title,
-      imageUrl: ad.image_path ? adsClient.storage.from("media").getPublicUrl(ad.image_path).data.publicUrl : null,
-      mobileImageUrl: ad.mobile_image_path ? adsClient.storage.from("media").getPublicUrl(ad.mobile_image_path).data.publicUrl : null,
+      imageUrl: publicMediaUrl(ad.image_path),
+      mobileImageUrl: publicMediaUrl(ad.mobile_image_path),
       altText: ad.alt_text || ad.title,
       targetUrl: ad.target_url,
       displaySeconds: ad.display_seconds ?? 10,

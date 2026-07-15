@@ -159,11 +159,24 @@ async function uploadAdMedia(
 
   const imagePath = "ads/" + pathPrefix + "-" + Date.now() + "-" + (safeName || "partner") + "." + extensionFromFile(file);
   const supabase = createAdminClient();
-  const { error } = await supabase.storage.from("media").upload(imagePath, file, {
-    cacheControl: "31536000",
-    contentType: adMediaContentType(file),
-    upsert: false,
-  });
+  let uploadResult;
+  try {
+    uploadResult = await supabase.storage.from("media").upload(imagePath, file, {
+      cacheControl: "31536000",
+      contentType: adMediaContentType(file),
+      upsert: false,
+    });
+  } catch (error) {
+    console.error("Ad media upload crashed", {
+      message: error instanceof Error ? error.message : "Unknown upload exception",
+      path: imagePath,
+      type: file.type || "unknown",
+      size: file.size,
+    });
+    return { path: currentImagePath, uploadedPath: null, error: "Filen kunne ikke uploades. Prøv igen eller vælg en anden fil." };
+  }
+
+  const { data, error } = uploadResult;
 
   if (error) {
     console.error("Ad media upload failed", {
@@ -175,7 +188,16 @@ async function uploadAdMedia(
     return { path: currentImagePath, uploadedPath: null, error: adUploadErrorMessage(error) };
   }
 
-  return { path: imagePath, uploadedPath: imagePath, error: null };
+  if (!data?.path) {
+    console.error("Ad media upload returned no path", {
+      path: imagePath,
+      type: file.type || "unknown",
+      size: file.size,
+    });
+    return { path: currentImagePath, uploadedPath: null, error: "Filen blev ikke gemt korrekt i Storage. Prøv igen." };
+  }
+
+  return { path: data.path, uploadedPath: data.path, error: null };
 }
 
 async function removeReplacedAdMedia(currentPath: string | null, nextPath: string | null) {
