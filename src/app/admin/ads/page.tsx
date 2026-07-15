@@ -110,8 +110,6 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
         <input name="id" type="hidden" value={ad?.id ?? ""} />
         <input name="image_path" type="hidden" value={ad?.image_path ?? ""} />
         <input name="mobile_image_path" type="hidden" value={ad?.mobile_image_path ?? ""} />
-        <input name="direct_image_path" type="hidden" value="" />
-        <input name="direct_mobile_image_path" type="hidden" value="" />
         <AdFormCategoryGuard formId={formId} />
 
         <div className="grid gap-6">

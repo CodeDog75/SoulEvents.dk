@@ -115,26 +115,14 @@ function adMediaContentType(file: File) {
   return file.type && file.type.startsWith("image/") ? file.type : "image/jpeg";
 }
 
-function directAdMediaPath(formData: FormData, field: string) {
-  const path = getOptionalString(formData, field);
-  if (!path) return null;
-  if (!/^ads\/[a-z0-9-]+-\d+-[a-z0-9-]+\.(jpg|png|webp|mp4)$/i.test(path)) {
-    return null;
-  }
-
-  return path;
-}
-
 async function uploadAdMedia(
   formData: FormData,
   currentImagePath: string | null,
   {
-    directPathField,
     fileField,
     removeField,
     pathPrefix,
   }: {
-    directPathField: string;
     fileField: string;
     removeField: string;
     pathPrefix: string;
@@ -142,9 +130,6 @@ async function uploadAdMedia(
 ) {
   const removeImage = formData.get(removeField) === "on";
   if (removeImage) return { path: null, uploadedPath: null, error: null };
-
-  const directPath = directAdMediaPath(formData, directPathField);
-  if (directPath) return { path: directPath, uploadedPath: directPath, error: null };
 
   const file = formData.get(fileField);
   if (!(file instanceof File) || file.size === 0) return { path: currentImagePath, uploadedPath: null, error: null };
@@ -249,7 +234,6 @@ export async function upsertAdAction(formData: FormData) {
   }
 
   const desktopUpload = await uploadAdMedia(formData, currentImagePath || null, {
-    directPathField: "direct_image_path",
     fileField: "image_file",
     removeField: "remove_image",
     pathPrefix: "desktop",
@@ -262,7 +246,6 @@ export async function upsertAdAction(formData: FormData) {
     go("Desktopbanner er påkrævet. Upload et banner i 1600 x 600-format.");
   }
   const mobileUpload = await uploadAdMedia(formData, currentMobileImagePath || null, {
-    directPathField: "direct_mobile_image_path",
     fileField: "mobile_image_file",
     removeField: "remove_mobile_image",
     pathPrefix: "mobile",
