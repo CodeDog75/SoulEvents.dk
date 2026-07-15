@@ -92,6 +92,14 @@ function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function splitOtherTreatmentForms(input: string | null | undefined) {
+  return (input ?? "")
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 2);
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
@@ -905,6 +913,9 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           .filter((title: any) => Boolean(title?.name))
           .map((title: { name: string }) => title.name) ?? []
       : [];
+  const otherTreatmentForms = facilitatorProfile?.offers_services
+    ? splitOtherTreatmentForms(facilitatorProfile.service_other_title)
+    : [];
   const tagNames =
     facilitatorProfile?.facilitator_tags
       ?.map((row: any) => (Array.isArray(row.tags) ? row.tags[0] : row.tags))
@@ -1083,7 +1094,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             profileImageUrl={profileImageUrl}
             profileName={profileName}
             serviceDescription={facilitatorProfile?.offers_services ? facilitatorProfile.service_description : null}
-            serviceTitles={[...serviceTitleNames, ...tagNames]}
+            serviceTitles={[...serviceTitleNames, ...otherTreatmentForms, ...tagNames]}
             title="Din profilvisning"
             shortDescription={facilitatorProfile?.short_description}
           />

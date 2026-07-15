@@ -48,6 +48,14 @@ function isHiddenHomepageFacilitator(facilitator: { host_reference_id?: string |
   return Boolean(facilitator?.host_reference_id && hiddenHomepageFacilitatorReferenceIds.has(facilitator.host_reference_id));
 }
 
+function splitOtherTreatmentForms(input: string | null | undefined) {
+  return (input ?? "")
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 2);
+}
+
 type LocalServiceProvider = {
   id: string;
   name: string;
@@ -899,7 +907,9 @@ async function getLocalServiceProviders(selected: {
           const title = Array.isArray(row.service_titles) ? row.service_titles[0] : row.service_titles;
           return title?.name ?? "";
         })
-        .filter(Boolean)
+        .filter(Boolean);
+      const otherTreatmentForms = splitOtherTreatmentForms(provider.service_other_title);
+      const visibleServiceTitles = [...serviceTitles, ...otherTreatmentForms]
         .slice(0, 3);
       const distanceKm =
         userLocation && typeof provider.latitude === "number" && typeof provider.longitude === "number"
@@ -912,7 +922,7 @@ async function getLocalServiceProviders(selected: {
         imageUrl: provider.profile_image_path
           ? supabase.storage.from("media").getPublicUrl(provider.profile_image_path).data.publicUrl
           : null,
-        serviceTitles,
+        serviceTitles: visibleServiceTitles,
         city: provider.city || null,
         area: region?.name || provider.country || null,
         description: provider.service_description || provider.short_description || "",

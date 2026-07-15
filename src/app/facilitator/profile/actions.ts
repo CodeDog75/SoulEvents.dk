@@ -600,6 +600,139 @@ async function uploadImage(
   return path;
 }
 
+function imageActionError(message: string) {
+  return { message, status: "error" as const };
+}
+
+function imageActionSuccess(paths: string[]) {
+  return { paths, status: "success" as const };
+}
+
+async function uploadImageForAction(
+  supabase: ReturnType<typeof createAdminClient>,
+  file: FormDataEntryValue | null,
+  prefix: string,
+) {
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Vælg et billede, og prøv igen.", path: null };
+  }
+
+  if (isHeicImage(file)) {
+    return { error: "HEIC-billedet kunne ikke konverteres. Prøv et andet billede eller eksportér som JPG.", path: null };
+  }
+
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    return { error: "Du kan uploade JPG, PNG eller WebP.", path: null };
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    return { error: "Billedet må højst fylde 10 MB.", path: null };
+  }
+
+  const path = `${prefix}/${crypto.randomUUID()}.${extensionForUpload(file)}`;
+  const { error } = await supabase.storage.from("media").upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+
+  if (error) {
+    return { error: "Billedet kunne ikke uploades. Prøv igen.", path: null };
+  }
+
+  return { error: null, path };
+}
+
+export async function saveFacilitatorMoodImageAction(formData: FormData) {
+  const profile = await requireProfile();
+  const supabase = createAdminClient();
+  const slotIndex = Number(formData.get("slot_index"));
+  const shouldRemove = formData.get("remove") === "yes";
+
+  if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex > 2) {
+    return imageActionError("Billedpladsen kunne ikke genkendes. Prøv igen.");
+  }
+
+  const { data: facilitatorProfile, error: profileError } = await supabase
+    .from("facilitator_profiles")
+    .select("id, profile_id")
+    .eq("profile_id", profile.id)
+    .single();
+
+  if (profileError || !facilitatorProfile) {
+    return imageActionError("Arrangørprofilen kunne ikke hentes.");
+  }
+
+  let uploadedPath: string | null = null;
+  const sortOrder = slotIndex + 1;
+
+  if (shouldRemove) {
+    const { error: deleteSlotError } = await supabase
+      .from("facilitator_images")
+      .delete()
+      .eq("facilitator_id", facilitatorProfile.id)
+      .eq("sort_order", sortOrder);
+
+    if (deleteSlotError) {
+      return imageActionError("Billedet kunne ikke fjernes.");
+    }
+  } else {
+    const upload = await uploadImageForAction(
+      supabase,
+      formData.get("image_file"),
+      `hosts/${profile.id}/gallery/${slotIndex + 1}`,
+    );
+
+    if (upload.error || !upload.path) {
+      return imageActionError(upload.error ?? "Billedet kunne ikke uploades.");
+    }
+
+    uploadedPath = upload.path;
+
+    const { error: insertError } = await supabase
+      .from("facilitator_images")
+      .insert({
+        facilitator_id: facilitatorProfile.id,
+        image_path: upload.path,
+        alt_text: null,
+        sort_order: sortOrder,
+      });
+
+    if (insertError) {
+      await supabase.storage.from("media").remove([uploadedPath]);
+      return imageActionError("Billedgalleriet kunne ikke gemmes.");
+    }
+
+    const { error: deleteOldSlotError } = await supabase
+      .from("facilitator_images")
+      .delete()
+      .eq("facilitator_id", facilitatorProfile.id)
+      .eq("sort_order", sortOrder)
+      .neq("image_path", upload.path);
+
+    if (deleteOldSlotError) {
+      return imageActionError("Billedet blev uploadet, men det gamle billede kunne ikke ryddes op. Genindlæs siden og prøv igen.");
+    }
+  }
+
+  const { data: updatedRows, error: updatedRowsError } = await supabase
+    .from("facilitator_images")
+    .select("image_path, sort_order")
+    .eq("facilitator_id", facilitatorProfile.id)
+    .order("sort_order");
+
+  if (updatedRowsError) {
+    return imageActionError("Billedgalleriet blev gemt, men kunne ikke hentes igen. Genindlæs siden.");
+  }
+
+  revalidatePath("/facilitator/profile");
+  return imageActionSuccess(
+    Array.from({ length: 3 }, (_, index) => {
+      const row = updatedRows?.find((image: { sort_order: number }) => image.sort_order === index + 1);
+      return row?.image_path ?? "";
+    }),
+  );
+}
+
 export async function updateFacilitatorProfileAction(formData: FormData) {
   const profile = await requireProfile();
   const supabase = createAdminClient();

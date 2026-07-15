@@ -30,6 +30,14 @@ function ensureUrl(url: string) {
   return /^https?:\/\//i.test(url) ? url : "https://" + url;
 }
 
+function splitOtherTreatmentForms(input: string | null | undefined) {
+  return (input ?? "")
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 2);
+}
+
 function nameOf(facilitator: any) {
   const profile = first(facilitator?.profiles);
   return facilitator?.company_name || profile?.full_name || "Arrangør";
@@ -197,7 +205,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   const viewer = await getCurrentProfile();
 
   const facilitatorSelect =
-    "id, profile_id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
+    "id, profile_id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, service_other_title, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order), facilitator_service_titles(service_titles(name, is_active))";
   const { data: publicFacilitator, error: publicFacilitatorError } = await supabase
     .from("facilitator_profiles")
     .select(facilitatorSelect)
@@ -277,6 +285,14 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     facilitatorData.facilitator_categories
       ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
       .filter(Boolean) ?? [];
+  const serviceTitles =
+    facilitatorData.facilitator_service_titles
+      ?.map((row: any) => {
+        const serviceTitle = Array.isArray(row.service_titles) ? row.service_titles[0] : row.service_titles;
+        return serviceTitle?.name ?? "";
+      })
+      .filter(Boolean) ?? [];
+  const treatmentForms = [...serviceTitles, ...splitOtherTreatmentForms(facilitatorData.service_other_title)];
   const publicEmail = facilitatorData.public_email || profile?.email || null;
   const publicPhone = facilitatorData.public_phone || profile?.phone || null;
   const links = [
@@ -357,6 +373,22 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
               {facilitatorData.long_description || facilitatorData.short_description || "Der kommer mere information om arrangøren snart."}
             </div>
           </section>
+
+          {facilitatorData.offers_services && treatmentForms.length > 0 ? (
+            <section className="rounded-card bg-white p-8 shadow-soft">
+              <h2 className="text-4xl font-medium text-olive">Behandlingsformer</h2>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {treatmentForms.map((treatmentForm) => (
+                  <span className="rounded-full border border-sage-700/15 bg-sage-50 px-3 py-1.5 text-sm font-semibold text-sage-700" key={treatmentForm}>
+                    {treatmentForm}
+                  </span>
+                ))}
+              </div>
+              {facilitatorData.service_description ? (
+                <p className="mt-4 text-sm leading-7 text-ink/72">{facilitatorData.service_description}</p>
+              ) : null}
+            </section>
+          ) : null}
 
           {gallery.length > 0 && (
             <section className="rounded-card bg-white p-8 shadow-soft">

@@ -1,13 +1,38 @@
 "use client";
 
-import { Camera, CheckCircle2, CircleAlert, CircleDashed, Info, Link2, Save, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Brain,
+  Camera,
+  Circle,
+  Dumbbell,
+  ExternalLink,
+  Flame,
+  Flower2,
+  Globe,
+  HandHeart,
+  Heart,
+  HeartHandshake,
+  ImagePlus,
+  Leaf,
+  Link2,
+  Mail,
+  Moon,
+  Music,
+  Sparkles,
+  Sun,
+  Upload,
+  Video,
+  Waves,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import type { FormEvent } from "react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { useFormStatus } from "react-dom";
-import { autosaveFacilitatorProfileAction, updateFacilitatorProfileAction } from "@/app/facilitator/profile/actions";
-import { ProfileImageManager } from "@/components/facilitator/profile-image-manager";
-import { inferRegionSlug } from "@/lib/regions/infer-region";
+import { type ChangeEvent, useEffect, useRef, useState, useTransition } from "react";
+import { saveFacilitatorMoodImageAction } from "@/app/facilitator/profile/actions";
+import { imageUploadAccept, prepareImageFileForUpload } from "@/lib/images/client-image-upload";
 
 type Region = {
   id: string;
@@ -80,1406 +105,1139 @@ type ProfileFormProps = {
   submitLabel?: string;
 };
 
-const profileFormSections = ["contact", "location", "social", "images", "categories", "services"] as const;
+type PrototypeStep =
+  | "welcome"
+  | "account"
+  | "person"
+  | "profile-image"
+  | "mood-images"
+  | "experiences"
+  | "story"
+  | "links"
+  | "services"
+  | "review"
+  | "approval";
 
-type ProfileFormSection = (typeof profileFormSections)[number];
-type ProfileSavedSection = ProfileFormSection | "all";
-type SaveUiStatus = "idle" | "saved" | "saving";
-type MissingProfileItem = {
-  focusSelector?: string;
-  key: string;
-  label: string;
-  targetId: string;
+type MoodImage = {
+  fileName: string;
+  path: string;
+  previewUrl: string;
 };
 
-function isProfileFormSection(value: string | null | undefined): value is ProfileFormSection {
-  return profileFormSections.includes(value as ProfileFormSection);
-}
-
-function isProfileSavedSection(value: string | null | undefined): value is ProfileSavedSection {
-  return value === "all" || isProfileFormSection(value);
-}
-
-function value(input: string | number | null | undefined) {
-  return input === null || input === undefined ? "" : String(input);
-}
-
-const postalCodeCities: Record<string, string> = {
-  "2100": "København Ø",
-  "2200": "København N",
-  "2300": "København S",
-  "2400": "København NV",
-  "2500": "Valby",
-  "2610": "Rødovre",
-  "2620": "Albertslund",
-  "2630": "Taastrup",
-  "2800": "Kongens Lyngby",
-  "3000": "Helsingør",
-  "3400": "Hillerød",
-  "4000": "Roskilde",
-  "4100": "Ringsted",
-  "4200": "Slagelse",
-  "4300": "Holbæk",
-  "4400": "Kalundborg",
-  "4700": "Næstved",
-  "4800": "Nykøbing F",
-  "5000": "Odense C",
-  "6000": "Kolding",
-  "6100": "Haderslev",
-  "6200": "Aabenraa",
-  "6400": "Sønderborg",
-  "6700": "Esbjerg",
-  "7100": "Vejle",
-  "7400": "Herning",
-  "8000": "Aarhus C",
-  "8200": "Aarhus N",
-  "8210": "Aarhus V",
-  "8230": "Åbyhøj",
-  "8260": "Viby J",
-  "8600": "Silkeborg",
-  "8800": "Viborg",
-  "9000": "Aalborg",
-  "9200": "Aalborg SV",
-  "9210": "Aalborg SØ",
-  "9220": "Aalborg Øst",
-  "9400": "Nørresundby",
+type SlotStatus = {
+  message: string;
+  status: "error" | "idle" | "saving" | "success";
 };
 
-function digits(input: string | null | undefined) {
-  return value(input).replace(/\D/g, "");
+const fallbackTreatmentForms: ServiceTitle[] = [
+  { id: "healing", name: "Healing" },
+  { id: "reiki", name: "Reiki" },
+  { id: "kropsterapi", name: "Kropsterapi" },
+  { id: "massage", name: "Massage" },
+  { id: "terapi", name: "Terapi" },
+  { id: "coaching", name: "Coaching" },
+  { id: "clairvoyance", name: "Clairvoyance" },
+  { id: "astrologi", name: "Astrologi" },
+  { id: "zoneterapi", name: "Zoneterapi" },
+  { id: "akupunktur", name: "Akupunktur" },
+  { id: "hypnose", name: "Hypnose" },
+  { id: "samtaleforloeb", name: "Samtaleforløb" },
+  { id: "energiarbejde", name: "Energiarbejde" },
+  { id: "lydhealing", name: "Lydhealing" },
+  { id: "breathwork", name: "Breathwork" },
+  { id: "meditation-1-1", name: "Meditation 1:1" },
+];
+
+function sortedByDanishName<T extends { name: string }>(items: T[]) {
+  return [...items].sort((a, b) => a.name.localeCompare(b.name, "da-DK"));
 }
 
-function formatPhoneInput(input: string) {
-  let digitCount = 0;
-
-  return input
-    .replace(/[^\d\s]/g, "")
-    .split("")
-    .filter((character) => {
-      if (/\d/.test(character)) {
-        digitCount += 1;
-        return digitCount <= 8;
-      }
-
-      return true;
-    })
-    .join("")
-    .replace(/\s{2,}/g, " ");
+function workAreaIconForName(name: string): LucideIcon {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("yoga") || normalized.includes("krop")) return Dumbbell;
+  if (normalized.includes("meditation") || normalized.includes("mindfulness")) return Moon;
+  if (normalized.includes("healing") || normalized.includes("energi")) return Sparkles;
+  if (normalized.includes("sauna") || normalized.includes("ild")) return Flame;
+  if (normalized.includes("lyd") || normalized.includes("musik")) return Music;
+  if (normalized.includes("natur") || normalized.includes("retreat")) return Leaf;
+  if (normalized.includes("ceremoni") || normalized.includes("ritual")) return Flower2;
+  if (normalized.includes("terapi") || normalized.includes("coaching")) return Brain;
+  if (normalized.includes("åndedræt") || normalized.includes("breath")) return Waves;
+  if (normalized.includes("hjerte") || normalized.includes("relation")) return Heart;
+  if (normalized.includes("sol") || normalized.includes("lys")) return Sun;
+  return HandHeart;
 }
 
-function FieldStatus({ complete, optional = false }: { complete: boolean; optional?: boolean }) {
-  if (complete) {
-    return <CheckCircle2 className="size-5 text-sage-700" aria-label="Udfyldt" />;
-  }
+const steps: Array<{
+  eyebrow: string;
+  id: PrototypeStep;
+  title: string;
+  text: string;
+}> = [
+  {
+    eyebrow: "Velkommen",
+    id: "welcome",
+    text: "Vi hjælper dig trin for trin med at skabe en profil, hvor deltagerne kan lære dig og dine oplevelser at kende.",
+    title: "Lad os skabe din SoulEvents-profil",
+  },
+  {
+    eyebrow: "Din adgang",
+    id: "account",
+    text: "I prototypen bruger vi din nuværende konto. Senere bliver dette en blød oprettelse med kodebekræftelse.",
+    title: "Først sikrer vi, at du kan finde tilbage.",
+  },
+  {
+    eyebrow: "Navn",
+    id: "person",
+    text: "Dit rigtige navn er kun synligt for SoulEvents. Som udgangspunkt vises dit rigtige navn på din offentlige profil, men du kan vælge et andet profilnavn.",
+    title: "Hvem står bag profilen?",
+  },
+  {
+    eyebrow: "Ansigt",
+    id: "profile-image",
+    text: "Vælg et billede, der gør din profil nærværende og genkendelig.",
+    title: "Gør profilen menneskelig.",
+  },
+  {
+    eyebrow: "Stemning",
+    id: "mood-images",
+    text: "Vis rummet, følelsen eller energien omkring dine oplevelser.",
+    title: "Vis stemningen.",
+  },
+  {
+    eyebrow: "Oplevelser",
+    id: "experiences",
+    text: "Vælg de områder, der bedst beskriver det, du inviterer mennesker ind i.",
+    title: "Hvilke oplevelser tilbyder du?",
+  },
+  {
+    eyebrow: "Din fortælling",
+    id: "story",
+    text: "Skriv som du ville fortælle det til et menneske, der overvejer at deltage.",
+    title: "Fortæl lidt om dig.",
+  },
+  {
+    eyebrow: "Forbindelse",
+    id: "links",
+    text: "Del de steder, hvor deltagere kan lære dig bedre at kende.",
+    title: "Hvor kan deltagerne finde dig?",
+  },
+  {
+    eyebrow: "Ydelser",
+    id: "services",
+    text: "Kun hvis du også arbejder med 1:1-forløb. Hvis du kun afholder events, vælger du bare nej.",
+    title: "Tilbyder du også individuelle ydelser?",
+  },
+  {
+    eyebrow: "Gennemse",
+    id: "review",
+    text: "Et første glimt af den profil, deltagerne skal møde.",
+    title: "Se din profil tage form.",
+  },
+  {
+    eyebrow: "Klar",
+    id: "approval",
+    text: "Er du klar til at blive en del af SoulEvents?",
+    title: "Sådan! Din profil er næsten klar",
+  },
+];
 
-  if (optional) {
-    return <CircleDashed className="size-5 text-orange-500" aria-label="Frivilligt felt mangler" />;
-  }
-
-  return <CircleAlert className="size-5 text-red-600" aria-label="Obligatorisk felt mangler" />;
+function value(input: string | null | undefined) {
+  return input ?? "";
 }
 
-function fieldClass(complete: boolean, optional = false) {
-  const base = "rounded-md border px-3 text-base outline-none transition focus:border-sage-700";
-
-  if (complete) {
-    return `${base} border-olive bg-white`;
-  }
-
-  if (optional) {
-    return `${base} border-midnight/15`;
-  }
-
-  return `${base} border-red-500 bg-red-50`;
+function splitOtherTreatmentForms(input: string | null | undefined) {
+  return value(input)
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 2);
 }
 
-function saveButtonLabel(defaultLabel: string, status: SaveUiStatus, pending: boolean) {
-  if (pending || status === "saving") return "⏳ Gemmer...";
-  if (status === "saved") return "✅ Gemt";
-  return defaultLabel;
+function joinOtherTreatmentForms(items: string[]) {
+  return items
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("\n");
 }
 
-function SectionSaveButton({ children, section, status }: { children: string; section: ProfileFormSection; status: SaveUiStatus }) {
-  const { pending } = useFormStatus();
+function splitName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] ?? "",
+    lastName: parts.slice(1).join(" "),
+  };
+}
 
+function publicImageUrl(path: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  return supabaseUrl && path ? `${supabaseUrl}/storage/v1/object/public/media/${path}` : "";
+}
+
+function inputClass(extra = "") {
+  return "min-h-14 w-full rounded-[18px] border border-midnight/10 bg-white px-5 text-lg text-midnight shadow-soft outline-none transition duration-200 placeholder:text-ink/35 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/10 " + extra;
+}
+
+function workAreaClass(selected: boolean, isLong = false) {
   return (
-    <button
-      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-button bg-olive px-4 py-2 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500 disabled:cursor-wait disabled:opacity-75 sm:w-auto"
-      disabled={pending || status === "saving"}
-      name="section"
-      type="submit"
-      value={section}
-    >
-      <Save className="size-4" aria-hidden="true" />
-      {saveButtonLabel(children, status, pending)}
-    </button>
+    "flex min-h-16 items-center justify-between gap-3 rounded-[22px] border px-3.5 py-3 text-left text-base font-semibold shadow-soft transition duration-200 hover:scale-[1.01] hover:border-sage-700 sm:px-4 " +
+    (selected ? "border-sage-700/25 bg-sage-50 text-sage-700" : "border-midnight/10 bg-white text-midnight") +
+    (isLong ? " md:col-span-2" : "")
   );
 }
 
-function FullProfileSaveButton({ children, status }: { children: string; status: SaveUiStatus }) {
-  const { pending } = useFormStatus();
-
-  return (
-    <button
-      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-midnight px-5 py-2 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700 disabled:cursor-wait disabled:opacity-75 sm:w-auto"
-      disabled={pending || status === "saving"}
-      name="section"
-      type="submit"
-      value="all"
-    >
-      <Save className="size-4" aria-hidden="true" />
-      {saveButtonLabel(children, status, pending)}
-    </button>
-  );
-}
-
-function LocalSaveFeedback({ message }: { message: string | null }) {
-  if (!message) return null;
-
-  return (
-    <p className="mt-3 rounded-md border border-sage-700/20 bg-sage-50 px-3 py-2 text-center text-sm font-semibold text-sage-700 sm:text-left">
-      {message}
-    </p>
-  );
-}
-
-function SectionFeedback({
-  errorSection,
-  message,
-  savedSection,
-  section,
+function SelectionCardContent({
+  Icon,
+  label,
+  selected,
 }: {
-  errorSection: ProfileFormSection | null;
-  message: string | null;
-  savedSection: ProfileSavedSection | null;
-  section: ProfileFormSection;
+  Icon: LucideIcon;
+  label: string;
+  selected: boolean;
 }) {
-  if (errorSection === section && message) {
-    return (
-      <div className="mt-5 flex items-start gap-2 rounded-md border border-red-500/25 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-        <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        <span>{message}</span>
-      </div>
-    );
-  }
-
-  if ((savedSection === section || savedSection === "all") && message) {
-    return (
-      <div className="mt-5 flex items-start gap-2 rounded-md border border-sage-700/25 bg-[#EEF6E8] px-4 py-3 text-sm font-semibold text-sage-700">
-        <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        <span>{message}</span>
-      </div>
-    );
-  }
-
-  return null;
+  return (
+    <>
+      <span className="flex min-w-0 flex-1 items-center gap-3">
+        <Icon
+          aria-hidden="true"
+          className={selected ? "size-5 shrink-0 text-sage-700" : "size-5 shrink-0 text-sage-700/55"}
+        />
+        <span className="min-w-0 whitespace-normal break-words text-left leading-snug">{label}</span>
+      </span>
+      <Circle className={selected ? "ml-2 size-4 shrink-0 fill-sage-700/15 text-sage-700" : "ml-2 size-4 shrink-0 text-sage-700/45"} aria-hidden="true" />
+    </>
+  );
 }
 
-function InfoHelp({ children }: { children: string }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const popoverId = useId();
+function ClearableInput({
+  className = "",
+  label,
+  maxLength,
+  onChange,
+  placeholder,
+  value,
+}: {
+  className?: string;
+  label?: string;
+  maxLength?: number;
+  onChange: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  const input = (
+    <div className="relative">
+      <input
+        className={inputClass("pr-12 " + className)}
+        maxLength={maxLength}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        value={value}
+      />
+      {value ? (
+        <button
+          aria-label="Ryd felt"
+          className="absolute right-3 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full text-ink/38 transition hover:bg-midnight/5 hover:text-midnight"
+          onClick={() => onChange("")}
+          type="button"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
+  );
+
+  if (!label) return input;
 
   return (
-    <span className="relative inline-block max-w-full">
-      {isOpen ? (
-        <button
-          aria-label="Luk hjælp"
-          className="fixed inset-0 z-10 cursor-default"
-          onClick={() => setIsOpen(false)}
-          type="button"
-        />
-      ) : null}
-      <button
-        aria-controls={popoverId}
-        aria-expanded={isOpen}
-        aria-label={isOpen ? "Luk hjælp" : "Vis hjælp"}
-        className="relative z-20 grid size-6 cursor-pointer place-items-center rounded-full border border-sage-700/25 bg-sage-50 text-sage-700 transition hover:bg-sage-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
-        onClick={() => setIsOpen((current) => !current)}
-        type="button"
-      >
-        <Info className="size-3.5" aria-hidden="true" />
-      </button>
-      {isOpen ? (
-        <span
-          className="fixed inset-x-4 top-24 z-30 grid max-h-[calc(100vh-8rem)] gap-2 overflow-y-auto rounded-md border border-midnight/10 bg-white p-3 text-xs font-normal leading-5 text-ink/70 shadow-lift sm:absolute sm:inset-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[min(18rem,calc(100vw-3rem))]"
-          id={popoverId}
-          role="dialog"
-        >
-          <button
-            aria-label="Luk hjælp"
-            className="justify-self-end rounded-full p-1 text-ink/45 transition hover:bg-sage-50 hover:text-sage-700"
-            onClick={() => setIsOpen(false)}
-            type="button"
+    <label className="grid gap-2 text-sm font-semibold text-ink/65">
+      {label}
+      {input}
+    </label>
+  );
+}
+
+function displayLink(input: string) {
+  return input.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/$/, "");
+}
+
+function ReviewJump({
+  children,
+  className = "",
+  label,
+  onClick,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <section
+      aria-label={label}
+      className={
+        "block w-full min-w-0 cursor-pointer rounded-[24px] text-left transition hover:bg-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 " +
+        className
+      }
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+    >
+      {children}
+    </section>
+  );
+}
+
+function LinkRows({
+  facebook,
+  instagram,
+  website,
+  youtube,
+}: {
+  facebook: string;
+  instagram: string;
+  website: string;
+  youtube: string;
+}) {
+  const websiteValue = website.trim();
+  const facebookValue = facebook.trim();
+  const instagramValue = instagram.trim();
+  const youtubeValue = youtube.trim();
+  const links = [
+    websiteValue ? { icon: Globe, label: "Hjemmeside", text: displayLink(websiteValue) } : null,
+    facebookValue ? { icon: Link2, label: "Facebook", text: displayLink(facebookValue) } : null,
+    instagramValue ? { icon: Camera, label: "Instagram", text: displayLink(instagramValue) } : null,
+    youtubeValue ? { icon: Video, label: "YouTube", text: displayLink(youtubeValue) } : null,
+  ].filter((item): item is { icon: typeof Globe; label: string; text: string } => Boolean(item));
+
+  if (links.length === 0) return null;
+
+  return (
+    <div className="overflow-hidden rounded-[24px] bg-white/65">
+      {links.map((item, index) => {
+        const Icon = item.icon;
+        return (
+          <div
+            className={
+              "grid min-h-14 grid-cols-[auto_1fr_auto] items-center gap-3 px-4 text-sm font-semibold text-midnight transition hover:bg-white " +
+              (index > 0 ? "border-t border-midnight/10" : "")
+            }
+            key={item.label}
           >
-            <X className="size-3.5" aria-hidden="true" />
-          </button>
-          <span>{children}</span>
+            <Icon className="size-4 text-sage-700" aria-hidden="true" />
+            <span className="min-w-0 break-words">{item.text}</span>
+            <ExternalLink className="size-4 text-ink/35" aria-hidden="true" />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function OnboardingShell({
+  backHref,
+  backLabel,
+  children,
+  currentIndex,
+  isBusy,
+  onBack,
+  onContinue,
+  canContinue = true,
+  ctaHelper,
+}: {
+  backHref: string;
+  backLabel: string;
+  canContinue?: boolean;
+  children: React.ReactNode;
+  currentIndex: number;
+  ctaHelper?: string;
+  isBusy: boolean;
+  onBack: () => void;
+  onContinue: () => void;
+}) {
+  const isFirst = currentIndex === 0;
+  const isLast = currentIndex === steps.length - 1;
+  const shellRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    shellRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentIndex]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] overflow-y-auto bg-[#fbfaf7] px-4 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:px-6 lg:overflow-hidden lg:bg-[#E7DDE7] lg:px-8 lg:py-6 xl:py-8"
+      ref={shellRef}
+    >
+      <div className="mx-auto grid min-h-[calc(100svh-3rem)] w-full max-w-[620px] content-between gap-8 lg:h-[calc(100dvh-48px)] lg:min-h-0 lg:max-w-[1040px] lg:grid-cols-[42%_58%] lg:content-stretch lg:gap-0 lg:overflow-hidden lg:rounded-[34px] lg:bg-[#fbfaf7] lg:shadow-[0_24px_70px_rgba(47,36,55,0.16)] xl:h-[calc(100dvh-64px)] xl:max-w-[1120px]">
+        <div className="relative hidden h-full overflow-hidden bg-sage-700 lg:block" aria-hidden="true">
+          <Image
+            alt=""
+            className="object-cover"
+            fill
+            priority
+            sizes="(min-width: 1024px) 520px, 0px"
+            src="/facilitator/onboarding-nature.png"
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(47,36,55,0.18),rgba(47,36,55,0.38)),linear-gradient(90deg,rgba(151,161,132,0.16),rgba(231,221,231,0.12))]" />
+        </div>
+
+        <div className="grid min-h-[calc(100svh-3rem)] content-between gap-8 lg:h-full lg:min-h-0 lg:grid-rows-[minmax(0,1fr)_auto] lg:gap-5 lg:overflow-hidden lg:px-6 lg:py-6 xl:px-8 xl:py-7">
+          <div className="grid gap-8 lg:min-h-0 lg:gap-5 lg:overflow-y-auto lg:pr-1">
+            <div className="min-h-8">
+              {isFirst ? (
+                <Link className="text-sm font-semibold text-ink/55 underline-offset-4 hover:text-sage-700 hover:underline" href={backHref}>
+                  {backLabel}
+                </Link>
+              ) : (
+                <button className="inline-flex items-center gap-2 text-sm font-semibold text-ink/55 transition hover:text-sage-700" onClick={onBack} type="button">
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  Tilbage
+                </button>
+              )}
+            </div>
+
+            <div className="rounded-[30px] bg-white px-5 py-8 shadow-soft transition-all duration-200 sm:px-8 sm:py-10 lg:rounded-none lg:bg-transparent lg:px-4 lg:py-5 lg:shadow-none xl:px-5 xl:py-6">
+              {children}
+            </div>
+          </div>
+
+          <div className="pb-2">
+            <button
+              className="inline-flex min-h-16 w-full items-center justify-center gap-2 rounded-[999px] bg-midnight px-6 text-lg font-semibold text-white shadow-soft transition duration-200 hover:bg-sage-700 disabled:cursor-not-allowed disabled:opacity-45 lg:min-h-12 lg:text-base xl:min-h-14"
+              disabled={isBusy || !canContinue}
+              onClick={onContinue}
+              type="button"
+            >
+              {isBusy ? "Gemmer automatisk..." : isFirst ? "Kom i gang" : isLast ? "Opret profil" : "Fortsæt"}
+              {!isBusy && <ArrowRight className="size-5" aria-hidden="true" />}
+            </button>
+            {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepIntro({ eyebrow, text, title }: { eyebrow: string; text: string; title: string }) {
+  return (
+    <div className="mb-8 grid gap-3 lg:mb-5 lg:gap-2">
+      <p className="text-sm font-semibold uppercase tracking-wide text-sage-700 lg:text-xs">{eyebrow}</p>
+      <h2 className="text-4xl font-semibold leading-tight text-midnight sm:text-5xl lg:text-3xl xl:text-4xl">{title}</h2>
+      <p className="text-base leading-7 text-ink/64 lg:text-sm lg:leading-6">{text}</p>
+    </div>
+  );
+}
+
+function UploadTile({
+  createPreview = true,
+  imageUrl,
+  label,
+  onSelect,
+}: {
+  createPreview?: boolean;
+  imageUrl: string;
+  label: string;
+  onSelect: (file: File, previewUrl: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  async function handleChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const prepared = await prepareImageFileForUpload(file);
+      onSelect(prepared, createPreview ? URL.createObjectURL(prepared) : "");
+    } catch {
+      event.target.value = "";
+    }
+  }
+
+  return (
+    <button
+      className="group grid aspect-[4/5] w-full place-items-center overflow-hidden rounded-[26px] border border-midnight/10 bg-sage-50 text-center shadow-soft transition duration-200 hover:border-sage-700"
+      onClick={() => inputRef.current?.click()}
+      type="button"
+    >
+      {imageUrl ? (
+        <img alt="" className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]" src={imageUrl} />
+      ) : (
+        <span className="grid justify-items-center gap-4 px-6">
+          <span className="grid size-16 place-items-center rounded-full bg-white text-sage-700 shadow-soft">
+            <Upload className="size-7" aria-hidden="true" />
+          </span>
+          <span className="text-lg font-semibold text-midnight">{label}</span>
         </span>
-      ) : null}
-    </span>
+      )}
+      <input accept={imageUploadAccept} className="sr-only" onChange={handleChange} ref={inputRef} type="file" />
+    </button>
+  );
+}
+
+function MissingCard({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      className="w-full rounded-[22px] bg-[#FFF7DE] p-4 text-left text-sm font-semibold leading-6 text-[#715C21] transition hover:bg-[#FFF1C2]"
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
   );
 }
 
 export function ProfileForm({
-  adminReturnTo = null,
-  adminTargetFacilitatorId = null,
-  autosaveEnabled = true,
   backHref = "/facilitator",
-  backLabel = "Tilbage til forsiden",
-  errorSection = null,
-  feedbackMessage = null,
+  backLabel = "Tilbage",
   profile,
   facilitatorProfile,
-  regions,
   categories,
   selectedCategoryIds,
   galleryImages,
-  savedSection = null,
   serviceTitles,
   selectedServiceTitleIds,
-  submitLabel = "Gem hele profilen",
 }: ProfileFormProps) {
-  const initialSavedSection = isProfileSavedSection(savedSection) ? savedSection : null;
-  const [postalCode, setPostalCode] = useState(value(facilitatorProfile.postal_code));
-  const [city, setCity] = useState(value(facilitatorProfile.city));
-  const [fullName, setFullName] = useState(value(profile.full_name));
-  const [companyName, setCompanyName] = useState(value(facilitatorProfile.company_name));
-  const [shortDescription, setShortDescription] = useState(value(facilitatorProfile.short_description));
-  const [longDescription, setLongDescription] = useState(value(facilitatorProfile.long_description));
-  const [phone, setPhone] = useState(value(profile.phone));
-  const [addressLine, setAddressLine] = useState(value(facilitatorProfile.address_line));
-  const [country, setCountry] = useState(value(facilitatorProfile.country ?? "Danmark") || "Danmark");
-  const [isOnlineFacilitator, setIsOnlineFacilitator] = useState(Boolean(facilitatorProfile.is_online_facilitator));
-  const [publicEmail, setPublicEmail] = useState(value(facilitatorProfile.public_email));
-  const [publicPhone, setPublicPhone] = useState(value(facilitatorProfile.public_phone));
-  const [websiteUrl, setWebsiteUrl] = useState(value(facilitatorProfile.website_url));
-  const [facebookUrl, setFacebookUrl] = useState(value(facilitatorProfile.facebook_url));
-  const [instagramUrl, setInstagramUrl] = useState(value(facilitatorProfile.instagram_url));
-  const [youtubeUrl, setYoutubeUrl] = useState(value(facilitatorProfile.youtube_url));
-  const [tiktokUrl, setTiktokUrl] = useState(value(facilitatorProfile.tiktok_url));
-  const [selectedCategories, setSelectedCategories] = useState(selectedCategoryIds);
-  const [offersServices, setOffersServices] = useState(Boolean(facilitatorProfile.offers_services));
-  const [selectedServiceTitles, setSelectedServiceTitles] = useState(selectedServiceTitleIds);
-  const [serviceDescription, setServiceDescription] = useState(value(facilitatorProfile.service_description));
-  const [serviceOtherTitle, setServiceOtherTitle] = useState(value(facilitatorProfile.service_other_title));
-  const [showInLocalServiceResults, setShowInLocalServiceResults] = useState(Boolean(facilitatorProfile.show_in_local_service_results));
-  const [highlightedMissingKey, setHighlightedMissingKey] = useState("");
-  const formRef = useRef<HTMLFormElement | null>(null);
-  const autosaveTimerRef = useRef<number | null>(null);
-  const autosaveQueueRef = useRef(Promise.resolve());
-  const dirtySectionsRef = useRef<Set<ProfileFormSection>>(new Set());
-  const hasMountedAutosaveRef = useRef(false);
-  const autosaveInFlightRef = useRef(false);
-  const lastAutosaveFailedRef = useRef(false);
-  const skipSubmitAutosaveRef = useRef(false);
-  const saveSequenceRef = useRef(0);
-  const saveStatusTimeoutRef = useRef<number | null>(null);
-  const initialSavedSectionRef = useRef<ProfileSavedSection | null>(initialSavedSection);
-  const [autosaveStatus, setAutosaveStatus] = useState<"error" | "idle" | "saved" | "saving">("idle");
-  const [autosaveMessage, setAutosaveMessage] = useState("");
-  const [saveUiStatus, setSaveUiStatus] = useState<Record<ProfileSavedSection, SaveUiStatus>>({
-    all: initialSavedSection === "all" ? "saved" : "idle",
-    categories: initialSavedSection === "categories" ? "saved" : "idle",
-    contact: initialSavedSection === "contact" ? "saved" : "idle",
-    images: initialSavedSection === "images" ? "saved" : "idle",
-    location: initialSavedSection === "location" ? "saved" : "idle",
-    services: initialSavedSection === "services" ? "saved" : "idle",
-    social: initialSavedSection === "social" ? "saved" : "idle",
+  const names = splitName(profile.full_name);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [isBusy, setIsBusy] = useState(false);
+  const [returnToReview, setReturnToReview] = useState(false);
+  const [, startImageTransition] = useTransition();
+  const [firstName, setFirstName] = useState(names.firstName);
+  const [lastName, setLastName] = useState(names.lastName);
+  const fullPublicName = [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" ");
+  const [useCustomProfileName, setUseCustomProfileName] = useState(false);
+  const [profileName, setProfileName] = useState(value(facilitatorProfile.company_name));
+  const [profileImageUrl, setProfileImageUrl] = useState(facilitatorProfile.profile_image_path ? publicImageUrl(facilitatorProfile.profile_image_path) : "");
+  const [moodImages, setMoodImages] = useState<MoodImage[]>(
+    Array.from({ length: 3 }, (_, index) => ({
+      fileName: "",
+      path: galleryImages[index]?.image_path ?? "",
+      previewUrl: galleryImages[index]?.image_path ? publicImageUrl(galleryImages[index].image_path) : "",
+    })),
+  );
+  const [moodImageStatuses, setMoodImageStatuses] = useState<SlotStatus[]>(
+    Array.from({ length: 3 }, () => ({ message: "", status: "idle" })),
+  );
+  const [selectedExperiences, setSelectedExperiences] = useState(selectedCategoryIds);
+  const [story, setStory] = useState(value(facilitatorProfile.long_description || facilitatorProfile.short_description));
+  const [website, setWebsite] = useState(value(facilitatorProfile.website_url));
+  const [facebook, setFacebook] = useState(value(facilitatorProfile.facebook_url));
+  const [instagram, setInstagram] = useState(value(facilitatorProfile.instagram_url));
+  const [youtube, setYoutube] = useState(value(facilitatorProfile.youtube_url));
+  const [offersIndividualServices, setOffersIndividualServices] = useState(Boolean(facilitatorProfile.offers_services));
+  const [selectedTreatmentIds, setSelectedTreatmentIds] = useState(selectedServiceTitleIds);
+  const [otherTreatmentForms, setOtherTreatmentForms] = useState<[string, string]>(() => {
+    const values = splitOtherTreatmentForms(facilitatorProfile.service_other_title);
+    return [values[0] ?? "", values[1] ?? ""];
   });
-  const [localSaveFeedback, setLocalSaveFeedback] = useState<Partial<Record<ProfileSavedSection, string>>>(
-    initialSavedSection
-      ? {
-          [initialSavedSection]: initialSavedSection === "all" ? "✓ Profilen er opdateret" : "✓ Afsnittet er gemt",
-        }
-      : {},
-  );
-  const currentOrigin = typeof window === "undefined" ? "" : window.location.origin;
-  const fullNameComplete = Boolean(fullName.trim());
-  const companyNameComplete = Boolean(companyName.trim());
-  const shortHasContent = Boolean(shortDescription.trim());
-  const phoneComplete = Boolean(phone && digits(phone).length === 8);
-  const locationComplete = Boolean(postalCode.trim() && city.trim());
-  const categoriesComplete = selectedCategories.length > 0;
-  const shortDescriptionMaximum = 300;
-  const longDescriptionMaximum = 2000;
-  const serviceDescriptionMaximum = 500;
-  const inferredRegionSlug = inferRegionSlug({ city, postalCode });
-  const selectedRegion =
-    regions.find((region) => region.slug === inferredRegionSlug) ??
-    regions.find((region) => region.id === facilitatorProfile.region_id);
-  const normalizedErrorSection = isProfileFormSection(errorSection) ? errorSection : null;
-  const normalizedSavedSection = initialSavedSection;
-  const missingProfileItems: MissingProfileItem[] = [
-    fullNameComplete ? null : { focusSelector: "[name='full_name']", key: "full_name", label: "Privat navn", targetId: "profile-full-name-field" },
-    companyNameComplete
-      ? null
-      : { focusSelector: "[name='company_name']", key: "company_name", label: "Visningsnavn", targetId: "profile-company-name-field" },
-    postalCode.trim()
-      ? null
-      : { focusSelector: "[name='postal_code']", key: "postal_code", label: "Postnummer", targetId: "profile-postal-code-field" },
-    city.trim() ? null : { focusSelector: "[name='city']", key: "city", label: "By", targetId: "profile-city-field" },
-    categoriesComplete ? null : { key: "categories", label: "Arbejdsområder", targetId: "profile-categories-section" },
-  ].filter((item): item is MissingProfileItem => Boolean(item));
+  const [otherExperience, setOtherExperience] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const currentStep = steps[stepIndex] ?? steps[0];
+  const publicProfileName = useCustomProfileName ? profileName.trim() : fullPublicName;
+  const hasWorkArea = selectedExperiences.length > 0 || Boolean(otherExperience.trim());
+  const treatmentOptions = sortedByDanishName(serviceTitles.length > 0 ? serviceTitles : fallbackTreatmentForms);
+  const selectedTreatments = offersIndividualServices
+    ? treatmentOptions.filter((serviceTitle) => selectedTreatmentIds.includes(serviceTitle.id))
+    : [];
+  const otherTreatmentFormValue = joinOtherTreatmentForms(otherTreatmentForms);
+  const otherTreatmentFormChips = splitOtherTreatmentForms(otherTreatmentFormValue);
+  const hasTreatmentForms = offersIndividualServices && (selectedTreatments.length > 0 || otherTreatmentFormChips.length > 0);
+  const hasLinks = Boolean(website.trim() || facebook.trim() || instagram.trim() || youtube.trim());
+  const missingRequired = [
+    !firstName.trim() || !lastName.trim() ? { label: "Dit navn", step: "person" as PrototypeStep } : null,
+    !publicProfileName ? { label: "Profilnavn", step: "person" as PrototypeStep } : null,
+    !profileImageUrl ? { label: "Profilbillede", step: "profile-image" as PrototypeStep } : null,
+    moodImages.every((image) => !image.previewUrl) ? { label: "Mindst ét stemningsbillede", step: "mood-images" as PrototypeStep } : null,
+    !hasWorkArea ? { label: "Oplevelser", step: "experiences" as PrototypeStep } : null,
+    !story.trim() ? { label: "Fortælling", step: "story" as PrototypeStep } : null,
+  ].filter((item): item is { label: string; step: PrototypeStep } => Boolean(item));
 
-  function guideToMissingProfileItem(item: MissingProfileItem) {
-    setHighlightedMissingKey(item.key);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("prototypeStep", currentStep.id);
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }, [currentStep.id]);
 
+  function continueFlow() {
+    setIsBusy(true);
     window.setTimeout(() => {
-      const target = document.getElementById(item.targetId);
-      const focusTarget = item.focusSelector
-        ? (document.querySelector(item.focusSelector) as HTMLElement | null)
-        : (target?.querySelector("input, textarea, select, button") as HTMLElement | null);
+      setIsBusy(false);
+      if (returnToReview && currentStep.id !== "review" && currentStep.id !== "approval") {
+        setReturnToReview(false);
+        goToStep("review");
+        return;
+      }
 
-      target?.scrollIntoView({ behavior: "smooth", block: "center" });
-      focusTarget?.focus({ preventScroll: true });
-    }, 50);
-
-    window.setTimeout(() => setHighlightedMissingKey(""), 1800);
+      setStepIndex((current) => Math.min(current + 1, steps.length - 1));
+    }, 180);
   }
 
-  function highlightMissingClass(key: string) {
-    return highlightedMissingKey === key ? "ring-4 ring-[#D89A94]/35" : "";
-  }
-
-  function setSaveStatus(section: ProfileSavedSection, status: SaveUiStatus) {
-    setSaveUiStatus((current) => ({ ...current, [section]: status }));
-  }
-
-  function clearSaveStatusLater(section: ProfileSavedSection) {
-    if (saveStatusTimeoutRef.current) {
-      window.clearTimeout(saveStatusTimeoutRef.current);
+  function goBack() {
+    if (returnToReview && currentStep.id !== "review") {
+      setReturnToReview(false);
+      goToStep("review");
+      return;
     }
 
-    saveStatusTimeoutRef.current = window.setTimeout(() => {
-      setSaveStatus(section, "idle");
-      setLocalSaveFeedback((current) => ({ ...current, [section]: undefined }));
-    }, 2000);
+    setReturnToReview(false);
+    setStepIndex((current) => Math.max(current - 1, 0));
   }
 
-  function showLocalSaved(section: ProfileSavedSection) {
-    setSaveStatus(section, "saved");
-    setLocalSaveFeedback((current) => ({
-      ...current,
-      [section]: section === "all" ? "✓ Profilen er opdateret" : "✓ Afsnittet er gemt",
-    }));
-    clearSaveStatusLater(section);
+  function goToStep(step: PrototypeStep) {
+    const nextIndex = steps.findIndex((item) => item.id === step);
+    if (nextIndex >= 0) {
+      setStepIndex(nextIndex);
+    }
   }
 
-  const buildAutosaveInput = useCallback(
-    (section: ProfileFormSection): Parameters<typeof autosaveFacilitatorProfileAction>[0] => {
-      if (section === "contact") {
+  function editFromReview(step: PrototypeStep) {
+    setReturnToReview(true);
+    goToStep(step);
+  }
+
+  function toggleExperience(categoryId: string) {
+    setSelectedExperiences((current) =>
+      current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId],
+    );
+  }
+
+  function toggleTreatment(serviceTitleId: string) {
+    setSelectedTreatmentIds((current) =>
+      current.includes(serviceTitleId) ? current.filter((id) => id !== serviceTitleId) : [...current, serviceTitleId],
+    );
+  }
+
+  function setOtherTreatmentForm(index: number, nextValue: string) {
+    setOtherTreatmentForms((current) => {
+      const next: [string, string] = [current[0], current[1]];
+      next[index] = nextValue;
+      return next;
+    });
+  }
+
+  function applyMoodImagePaths(paths: string[]) {
+    setMoodImages(
+      Array.from({ length: 3 }, (_, index) => {
+        const path = paths[index] ?? "";
         return {
-          section,
-          values: {
-            company_name: companyName,
-            full_name: fullName,
-            long_description: longDescription,
-            phone,
-            short_description: shortDescription,
-          },
+          fileName: "",
+          path,
+          previewUrl: path ? publicImageUrl(path) : "",
         };
-      }
+      }),
+    );
+  }
 
-      if (section === "location") {
-        return {
-          section,
-          values: {
-            address_line: addressLine,
-            city,
-            country,
-            is_online_facilitator: isOnlineFacilitator,
-            postal_code: postalCode,
-          },
-        };
-      }
+  function setMoodImageStatus(index: number, status: SlotStatus) {
+    setMoodImageStatuses((current) => current.map((item, itemIndex) => (itemIndex === index ? status : item)));
+  }
 
-      if (section === "social") {
-        return {
-          section,
-          values: {
-            facebook_url: facebookUrl,
-            instagram_url: instagramUrl,
-            public_email: publicEmail,
-            public_phone: publicPhone,
-            tiktok_url: tiktokUrl,
-            website_url: websiteUrl,
-            youtube_url: youtubeUrl,
-          },
-        };
-      }
-
-      if (section === "categories") {
-        return { section, values: { category_ids: selectedCategories } };
-      }
-
-      if (section === "services") {
-        return {
-          section,
-          values: {
-            offers_services: offersServices,
-            service_description: serviceDescription,
-            service_other_title: serviceOtherTitle,
-            service_title_ids: selectedServiceTitles,
-            show_in_local_service_results: showInLocalServiceResults,
-          },
-        };
-      }
-
-      return { section, values: {} };
-    },
-    [
-      addressLine,
-      city,
-      companyName,
-      country,
-      facebookUrl,
-      fullName,
-      instagramUrl,
-      isOnlineFacilitator,
-      longDescription,
-      offersServices,
-      phone,
-      postalCode,
-      publicEmail,
-      publicPhone,
-      selectedCategories,
-      selectedServiceTitles,
-      serviceDescription,
-      serviceOtherTitle,
-      shortDescription,
-      showInLocalServiceResults,
-      tiktokUrl,
-      websiteUrl,
-      youtubeUrl,
-    ],
-  );
-
-  const flushAutosaveNow = useCallback(
-    async (sections?: ProfileFormSection[]) => {
-      const sectionsToSave = sections ?? [...dirtySectionsRef.current];
-
-      if (sectionsToSave.length === 0) {
-        if (autosaveInFlightRef.current) {
-          await autosaveQueueRef.current;
-          return !lastAutosaveFailedRef.current;
-        }
-
-        return true;
-      }
-
-      if (autosaveTimerRef.current) {
-        window.clearTimeout(autosaveTimerRef.current);
-        autosaveTimerRef.current = null;
-      }
-
-      sectionsToSave.forEach((section) => dirtySectionsRef.current.delete(section));
-      const saveSequence = saveSequenceRef.current + 1;
-      saveSequenceRef.current = saveSequence;
-      autosaveInFlightRef.current = true;
-      lastAutosaveFailedRef.current = false;
-      setAutosaveStatus("saving");
-      setAutosaveMessage("Gemmer...");
-
-      const saveTask = autosaveQueueRef.current.then(async () => {
-        for (const section of sectionsToSave) {
-          const result = await autosaveFacilitatorProfileAction(buildAutosaveInput(section));
-
-          if (!result.ok) {
-            throw new Error(result.message);
-          }
-        }
-      });
-
-      const trackedSaveTask = saveTask.catch(() => undefined);
-      autosaveQueueRef.current = trackedSaveTask;
-
+  function saveMoodImage(index: number, file: File) {
+    setMoodImageStatus(index, { message: "Uploader og gemmer billedet...", status: "saving" });
+    startImageTransition(async () => {
       try {
-        await saveTask;
+        const formData = new FormData();
+        formData.set("slot_index", String(index));
+        formData.set("image_file", file);
+        const result = await saveFacilitatorMoodImageAction(formData);
 
-        if (autosaveQueueRef.current === trackedSaveTask) {
-          autosaveInFlightRef.current = false;
+        if (result.status === "success") {
+          applyMoodImagePaths(result.paths);
+          setMoodImageStatus(index, { message: "Billedet er gemt.", status: "success" });
+          return;
         }
 
-        if (saveSequenceRef.current === saveSequence) {
-          setAutosaveStatus("saved");
-          setAutosaveMessage("Gemt");
-        }
-
-        return true;
-      } catch (error) {
-        if (autosaveQueueRef.current === trackedSaveTask) {
-          autosaveInFlightRef.current = false;
-        }
-
-        lastAutosaveFailedRef.current = true;
-
-        if (saveSequenceRef.current === saveSequence) {
-          setAutosaveStatus("error");
-          setAutosaveMessage(error instanceof Error ? error.message : "Profilen kunne ikke gemmes automatisk.");
-        }
-
-        sectionsToSave.forEach((section) => dirtySectionsRef.current.add(section));
-        return false;
+        setMoodImageStatus(index, { message: result.message, status: "error" });
+      } catch {
+        setMoodImageStatus(index, { message: "Billedet kunne ikke gemmes. Prøv igen.", status: "error" });
       }
-    },
-    [buildAutosaveInput],
-  );
-
-  const markSectionDirty = useCallback(
-    (section: ProfileFormSection) => {
-      if (!autosaveEnabled) {
-        return;
-      }
-
-      dirtySectionsRef.current.add(section);
-      setAutosaveStatus("idle");
-      setAutosaveMessage("");
-
-      if (autosaveTimerRef.current) {
-        window.clearTimeout(autosaveTimerRef.current);
-      }
-
-      autosaveTimerRef.current = window.setTimeout(() => {
-        void flushAutosaveNow();
-      }, 1000);
-    },
-    [autosaveEnabled, flushAutosaveNow],
-  );
-
-  function handleFormBlur() {
-    if (!autosaveEnabled) {
-      return;
-    }
-
-    void flushAutosaveNow();
+    });
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-    const submittedSection = isProfileSavedSection(submitter?.value) ? submitter.value : null;
+  function removeMoodImage(index: number) {
+    setMoodImageStatus(index, { message: "Fjerner billedet...", status: "saving" });
+    startImageTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.set("slot_index", String(index));
+        formData.set("remove", "yes");
+        const result = await saveFacilitatorMoodImageAction(formData);
 
-    if (skipSubmitAutosaveRef.current) {
-      skipSubmitAutosaveRef.current = false;
-      return;
-    }
+        if (result.status === "success") {
+          applyMoodImagePaths(result.paths);
+          setMoodImageStatus(index, { message: "Billedet er fjernet.", status: "success" });
+          return;
+        }
 
-    if (submittedSection) {
-      setSaveStatus(submittedSection, "saving");
-      setLocalSaveFeedback((current) => ({ ...current, [submittedSection]: undefined }));
-    }
-
-    if (submitter?.value === "all" && missingProfileItems.length > 0) {
-      event.preventDefault();
-      setSaveStatus("all", "idle");
-      guideToMissingProfileItem(missingProfileItems[0]);
-      return;
-    }
-
-    if (submitter?.value === "all" || !autosaveEnabled) {
-      return;
-    }
-
-    event.preventDefault();
-
-    const didSave = await flushAutosaveNow();
-
-    if (didSave) {
-      if (submittedSection) {
-        showLocalSaved(submittedSection);
+        setMoodImageStatus(index, { message: result.message, status: "error" });
+      } catch {
+        setMoodImageStatus(index, { message: "Billedet kunne ikke fjernes. Prøv igen.", status: "error" });
       }
-
-      skipSubmitAutosaveRef.current = true;
-      formRef.current?.requestSubmit(submitter ?? undefined);
-    } else if (submittedSection) {
-      setSaveStatus(submittedSection, "idle");
-    }
-  }
-
-  useEffect(() => {
-    if (!hasMountedAutosaveRef.current) return;
-    markSectionDirty("contact");
-  }, [companyName, fullName, longDescription, markSectionDirty, phone, shortDescription]);
-
-  useEffect(() => {
-    if (!hasMountedAutosaveRef.current) return;
-    markSectionDirty("location");
-  }, [addressLine, city, country, isOnlineFacilitator, markSectionDirty, postalCode]);
-
-  useEffect(() => {
-    if (!hasMountedAutosaveRef.current) return;
-    markSectionDirty("social");
-  }, [facebookUrl, instagramUrl, markSectionDirty, publicEmail, publicPhone, tiktokUrl, websiteUrl, youtubeUrl]);
-
-  useEffect(() => {
-    if (!hasMountedAutosaveRef.current) return;
-    markSectionDirty("categories");
-  }, [markSectionDirty, selectedCategories]);
-
-  useEffect(() => {
-    if (!hasMountedAutosaveRef.current) return;
-    markSectionDirty("services");
-  }, [markSectionDirty, offersServices, selectedServiceTitles, serviceDescription, serviceOtherTitle, showInLocalServiceResults]);
-
-  useEffect(() => {
-    hasMountedAutosaveRef.current = true;
-
-    if (initialSavedSectionRef.current) {
-      const section = initialSavedSectionRef.current;
-      saveStatusTimeoutRef.current = window.setTimeout(() => {
-        setSaveUiStatus((current) => ({ ...current, [section]: "idle" }));
-        setLocalSaveFeedback((current) => ({ ...current, [section]: undefined }));
-      }, 2000);
-    }
-
-    return () => {
-      if (autosaveTimerRef.current) {
-        window.clearTimeout(autosaveTimerRef.current);
-      }
-
-      if (saveStatusTimeoutRef.current) {
-        window.clearTimeout(saveStatusTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  async function fetchPostalCodeCity(normalizedPostalCode: string) {
-    try {
-      const response = await fetch(`https://api.dataforsyningen.dk/postnumre/${normalizedPostalCode}`);
-
-      if (!response.ok) {
-        return;
-      }
-
-      const data = (await response.json()) as { navn?: string };
-
-      if (data.navn) {
-        setCity(data.navn);
-      }
-    } catch {
-      // Keep the manually entered city or local fallback if the public lookup is unavailable.
-    }
-  }
-
-  function handlePostalCodeChange(nextPostalCode: string) {
-    setPostalCode(nextPostalCode);
-    const normalizedPostalCode = nextPostalCode.replace(/\D/g, "");
-    const inferredCity = postalCodeCities[normalizedPostalCode];
-
-    if (inferredCity) {
-      setCity(inferredCity);
-    }
-
-    if (normalizedPostalCode.length === 4) {
-      void fetchPostalCodeCity(normalizedPostalCode);
-    }
+    });
   }
 
   return (
-    <form
-      action={updateFacilitatorProfileAction}
-      autoComplete="off"
-      className="grid gap-6"
-      noValidate
-      onBlurCapture={handleFormBlur}
-      onSubmit={handleSubmit}
-      ref={formRef}
+    <OnboardingShell
+      backHref={backHref}
+      backLabel={backLabel}
+      canContinue={currentStep.id !== "approval" || acceptedTerms}
+      currentIndex={stepIndex}
+      ctaHelper={currentStep.id === "approval" ? "Din profil sendes til godkendelse." : undefined}
+      isBusy={isBusy}
+      onBack={goBack}
+      onContinue={continueFlow}
     >
-      <input name="current_origin" suppressHydrationWarning type="hidden" value={currentOrigin} />
-      {adminTargetFacilitatorId ? <input name="admin_target_facilitator_id" type="hidden" value={adminTargetFacilitatorId} /> : null}
-      {adminReturnTo ? <input name="admin_return_to" type="hidden" value={adminReturnTo} /> : null}
-      <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold text-midnight">Kontakt og præsentation</h2>
+      {currentStep.id === "welcome" ? (
+        <div className="mb-6 flex justify-center">
+          <img alt="SoulEvents" className="h-20 w-auto object-contain" src="/brand/soulevents-logo.png" />
         </div>
+      ) : null}
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className={"grid gap-2 text-sm font-medium text-ink/72 " + highlightMissingClass("full_name")} id="profile-full-name-field">
-            <span className="flex flex-wrap items-center gap-2">
-              Privat navn
-              <InfoHelp>Privat navn bruges internt af SoulEvents og i kommunikationen med dig.</InfoHelp>
-            </span>
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(fullNameComplete)}`}
-              name="full_name"
-              maxLength={80}
+      <StepIntro eyebrow={currentStep.eyebrow} text={currentStep.text} title={currentStep.title} />
 
-              onChange={(event) => setFullName(event.target.value)}
-              placeholder="Skal udfyldes"
-              value={fullName}
-            />
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            E-mail
-            <input
-              className="h-11 rounded-md border border-midnight/15 bg-sage-50 px-3 text-base text-ink/65"
-              defaultValue={profile.email}
-              disabled
-              type="email"
-            />
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span className="flex flex-wrap items-center gap-2">
-              Telefon
-              <InfoHelp>Telefonnummer skal bestå af præcis 8 tal. Mellemrum er tilladt.</InfoHelp>
-            </span>
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(phoneComplete, true)}`}
-              inputMode="tel"
-              maxLength={11}
-              name="phone"
-              onChange={(event) => setPhone(formatPhoneInput(event.target.value))}
-              pattern="[0-9 ]*"
-              placeholder="Valgfrit - fx 12 34 56 78"
-              title="Telefonnummer skal bestå af præcis 8 tal. Mellemrum er tilladt."
-              value={phone}
-            />
-          </label>
-
-          <label className={"grid gap-2 text-sm font-medium text-ink/72 " + highlightMissingClass("company_name")} id="profile-company-name-field">
-            <span className="flex flex-wrap items-center gap-2">
-              Det navn du ønsker at blive vist under
-              <InfoHelp>
-                Dette navn vises på din offentlige profil og ved dine events. Det kan være dit eget navn, navnet på
-                din praksis, dit koncept eller dit brand.
-              </InfoHelp>
-            </span>
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(companyNameComplete)}`}
-              name="company_name"
-              maxLength={100}
-
-              onChange={(event) => setCompanyName(event.target.value)}
-              placeholder="Skal udfyldes"
-              value={companyName}
-            />
-          </label>
-        </div>
-
-        <div className="mt-4 grid gap-4">
-          <label className={"grid gap-2 text-sm font-medium text-ink/72 " + highlightMissingClass("short_description")} id="profile-short-description-field">
-            <span className="flex flex-wrap items-center gap-2">
-              Kort præsentation
-              <FieldStatus complete={shortHasContent} optional />
-              <InfoHelp>Denne tekst vises offentligt på din profil og bruges ofte som det første indtryk af dig.</InfoHelp>
-            </span>
-            <textarea
-              autoComplete="off"
-              className={`min-h-24 p-3 ${fieldClass(shortHasContent, true)}`}
-              name="short_description"
-              maxLength={shortDescriptionMaximum}
-
-              onChange={(event) => setShortDescription(event.target.value)}
-              placeholder="Valgfrit"
-              value={shortDescription}
-            />
-            <span className="text-xs font-semibold text-[#7A4EAB]">
-              Valgfrit · {shortDescriptionMaximum - shortDescription.length} tegn tilbage
-            </span>
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span className="flex flex-wrap items-center gap-2">
-              Uddybende præsentation
-              <InfoHelp>
-                Denne tekst vises offentligt på din profil. Her kan du fortælle mere om din baggrund, erfaring og
-                tilgang.
-              </InfoHelp>
-            </span>
-            <textarea
-              autoComplete="off"
-              className={`min-h-40 p-3 ${fieldClass(Boolean(longDescription.trim()), true)}`}
-              name="long_description"
-              maxLength={longDescriptionMaximum}
-
-              onChange={(event) => setLongDescription(event.target.value)}
-              placeholder="Valgfrit"
-              value={longDescription}
-            />
-            <span className="text-xs font-semibold text-[#7A4EAB]">
-              {longDescriptionMaximum - longDescription.length} tegn tilbage
-            </span>
-          </label>
-        </div>
-
-        <SectionFeedback
-          errorSection={normalizedErrorSection}
-          message={feedbackMessage}
-          savedSection={normalizedSavedSection}
-          section="contact"
-        />
-
-        <div className="mt-5 flex justify-center sm:justify-end">
-          <div className="w-full sm:w-auto">
-            <SectionSaveButton section="contact" status={saveUiStatus.contact}>💾 Gem dette afsnit</SectionSaveButton>
-            <LocalSaveFeedback message={localSaveFeedback.contact ?? null} />
+      {currentStep.id === "account" && (
+        <div className="grid gap-4">
+          <div className="flex min-h-16 items-center gap-3 rounded-[20px] border border-midnight/10 bg-sage-50 px-5">
+            <Mail className="size-5 text-sage-700" aria-hidden="true" />
+            <span className="text-lg font-semibold text-midnight">{profile.email}</span>
+          </div>
+          <div className="rounded-[20px] bg-[#F7F2FB] p-5 text-sm leading-6 text-ink/65">
+            Kontooprettelse og kodebekræftelse kobles på efter UX-godkendelse.
           </div>
         </div>
-      </section>
+      )}
 
-      <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-midnight">
-            Lokation
-            <FieldStatus complete={locationComplete} />
-            <InfoHelp>Postnummer og by skal udfyldes. Adresse er frivillig og kan udelades af hensyn til privatliv.</InfoHelp>
-          </h2>
-        </div>
-
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2">
-            <span className="flex flex-wrap items-center gap-2">
-              Adresse
-            </span>
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(Boolean(addressLine.trim()), true)}`}
-              name="address_line"
-              maxLength={120}
-
-              onChange={(event) => setAddressLine(event.target.value)}
-              placeholder="Valgfrit"
-              value={addressLine}
-            />
-          </label>
-
-          <label className={"grid gap-2 text-sm font-medium text-ink/72 " + highlightMissingClass("postal_code")} id="profile-postal-code-field">
-            <span className="flex flex-wrap items-center gap-2">
-              Postnummer
-            </span>
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(Boolean(postalCode.trim()))}`}
-              name="postal_code"
-              maxLength={20}
-
-              onChange={(event) => handlePostalCodeChange(event.target.value)}
-              placeholder="Skal udfyldes"
-              value={postalCode}
-            />
-          </label>
-
-          <label className={"grid gap-2 text-sm font-medium text-ink/72 " + highlightMissingClass("city")} id="profile-city-field">
-            <span className="flex flex-wrap items-center gap-2">
-              By
-            </span>
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(Boolean(city.trim()))}`}
-              name="city"
-              maxLength={80}
-
-              onChange={(event) => setCity(event.target.value)}
-              placeholder="Skal udfyldes"
-              value={city}
-            />
-          </label>
-
-          <div className="grid gap-2 text-sm font-medium text-ink/72">
-            <span className="flex flex-wrap items-center gap-2">Område</span>
-            <input name="region_id" type="hidden" value={selectedRegion?.id ?? ""} />
-            <div className="flex min-h-11 items-center rounded-md border border-[#D7C4F0] bg-[#F8F3FF] px-3 text-base text-ink">
-              {selectedRegion?.name ?? "Område beregnes automatisk ud fra postnummer"}
-            </div>
+      {currentStep.id === "person" && (
+        <div className="grid gap-5">
+          <div className="grid gap-4">
+            <ClearableInput label="Dit fornavn" onChange={setFirstName} placeholder="Dit fornavn" value={firstName} />
+            <ClearableInput label="Dit efternavn" onChange={setLastName} placeholder="Dit efternavn" value={lastName} />
           </div>
 
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            Land
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(Boolean(country.trim()))}`}
-              maxLength={80}
-              name="country"
-              onChange={(event) => setCountry(event.target.value)}
-              placeholder="Danmark"
-              value={country}
-            />
-          </label>
-
-          <label className="flex min-h-11 items-center gap-3 rounded-md border border-midnight/10 bg-white px-3 py-2 text-sm font-semibold text-midnight">
-            <input
-              checked={isOnlineFacilitator}
-              className="size-4 accent-sage-700"
-              name="is_online_facilitator"
-              onChange={(event) => setIsOnlineFacilitator(event.target.checked)}
-              type="checkbox"
-            />
-            Kan også tilbyde online forløb eller events
-          </label>
-
-          <p className="rounded-md bg-sage-50 p-3 text-sm leading-6 text-ink/65">
-            Kortplacering oprettes automatisk ud fra postnummer og by. Hvis du udfylder adresse, bliver placeringen
-            mere præcis.
-          </p>
-        </div>
-
-        <SectionFeedback
-          errorSection={normalizedErrorSection}
-          message={feedbackMessage}
-          savedSection={normalizedSavedSection}
-          section="location"
-        />
-
-        <div className="mt-5 flex justify-center sm:justify-end">
-          <div className="w-full sm:w-auto">
-            <SectionSaveButton section="location" status={saveUiStatus.location}>💾 Gem dette afsnit</SectionSaveButton>
-            <LocalSaveFeedback message={localSaveFeedback.location ?? null} />
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-md bg-sage-50 text-sage-700">
-              <Link2 className="size-4" aria-hidden="true" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-midnight">Offentlige links</h2>
-              <p className="mt-1 text-sm leading-6 text-ink/64">
-                Links vises på din offentlige profil, hvis du udfylder dem.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            Offentlig e-mail
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(Boolean(publicEmail.trim()), true)}`}
-              maxLength={180}
-              name="public_email"
-              onChange={(event) => setPublicEmail(event.target.value)}
-              placeholder="Valgfrit - ellers bruges kontoens e-mail offentligt"
-              type="email"
-              value={publicEmail}
-            />
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            Offentlig telefon
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(Boolean(publicPhone.trim()), true)}`}
-              maxLength={40}
-              name="public_phone"
-              onChange={(event) => setPublicPhone(formatPhoneInput(event.target.value))}
-              placeholder="Valgfrit - ellers bruges kontoens telefon offentligt"
-              value={publicPhone}
-            />
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span className="flex flex-wrap items-center gap-2">
-              Hjemmeside
-              <InfoHelp>Eksempel: https://www.soulevents.dk/</InfoHelp>
+          <button
+            aria-pressed={useCustomProfileName}
+            className="flex min-h-20 items-center justify-between gap-4 rounded-[24px] border border-midnight/10 bg-white px-4 text-left shadow-soft transition hover:border-sage-700"
+            onClick={() => setUseCustomProfileName((current) => !current)}
+            type="button"
+          >
+            <span className="text-sm font-semibold leading-6 text-midnight">
+              Mit profilnavn skal være et andet end mit rigtige navn på SoulEvents.
             </span>
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(Boolean(websiteUrl.trim()), true)}`}
-              name="website_url"
-              maxLength={300}
-
-              onChange={(event) => setWebsiteUrl(event.target.value)}
-              placeholder="Valgfrit"
-              type="url"
-              value={websiteUrl}
-            />
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span className="flex flex-wrap items-center gap-2">
-              Facebook
-              <InfoHelp>Eksempel: https://www.facebook.com/soulevents.dk/</InfoHelp>
+            <span className={useCustomProfileName ? "flex h-10 w-[4.5rem] shrink-0 items-center justify-end rounded-full bg-sage-700 p-1" : "flex h-10 w-[4.5rem] shrink-0 items-center justify-start rounded-full bg-midnight/15 p-1"}>
+              <span className="size-8 rounded-full bg-white shadow-soft" />
             </span>
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(Boolean(facebookUrl.trim()), true)}`}
-              name="facebook_url"
-              maxLength={300}
+          </button>
 
-              onChange={(event) => setFacebookUrl(event.target.value)}
-              placeholder="Valgfrit"
-              type="url"
-              value={facebookUrl}
-            />
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span className="flex flex-wrap items-center gap-2">
-              Instagram
-              <InfoHelp>Eksempel: https://www.instagram.com/soulevents.dk/</InfoHelp>
-            </span>
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(Boolean(instagramUrl.trim()), true)}`}
-              name="instagram_url"
-              maxLength={300}
-
-              onChange={(event) => setInstagramUrl(event.target.value)}
-              placeholder="Valgfrit"
-              type="url"
-              value={instagramUrl}
-            />
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span className="flex flex-wrap items-center gap-2">
-              YouTube
-              <InfoHelp>Eksempel: https://www.youtube.com/@soulevents</InfoHelp>
-            </span>
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(Boolean(youtubeUrl.trim()), true)}`}
-              maxLength={300}
-              name="youtube_url"
-              onChange={(event) => setYoutubeUrl(event.target.value)}
-              placeholder="Valgfrit"
-              type="url"
-              value={youtubeUrl}
-            />
-          </label>
-
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span className="flex flex-wrap items-center gap-2">
-              TikTok
-              <InfoHelp>Eksempel: https://www.tiktok.com/@soulevents</InfoHelp>
-            </span>
-            <input
-              autoComplete="off"
-              className={`h-11 ${fieldClass(Boolean(tiktokUrl.trim()), true)}`}
-              maxLength={300}
-              name="tiktok_url"
-              onChange={(event) => setTiktokUrl(event.target.value)}
-              placeholder="Valgfrit"
-              type="url"
-              value={tiktokUrl}
-            />
-          </label>
-        </div>
-
-        <SectionFeedback
-          errorSection={normalizedErrorSection}
-          message={feedbackMessage}
-          savedSection={normalizedSavedSection}
-          section="social"
-        />
-
-        <div className="mt-5 flex justify-center sm:justify-end">
-          <div className="w-full sm:w-auto">
-            <SectionSaveButton section="social" status={saveUiStatus.social}>💾 Gem dette afsnit</SectionSaveButton>
-            <LocalSaveFeedback message={localSaveFeedback.social ?? null} />
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-md bg-sage-50 text-sage-700">
-              <Camera className="size-4" aria-hidden="true" />
-            </div>
-            <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-midnight">
-              Billeder
-            </h2>
-          </div>
-        </div>
-
-        <div className="mt-5">
-          <ProfileImageManager
-            galleryImages={galleryImages}
-            profileImagePath={facilitatorProfile.profile_image_path}
-          />
-        </div>
-
-        <SectionFeedback
-          errorSection={normalizedErrorSection}
-          message={feedbackMessage}
-          savedSection={normalizedSavedSection}
-          section="images"
-        />
-
-        <div className="mt-5 flex justify-center sm:justify-end">
-          <div className="w-full sm:w-auto">
-            <SectionSaveButton section="images" status={saveUiStatus.images}>💾 Gem dette afsnit</SectionSaveButton>
-            <LocalSaveFeedback message={localSaveFeedback.images ?? null} />
-          </div>
-        </div>
-      </section>
-
-      <section className={"rounded-md border border-midnight/10 bg-white p-5 shadow-soft " + highlightMissingClass("categories")} id="profile-categories-section">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold text-midnight">Arbejdsområder</h2>
-        </div>
-        <p className={categoriesComplete ? "mt-2 text-sm font-semibold text-sage-700" : "mt-2 text-sm font-semibold text-red-700"}>
-          {categoriesComplete ? "✓ Mindst ét arbejdsområde valgt." : "Vælg mindst ét arbejdsområde."}
-        </p>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[...categories].sort((a, b) => a.name.localeCompare(b.name, "da-DK")).map((category) => (
-            <label
-              className="flex items-center gap-3 rounded-md border border-midnight/10 p-3 text-sm font-medium text-ink/75"
-              key={category.id}
-            >
-              <input
-                className="size-4 accent-sage-700"
-                checked={selectedCategories.includes(category.id)}
-                name="category_ids"
-                onChange={(event) => {
-                  setSelectedCategories((current) =>
-                    event.target.checked
-                      ? [...current, category.id]
-                      : current.filter((categoryId) => categoryId !== category.id),
-                  );
-                }}
-                type="checkbox"
-                value={category.id}
+          {useCustomProfileName ? (
+            <label className="grid gap-2 text-sm font-semibold text-ink/65">
+              Profilnavn
+              <ClearableInput
+                className="text-xl font-semibold"
+                onChange={setProfileName}
+                placeholder="Skriv et kaldenavn eller virksomhedsnavn"
+                value={profileName}
               />
-              {category.name}
+              <span className="text-sm font-normal leading-6 text-ink/55">
+                Det kan eksempelvis være dit kunstnernavn, virksomhedsnavn, studionavn eller et andet navn, deltagerne kender dig under.
+              </span>
             </label>
+          ) : (
+            <div className="rounded-[22px] bg-sage-50 p-4">
+              <p className="text-sm font-semibold text-sage-700">Din profil vises som:</p>
+              <p className="mt-1 text-2xl font-semibold text-midnight">{fullPublicName || "Dit navn"}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {currentStep.id === "profile-image" && (
+        <UploadTile imageUrl={profileImageUrl} label="Vælg profilbillede" onSelect={(_file, previewUrl) => setProfileImageUrl(previewUrl)} />
+      )}
+
+      {currentStep.id === "mood-images" && (
+        <div className="grid gap-4">
+          {moodImages.map((image, index) => (
+            <div className="grid gap-2" key={index}>
+              <div className="relative">
+                <UploadTile
+                  createPreview={false}
+                  imageUrl={image.previewUrl}
+                  label={moodImageStatuses[index]?.status === "saving" ? "Gemmer billede..." : `Vælg stemningsbillede ${index + 1}`}
+                  onSelect={(file) => saveMoodImage(index, file)}
+                />
+                {image.path ? (
+                  <button
+                    aria-label={`Fjern stemningsbillede ${index + 1}`}
+                    className="absolute right-3 top-3 grid size-10 place-items-center rounded-full bg-white/85 text-ink/55 shadow-soft transition hover:bg-white hover:text-midnight focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
+                    onClick={() => removeMoodImage(index)}
+                    type="button"
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
+              {moodImageStatuses[index]?.message ? (
+                <p
+                  className={
+                    "text-sm font-semibold " +
+                    (moodImageStatuses[index]?.status === "error"
+                      ? "text-rose"
+                      : moodImageStatuses[index]?.status === "success"
+                        ? "text-sage-700"
+                        : "text-ink/55")
+                  }
+                >
+                  {moodImageStatuses[index]?.message}
+                </p>
+              ) : null}
+            </div>
           ))}
         </div>
+      )}
 
-        <SectionFeedback
-          errorSection={normalizedErrorSection}
-          message={feedbackMessage}
-          savedSection={normalizedSavedSection}
-          section="categories"
-        />
-
-        <div className="mt-5 flex justify-center sm:justify-end">
-          <div className="w-full sm:w-auto">
-            <SectionSaveButton section="categories" status={saveUiStatus.categories}>💾 Gem dette afsnit</SectionSaveButton>
-            <LocalSaveFeedback message={localSaveFeedback.categories ?? null} />
+      {currentStep.id === "experiences" && (
+        <div className="grid gap-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {[...categories].sort((a, b) => a.name.localeCompare(b.name, "da-DK")).map((category) => {
+            const selected = selectedExperiences.includes(category.id);
+            const isLong = category.name.length > 17;
+            const WorkAreaIcon = workAreaIconForName(category.name);
+            return (
+              <button
+                className={workAreaClass(selected, isLong)}
+                key={category.id}
+                onClick={() => toggleExperience(category.id)}
+                type="button"
+              >
+                <SelectionCardContent Icon={WorkAreaIcon} label={category.name} selected={selected} />
+              </button>
+            );
+          })}
           </div>
-        </div>
-      </section>
-
-
-
-      <section className="rounded-md border border-[#E5D4F7] bg-[#FAF6EF] p-5 shadow-soft">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Behandlinger og ydelser</p>
-            <h2 className="mt-1 text-lg font-semibold text-midnight">Tilbyder du også sessioner?</h2>
-            <p className="mt-1 text-sm leading-6 text-ink/64">
-              Vælg titler fra listen, så din profil senere kan findes i lokale søgeresultater og på kortet.
+          <div className="rounded-[24px] bg-[#FBF5E9] p-4">
+            <p className="text-sm font-semibold leading-6 text-[#695A3C]">
+              Synes du, der mangler et arbejdsområde eller en kategori? Skriv det her.
+            </p>
+            <div className="mt-3">
+              <ClearableInput
+                className="bg-white text-base"
+                maxLength={50}
+                onChange={setOtherExperience}
+                placeholder=""
+                value={otherExperience}
+              />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-ink/55">
+              Hvis området allerede hører under en eksisterende kategori, bliver det placeret der. Ellers vurderer SoulEvents, om det skal oprettes som nyt arbejdsområde.
             </p>
           </div>
         </div>
+      )}
 
-        <label className="mt-5 flex items-start gap-3 rounded-md border border-[#E5D4F7] bg-white p-4 text-sm font-semibold text-midnight">
-          <input
-            checked={offersServices}
-            className="mt-1 size-4 accent-[#7A4EAB]"
-            name="offers_services"
-            onChange={(event) => setOffersServices(event.target.checked)}
-            type="checkbox"
-          />
-          <span>
-            Jeg tilbyder også behandlinger, sessioner eller ydelser
-            <span className="mt-1 block text-sm font-normal leading-6 text-ink/64">
-              Fx healing, massage, coaching, lydterapi, åndedræt eller individuel undervisning.
-            </span>
-          </span>
-        </label>
-
-        {offersServices && (
-          <div className="mt-5 grid gap-5">
-            <div>
-              <p className="text-sm font-semibold text-ink/72">Vælg dine titler/ydelser</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {serviceTitles.map((title) => (
-                  <label
-                    className={
-                      selectedServiceTitles.includes(title.id)
-                        ? "flex items-center gap-3 rounded-md border border-[#7A4EAB] bg-[#EDE4F7] p-3 text-sm font-semibold text-[#2F2633]"
-                        : "flex items-center gap-3 rounded-md border border-midnight/10 bg-white p-3 text-sm font-medium text-ink/75"
-                    }
-                    key={title.id}
-                  >
-                    <input
-                      checked={selectedServiceTitles.includes(title.id)}
-                      className="size-4 accent-[#7A4EAB]"
-                      name="service_title_ids"
-                      onChange={(event) => {
-                        setSelectedServiceTitles((current) =>
-                          event.target.checked
-                            ? [...current, title.id]
-                            : current.filter((titleId) => titleId !== title.id),
-                        );
-                      }}
-                      type="checkbox"
-                      value={title.id}
-                    />
-                    {title.name}
-                    {title.is_active === false && <span className="ml-auto text-xs text-ink/45">Skjult</span>}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
-              Kort beskrivelse
-              <textarea
-                autoComplete="off"
-                className={"min-h-28 p-3 " + fieldClass(Boolean(serviceDescription.trim()), true)}
-                name="service_description"
-                maxLength={serviceDescriptionMaximum}
-
-                onChange={(event) => setServiceDescription(event.target.value)}
-                placeholder="Fortæl kort hvilke behandlinger, sessioner eller ydelser du tilbyder."
-                value={serviceDescription}
-              />
-              <span className="text-xs font-semibold text-[#7A4EAB]">
-                {serviceDescriptionMaximum - serviceDescription.length} tegn tilbage
-              </span>
-            </label>
-
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
-              Anden titel eller uddybning
-              <input
-                autoComplete="off"
-                className={"h-11 " + fieldClass(Boolean(serviceOtherTitle.trim()), true)}
-                name="service_other_title"
-                maxLength={120}
-
-                onChange={(event) => setServiceOtherTitle(event.target.value)}
-                placeholder="Valgfrit - fx Reiki Master, Breathwork facilitator eller lignende"
-                value={serviceOtherTitle}
-              />
-            </label>
-
-            <label className="flex items-start gap-3 rounded-md border border-midnight/10 bg-white p-4 text-sm font-semibold text-midnight">
-              <input
-                className="mt-1 size-4 accent-[#7A4EAB]"
-                checked={showInLocalServiceResults}
-                name="show_in_local_service_results"
-                onChange={(event) => setShowInLocalServiceResults(event.target.checked)}
-                type="checkbox"
-              />
-              <span>
-                Vis min profil i lokale søgeresultater, hvor det er relevant
-                <span className="mt-1 block text-sm font-normal leading-6 text-ink/64">
-                  Bruges senere til lokale søgninger, kort og filtre for behandlinger og ydelser.
-                </span>
-              </span>
-            </label>
+      {currentStep.id === "story" && (
+        <div className="grid gap-4">
+          <div className="relative">
+            <textarea
+              className="min-h-64 w-full rounded-[24px] border border-midnight/10 bg-white p-5 pr-12 text-lg leading-8 text-midnight shadow-soft outline-none transition duration-200 placeholder:text-ink/35 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/10"
+              onChange={(event) => setStory(event.target.value)}
+              placeholder="Fortæl om din tilgang, stemningen i dine oplevelser, og hvad deltagerne kan glæde sig til."
+              value={story}
+            />
+            {story ? (
+              <button
+                aria-label="Ryd felt"
+                className="absolute right-3 top-3 grid size-9 place-items-center rounded-full text-ink/38 transition hover:bg-midnight/5 hover:text-midnight"
+                onClick={() => setStory("")}
+                type="button"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
-        )}
-
-        <SectionFeedback
-          errorSection={normalizedErrorSection}
-          message={feedbackMessage}
-          savedSection={normalizedSavedSection}
-          section="services"
-        />
-
-        <div className="mt-5 flex justify-center sm:justify-end">
-          <div className="w-full sm:w-auto">
-            <SectionSaveButton section="services" status={saveUiStatus.services}>💾 Gem dette afsnit</SectionSaveButton>
-            <LocalSaveFeedback message={localSaveFeedback.services ?? null} />
-          </div>
+          <p className="text-sm leading-6 text-ink/55">Skriv varmt og enkelt. Det behøver ikke være perfekt.</p>
         </div>
-      </section>
+      )}
 
-      <div className="grid gap-4 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-        {normalizedSavedSection === "all" && feedbackMessage ? (
-          <div className="flex items-start gap-2 rounded-md border border-sage-700/25 bg-[#EEF6E8] px-4 py-3 text-sm font-semibold text-sage-700">
-            <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            <span>{feedbackMessage}</span>
-          </div>
-        ) : null}
+      {currentStep.id === "links" && (
+        <div className="grid gap-4">
+          <ClearableInput onChange={setWebsite} placeholder="Website" value={website} />
+          <ClearableInput onChange={setFacebook} placeholder="Facebook" value={facebook} />
+          <ClearableInput onChange={setInstagram} placeholder="Instagram" value={instagram} />
+          <ClearableInput onChange={setYoutube} placeholder="YouTube" value={youtube} />
+        </div>
+      )}
 
-        {normalizedErrorSection && feedbackMessage ? (
-          <div className="flex items-start gap-2 rounded-md border border-red-500/25 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-            <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            <span>{feedbackMessage}</span>
-          </div>
-        ) : null}
+      {currentStep.id === "services" && (
+        <div className="grid gap-5">
+          <p className="text-base leading-7 text-ink/65">
+            Fx healing, terapi, coaching, massage, clairvoyance eller andre 1:1-forløb.
+          </p>
 
-        {missingProfileItems.length > 0 ? (
-          <div className="rounded-md border border-[#D8CBE4] bg-[#F4F0F7] p-4 text-sm leading-6 text-[#6E5A86]">
-            <p className="font-semibold">Udfyld først:</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {missingProfileItems.map((item) => (
+          <div className="grid gap-3" role="radiogroup" aria-label="Individuelle ydelser">
+            {[
+              { label: "Nej, jeg afholder kun events", value: false },
+              { label: "Ja, jeg tilbyder også individuelle ydelser", value: true },
+            ].map((option) => {
+              const selected = offersIndividualServices === option.value;
+              return (
                 <button
-                  className="rounded-full border border-[#D8CBE4] bg-white px-3 py-1 text-xs font-semibold text-[#7A5D91] transition hover:border-[#7A5D91]"
-                  key={item.key}
-                  onClick={() => guideToMissingProfileItem(item)}
+                  aria-checked={selected}
+                  className={
+                    "flex min-h-16 items-center justify-between gap-4 rounded-[22px] border px-4 text-left text-base font-semibold shadow-soft transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 " +
+                    (selected ? "border-sage-700/25 bg-sage-50 text-sage-700" : "border-midnight/10 bg-white text-midnight hover:border-sage-700")
+                  }
+                  key={String(option.value)}
+                  onClick={() => {
+                    setOffersIndividualServices(option.value);
+                  }}
+                  role="radio"
                   type="button"
                 >
-                  {item.label}
+                  {option.label}
+                  <Circle className={selected ? "size-4 fill-sage-700/15 text-sage-700" : "size-4 text-sage-700/45"} aria-hidden="true" />
                 </button>
-              ))}
+              );
+            })}
+          </div>
+
+          {offersIndividualServices ? (
+            <div className="grid gap-5 rounded-[28px] bg-[#FBF5E9] p-4">
+              <div className="grid gap-3">
+                <p className="text-sm font-semibold leading-6 text-[#695A3C]">
+                  Vælg de behandlinger eller individuelle ydelser, du tilbyder.
+                </p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {treatmentOptions.map((serviceTitle) => {
+                    const selected = selectedTreatmentIds.includes(serviceTitle.id);
+                    const isLong = serviceTitle.name.length > 17;
+                    const TreatmentIcon = workAreaIconForName(serviceTitle.name);
+                    return (
+                      <button
+                        className={workAreaClass(selected, isLong)}
+                        key={serviceTitle.id}
+                        onClick={() => toggleTreatment(serviceTitle.id)}
+                        type="button"
+                      >
+                        <SelectionCardContent Icon={TreatmentIcon} label={serviceTitle.name} selected={selected} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-[24px] bg-white p-4 shadow-soft">
+                <p className="text-sm font-semibold leading-6 text-midnight">
+                  Tilbyder du en behandlingsform, som ikke står på listen?
+                </p>
+                <div className="mt-3 grid gap-3">
+                  <ClearableInput onChange={(nextValue) => setOtherTreatmentForm(0, nextValue)} placeholder="" value={otherTreatmentForms[0]} />
+                  <ClearableInput onChange={(nextValue) => setOtherTreatmentForm(1, nextValue)} placeholder="" value={otherTreatmentForms[1]} />
+                </div>
+                <p className="mt-3 text-xs leading-5 text-ink/55">
+                  Der findes mange forskellige navne og retninger. Skriv det her, hvis din behandlingsform ikke står på listen.
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {currentStep.id === "review" && (
+        <div className="rounded-[34px] border border-midnight/5 bg-[#F4F0E9] p-4 shadow-soft sm:p-6">
+          <div className="grid gap-5">
+            <ReviewJump label="Rediger navn" onClick={() => editFromReview("person")} className="p-2 -m-2">
+              <div className="grid gap-3">
+                <h3 className="break-words text-4xl font-semibold leading-tight text-midnight sm:text-5xl">{publicProfileName || "Profilnavn mangler"}</h3>
+              </div>
+            </ReviewJump>
+
+            <ReviewJump label="Rediger arbejdsområder" onClick={() => editFromReview("experiences")} className="p-2 -m-2">
+              {hasWorkArea ? (
+                <div className="flex flex-wrap gap-2">
+                  {categories
+                    .filter((category) => selectedExperiences.includes(category.id))
+                    .map((category) => (
+                      <span className="rounded-full border border-sage-700/15 bg-white/65 px-3 py-1.5 text-sm font-semibold text-sage-700" key={category.id}>
+                        {category.name}
+                      </span>
+                    ))}
+                  {otherExperience.trim() ? (
+                    <span className="rounded-full border border-midnight/10 bg-white/65 px-3 py-1.5 text-sm font-semibold text-midnight">
+                      {otherExperience.trim()}
+                    </span>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="rounded-[22px] bg-[#FFF7DE] p-4 text-sm font-semibold leading-6 text-[#715C21]">
+                  Du mangler at vælge mindst ét arbejdsområde.
+                </div>
+              )}
+            </ReviewJump>
+
+            <ReviewJump label="Rediger profilbillede" onClick={() => editFromReview("profile-image")}>
+              <div className="aspect-square w-full overflow-hidden rounded-[30px] bg-sage-50 text-sage-700 shadow-soft">
+                {profileImageUrl ? (
+                  <img alt="" className="h-full w-full object-cover" src={profileImageUrl} />
+                ) : (
+                  <span className="grid h-full place-items-center">
+                    <Camera className="size-12" aria-hidden="true" />
+                  </span>
+                )}
+              </div>
+            </ReviewJump>
+
+            <ReviewJump label="Rediger stemningsbilleder" onClick={() => editFromReview("mood-images")}>
+              <div className="grid grid-cols-3 gap-2">
+                {moodImages.map((image, index) => (
+                  <div
+                    className="aspect-square overflow-hidden rounded-[18px] bg-white/45 text-sage-700/45"
+                    key={index}
+                  >
+                    {image.previewUrl ? (
+                      <img alt="" className="h-full w-full object-cover" src={image.previewUrl} />
+                    ) : (
+                      <span className="grid h-full place-items-center">
+                        <ImagePlus className="size-5" aria-hidden="true" />
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ReviewJump>
+
+            <ReviewJump label="Rediger om mig" onClick={() => editFromReview("story")} className="p-2 -m-2">
+              {story.trim() ? (
+                <p className="min-w-0 whitespace-pre-line text-base leading-8 text-ink/72">{story}</p>
+              ) : (
+                <div className="rounded-[22px] bg-[#FFF7DE] p-4 text-sm font-semibold leading-6 text-[#715C21]">
+                  Fortæl lidt om dig og de oplevelser, du skaber.
+                </div>
+              )}
+            </ReviewJump>
+
+            {hasTreatmentForms ? (
+              <ReviewJump label="Rediger behandlingsformer" onClick={() => editFromReview("services")} className="p-2 -m-2">
+                <div className="grid gap-3">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Behandlingsformer</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedTreatments.map((serviceTitle) => (
+                      <span className="rounded-full border border-sage-700/15 bg-white/65 px-3 py-1.5 text-sm font-semibold text-sage-700" key={serviceTitle.id}>
+                        {serviceTitle.name}
+                      </span>
+                    ))}
+                    {otherTreatmentFormChips.map((treatmentForm) => (
+                      <span className="rounded-full border border-midnight/10 bg-white/65 px-3 py-1.5 text-sm font-semibold text-midnight" key={treatmentForm}>
+                        {treatmentForm}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </ReviewJump>
+            ) : null}
+
+            {hasLinks ? (
+              <ReviewJump label="Rediger links" onClick={() => editFromReview("links")} className="p-2 -m-2">
+                <LinkRows facebook={facebook} instagram={instagram} website={website} youtube={youtube} />
+              </ReviewJump>
+            ) : null}
+
+            {missingRequired.length > 0 ? (
+              <div className="rounded-[24px] bg-[#FFF7DE] p-5">
+                <p className="text-sm font-semibold text-[#715C21]">Du mangler stadig nogle oplysninger</p>
+                <div className="mt-3 grid gap-2">
+                  {missingRequired.map((item) => (
+                    <button
+                      className="inline-flex min-h-10 items-center justify-between rounded-full bg-white px-4 text-sm font-semibold text-midnight shadow-soft"
+                      key={item.label}
+                      onClick={() => goToStep(item.step)}
+                      type="button"
+                    >
+                      {item.label}
+                      <ArrowRight className="size-4 text-sage-700" aria-hidden="true" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {currentStep.id === "approval" && (
+        <div className="grid gap-6 text-left">
+          <p className="text-base leading-7 text-ink/65">
+            Når du sender profilen til godkendelse, gennemgår vi den og giver dig besked, så snart den er klar.
+          </p>
+          <div className="grid gap-4 rounded-[30px] bg-[#F4F0E9] p-5">
+            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Dig + SoulEvents</p>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div className="grid min-h-[220px] grid-rows-[1fr_auto] justify-items-center gap-3 rounded-[24px] bg-white p-4 text-center shadow-soft">
+                <div className="grid aspect-square w-full max-w-[150px] place-items-center overflow-hidden rounded-[24px] bg-sage-50 text-sage-700">
+                  {profileImageUrl ? <img alt="" className="h-full w-full object-cover" src={profileImageUrl} /> : <Camera className="size-9" aria-hidden="true" />}
+                </div>
+                <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-midnight">{publicProfileName || "Din profil"}</p>
+              </div>
+              <div className="grid size-11 place-items-center rounded-full bg-white text-rose shadow-soft">
+                <HeartHandshake className="size-5" aria-hidden="true" />
+              </div>
+              <div className="grid min-h-[220px] grid-rows-[1fr_auto] justify-items-center gap-3 rounded-[24px] bg-white p-4 text-center shadow-soft">
+                <div className="grid aspect-square w-full max-w-[150px] place-items-center rounded-[24px] bg-sage-50 p-4">
+                  <img alt="SoulEvents" className="h-full w-full object-contain" src="/brand/soulevents-logo.png" />
+                </div>
+                <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-midnight">SoulEvents</p>
+              </div>
             </div>
           </div>
-        ) : (
-          <div className="rounded-md border border-[#CFE3C8] bg-[#F3F7F0] p-4 text-sm leading-6 text-[#4F6F48]">
-            <p className="font-semibold">Din profil er klar til at blive gemt samlet.</p>
-          </div>
-        )}
-
-        {facilitatorProfile.status === "pending" ? (
-          <label className="flex items-start gap-3 rounded-md border border-[#D8CBE4] bg-[#F7F2FB] p-4 text-sm leading-6 text-ink/72">
+          <label className="flex items-start gap-3 rounded-[24px] border border-midnight/10 bg-white p-5 text-left shadow-soft">
             <input
-              className="mt-1 size-4 accent-sage-700"
-              name="accepted_organizer_terms"
+              checked={acceptedTerms}
+              className="mt-1 size-5 rounded border-midnight/20 accent-sage-700"
+              onChange={(event) => setAcceptedTerms(event.target.checked)}
               type="checkbox"
-              value="yes"
             />
-            <span>
-              Jeg accepterer SoulEvents&apos;{" "}
-              <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/arrangoervilkaar" target="_blank">
+            <span className="text-sm font-semibold leading-6 text-midnight">
+              Jeg har læst og accepterer SoulEvents&apos;{" "}
+              <Link className="text-sage-700 underline underline-offset-4" href="/legal/arrangoervilkaar">
                 arrangørvilkår
+              </Link>
+              ,{" "}
+              <Link className="text-sage-700 underline underline-offset-4" href="/legal/platformens-retningslinjer">
+                retningslinjer
               </Link>{" "}
               og{" "}
-              <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/platformens-retningslinjer" target="_blank">
-                retningslinjer for events og indhold
+              <Link className="text-sage-700 underline underline-offset-4" href="/legal/privatlivspolitik">
+                privatlivspolitik
               </Link>
               .
             </span>
           </label>
-        ) : null}
-
-        <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
-          <div className="grid max-w-2xl gap-1">
-            <p className="text-sm leading-6 text-ink/64">
-              Når du er færdig, kan du gemme hele profilen samlet her.
-            </p>
-            {autosaveMessage ? (
-              <p
-                className={
-                  autosaveStatus === "error"
-                    ? "text-sm font-semibold text-red-700"
-                    : autosaveStatus === "saving"
-                      ? "text-sm font-semibold text-[#7A5D91]"
-                      : "text-sm font-semibold text-sage-700"
-                }
-              >
-                {autosaveMessage}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Link
-              className="inline-flex h-11 items-center justify-center rounded-md border border-midnight/15 bg-white px-5 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
-              href={backHref}
-            >
-              {backLabel}
-            </Link>
-            <div className="w-full sm:w-auto">
-              <FullProfileSaveButton status={saveUiStatus.all}>{"💾 " + submitLabel}</FullProfileSaveButton>
-              <LocalSaveFeedback message={localSaveFeedback.all ?? null} />
+          {missingRequired.length > 0 ? (
+            <div className="rounded-[24px] bg-[#FFF7DE] p-5 text-left">
+              <p className="text-sm font-semibold text-[#715C21]">Der mangler lige et par oplysninger, før profilen kan sendes til godkendelse.</p>
+              <div className="mt-3 grid gap-2">
+                {missingRequired.map((item) => (
+                  <button
+                    className="inline-flex min-h-10 items-center justify-between rounded-full bg-white px-4 text-sm font-semibold text-midnight shadow-soft"
+                    key={item.label}
+                    onClick={() => goToStep(item.step)}
+                    type="button"
+                  >
+                    {item.label}
+                    <ArrowRight className="size-4 text-sage-700" aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
-      </div>
-    </form>
+      )}
+    </OnboardingShell>
   );
 }
