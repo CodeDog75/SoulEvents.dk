@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getBrandLogoSettingValue, mediaBucketName, resolveBrandLogoUrl, type LogoSettingClient } from "@/lib/brand-logo";
+import { mediaBucketName } from "@/lib/brand-logo";
 import {
   absoluteUrl,
   ogImageHeight,
@@ -21,7 +21,7 @@ type StorageClient = {
   };
 };
 
-type SiteSettingClient = LogoSettingClient & StorageClient & {
+type SiteSettingClient = StorageClient & {
   from(table: "hero_images"): any;
 };
 
@@ -47,33 +47,16 @@ export async function getHomepageOgImageUrl(client?: SiteSettingClient) {
   }
 }
 
-export async function getOgLogoUrl(client?: LogoSettingClient) {
-  try {
-    const supabase = client ?? (createAdminClient() as unknown as LogoSettingClient);
-    const value = await getBrandLogoSettingValue(supabase);
-    return resolveBrandLogoUrl(value, { absolute: true });
-  } catch {
-    return resolveBrandLogoUrl(null, { absolute: true });
+export function ogImageUrlForPath(path: string) {
+  if (path.startsWith("/events/")) {
+    return absoluteUrl(path.replace(/\/$/, "") + "/opengraph-image");
   }
-}
 
-export function ogImageUrl({
-  imageUrl,
-  subtitle,
-  title,
-  type,
-}: {
-  imageUrl?: string | null;
-  subtitle?: string | null;
-  title: string;
-  type?: string;
-}) {
-  const params = new URLSearchParams();
-  params.set("title", title);
-  if (subtitle) params.set("subtitle", subtitle);
-  if (imageUrl) params.set("image", imageUrl);
-  if (type) params.set("type", type);
-  return absoluteUrl("/api/og?" + params.toString());
+  if (path.startsWith("/facilitators/") && path !== "/facilitators") {
+    return absoluteUrl(path.replace(/\/$/, "") + "/opengraph-image");
+  }
+
+  return absoluteUrl("/opengraph-image");
 }
 
 export function createPageMetadata({
@@ -93,14 +76,12 @@ export function createPageMetadata({
   title: string;
   type?: "website" | "article";
 }): Metadata {
+  void imageSubtitle;
+  void imageUrl;
+
   const canonical = absoluteUrl(path);
   const normalizedDescription = truncateText(stripHtml(description), 180);
-  const ogImage = ogImageUrl({
-    imageUrl,
-    subtitle: imageSubtitle ?? normalizedDescription,
-    title: imageTitle ?? title,
-    type,
-  });
+  const ogImage = ogImageUrlForPath(path);
 
   return {
     title,

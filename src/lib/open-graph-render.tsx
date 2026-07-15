@@ -1,68 +1,22 @@
 import { ImageResponse } from "next/og";
-import { ogImageHeight, ogImageWidth, resolveLogoUrl, storagePublicUrl, truncateText } from "@/lib/open-graph-core";
+import { ogImageHeight, ogImageWidth, truncateText } from "@/lib/open-graph-core";
+import { getOpenGraphLogoUrl } from "@/lib/open-graph-data";
 
-export const runtime = "edge";
-export const revalidate = 3600;
-
-function safeUrl(value: string | null) {
-  if (!value) return null;
-
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
-function textParam(url: URL, key: string, fallback: string, maxLength: number) {
-  return truncateText((url.searchParams.get(key) || fallback).replace(/\s+/g, " ").trim(), maxLength);
-}
-
-async function fetchSupabaseRows<T>(path: string) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  const key = serviceKey || anonKey;
-
-  if (!supabaseUrl || !key) return [];
-
-  try {
-    const response = await fetch(supabaseUrl + "/rest/v1/" + path, {
-      headers: {
-        apikey: key,
-        authorization: "Bearer " + key,
-      },
-      next: { revalidate: 3600 },
-    });
-
-    if (!response.ok) return [];
-    return (await response.json()) as T[];
-  } catch {
-    return [];
-  }
-}
-
-async function getHomepageImageUrl() {
-  const rows = await fetchSupabaseRows<{ image_path: string | null }>(
-    "hero_images?select=image_path&scope=eq.homepage&is_active=eq.true&order=sort_order.asc&limit=5",
+export async function renderOpenGraphImage({
+  imageUrl,
+  subtitle,
+  title,
+}: {
+  imageUrl?: string | null;
+  subtitle?: string | null;
+  title: string;
+}) {
+  const logoUrl = await getOpenGraphLogoUrl();
+  const safeTitle = truncateText(title.replace(/\s+/g, " ").trim() || "SoulEvents.dk", 82);
+  const safeSubtitle = truncateText(
+    (subtitle || "Find events, arrangører og fællesskaber i Danmark.").replace(/\s+/g, " ").trim(),
+    130,
   );
-  const imagePath = rows.find((row) => row.image_path)?.image_path ?? null;
-  return storagePublicUrl(imagePath);
-}
-
-async function getLogoUrl() {
-  const rows = await fetchSupabaseRows<{ value: string | null }>("site_settings?select=value&key=eq.brand_logo_path&limit=1");
-  return resolveLogoUrl(rows[0]?.value ?? null);
-}
-
-export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const title = textParam(url, "title", "SoulEvents.dk", 82);
-  const subtitle = textParam(url, "subtitle", "Find events, arrangører og fællesskaber i Danmark.", 130);
-  const requestedImageUrl = safeUrl(url.searchParams.get("image"));
-  const [fallbackImageUrl, logoUrl] = await Promise.all([getHomepageImageUrl(), getLogoUrl()]);
-  const backgroundImageUrl = requestedImageUrl || fallbackImageUrl;
 
   return new ImageResponse(
     (
@@ -77,11 +31,11 @@ export async function GET(request: Request) {
           width: "100%",
         }}
       >
-        {backgroundImageUrl ? (
+        {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             alt=""
-            src={backgroundImageUrl}
+            src={imageUrl}
             style={{
               height: "100%",
               objectFit: "cover",
@@ -144,14 +98,14 @@ export async function GET(request: Request) {
             <h1
               style={{
                 fontFamily: "Georgia, serif",
-                fontSize: title.length > 56 ? 50 : 60,
+                fontSize: safeTitle.length > 56 ? 50 : 60,
                 fontWeight: 500,
                 letterSpacing: 0,
                 lineHeight: 1.06,
                 margin: 0,
               }}
             >
-              {title}
+              {safeTitle}
             </h1>
             <p
               style={{
@@ -162,7 +116,7 @@ export async function GET(request: Request) {
                 maxWidth: 720,
               }}
             >
-              {subtitle}
+              {safeSubtitle}
             </p>
           </div>
         </div>
