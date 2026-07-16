@@ -53,7 +53,8 @@ type ProfileAutosaveInput = {
   values: Record<string, boolean | string | string[] | null>;
 };
 
-const moodImageActionMaxFileSize = 4 * 1024 * 1024;
+const profileImageMaxFileSize = 10 * 1024 * 1024;
+const moodImageActionMaxFileSize = 15 * 1024 * 1024;
 
 function isEditableProfileSection(value: string | null | undefined): value is EditableProfileSection {
   return editableProfileSections.includes(value as EditableProfileSection);
@@ -523,7 +524,7 @@ async function ensureMediaBucket(
 
   const { error } = await supabase.storage.createBucket("media", {
     allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
-    fileSizeLimit: 10 * 1024 * 1024,
+    fileSizeLimit: 100 * 1024 * 1024,
     public: true,
   });
 
@@ -550,6 +551,7 @@ async function uploadImage(
   redirectOrigin?: string | null,
   errorSection: EditableProfileSection = "images",
   adminReturnTo?: string | null,
+  maxFileSizeBytes = profileImageMaxFileSize,
 ) {
   if (!(file instanceof File) || file.size === 0) {
     return null;
@@ -569,11 +571,12 @@ async function uploadImage(
     profileRedirect("Du kan uploade JPG, PNG, WEBP eller HEIC. HEIC konverteres automatisk i browseren.", redirectOrigin, errorSection);
   }
 
-  if (file.size > 10 * 1024 * 1024) {
+  if (file.size > maxFileSizeBytes) {
+    const maxMegabytes = Math.round(maxFileSizeBytes / (1024 * 1024));
     if (adminReturnTo) {
-      adminProfileRedirect("Billedet må højst fylde 10 MB.", adminReturnTo, errorSection);
+      adminProfileRedirect(`Billedet er for stort. Vælg et billede på højst ${maxMegabytes} MB.`, adminReturnTo, errorSection);
     }
-    profileRedirect("Billedet må højst fylde 10 MB.", redirectOrigin, errorSection);
+    profileRedirect(`Billedet er for stort. Vælg et billede på højst ${maxMegabytes} MB.`, redirectOrigin, errorSection);
   }
 
   await ensureMediaBucket(supabase, redirectOrigin, errorSection, adminReturnTo);
@@ -585,15 +588,16 @@ async function uploadImage(
   });
 
   if (error) {
+    const maxMegabytes = Math.round(maxFileSizeBytes / (1024 * 1024));
     if (adminReturnTo) {
       adminProfileRedirect(
-        "Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase, og at filen er JPG, PNG eller WebP under 10 MB.",
+        `Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase, og at filen er JPG, PNG eller WebP under ${maxMegabytes} MB.`,
         adminReturnTo,
         errorSection,
       );
     }
     profileRedirect(
-      "Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase, og at filen er JPG, PNG eller WebP under 10 MB.",
+      `Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase, og at filen er JPG, PNG eller WebP under ${maxMegabytes} MB.`,
       redirectOrigin,
       errorSection,
     );
@@ -649,7 +653,7 @@ async function uploadImageForAction(
   }
 
   if (file.size > moodImageActionMaxFileSize) {
-    return { error: "Billedet er for stort. Vælg et billede på højst 4 MB.", path: null };
+    return { error: "Billedet er for stort. Vælg et billede på højst 15 MB.", path: null };
   }
 
   const path = `${prefix}/${crypto.randomUUID()}.${extensionForUpload(file)}`;
@@ -1154,6 +1158,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
           redirectOrigin,
           "images",
           isAdminEdit ? adminReturnTo : null,
+          moodImageActionMaxFileSize,
         ),
       ),
     );

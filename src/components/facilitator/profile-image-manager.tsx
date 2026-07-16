@@ -22,6 +22,9 @@ type ImageSlot = {
   previewUrl: string;
 };
 
+const profileImageMaxFileSize = 10 * 1024 * 1024;
+const moodImageMaxFileSize = 15 * 1024 * 1024;
+
 type ProfileCropState = {
   cropX: number;
   cropY: number;
@@ -41,6 +44,7 @@ type UploadFieldProps = {
   imagePath: string;
   inputRef?: Ref<HTMLInputElement>;
   name: string;
+  maxFileSizeBytes?: number;
   onClear: () => void;
   onEdit?: () => void;
   onSelect: (file: File, previewUrl: string) => void;
@@ -51,15 +55,18 @@ type UploadFieldProps = {
   selectedFileName: string;
   title: string;
   unsupportedMessage: string;
+  uploadText?: string;
 };
 
-function publicUploadText() {
-  return supportedImageUploadText.replace("Understøtter ", "").replace("Maks. 10 MB pr. billede.", "Maks. 10 MB.");
+function publicUploadText(maxFileSizeBytes: number) {
+  const maxMegabytes = Math.round(maxFileSizeBytes / (1024 * 1024));
+  return supportedImageUploadText.replace("Understøtter ", "").replace("Maks. 10 MB pr. billede.", `Maks. ${maxMegabytes} MB.`);
 }
 
 function UploadField({
   imagePath,
   inputRef,
+  maxFileSizeBytes = profileImageMaxFileSize,
   name,
   onClear,
   onEdit,
@@ -71,6 +78,7 @@ function UploadField({
   selectedFileName,
   title,
   unsupportedMessage,
+  uploadText,
 }: UploadFieldProps) {
   const imageUrl = previewUrl || publicImageUrl(imagePath);
   const inputId = `${name}-${title.replace(/\s+/g, "-").toLowerCase()}`;
@@ -82,7 +90,7 @@ function UploadField({
       onUnsupportedFile(file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif") ? "Konverterer HEIC til JPG..." : "");
 
       try {
-        file = await prepareImageFileForUpload(file);
+        file = await prepareImageFileForUpload(file, { maxFileSizeBytes });
         replaceInputFile(event.target, file);
       } catch (error) {
         event.target.value = "";
@@ -107,7 +115,9 @@ function UploadField({
                 <ImagePlus className="size-6" aria-hidden="true" />
               </span>
               <span className="text-sm font-semibold text-midnight">Indsæt billede</span>
-              <span className="max-w-44 text-xs leading-5 text-ink/55">{publicUploadText()}</span>
+              <span className="max-w-44 whitespace-pre-line text-xs leading-5 text-ink/55">
+                {uploadText ?? publicUploadText(maxFileSizeBytes)}
+              </span>
             </span>
           </label>
         )}
@@ -551,6 +561,7 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
               inputRef={(element: HTMLInputElement | null) => {
                 galleryInputRefs.current[index] = element;
               }}
+              maxFileSizeBytes={moodImageMaxFileSize}
               name={`gallery_image_file_${index}`}
               onClear={() => clearGalleryImage(index)}
               onSelect={(file, previewUrl) => {
@@ -610,6 +621,7 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
               ) : null}
               title={`Stemningsbillede ${index + 1}`}
               unsupportedMessage={slot.message}
+              uploadText={"JPG, PNG eller WebP\nMaks. 15 MB"}
             />
             <input name="gallery_image_paths" type="hidden" value={slot.path} />
           </div>

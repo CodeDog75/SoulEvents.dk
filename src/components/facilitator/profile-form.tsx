@@ -128,7 +128,7 @@ type SlotStatus = {
   status: "error" | "idle" | "saving" | "success";
 };
 
-const moodImageMaxFileSize = 4 * 1024 * 1024;
+const moodImageMaxFileSize = 15 * 1024 * 1024;
 
 const fallbackTreatmentForms: ServiceTitle[] = [
   { id: "healing", name: "Healing" },
@@ -540,14 +540,18 @@ function UploadTile({
   className = "",
   createPreview = true,
   imageUrl,
+  helperText,
   label,
+  maxFileSizeBytes,
   onError,
   onSelect,
 }: {
   className?: string;
   createPreview?: boolean;
+  helperText?: string;
   imageUrl: string;
   label: string;
+  maxFileSizeBytes?: number;
   onError?: (message: string) => void;
   onSelect: (file: File, previewUrl: string) => void;
 }) {
@@ -558,7 +562,7 @@ function UploadTile({
     if (!file) return;
 
     try {
-      const prepared = await prepareImageFileForUpload(file);
+      const prepared = await prepareImageFileForUpload(file, { maxFileSizeBytes });
       onSelect(prepared, createPreview ? URL.createObjectURL(prepared) : "");
     } catch (error) {
       event.target.value = "";
@@ -583,6 +587,7 @@ function UploadTile({
             <Upload className="size-7" aria-hidden="true" />
           </span>
           <span className="text-lg font-semibold text-midnight">{label}</span>
+          {helperText ? <span className="whitespace-pre-line text-sm font-medium leading-5 text-ink/55">{helperText}</span> : null}
         </span>
       )}
       <input accept={imageUploadAccept} className="sr-only" onChange={handleChange} ref={inputRef} type="file" />
@@ -750,7 +755,7 @@ export function ProfileForm({
 
   function saveMoodImage(index: number, file: File) {
     if (file.size > moodImageMaxFileSize) {
-      setMoodImageStatus(index, { message: "Billedet er for stort. Vælg et billede på højst 4 MB.", status: "error" });
+      setMoodImageStatus(index, { message: "Billedet er for stort. Vælg et billede på højst 15 MB.", status: "error" });
       return;
     }
 
@@ -814,8 +819,10 @@ export function ProfileForm({
             <UploadTile
               className="lg:max-w-[180px] xl:max-w-[200px]"
               createPreview={false}
+              helperText={"JPG, PNG eller WebP\nMaks. 15 MB"}
               imageUrl={image.previewUrl}
               label={moodImageStatuses[index]?.status === "saving" ? "Gemmer billede..." : `Vælg stemningsbillede ${index + 1}`}
+              maxFileSizeBytes={moodImageMaxFileSize}
               onError={(message) => setMoodImageStatus(index, { message, status: "error" })}
               onSelect={(file) => saveMoodImage(index, file)}
             />
