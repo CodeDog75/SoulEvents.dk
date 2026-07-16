@@ -13,14 +13,33 @@ export const dynamic = "force-dynamic";
 type FacilitatorProfilePageProps = {
   searchParams: Promise<{
     errorSection?: string;
+    confirmed?: string;
     message?: string;
     ready?: string;
     saved?: string;
   }>;
 };
 
+function isFacilitatorProfileComplete(input: {
+  categoryCount: number;
+  city?: string | null;
+  companyName?: string | null;
+  postalCode?: string | null;
+  profileImagePath?: string | null;
+  shortDescription?: string | null;
+}) {
+  return (
+    Boolean(input.companyName?.trim()) &&
+    Boolean(input.postalCode?.trim()) &&
+    Boolean(input.city?.trim()) &&
+    Boolean(input.profileImagePath) &&
+    Boolean(input.shortDescription?.trim() && input.shortDescription.trim().length >= 20) &&
+    input.categoryCount > 0
+  );
+}
+
 export default async function FacilitatorProfilePage({ searchParams }: FacilitatorProfilePageProps) {
-  const [{ errorSection, message, ready, saved }, profile] = await Promise.all([searchParams, requireProfile()]);
+  const [{ confirmed, errorSection, message, ready, saved }, profile] = await Promise.all([searchParams, requireProfile()]);
   const supabase = await createClient();
   const admin = createAdminClient();
   const isSavedMessage = message?.startsWith("Ændringer gemt");
@@ -92,6 +111,16 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
   const authProviders = authUserData.user?.identities?.map((identity) => identity.provider).filter(Boolean) ?? [];
   const passwordLoginAvailable = !authUserError && (authProviders.length === 0 || authProviders.includes("email"));
   const primaryOauthProvider = authProviders.find((provider) => provider === "google" || provider === "facebook") ?? authProviders[0] ?? null;
+  const presentationMode = isFacilitatorProfileComplete({
+    categoryCount: selectedCategoryIds.length,
+    city: facilitatorProfile.city,
+    companyName: facilitatorProfile.company_name,
+    postalCode: facilitatorProfile.postal_code,
+    profileImagePath: facilitatorProfile.profile_image_path,
+    shortDescription: facilitatorProfile.short_description,
+  })
+    ? "editing"
+    : "onboarding";
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -159,12 +188,14 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
           facilitatorProfile={facilitatorProfile}
           feedbackMessage={message ?? null}
           galleryImages={galleryImages}
+          presentationMode={presentationMode}
           profile={profile}
           regions={regions ?? []}
           savedSection={saved ?? null}
           selectedCategoryIds={selectedCategoryIds}
           selectedServiceTitleIds={selectedServiceTitleIds}
           serviceTitles={visibleServiceTitles}
+          showEmailConfirmedStep={confirmed === "1"}
         />
         <div className="mt-6">
           <SecurityPasswordForm oauthProvider={primaryOauthProvider} passwordLoginAvailable={passwordLoginAvailable} />

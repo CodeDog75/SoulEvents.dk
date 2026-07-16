@@ -255,6 +255,7 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
           facilitatorProfile={facilitator}
           feedbackMessage={message ?? null}
           galleryImages={galleryImages}
+          presentationMode="admin"
           profile={profileForForm}
           regions={regions ?? []}
           savedSection={saved ?? null}

@@ -502,6 +502,61 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
   return { message: "Gemt", ok: true };
 }
 
+export async function saveWorkAreaSuggestionAction(input: string) {
+  const suggestionText = input.trim().replace(/\s+/g, " ");
+
+  if (!suggestionText) {
+    return { message: "", status: "success" as const };
+  }
+
+  if (suggestionText.length < 2) {
+    return { message: "Forslaget er for kort.", status: "error" as const };
+  }
+
+  if (suggestionText.length > 120) {
+    return { message: "Forslaget må højst være 120 tegn.", status: "error" as const };
+  }
+
+  const profile = await requireProfile();
+
+  if (profile.role !== "facilitator") {
+    return { message: "Kun arrangører kan sende forslag til arbejdsområder.", status: "error" as const };
+  }
+
+  const supabase = await createClient();
+  const { data: facilitatorProfile, error: facilitatorError } = await supabase
+    .from("facilitator_profiles")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .single();
+
+  if (facilitatorError || !facilitatorProfile) {
+    return { message: "Forslaget kunne ikke gemmes lige nu.", status: "error" as const };
+  }
+
+  const { error } = await supabase.from("facilitator_work_area_suggestions").insert({
+    facilitator_id: facilitatorProfile.id,
+    profile_id: profile.id,
+    suggestion_text: suggestionText,
+    status: "pending",
+  });
+
+  if (error) {
+    if (error.code === "23505") {
+      return { message: "Forslaget er allerede sendt til SoulEvents.", status: "success" as const };
+    }
+
+    console.error("Work area suggestion could not be saved", {
+      code: error.code,
+      message: error.message,
+    });
+
+    return { message: "Forslaget kunne ikke gemmes lige nu.", status: "error" as const };
+  }
+
+  return { message: "Dit forslag er sendt til SoulEvents.", status: "success" as const };
+}
+
 function valueForAutosave(value: boolean | string | string[] | null | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -806,6 +861,154 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
       return row?.image_path ?? "";
     }),
   );
+}
+
+export async function saveFacilitatorProfileImageAction(formData: FormData) {
+  const profile = await requireProfile();
+  const supabase = createAdminClient();
+  const imageFile = formData.get("image_file");
+  const fileContext =
+    imageFile instanceof File
+      ? {
+          fileSize: imageFile.size,
+          mimeType: imageFile.type || "unknown",
+        }
+      : {
+          fileSize: null,
+          mimeType: null,
+        };
+  const logContext = {
+    action: "saveFacilitatorProfileImageAction",
+    profileId: safeIdSuffix(profile.id),
+    ...fileContext,
+  };
+
+  const { data: facilitatorProfile, error: profileError } = await supabase
+    .from("facilitator_profiles")
+    .select("id, profile_image_path")
+    .eq("profile_id", profile.id)
+    .single();
+
+  if (profileError || !facilitatorProfile) {
+    logMoodImageError("Facilitator profile lookup failed for profile image", logContext, profileError);
+    return { message: "Arrangørprofilen kunne ikke hentes.", status: "error" as const };
+  }
+
+  const upload = await uploadImageForAction(supabase, imageFile, `hosts/${profile.id}/profile`);
+
+  if (upload.error || !upload.path) {
+    logMoodImageError(upload.error ?? "Profile image upload failed", {
+      ...logContext,
+      facilitatorId: safeIdSuffix(facilitatorProfile.id),
+    });
+    return { message: upload.error ?? "Profilbilledet kunne ikke uploades.", status: "error" as const };
+  }
+
+  const { error: updateError } = await supabase
+    .from("facilitator_profiles")
+    .update({ profile_image_path: upload.path })
+    .eq("id", facilitatorProfile.id);
+
+  if (updateError) {
+    await supabase.storage.from("media").remove([upload.path]);
+    logMoodImageError("Profile image database save failed", {
+      ...logContext,
+      facilitatorId: safeIdSuffix(facilitatorProfile.id),
+      uploadedPath: upload.path,
+    }, updateError);
+    return { message: "Profilbilledet kunne ikke gemmes.", status: "error" as const };
+  }
+
+  if (facilitatorProfile.profile_image_path && facilitatorProfile.profile_image_path !== upload.path) {
+    const { error: removeOldFileError } = await supabase.storage.from("media").remove([facilitatorProfile.profile_image_path]);
+
+    if (removeOldFileError) {
+      logMoodImageError("Old profile image storage cleanup failed", {
+        ...logContext,
+        oldPath: facilitatorProfile.profile_image_path,
+        uploadedPath: upload.path,
+      }, removeOldFileError);
+    }
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/profile");
+
+  return { path: upload.path, status: "success" as const };
+}
+
+export async function submitFacilitatorProfileForReviewAction(input: { acceptedTerms: boolean }) {
+  const profile = await requireProfile();
+  const supabase = createAdminClient();
+  const { data: facilitatorProfile, error: profileError } = await supabase
+    .from("facilitator_profiles")
+    .select(
+      "id, company_name, profile_image_path, short_description, long_description, status, facilitator_categories(category_id), facilitator_images(image_path, sort_order)",
+    )
+    .eq("profile_id", profile.id)
+    .single();
+
+  const logContext = {
+    action: "submitFacilitatorProfileForReviewAction",
+    profileId: safeIdSuffix(profile.id),
+  };
+
+  if (profileError || !facilitatorProfile) {
+    console.error("[facilitator-profile:submit]", imageLogContext({
+      ...logContext,
+      errorCode: profileError?.code,
+      errorMessage: profileError?.message,
+      message: "Facilitator profile lookup failed",
+    }));
+    return { message: "Arrangørprofilen kunne ikke hentes.", ok: false };
+  }
+
+  const hasDescription = Boolean(
+    facilitatorProfile.long_description?.trim() || facilitatorProfile.short_description?.trim(),
+  );
+  const missingFields = [
+    profile.full_name?.trim() ? null : "navn",
+    facilitatorProfile.company_name?.trim() ? null : "profilnavn",
+    facilitatorProfile.profile_image_path ? null : "profilbillede",
+    facilitatorProfile.facilitator_categories?.length ? null : "arbejdsområder",
+    hasDescription ? null : "fortælling",
+    facilitatorProfile.facilitator_images?.length ? null : "stemningsbillede",
+  ].filter((item): item is string => Boolean(item));
+
+  if (missingFields.length > 0) {
+    return {
+      message: `Der mangler stadig: ${missingFields.join(", ")}.`,
+      ok: false,
+    };
+  }
+
+  const missingAcceptances = await getMissingRequiredLegalAcceptances(supabase, profile.id, organizerAcceptanceTypes);
+
+  if (missingAcceptances.length > 0 && !input.acceptedTerms) {
+    return { message: "Du skal acceptere arrangørvilkår og retningslinjer, før profilen kan sendes til godkendelse.", ok: false };
+  }
+
+  if (missingAcceptances.length > 0) {
+    try {
+      await recordLegalAcceptances(supabase, {
+        action: "facilitator_profile_submission",
+        documentTypes: organizerAcceptanceTypes,
+        profileId: profile.id,
+      });
+    } catch (error) {
+      console.error("[facilitator-profile:submit]", imageLogContext({
+        ...logContext,
+        errorMessage: errorMessage(error),
+        message: "Legal acceptance save failed",
+      }));
+      return { message: "Accepten af vilkår kunne ikke gemmes. Prøv igen.", ok: false };
+    }
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/profile");
+
+  return { message: "Din profil er sendt til SoulEvents’ gennemgang.", ok: true };
 }
 
 export async function updateFacilitatorProfileAction(formData: FormData) {

@@ -19,6 +19,7 @@ import {
   Link2,
   Moon,
   Music,
+  PartyPopper,
   Sparkles,
   Sun,
   Upload,
@@ -30,8 +31,15 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { type ChangeEvent, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
-import { saveFacilitatorMoodImageAction } from "@/app/facilitator/profile/actions";
+import {
+  autosaveFacilitatorProfileAction,
+  saveFacilitatorMoodImageAction,
+  saveFacilitatorProfileImageAction,
+  saveWorkAreaSuggestionAction,
+  submitFacilitatorProfileForReviewAction,
+} from "@/app/facilitator/profile/actions";
 import { imageUploadAccept, prepareImageFileForUpload } from "@/lib/images/client-image-upload";
+import { OnboardingShell as SharedOnboardingShell } from "@/components/onboarding/onboarding-shell";
 
 type Region = {
   id: string;
@@ -93,6 +101,8 @@ type ProfileFormProps = {
     email: string;
     phone: string | null;
   };
+  presentationMode?: "admin" | "editing" | "onboarding";
+  showEmailConfirmedStep?: boolean;
   facilitatorProfile: FacilitatorProfile;
   regions: Region[];
   categories: Category[];
@@ -109,13 +119,13 @@ type PrototypeStep =
   | "account"
   | "person"
   | "profile-image"
-  | "mood-images"
   | "experiences"
   | "story"
   | "links"
   | "services"
   | "review"
-  | "approval";
+  | "approval"
+  | "complete";
 
 type MoodImage = {
   fileName: string;
@@ -194,22 +204,16 @@ const steps: Array<{
     title: "Hvem står bag profilen?",
   },
   {
-    eyebrow: "Ansigt",
+    eyebrow: "Billeder",
     id: "profile-image",
-    text: "Vælg et billede, der gør din profil nærværende og genkendelig.",
-    title: "Gør profilen menneskelig.",
+    text: "Vælg et profilbillede og op til tre stemningsbilleder, der viser dig og det, du inviterer mennesker ind i.",
+    title: "Gør din profil levende.",
   },
   {
-    eyebrow: "Stemning",
-    id: "mood-images",
-    text: "Vis rummet, følelsen eller energien omkring dine begivenheder.",
-    title: "Vis stemningen.",
-  },
-  {
-    eyebrow: "Begivenheder",
+    eyebrow: "Arbejdsområder",
     id: "experiences",
-    text: "Vælg de områder, der bedst beskriver det, du inviterer mennesker ind i.",
-    title: "Hvilke begivenheder tilbyder du?",
+    text: "Vælg de områder, der bedst beskriver dit arbejde og det, du inviterer mennesker ind i.",
+    title: "Inden for hvilke områder arbejder du?",
   },
   {
     eyebrow: "Din fortælling",
@@ -241,7 +245,16 @@ const steps: Array<{
     text: "Er du klar til at blive en del af SoulEvents?",
     title: "Sådan! Din profil er næsten klar",
   },
+  {
+    eyebrow: "Velkommen",
+    id: "complete",
+    text: "Din arrangørprofil er nu oprettet og sendt til gennemgang.",
+    title: "Vi er glade for at byde dig velkommen til SoulEvents.",
+  },
 ];
+
+const onboardingStepIds: PrototypeStep[] = ["person", "profile-image", "experiences", "story", "links", "services", "review", "approval", "complete"];
+const editingStepIds: PrototypeStep[] = ["review", "person", "profile-image", "experiences", "story", "links", "services"];
 
 function value(input: string | null | undefined) {
   return input ?? "";
@@ -446,10 +459,14 @@ function OnboardingShell({
   backLabel,
   children,
   currentIndex,
+  hideBackNavigation = false,
+  hidePrimaryAction = false,
   isBusy,
   onBack,
   onContinue,
+  presentationMode = "editing",
   canContinue = true,
+  ctaLabel,
   ctaHelper,
 }: {
   backHref: string;
@@ -457,10 +474,14 @@ function OnboardingShell({
   canContinue?: boolean;
   children: React.ReactNode;
   currentIndex: number;
+  ctaLabel?: string;
   ctaHelper?: string;
+  hideBackNavigation?: boolean;
+  hidePrimaryAction?: boolean;
   isBusy: boolean;
   onBack: () => void;
   onContinue: () => void;
+  presentationMode?: "admin" | "editing" | "onboarding";
 }) {
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === steps.length - 1;
@@ -471,6 +492,50 @@ function OnboardingShell({
     shellRef.current?.scrollTo({ top: 0, behavior: "auto" });
     contentScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, [currentIndex]);
+
+  const footer = hidePrimaryAction ? null : (
+    <button
+      className="inline-flex min-h-16 w-full items-center justify-center gap-2 rounded-[999px] bg-midnight px-6 text-lg font-semibold text-white shadow-soft transition duration-200 hover:bg-sage-700 disabled:cursor-not-allowed disabled:opacity-45 lg:min-h-12 lg:text-base xl:min-h-14"
+      disabled={isBusy || !canContinue}
+      onClick={onContinue}
+      type="button"
+    >
+      {isBusy ? "Gemmer automatisk..." : ctaLabel ?? (isFirst ? "Kom i gang" : isLast ? "Opret profil" : "Fortsæt")}
+      {!isBusy && <ArrowRight className="size-5" aria-hidden="true" />}
+    </button>
+  );
+
+  const backNavigation = hideBackNavigation ? null : isFirst ? (
+    <Link className="text-sm font-semibold text-ink/55 underline-offset-4 hover:text-sage-700 hover:underline" href={backHref}>
+      {backLabel}
+    </Link>
+  ) : (
+    <button className="inline-flex items-center gap-2 text-sm font-semibold text-ink/55 transition hover:text-sage-700" onClick={onBack} type="button">
+      <ArrowLeft className="size-4" aria-hidden="true" />
+      Tilbage
+    </button>
+  );
+
+  if (presentationMode === "onboarding") {
+    return (
+      <SharedOnboardingShell
+        backNavigation={backNavigation}
+        footer={
+          footer ? (
+            <>
+              {footer}
+              {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
+            </>
+          ) : null
+        }
+        mode="profile"
+        scrollKey={currentIndex}
+        visualPanel={{ text: "En rolig vej ind til din profil, dine begivenheder og dit fællesskab." }}
+      >
+        {children}
+      </SharedOnboardingShell>
+    );
+  }
 
   return (
     <div
@@ -493,7 +558,7 @@ function OnboardingShell({
         <div className="grid min-h-[calc(100svh-3rem)] content-between gap-8 lg:h-full lg:min-h-0 lg:grid-rows-[minmax(0,1fr)_auto] lg:gap-5 lg:overflow-hidden lg:px-6 lg:py-6 xl:px-8 xl:py-7">
           <div className="grid gap-8 lg:min-h-0 lg:gap-5 lg:overflow-y-auto lg:pr-1" ref={contentScrollRef}>
             <div className="min-h-8">
-              {isFirst ? (
+              {hideBackNavigation ? null : isFirst ? (
                 <Link className="text-sm font-semibold text-ink/55 underline-offset-4 hover:text-sage-700 hover:underline" href={backHref}>
                   {backLabel}
                 </Link>
@@ -510,18 +575,12 @@ function OnboardingShell({
             </div>
           </div>
 
-          <div className="pb-2">
-            <button
-              className="inline-flex min-h-16 w-full items-center justify-center gap-2 rounded-[999px] bg-midnight px-6 text-lg font-semibold text-white shadow-soft transition duration-200 hover:bg-sage-700 disabled:cursor-not-allowed disabled:opacity-45 lg:min-h-12 lg:text-base xl:min-h-14"
-              disabled={isBusy || !canContinue}
-              onClick={onContinue}
-              type="button"
-            >
-              {isBusy ? "Gemmer automatisk..." : isFirst ? "Kom i gang" : isLast ? "Opret profil" : "Fortsæt"}
-              {!isBusy && <ArrowRight className="size-5" aria-hidden="true" />}
-            </button>
-            {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
-          </div>
+          {hidePrimaryAction ? null : (
+            <div className="pb-2">
+              {footer}
+              {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -610,8 +669,11 @@ function MissingCard({ children, onClick }: { children: React.ReactNode; onClick
 }
 
 export function ProfileForm({
+  autosaveEnabled = true,
   backHref = "/facilitator",
   backLabel = "Tilbage",
+  presentationMode = "onboarding",
+  showEmailConfirmedStep = false,
   profile,
   facilitatorProfile,
   categories,
@@ -621,6 +683,12 @@ export function ProfileForm({
   selectedServiceTitleIds,
 }: ProfileFormProps) {
   const names = splitName(profile.full_name);
+  const activeSteps =
+    presentationMode === "onboarding"
+      ? (showEmailConfirmedStep ? ["account", ...onboardingStepIds] : onboardingStepIds)
+          .map((stepId) => steps.find((step) => step.id === stepId))
+          .filter((step): step is (typeof steps)[number] => Boolean(step))
+      : editingStepIds.map((stepId) => steps.find((step) => step.id === stepId)).filter((step): step is (typeof steps)[number] => Boolean(step));
   const [stepIndex, setStepIndex] = useState(0);
   const [isBusy, setIsBusy] = useState(false);
   const [returnToReview, setReturnToReview] = useState(false);
@@ -628,8 +696,10 @@ export function ProfileForm({
   const [firstName, setFirstName] = useState(names.firstName);
   const [lastName, setLastName] = useState(names.lastName);
   const fullPublicName = [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" ");
-  const [useCustomProfileName, setUseCustomProfileName] = useState(false);
-  const [profileName, setProfileName] = useState(value(facilitatorProfile.company_name));
+  const initialProfileName = value(facilitatorProfile.company_name);
+  const [useCustomProfileName, setUseCustomProfileName] = useState(() => Boolean(initialProfileName && initialProfileName !== fullPublicName));
+  const [profileName, setProfileName] = useState(initialProfileName);
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [profileImageUrl, setProfileImageUrl] = useState(facilitatorProfile.profile_image_path ? publicImageUrl(facilitatorProfile.profile_image_path) : "");
   const [moodImages, setMoodImages] = useState<MoodImage[]>(
     Array.from({ length: 3 }, (_, index) => ({
@@ -654,10 +724,21 @@ export function ProfileForm({
     return [values[0] ?? "", values[1] ?? ""];
   });
   const [otherExperience, setOtherExperience] = useState("");
+  const [workAreaSuggestionStatus, setWorkAreaSuggestionStatus] = useState<SlotStatus>({ message: "", status: "idle" });
+  const [stepSaveStatus, setStepSaveStatus] = useState<SlotStatus>({ message: "", status: "idle" });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const currentStep = steps[stepIndex] ?? steps[0];
+  const currentStep = activeSteps[stepIndex] ?? activeSteps[0] ?? steps[0];
+  const displayedStep =
+    presentationMode !== "onboarding" && currentStep.id === "review"
+      ? {
+          ...currentStep,
+          eyebrow: "Rediger profil",
+          text: "Tryk på det afsnit, du vil ændre. Dine eksisterende oplysninger er udfyldt.",
+          title: "Rediger profil",
+        }
+      : currentStep;
   const publicProfileName = useCustomProfileName ? profileName.trim() : fullPublicName;
-  const hasWorkArea = selectedExperiences.length > 0 || Boolean(otherExperience.trim());
+  const hasWorkArea = selectedExperiences.length > 0;
   const treatmentOptions = sortedByDanishName(serviceTitles.length > 0 ? serviceTitles : fallbackTreatmentForms);
   const selectedTreatments = offersIndividualServices
     ? treatmentOptions.filter((serviceTitle) => selectedTreatmentIds.includes(serviceTitle.id))
@@ -670,32 +751,170 @@ export function ProfileForm({
     !firstName.trim() || !lastName.trim() ? { label: "Dit navn", step: "person" as PrototypeStep } : null,
     !publicProfileName ? { label: "Profilnavn", step: "person" as PrototypeStep } : null,
     !profileImageUrl ? { label: "Profilbillede", step: "profile-image" as PrototypeStep } : null,
-    moodImages.every((image) => !image.previewUrl) ? { label: "Mindst ét stemningsbillede", step: "mood-images" as PrototypeStep } : null,
+    moodImages.every((image) => !image.previewUrl) ? { label: "Mindst ét stemningsbillede", step: "profile-image" as PrototypeStep } : null,
     !hasWorkArea ? { label: "Begivenheder", step: "experiences" as PrototypeStep } : null,
     !story.trim() ? { label: "Fortælling", step: "story" as PrototypeStep } : null,
   ].filter((item): item is { label: string; step: PrototypeStep } => Boolean(item));
 
   useEffect(() => {
     const url = new URL(window.location.href);
+    url.searchParams.delete("confirmed");
     url.searchParams.set("prototypeStep", currentStep.id);
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
   }, [currentStep.id]);
 
-  function continueFlow() {
+  const contactValues = {
+    company_name: publicProfileName,
+    full_name: fullPublicName,
+    long_description: story,
+    phone: profile.phone ?? "",
+    short_description: story.trim().slice(0, 300),
+  };
+
+  async function saveCurrentStep() {
+    if (!autosaveEnabled || presentationMode === "admin") {
+      return { message: "Gemt", ok: true };
+    }
+
+    setStepSaveStatus({ message: "Gemmer...", status: "saving" });
+
+    if (currentStep.id === "person") {
+      const result = await autosaveFacilitatorProfileAction({
+        section: "contact",
+        values: contactValues,
+      });
+
+      if (!result.ok) return result;
+    }
+
+    if (currentStep.id === "profile-image") {
+      if (profileImageFile) {
+        const formData = new FormData();
+        formData.set("image_file", profileImageFile);
+        const result = await saveFacilitatorProfileImageAction(formData);
+
+        if (result.status === "error") {
+          return { message: result.message, ok: false };
+        }
+
+        setProfileImageFile(null);
+        setProfileImageUrl(publicImageUrl(result.path));
+      }
+    }
+
+    if (currentStep.id === "experiences") {
+      const result = await autosaveFacilitatorProfileAction({
+        section: "categories",
+        values: { category_ids: selectedExperiences },
+      });
+
+      if (!result.ok) return result;
+    }
+
+    if (currentStep.id === "story") {
+      const result = await autosaveFacilitatorProfileAction({
+        section: "contact",
+        values: contactValues,
+      });
+
+      if (!result.ok) return result;
+    }
+
+    if (currentStep.id === "links") {
+      const result = await autosaveFacilitatorProfileAction({
+        section: "social",
+        values: {
+          facebook_url: facebook,
+          instagram_url: instagram,
+          public_email: facilitatorProfile.public_email ?? "",
+          public_phone: facilitatorProfile.public_phone ?? "",
+          tiktok_url: facilitatorProfile.tiktok_url ?? "",
+          website_url: website,
+          youtube_url: youtube,
+        },
+      });
+
+      if (!result.ok) return result;
+    }
+
+    if (currentStep.id === "services") {
+      const result = await autosaveFacilitatorProfileAction({
+        section: "services",
+        values: {
+          offers_services: offersIndividualServices,
+          service_description: "",
+          service_other_title: otherTreatmentFormValue,
+          service_title_ids: selectedTreatmentIds,
+          show_in_local_service_results: offersIndividualServices,
+        },
+      });
+
+      if (!result.ok) return result;
+    }
+
+    if (currentStep.id === "approval") {
+      const result = await submitFacilitatorProfileForReviewAction({ acceptedTerms });
+
+      if (!result.ok) return result;
+      return result;
+    }
+
+    return { message: "Gemt", ok: true };
+  }
+
+  async function continueFlow() {
     setIsBusy(true);
-    window.setTimeout(() => {
+    setStepSaveStatus({ message: "", status: "idle" });
+
+    const saveResult = await saveCurrentStep();
+    if (!saveResult.ok) {
       setIsBusy(false);
-      if (returnToReview && currentStep.id !== "review" && currentStep.id !== "approval") {
+      setStepSaveStatus({ message: saveResult.message, status: "error" });
+      return;
+    }
+
+    setStepSaveStatus({ message: saveResult.message, status: "success" });
+
+    window.setTimeout(async () => {
+      if (currentStep.id === "experiences" && otherExperience.trim() && presentationMode !== "admin") {
+        setWorkAreaSuggestionStatus({ message: "Sender forslag til SoulEvents...", status: "saving" });
+        const result = await saveWorkAreaSuggestionAction(otherExperience);
+
+        if (result.status === "error") {
+          setIsBusy(false);
+          setWorkAreaSuggestionStatus({ message: result.message, status: "error" });
+          return;
+        }
+
+        setOtherExperience("");
+        setWorkAreaSuggestionStatus({ message: result.message || "Dit forslag er sendt til SoulEvents.", status: "success" });
+      }
+
+      setIsBusy(false);
+      if (presentationMode !== "onboarding" && currentStep.id === "review") {
+        window.location.href = backHref;
+        return;
+      }
+
+      if (presentationMode === "onboarding" && currentStep.id === "approval") {
+        goToStep("complete");
+        return;
+      }
+
+      if (returnToReview && currentStep.id !== "review") {
         setReturnToReview(false);
         goToStep("review");
         return;
       }
 
-      setStepIndex((current) => Math.min(current + 1, steps.length - 1));
+      setStepSaveStatus({ message: "", status: "idle" });
+      setStepIndex((current) => Math.min(current + 1, activeSteps.length - 1));
     }, 180);
   }
 
   function goBack() {
+    setStepSaveStatus({ message: "", status: "idle" });
+
     if (returnToReview && currentStep.id !== "review") {
       setReturnToReview(false);
       goToStep("review");
@@ -707,8 +926,9 @@ export function ProfileForm({
   }
 
   function goToStep(step: PrototypeStep) {
-    const nextIndex = steps.findIndex((item) => item.id === step);
+    const nextIndex = activeSteps.findIndex((item) => item.id === step);
     if (nextIndex >= 0) {
+      setStepSaveStatus({ message: "", status: "idle" });
       setStepIndex(nextIndex);
     }
   }
@@ -809,7 +1029,10 @@ export function ProfileForm({
       className="lg:max-w-[240px] xl:max-w-[260px]"
       imageUrl={profileImageUrl}
       label="Vælg profilbillede"
-      onSelect={(_file, previewUrl) => setProfileImageUrl(previewUrl)}
+      onSelect={(file, previewUrl) => {
+        setProfileImageFile(file);
+        setProfileImageUrl(previewUrl);
+      }}
     />
   );
 
@@ -858,8 +1081,8 @@ export function ProfileForm({
     </>
   );
 
-  const desktopImageOverview = (
-    <div className="hidden gap-6 lg:grid">
+  const imageOverview = (
+    <div className="grid gap-6">
       <section className="grid gap-5 lg:grid-cols-[minmax(220px,260px)_minmax(0,1fr)] lg:items-center">
         {profileImageTile}
         <div className="rounded-[24px] bg-sage-50 p-5 text-sm leading-6 text-ink/65">
@@ -874,7 +1097,7 @@ export function ProfileForm({
 
       <section className="grid gap-3">
         <p className="text-sm font-semibold text-midnight">Stemningsbilleder (1-3)</p>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           {moodImageTiles}
         </div>
       </section>
@@ -887,10 +1110,26 @@ export function ProfileForm({
       backLabel={backLabel}
       canContinue={currentStep.id !== "approval" || acceptedTerms}
       currentIndex={stepIndex}
-      ctaHelper={currentStep.id === "approval" ? "Din profil sendes til godkendelse." : undefined}
+      ctaLabel={
+        presentationMode === "onboarding"
+          ? currentStep.id === "approval"
+            ? "Opret profil"
+            : stepIndex === 0
+              ? "Fortsæt"
+              : undefined
+          : currentStep.id === "review"
+            ? "Gem ændringer"
+            : returnToReview
+              ? "Tilbage til gennemse"
+              : undefined
+      }
+      ctaHelper={presentationMode === "onboarding" && currentStep.id === "approval" ? "Din profil sendes til godkendelse." : undefined}
+      hideBackNavigation={presentationMode === "onboarding" && currentStep.id === "complete"}
+      hidePrimaryAction={presentationMode === "onboarding" && currentStep.id === "complete"}
       isBusy={isBusy}
       onBack={goBack}
       onContinue={continueFlow}
+      presentationMode={presentationMode}
     >
       {currentStep.id === "welcome" ? (
         <div className="mb-6 flex justify-center">
@@ -898,7 +1137,21 @@ export function ProfileForm({
         </div>
       ) : null}
 
-      <StepIntro eyebrow={currentStep.eyebrow} text={currentStep.text} title={currentStep.title} />
+      <StepIntro eyebrow={displayedStep.eyebrow} text={displayedStep.text} title={displayedStep.title} />
+      {stepSaveStatus.message ? (
+        <p
+          className={
+            "mb-5 rounded-2xl px-4 py-3 text-sm font-semibold leading-6 " +
+            (stepSaveStatus.status === "error"
+              ? "border border-rose/20 bg-rose/10 text-rose"
+              : stepSaveStatus.status === "success"
+                ? "border border-sage-700/20 bg-sage-50 text-sage-700"
+                : "border border-midnight/10 bg-white text-ink/60")
+          }
+        >
+          {stepSaveStatus.message}
+        </p>
+      ) : null}
 
       {currentStep.id === "person" && (
         <div className="grid gap-5">
@@ -944,21 +1197,7 @@ export function ProfileForm({
       )}
 
       {currentStep.id === "profile-image" && (
-        <>
-          <div className="lg:hidden">
-            <UploadTile imageUrl={profileImageUrl} label="Vælg profilbillede" onSelect={(_file, previewUrl) => setProfileImageUrl(previewUrl)} />
-          </div>
-          {desktopImageOverview}
-        </>
-      )}
-
-      {currentStep.id === "mood-images" && (
-        <>
-          <div className="grid gap-4 lg:hidden">
-            {moodImageTiles}
-          </div>
-          {desktopImageOverview}
-        </>
+        imageOverview
       )}
 
       {currentStep.id === "experiences" && (
@@ -982,20 +1221,39 @@ export function ProfileForm({
           </div>
           <div className="rounded-[24px] bg-[#FBF5E9] p-4">
             <p className="text-sm font-semibold leading-6 text-[#695A3C]">
-              Synes du, der mangler et arbejdsområde eller en kategori? Skriv det her.
+              Mangler du et arbejdsområde på listen?
+            </p>
+            <p className="mt-2 text-xs leading-5 text-ink/55">
+              Send gerne dit forslag til SoulEvents. Forslaget bliver ikke tilføjet til din profil, men bliver sendt til os til vurdering.
             </p>
             <div className="mt-3">
               <ClearableInput
                 className="bg-white text-base"
-                maxLength={50}
+                maxLength={120}
                 onChange={setOtherExperience}
-                placeholder=""
+                placeholder="Skriv dit forslag til et nyt arbejdsområde"
                 value={otherExperience}
               />
             </div>
-            <p className="mt-3 text-xs leading-5 text-ink/55">
-              Hvis området allerede hører under en eksisterende kategori, bliver det placeret der. Ellers vurderer SoulEvents, om det skal oprettes som nyt arbejdsområde.
-            </p>
+            {otherExperience.trim() ? (
+              <p className="mt-3 text-xs font-semibold leading-5 text-sage-700">
+                Dit forslag sendes til SoulEvents, når du fortsætter.
+              </p>
+            ) : null}
+            {workAreaSuggestionStatus.message ? (
+              <p
+                className={
+                  "mt-3 text-xs font-semibold leading-5 " +
+                  (workAreaSuggestionStatus.status === "error"
+                    ? "text-rose"
+                    : workAreaSuggestionStatus.status === "success"
+                      ? "text-sage-700"
+                      : "text-ink/55")
+                }
+              >
+                {workAreaSuggestionStatus.message}
+              </p>
+            ) : null}
           </div>
         </div>
       )}
@@ -1127,11 +1385,6 @@ export function ProfileForm({
                         {category.name}
                       </span>
                     ))}
-                  {otherExperience.trim() ? (
-                    <span className="rounded-full border border-midnight/10 bg-white/65 px-3 py-1.5 text-sm font-semibold text-midnight">
-                      {otherExperience.trim()}
-                    </span>
-                  ) : null}
                 </div>
               ) : (
                 <div className="rounded-[22px] bg-[#FFF7DE] p-4 text-sm font-semibold leading-6 text-[#715C21]">
@@ -1152,7 +1405,7 @@ export function ProfileForm({
               </div>
             </ReviewJump>
 
-            <ReviewJump label="Rediger stemningsbilleder" onClick={() => editFromReview("mood-images")}>
+            <ReviewJump label="Rediger stemningsbilleder" onClick={() => editFromReview("profile-image")}>
               <div className="grid grid-cols-3 gap-2">
                 {moodImages.map((image, index) => (
                   <div
@@ -1295,6 +1548,42 @@ export function ProfileForm({
               </div>
             </div>
           ) : null}
+        </div>
+      )}
+
+      {currentStep.id === "complete" && (
+        <div className="grid gap-8 text-left">
+          <div className="grid justify-items-start gap-5">
+            <span className="grid size-14 place-items-center rounded-full bg-sage-50 text-sage-700 shadow-soft">
+              <PartyPopper className="size-7" aria-hidden="true" />
+            </span>
+            <div className="grid gap-4 text-base leading-7 text-ink/65">
+              <p>
+                Vi gennemgår alle nye profiler manuelt for at sikre en tryg og troværdig platform. Du modtager en e-mail,
+                så snart din profil er godkendt.
+              </p>
+              <p>
+                Du kan allerede nu begynde at oprette dit første event. Eventet gemmes som en kladde og bliver først
+                synligt, når din arrangørprofil er godkendt.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4">
+            <Link
+              className="inline-flex min-h-16 w-full items-center justify-center gap-2 rounded-[999px] bg-midnight px-6 text-lg font-semibold text-white shadow-soft transition duration-200 hover:bg-sage-700 lg:min-h-12 lg:text-base xl:min-h-14"
+              href="/facilitator/events"
+            >
+              Opret dit første event
+              <ArrowRight className="size-5" aria-hidden="true" />
+            </Link>
+            <Link
+              className="justify-self-center text-sm font-semibold text-sage-700 underline underline-offset-4 transition hover:text-midnight"
+              href="/facilitator"
+            >
+              Gå til mit dashboard
+            </Link>
+          </div>
         </div>
       )}
     </OnboardingShell>

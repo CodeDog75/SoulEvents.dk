@@ -4,14 +4,14 @@ import { continueWithEmailAction, resendConfirmationAction, signInAction } from 
 import { AuthMessage } from "@/components/auth/auth-message";
 import { SignupForm } from "@/components/auth/signup-form";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
-import { BrandLogo } from "@/components/brand-logo";
+import { OnboardingIntro, OnboardingShell } from "@/components/onboarding/onboarding-shell";
 import { createPageMetadata } from "@/lib/open-graph";
 
 export const metadata: Metadata = createPageMetadata({
   title: "Log ind | SoulEvents.dk",
   description: "Log ind på SoulEvents.dk som arrangør eller administrator.",
   imageTitle: "Log ind på SoulEvents.dk",
-  imageSubtitle: "Administrer profil, events og tilmeldinger.",
+  imageSubtitle: "Administrer profil, begivenheder og tilmeldinger.",
   path: "/auth/login",
 });
 
@@ -50,7 +50,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     currentStep === "password"
       ? "Velkommen tilbage"
       : currentStep === "new"
-        ? "Vi kunne ikke finde en konto med denne e-mail"
+        ? "Skal vi oprette en profil til dig?"
         : currentStep === "signup"
         ? "Lad os oprette din arrangørkonto"
         : loginRole === "admin"
@@ -68,54 +68,22 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           : "Start med din e-mailadresse. Så finder vi den rigtige vej for dig.";
 
   return (
-    <main className="min-h-screen bg-[#F4EEF8] px-4 py-6 text-[#2F2633] sm:py-10 lg:grid lg:place-items-center">
-      <section className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-white/55 bg-[#FAF8F3] shadow-soft lg:min-h-[680px] lg:grid-cols-[42%_58%]">
-        <aside className="hidden bg-[#2F2633] lg:block">
-          <div className="relative h-full min-h-[680px] overflow-hidden">
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 bg-[url('/facilitator/onboarding-nature.png')] bg-cover bg-center opacity-80"
-            />
-            <div aria-hidden="true" className="absolute inset-0 bg-[#2F2633]/35" />
-            <div className="relative flex h-full flex-col justify-between p-10 text-white">
-              <Link aria-label="SoulEvents forside" className="inline-flex w-fit" href="/">
-                <BrandLogo className="h-28 w-28 brightness-0 invert" priority />
-              </Link>
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-white/70">SoulEvents.dk</p>
-                <p className="mt-4 text-3xl font-semibold leading-tight">
-                  En rolig vej ind til din profil, dine events og dit fællesskab.
-                </p>
-              </div>
-            </div>
-          </div>
-        </aside>
+    <OnboardingShell
+      backLink={{ href: "/", label: "Tilbage til forsiden" }}
+      mode="auth"
+      scrollKey={currentStep}
+      visualPanel={{ text: "En rolig vej ind til din profil, dine begivenheder og dit fællesskab." }}
+    >
+      <div className="mx-auto w-full max-w-md">
+        <OnboardingIntro
+          eyebrow={currentStep === "email" ? "Log ind eller opret konto" : "SoulEvents-konto"}
+          text={description}
+          title={title}
+        />
 
-        <section className="flex min-h-[calc(100dvh-48px)] flex-col px-5 py-6 sm:px-8 lg:min-h-0 lg:px-12 lg:py-10">
-          <div className="mb-8 flex items-start justify-between gap-4">
-            <Link aria-label="SoulEvents forside" className="shrink-0 lg:hidden" href="/">
-              <BrandLogo className="h-24 w-24" priority />
-            </Link>
-            <Link
-              className="ml-auto inline-flex min-h-11 items-center justify-center rounded-full border border-[#7A4EAB]/15 bg-white/80 px-4 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:border-[#7A4EAB]/35 hover:bg-[#EDE4F7]/70"
-              href="/"
-            >
-              Tilbage til forsiden
-            </Link>
-          </div>
-
-          <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
-            <div className="space-y-3">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#7A4EAB]">
-                {currentStep === "email" ? "Log ind eller opret konto" : "SoulEvents-konto"}
-              </p>
-              <h1 className="text-3xl font-semibold leading-tight text-[#2F2633] sm:text-4xl">{title}</h1>
-              <p className="text-base leading-7 text-[#2F2633]/68">{description}</p>
-            </div>
-
-            <div className="mt-5">
-              <AuthMessage message={message} />
-            </div>
+        <div className="mt-5">
+          <AuthMessage message={message} />
+        </div>
 
             {currentStep === "email" ? (
               <>
@@ -125,7 +93,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                     <input
                       autoComplete="email"
                       autoFocus
-                      className="h-14 rounded-2xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+                      className="h-14 rounded-2xl border border-midnight/15 bg-white px-4 text-base outline-none transition focus:border-sage-700"
                       defaultValue={selectedEmail}
                       name="email"
                       required
@@ -134,7 +102,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   </label>
 
                   <button
-                    className="h-12 rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6A4199] hover:shadow-lift"
+                    className="h-12 rounded-full bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700"
                     type="submit"
                   >
                     Fortsæt
@@ -158,7 +126,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                     E-mail
                     <input
                       autoComplete="email"
-                      className="h-12 rounded-2xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+                      className="h-12 rounded-2xl border border-midnight/15 bg-white px-4 text-base outline-none transition focus:border-sage-700"
                       defaultValue={selectedEmail}
                       name="email"
                       readOnly
@@ -172,7 +140,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                     <input
                       autoComplete="current-password"
                       autoFocus
-                      className="h-12 rounded-2xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+                      className="h-12 rounded-2xl border border-midnight/15 bg-white px-4 text-base outline-none transition focus:border-sage-700"
                       minLength={8}
                       name="password"
                       required
@@ -181,7 +149,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   </label>
 
                   <div className="flex items-center justify-between gap-3">
-                    <Link className="text-sm font-semibold text-[#7A4EAB] hover:text-[#D8A7B1]" href="/auth/login">
+                    <Link className="text-sm font-semibold text-sage-700 hover:text-midnight" href="/auth/login">
                       Brug en anden e-mail
                     </Link>
                     <Link className="text-sm font-semibold text-[#4B5645] hover:text-[#D8A7B1]" href="/auth/forgot-password">
@@ -190,7 +158,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   </div>
 
                   <button
-                    className="mt-1 h-12 rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6A4199] hover:shadow-lift"
+                    className="mt-1 h-12 rounded-full bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700"
                     type="submit"
                   >
                     Log ind
@@ -228,7 +196,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   </div>
                   <div className="mt-5 grid gap-4">
                     <Link
-                      className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6A4199] hover:shadow-lift"
+                      className="inline-flex min-h-12 items-center justify-center rounded-full bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700"
                       href={`/auth/login?step=signup&email=${encodeURIComponent(selectedEmail)}`}
                     >
                       Fortsæt og opret arrangørprofil
@@ -236,7 +204,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                     <div className="grid gap-1 text-center text-sm text-[#2F2633]/64">
                       <p>Har du skrevet e-mailen forkert?</p>
                       <Link
-                        className="font-semibold text-[#7A4EAB] hover:text-[#D8A7B1]"
+                        className="font-semibold text-sage-700 hover:text-midnight"
                         href={selectedEmail ? `/auth/login?email=${encodeURIComponent(selectedEmail)}` : "/auth/login"}
                       >
                         Prøv en anden e-mailadresse
@@ -255,11 +223,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 <SignupForm
                   initialEmail={selectedEmail}
                   returnToEmailFirstLogin
+                  variant="onboarding"
                 />
                 <p className="mt-5 text-center text-sm text-[#2F2633]/64">
                   Har du allerede en konto?{" "}
                   <Link
-                    className="font-semibold text-[#7A4EAB] hover:text-[#D8A7B1]"
+                    className="font-semibold text-sage-700 hover:text-midnight"
                     href={selectedEmail ? `/auth/login?step=password&email=${encodeURIComponent(selectedEmail)}` : "/auth/login"}
                   >
                     Log ind i stedet
@@ -281,7 +250,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 </p>
                 <div className="mt-3 grid gap-3">
                   <input
-                    className="h-11 rounded-xl border border-[#4B5645]/15 bg-white px-3 text-base outline-none transition focus:border-[#7A4EAB]"
+                    className="h-11 rounded-xl border border-[#4B5645]/15 bg-white px-3 text-base outline-none transition focus:border-sage-700"
                     defaultValue={selectedEmail}
                     name="email"
                     placeholder="din@email.dk"
@@ -297,9 +266,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 </div>
               </form>
             ) : null}
-          </div>
-        </section>
-      </section>
-    </main>
+      </div>
+    </OnboardingShell>
   );
 }

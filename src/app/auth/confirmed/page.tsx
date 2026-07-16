@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import { getCurrentProfile, getDashboardPath } from "@/lib/auth/roles";
 
@@ -24,6 +25,10 @@ export default async function ConfirmedPage({ searchParams }: ConfirmedPageProps
       : getDashboardPath(profile.role)
     : `/auth/login?message=${encodeURIComponent("E-mailen er bekræftet. Log ind og færdiggør din arrangørprofil.")}`;
   const primaryLabel = profile ? "Færdiggør profil" : "Log ind og færdiggør profil";
+
+  if (!isError && !needsLogin && !next) {
+    redirect(primaryHref);
+  }
 
   return (
     <main className="grid min-h-screen place-items-center bg-[#FAF6EF] px-4 py-10 text-[#2F2633]">

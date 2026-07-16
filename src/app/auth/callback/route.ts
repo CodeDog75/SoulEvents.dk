@@ -140,7 +140,7 @@ function emailConfirmationRedirectResponse(requestUrl: URL, result: PostAuthResu
   }
 
   if (result.path === "/facilitator/profile") {
-    return NextResponse.redirect(new URL("/facilitator/welcome", getAppUrl(requestUrl.origin)));
+    return NextResponse.redirect(new URL("/facilitator/profile?confirmed=1", getAppUrl(requestUrl.origin)));
   }
 
   return postAuthRedirectResponse(requestUrl, result);

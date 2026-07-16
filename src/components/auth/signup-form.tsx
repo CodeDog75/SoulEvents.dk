@@ -15,6 +15,7 @@ type SignupFormProps = {
   initialEmail?: string;
   restoreValues?: boolean;
   returnToEmailFirstLogin?: boolean;
+  variant?: "legacy" | "onboarding";
 };
 
 const signupDraftKey = "soulevents:signup-form-draft:v1";
@@ -51,7 +52,12 @@ function normalizePhone(value: string) {
   return value.replace(/\D/g, "").slice(0, 8);
 }
 
-export function SignupForm({ initialEmail = "", restoreValues = false, returnToEmailFirstLogin = false }: SignupFormProps) {
+export function SignupForm({
+  initialEmail = "",
+  restoreValues = false,
+  returnToEmailFirstLogin = false,
+  variant = "legacy",
+}: SignupFormProps) {
   const [values, setValues] = useState<SignupFormValues>({ ...emptyValues, email: initialEmail });
   const [successTarget, setSuccessTarget] = useState("login");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,6 +95,15 @@ export function SignupForm({ initialEmail = "", restoreValues = false, returnToE
     setIsSubmitting(true);
   }
 
+  const inputClassName =
+    variant === "onboarding"
+      ? "h-12 min-w-0 rounded-xl border border-midnight/15 bg-white px-4 text-base outline-none transition focus:border-sage-700"
+      : "h-12 min-w-0 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]";
+  const buttonClassName =
+    variant === "onboarding"
+      ? "mt-1 h-12 rounded-full bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700 disabled:cursor-wait disabled:opacity-75 disabled:hover:bg-midnight"
+      : "mt-1 h-12 rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6A4199] hover:shadow-lift disabled:cursor-wait disabled:opacity-75 disabled:hover:translate-y-0 disabled:hover:bg-[#7A4EAB] disabled:hover:shadow-soft";
+
   return (
     <form
       action={signUpFacilitatorAction}
@@ -103,7 +118,7 @@ export function SignupForm({ initialEmail = "", restoreValues = false, returnToE
           E-mail *
           <input
             autoComplete="email"
-            className="h-12 min-w-0 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+            className={inputClassName}
             name="email"
             onChange={(event) => updateValue("email", event.currentTarget.value)}
             placeholder="din@mail.dk"
@@ -117,7 +132,7 @@ export function SignupForm({ initialEmail = "", restoreValues = false, returnToE
           Adgangskode *
           <input
             autoComplete="new-password"
-            className="h-12 min-w-0 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+            className={inputClassName}
             minLength={8}
             name="password"
             onChange={(event) => updateValue("password", event.currentTarget.value)}
@@ -132,7 +147,7 @@ export function SignupForm({ initialEmail = "", restoreValues = false, returnToE
           Fornavn *
           <input
             autoComplete="given-name"
-            className="h-12 min-w-0 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+            className={inputClassName}
             name="first_name"
             onChange={(event) => updateValue("firstName", event.currentTarget.value)}
             required
@@ -144,7 +159,7 @@ export function SignupForm({ initialEmail = "", restoreValues = false, returnToE
           Efternavn *
           <input
             autoComplete="family-name"
-            className="h-12 min-w-0 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+            className={inputClassName}
             name="last_name"
             onChange={(event) => updateValue("lastName", event.currentTarget.value)}
             required
@@ -170,7 +185,7 @@ export function SignupForm({ initialEmail = "", restoreValues = false, returnToE
           </span>
           <input
             autoComplete="tel"
-            className="h-12 min-w-0 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+            className={inputClassName}
             inputMode="numeric"
             maxLength={8}
             name="phone"
@@ -186,7 +201,7 @@ export function SignupForm({ initialEmail = "", restoreValues = false, returnToE
 
       <button
         aria-disabled={isSubmitting}
-        className="mt-1 h-12 rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6A4199] hover:shadow-lift disabled:cursor-wait disabled:opacity-75 disabled:hover:translate-y-0 disabled:hover:bg-[#7A4EAB] disabled:hover:shadow-soft"
+        className={buttonClassName}
         disabled={isSubmitting}
         type="submit"
       >
