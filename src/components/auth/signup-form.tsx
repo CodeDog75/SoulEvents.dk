@@ -84,7 +84,7 @@ export function SignupForm({ initialEmail = "", restoreValues = false, returnToE
       <input name="success_target" type="hidden" value={returnToEmailFirstLogin ? "login" : successTarget} />
       {returnToEmailFirstLogin ? <input name="auth_return_path" type="hidden" value="email-first" /> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4">
         <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
           E-mail *
           <input
@@ -115,7 +115,7 @@ export function SignupForm({ initialEmail = "", restoreValues = false, returnToE
         </label>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4">
         <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
           Dit rigtige navn *
           <input

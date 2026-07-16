@@ -17,7 +17,6 @@ import {
   ImagePlus,
   Leaf,
   Link2,
-  Mail,
   Moon,
   Music,
   Sparkles,
@@ -177,14 +176,14 @@ const steps: Array<{
   {
     eyebrow: "Velkommen",
     id: "welcome",
-    text: "Vi hjælper dig trin for trin med at skabe en profil, hvor deltagerne kan lære dig og dine oplevelser at kende.",
+    text: "Vi hjælper dig trin for trin med at skabe en profil, hvor deltagerne kan lære dig og dine begivenheder at kende.",
     title: "Lad os skabe din SoulEvents-profil",
   },
   {
-    eyebrow: "Din adgang",
+    eyebrow: "Konto oprettet",
     id: "account",
-    text: "I prototypen bruger vi din nuværende konto. Senere bliver dette en blød oprettelse med kodebekræftelse.",
-    title: "Først sikrer vi, at du kan finde tilbage.",
+    text: "Perfekt. Din konto er nu oprettet. Nu hjælper vi dig trin for trin med at opbygge din arrangørprofil. Det tager kun få minutter.",
+    title: "Din e-mail er bekræftet.",
   },
   {
     eyebrow: "Navn",
@@ -201,14 +200,14 @@ const steps: Array<{
   {
     eyebrow: "Stemning",
     id: "mood-images",
-    text: "Vis rummet, følelsen eller energien omkring dine oplevelser.",
+    text: "Vis rummet, følelsen eller energien omkring dine begivenheder.",
     title: "Vis stemningen.",
   },
   {
-    eyebrow: "Oplevelser",
+    eyebrow: "Begivenheder",
     id: "experiences",
     text: "Vælg de områder, der bedst beskriver det, du inviterer mennesker ind i.",
-    title: "Hvilke oplevelser tilbyder du?",
+    title: "Hvilke begivenheder tilbyder du?",
   },
   {
     eyebrow: "Din fortælling",
@@ -536,11 +535,13 @@ function StepIntro({ eyebrow, text, title }: { eyebrow: string; text: string; ti
 }
 
 function UploadTile({
+  className = "",
   createPreview = true,
   imageUrl,
   label,
   onSelect,
 }: {
+  className?: string;
   createPreview?: boolean;
   imageUrl: string;
   label: string;
@@ -562,7 +563,10 @@ function UploadTile({
 
   return (
     <button
-      className="group grid aspect-[4/5] w-full place-items-center overflow-hidden rounded-[26px] border border-midnight/10 bg-sage-50 text-center shadow-soft transition duration-200 hover:border-sage-700"
+      className={
+        "group grid aspect-[4/5] w-full place-items-center overflow-hidden rounded-[26px] border border-midnight/10 bg-sage-50 text-center shadow-soft transition duration-200 hover:border-sage-700 " +
+        className
+      }
       onClick={() => inputRef.current?.click()}
       type="button"
     >
@@ -655,7 +659,7 @@ export function ProfileForm({
     !publicProfileName ? { label: "Profilnavn", step: "person" as PrototypeStep } : null,
     !profileImageUrl ? { label: "Profilbillede", step: "profile-image" as PrototypeStep } : null,
     moodImages.every((image) => !image.previewUrl) ? { label: "Mindst ét stemningsbillede", step: "mood-images" as PrototypeStep } : null,
-    !hasWorkArea ? { label: "Oplevelser", step: "experiences" as PrototypeStep } : null,
+    !hasWorkArea ? { label: "Begivenheder", step: "experiences" as PrototypeStep } : null,
     !story.trim() ? { label: "Fortælling", step: "story" as PrototypeStep } : null,
   ].filter((item): item is { label: string; step: PrototypeStep } => Boolean(item));
 
@@ -783,6 +787,80 @@ export function ProfileForm({
     });
   }
 
+  const profileImageTile = (
+    <UploadTile
+      className="lg:max-w-[240px] xl:max-w-[260px]"
+      imageUrl={profileImageUrl}
+      label="Vælg profilbillede"
+      onSelect={(_file, previewUrl) => setProfileImageUrl(previewUrl)}
+    />
+  );
+
+  const moodImageTiles = (
+    <>
+      {moodImages.map((image, index) => (
+        <div className="grid gap-2" key={index}>
+          <div className="relative">
+            <UploadTile
+              className="lg:max-w-[180px] xl:max-w-[200px]"
+              createPreview={false}
+              imageUrl={image.previewUrl}
+              label={moodImageStatuses[index]?.status === "saving" ? "Gemmer billede..." : `Vælg stemningsbillede ${index + 1}`}
+              onSelect={(file) => saveMoodImage(index, file)}
+            />
+            {image.path ? (
+              <button
+                aria-label={`Fjern stemningsbillede ${index + 1}`}
+                className="absolute right-3 top-3 grid size-10 place-items-center rounded-full bg-white/85 text-ink/55 shadow-soft transition hover:bg-white hover:text-midnight focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
+                onClick={() => removeMoodImage(index)}
+                type="button"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+          {moodImageStatuses[index]?.message ? (
+            <p
+              className={
+                "text-sm font-semibold " +
+                (moodImageStatuses[index]?.status === "error"
+                  ? "text-rose"
+                  : moodImageStatuses[index]?.status === "success"
+                    ? "text-sage-700"
+                    : "text-ink/55")
+              }
+            >
+              {moodImageStatuses[index]?.message}
+            </p>
+          ) : null}
+        </div>
+      ))}
+    </>
+  );
+
+  const desktopImageOverview = (
+    <div className="hidden gap-6 lg:grid">
+      <section className="grid gap-5 lg:grid-cols-[minmax(220px,260px)_minmax(0,1fr)] lg:items-center">
+        {profileImageTile}
+        <div className="rounded-[24px] bg-sage-50 p-5 text-sm leading-6 text-ink/65">
+          <p className="font-semibold text-midnight">
+            Dit profilbillede vises på din offentlige profil og ved dine begivenheder.
+          </p>
+          <p className="mt-2">
+            Vi anbefaler et kvadratisk billede i god kvalitet.
+          </p>
+        </div>
+      </section>
+
+      <section className="grid gap-3">
+        <p className="text-sm font-semibold text-midnight">Stemningsbilleder (1-3)</p>
+        <div className="grid grid-cols-3 gap-4">
+          {moodImageTiles}
+        </div>
+      </section>
+    </div>
+  );
+
   return (
     <OnboardingShell
       backHref={backHref}
@@ -801,18 +879,6 @@ export function ProfileForm({
       ) : null}
 
       <StepIntro eyebrow={currentStep.eyebrow} text={currentStep.text} title={currentStep.title} />
-
-      {currentStep.id === "account" && (
-        <div className="grid gap-4">
-          <div className="flex min-h-16 items-center gap-3 rounded-[20px] border border-midnight/10 bg-sage-50 px-5">
-            <Mail className="size-5 text-sage-700" aria-hidden="true" />
-            <span className="text-lg font-semibold text-midnight">{profile.email}</span>
-          </div>
-          <div className="rounded-[20px] bg-[#F7F2FB] p-5 text-sm leading-6 text-ink/65">
-            Kontooprettelse og kodebekræftelse kobles på efter UX-godkendelse.
-          </div>
-        </div>
-      )}
 
       {currentStep.id === "person" && (
         <div className="grid gap-5">
@@ -858,48 +924,21 @@ export function ProfileForm({
       )}
 
       {currentStep.id === "profile-image" && (
-        <UploadTile imageUrl={profileImageUrl} label="Vælg profilbillede" onSelect={(_file, previewUrl) => setProfileImageUrl(previewUrl)} />
+        <>
+          <div className="lg:hidden">
+            <UploadTile imageUrl={profileImageUrl} label="Vælg profilbillede" onSelect={(_file, previewUrl) => setProfileImageUrl(previewUrl)} />
+          </div>
+          {desktopImageOverview}
+        </>
       )}
 
       {currentStep.id === "mood-images" && (
-        <div className="grid gap-4">
-          {moodImages.map((image, index) => (
-            <div className="grid gap-2" key={index}>
-              <div className="relative">
-                <UploadTile
-                  createPreview={false}
-                  imageUrl={image.previewUrl}
-                  label={moodImageStatuses[index]?.status === "saving" ? "Gemmer billede..." : `Vælg stemningsbillede ${index + 1}`}
-                  onSelect={(file) => saveMoodImage(index, file)}
-                />
-                {image.path ? (
-                  <button
-                    aria-label={`Fjern stemningsbillede ${index + 1}`}
-                    className="absolute right-3 top-3 grid size-10 place-items-center rounded-full bg-white/85 text-ink/55 shadow-soft transition hover:bg-white hover:text-midnight focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
-                    onClick={() => removeMoodImage(index)}
-                    type="button"
-                  >
-                    <X className="size-4" aria-hidden="true" />
-                  </button>
-                ) : null}
-              </div>
-              {moodImageStatuses[index]?.message ? (
-                <p
-                  className={
-                    "text-sm font-semibold " +
-                    (moodImageStatuses[index]?.status === "error"
-                      ? "text-rose"
-                      : moodImageStatuses[index]?.status === "success"
-                        ? "text-sage-700"
-                        : "text-ink/55")
-                  }
-                >
-                  {moodImageStatuses[index]?.message}
-                </p>
-              ) : null}
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 lg:hidden">
+            {moodImageTiles}
+          </div>
+          {desktopImageOverview}
+        </>
       )}
 
       {currentStep.id === "experiences" && (
@@ -947,7 +986,7 @@ export function ProfileForm({
             <textarea
               className="min-h-64 w-full rounded-[24px] border border-midnight/10 bg-white p-5 pr-12 text-lg leading-8 text-midnight shadow-soft outline-none transition duration-200 placeholder:text-ink/35 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/10"
               onChange={(event) => setStory(event.target.value)}
-              placeholder="Fortæl om din tilgang, stemningen i dine oplevelser, og hvad deltagerne kan glæde sig til."
+              placeholder="Fortæl om din tilgang, stemningen i dine begivenheder, og hvad deltagerne kan glæde sig til."
               value={story}
             />
             {story ? (
@@ -1117,7 +1156,7 @@ export function ProfileForm({
                 <p className="min-w-0 whitespace-pre-line text-base leading-8 text-ink/72">{story}</p>
               ) : (
                 <div className="rounded-[22px] bg-[#FFF7DE] p-4 text-sm font-semibold leading-6 text-[#715C21]">
-                  Fortæl lidt om dig og de oplevelser, du skaber.
+                  Fortæl lidt om dig og de begivenheder, du skaber.
                 </div>
               )}
             </ReviewJump>

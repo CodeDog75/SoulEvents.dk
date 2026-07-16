@@ -111,7 +111,7 @@ export default async function FacilitatorWelcomePage() {
             <div className="mt-6 space-y-4 text-base leading-7 text-[#2F2633]/72">
               <p>Tak fordi du vil være en del af SoulEvents.</p>
               <p>
-                Vi hjælper dig nu med at skabe en profil, så mennesker kan finde dig og dine oplevelser.
+                Vi hjælper dig nu med at skabe en profil, så mennesker kan finde dig og dine begivenheder.
               </p>
               <p>Det tager kun få minutter.</p>
             </div>
