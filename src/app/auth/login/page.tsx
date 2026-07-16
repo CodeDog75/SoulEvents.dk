@@ -233,15 +233,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                     >
                       Fortsæt og opret arrangørprofil
                     </Link>
-                    <p className="text-center text-sm text-[#2F2633]/64">
-                      Har du skrevet e-mailen forkert?{" "}
+                    <div className="grid gap-1 text-center text-sm text-[#2F2633]/64">
+                      <p>Har du skrevet e-mailen forkert?</p>
                       <Link
                         className="font-semibold text-[#7A4EAB] hover:text-[#D8A7B1]"
                         href={selectedEmail ? `/auth/login?email=${encodeURIComponent(selectedEmail)}` : "/auth/login"}
                       >
                         Prøv en anden e-mailadresse
                       </Link>
-                    </p>
+                    </div>
                   </div>
                 </section>
               </div>

@@ -277,7 +277,10 @@ export async function updatePasswordAction(formData: FormData) {
 }
 
 export async function signUpFacilitatorAction(formData: FormData) {
-  const fullName = getString(formData, "full_name");
+  const firstName = getString(formData, "first_name");
+  const lastName = getString(formData, "last_name");
+  const legacyFullName = getString(formData, "full_name");
+  const fullName = firstName && lastName ? `${firstName} ${lastName}` : legacyFullName;
   const email = getString(formData, "email").toLowerCase();
   const phone = getString(formData, "phone");
   const password = getString(formData, "password");
@@ -290,8 +293,8 @@ export async function signUpFacilitatorAction(formData: FormData) {
 
   const phoneDigits = phone.replace(/\D/g, "");
 
-  if (!fullName || !email || !password) {
-    authRedirect(signupPath, "Udfyld e-mail, adgangskode og dit rigtige navn for at oprette profilen.");
+  if ((!legacyFullName && (!firstName || !lastName)) || !email || !password) {
+    authRedirect(signupPath, "Udfyld e-mail, adgangskode, fornavn og efternavn for at oprette profilen.");
   }
 
   if (phone && (!/^[\d\s]+$/.test(phone) || phoneDigits.length !== 8)) {
@@ -322,7 +325,9 @@ export async function signUpFacilitatorAction(formData: FormData) {
     options: {
       emailRedirectTo: `${appUrl}/auth/callback`,
       data: {
+        first_name: firstName || undefined,
         full_name: fullName,
+        last_name: lastName || undefined,
         role: "facilitator",
       },
     },

@@ -5,7 +5,8 @@ import { signUpFacilitatorAction } from "@/app/auth/actions";
 
 type SignupFormValues = {
   email: string;
-  fullName: string;
+  firstName: string;
+  lastName: string;
   password: string;
   phone: string;
 };
@@ -19,7 +20,8 @@ type SignupFormProps = {
 const signupDraftKey = "soulevents:signup-form-draft:v1";
 const emptyValues: SignupFormValues = {
   email: "",
-  fullName: "",
+  firstName: "",
+  lastName: "",
   password: "",
   phone: "",
 };
@@ -27,7 +29,19 @@ const emptyValues: SignupFormValues = {
 function readStoredValues() {
   try {
     const rawValues = window.sessionStorage.getItem(signupDraftKey);
-    return rawValues ? ({ ...emptyValues, ...JSON.parse(rawValues) } as SignupFormValues) : emptyValues;
+    if (!rawValues) {
+      return emptyValues;
+    }
+
+    const parsedValues = JSON.parse(rawValues) as Partial<SignupFormValues> & { fullName?: string };
+
+    if ((!parsedValues.firstName || !parsedValues.lastName) && parsedValues.fullName) {
+      const nameParts = parsedValues.fullName.trim().split(/\s+/).filter(Boolean);
+      parsedValues.firstName = parsedValues.firstName || nameParts.shift() || "";
+      parsedValues.lastName = parsedValues.lastName || nameParts.join(" ");
+    }
+
+    return { ...emptyValues, ...parsedValues } as SignupFormValues;
   } catch {
     return emptyValues;
   }
@@ -113,19 +127,28 @@ export function SignupForm({ initialEmail = "", restoreValues = false, returnToE
             value={values.password}
           />
         </label>
-      </div>
 
-      <div className="grid gap-4">
         <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
-          Dit rigtige navn *
+          Fornavn *
           <input
-            autoComplete="name"
+            autoComplete="given-name"
             className="h-12 min-w-0 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
-            name="full_name"
-            onChange={(event) => updateValue("fullName", event.currentTarget.value)}
-            placeholder="Dit fulde navn"
+            name="first_name"
+            onChange={(event) => updateValue("firstName", event.currentTarget.value)}
             required
-            value={values.fullName}
+            value={values.firstName}
+          />
+        </label>
+
+        <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
+          Efternavn *
+          <input
+            autoComplete="family-name"
+            className="h-12 min-w-0 rounded-xl border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"
+            name="last_name"
+            onChange={(event) => updateValue("lastName", event.currentTarget.value)}
+            required
+            value={values.lastName}
           />
         </label>
 

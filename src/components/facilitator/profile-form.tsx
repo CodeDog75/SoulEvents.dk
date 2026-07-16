@@ -128,6 +128,8 @@ type SlotStatus = {
   status: "error" | "idle" | "saving" | "success";
 };
 
+const moodImageMaxFileSize = 4 * 1024 * 1024;
+
 const fallbackTreatmentForms: ServiceTitle[] = [
   { id: "healing", name: "Healing" },
   { id: "reiki", name: "Reiki" },
@@ -539,12 +541,14 @@ function UploadTile({
   createPreview = true,
   imageUrl,
   label,
+  onError,
   onSelect,
 }: {
   className?: string;
   createPreview?: boolean;
   imageUrl: string;
   label: string;
+  onError?: (message: string) => void;
   onSelect: (file: File, previewUrl: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -556,8 +560,9 @@ function UploadTile({
     try {
       const prepared = await prepareImageFileForUpload(file);
       onSelect(prepared, createPreview ? URL.createObjectURL(prepared) : "");
-    } catch {
+    } catch (error) {
       event.target.value = "";
+      onError?.(error instanceof Error ? error.message : "Billedet kunne ikke læses. Prøv et andet billede.");
     }
   }
 
@@ -744,6 +749,11 @@ export function ProfileForm({
   }
 
   function saveMoodImage(index: number, file: File) {
+    if (file.size > moodImageMaxFileSize) {
+      setMoodImageStatus(index, { message: "Billedet er for stort. Vælg et billede på højst 4 MB.", status: "error" });
+      return;
+    }
+
     setMoodImageStatus(index, { message: "Uploader og gemmer billedet...", status: "saving" });
     startImageTransition(async () => {
       try {
@@ -806,6 +816,7 @@ export function ProfileForm({
               createPreview={false}
               imageUrl={image.previewUrl}
               label={moodImageStatuses[index]?.status === "saving" ? "Gemmer billede..." : `Vælg stemningsbillede ${index + 1}`}
+              onError={(message) => setMoodImageStatus(index, { message, status: "error" })}
               onSelect={(file) => saveMoodImage(index, file)}
             />
             {image.path ? (

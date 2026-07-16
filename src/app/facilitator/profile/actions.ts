@@ -53,6 +53,8 @@ type ProfileAutosaveInput = {
   values: Record<string, boolean | string | string[] | null>;
 };
 
+const moodImageActionMaxFileSize = 4 * 1024 * 1024;
+
 function isEditableProfileSection(value: string | null | undefined): value is EditableProfileSection {
   return editableProfileSections.includes(value as EditableProfileSection);
 }
@@ -608,6 +610,27 @@ function imageActionSuccess(paths: string[]) {
   return { paths, status: "success" as const };
 }
 
+function imageLogContext(context: Record<string, boolean | number | string | null | undefined>) {
+  return Object.fromEntries(Object.entries(context).filter(([, value]) => value !== undefined));
+}
+
+function safeIdSuffix(value: string | null | undefined) {
+  return value ? `...${value.slice(-8)}` : null;
+}
+
+function logMoodImageError(
+  message: string,
+  context: Record<string, boolean | number | string | null | undefined>,
+  error?: { code?: string; message?: string } | null,
+) {
+  console.error("[facilitator-profile:mood-image]", imageLogContext({
+    ...context,
+    errorCode: error?.code,
+    errorMessage: error?.message,
+    message,
+  }));
+}
+
 async function uploadImageForAction(
   supabase: ReturnType<typeof createAdminClient>,
   file: FormDataEntryValue | null,
@@ -625,8 +648,8 @@ async function uploadImageForAction(
     return { error: "Du kan uploade JPG, PNG eller WebP.", path: null };
   }
 
-  if (file.size > 10 * 1024 * 1024) {
-    return { error: "Billedet må højst fylde 10 MB.", path: null };
+  if (file.size > moodImageActionMaxFileSize) {
+    return { error: "Billedet er for stort. Vælg et billede på højst 4 MB.", path: null };
   }
 
   const path = `${prefix}/${crypto.randomUUID()}.${extensionForUpload(file)}`;
@@ -647,8 +670,27 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
   const supabase = createAdminClient();
   const slotIndex = Number(formData.get("slot_index"));
   const shouldRemove = formData.get("remove") === "yes";
+  const imageFile = formData.get("image_file");
+  const fileContext =
+    imageFile instanceof File
+      ? {
+          fileSize: imageFile.size,
+          mimeType: imageFile.type || "unknown",
+        }
+      : {
+          fileSize: null,
+          mimeType: null,
+        };
+  const baseLogContext = {
+    action: "saveFacilitatorMoodImageAction",
+    profileId: safeIdSuffix(profile.id),
+    shouldRemove,
+    slotIndex: Number.isFinite(slotIndex) ? slotIndex : null,
+    ...fileContext,
+  };
 
   if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex > 2) {
+    logMoodImageError("Invalid mood image slot", baseLogContext);
     return imageActionError("Billedpladsen kunne ikke genkendes. Prøv igen.");
   }
 
@@ -659,11 +701,17 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
     .single();
 
   if (profileError || !facilitatorProfile) {
+    logMoodImageError("Facilitator profile lookup failed", baseLogContext, profileError);
     return imageActionError("Arrangørprofilen kunne ikke hentes.");
   }
 
   let uploadedPath: string | null = null;
   const sortOrder = slotIndex + 1;
+  const logContext = {
+    ...baseLogContext,
+    facilitatorId: safeIdSuffix(facilitatorProfile.id),
+    sortOrder,
+  };
 
   if (shouldRemove) {
     const { error: deleteSlotError } = await supabase
@@ -673,44 +721,66 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
       .eq("sort_order", sortOrder);
 
     if (deleteSlotError) {
+      logMoodImageError("Mood image delete failed", logContext, deleteSlotError);
       return imageActionError("Billedet kunne ikke fjernes.");
     }
   } else {
     const upload = await uploadImageForAction(
       supabase,
-      formData.get("image_file"),
+      imageFile,
       `hosts/${profile.id}/gallery/${slotIndex + 1}`,
     );
 
     if (upload.error || !upload.path) {
+      logMoodImageError(upload.error ?? "Mood image upload failed", logContext);
       return imageActionError(upload.error ?? "Billedet kunne ikke uploades.");
     }
 
     uploadedPath = upload.path;
 
-    const { error: insertError } = await supabase
+    const { data: existingSlot, error: existingSlotError } = await supabase
       .from("facilitator_images")
-      .insert({
-        facilitator_id: facilitatorProfile.id,
-        image_path: upload.path,
-        alt_text: null,
-        sort_order: sortOrder,
-      });
+      .select("id, image_path")
+      .eq("facilitator_id", facilitatorProfile.id)
+      .eq("sort_order", sortOrder)
+      .maybeSingle();
 
-    if (insertError) {
+    if (existingSlotError) {
       await supabase.storage.from("media").remove([uploadedPath]);
+      logMoodImageError("Existing mood image slot lookup failed", { ...logContext, uploadedPath }, existingSlotError);
       return imageActionError("Billedgalleriet kunne ikke gemmes.");
     }
 
-    const { error: deleteOldSlotError } = await supabase
-      .from("facilitator_images")
-      .delete()
-      .eq("facilitator_id", facilitatorProfile.id)
-      .eq("sort_order", sortOrder)
-      .neq("image_path", upload.path);
+    const { error: saveImageError } = existingSlot
+      ? await supabase
+          .from("facilitator_images")
+          .update({
+            image_path: upload.path,
+            alt_text: null,
+            sort_order: sortOrder,
+          })
+          .eq("id", existingSlot.id)
+      : await supabase
+          .from("facilitator_images")
+          .insert({
+            facilitator_id: facilitatorProfile.id,
+            image_path: upload.path,
+            alt_text: null,
+            sort_order: sortOrder,
+          });
 
-    if (deleteOldSlotError) {
-      return imageActionError("Billedet blev uploadet, men det gamle billede kunne ikke ryddes op. Genindlæs siden og prøv igen.");
+    if (saveImageError) {
+      await supabase.storage.from("media").remove([uploadedPath]);
+      logMoodImageError("Mood image database save failed", { ...logContext, uploadedPath, existingImage: Boolean(existingSlot) }, saveImageError);
+      return imageActionError("Billedgalleriet kunne ikke gemmes.");
+    }
+
+    if (existingSlot?.image_path && existingSlot.image_path !== uploadedPath) {
+      const { error: removeOldFileError } = await supabase.storage.from("media").remove([existingSlot.image_path]);
+
+      if (removeOldFileError) {
+        logMoodImageError("Old mood image storage cleanup failed", { ...logContext, oldPath: existingSlot.image_path, uploadedPath }, removeOldFileError);
+      }
     }
   }
 
@@ -721,6 +791,7 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
     .order("sort_order");
 
   if (updatedRowsError) {
+    logMoodImageError("Mood image rows reload failed", logContext, updatedRowsError);
     return imageActionError("Billedgalleriet blev gemt, men kunne ikke hentes igen. Genindlæs siden.");
   }
 
