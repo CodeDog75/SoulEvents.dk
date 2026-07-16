@@ -5,7 +5,6 @@ import { BrandLogo } from "@/components/brand-logo";
 import { ClearSignupDraft, SignupForm } from "@/components/auth/signup-form";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { createPageMetadata } from "@/lib/open-graph";
-import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = createPageMetadata({
   title: "Opret arrangørprofil | SoulEvents.dk",
@@ -28,12 +27,6 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
   const existingAccountMessage = message?.toLowerCase().includes("der findes allerede en konto") ?? false;
   const rateLimitMessage = message?.toLowerCase().includes("for mange mails") ?? false;
   const shouldRestoreFormValues = Boolean(message) && !accountCreated && !message?.toLowerCase().includes("oprettet");
-  const supabase = await createClient();
-  const { data: legalDocuments } = await supabase
-    .from("legal_documents")
-    .select("title, slug, body")
-    .in("slug", ["handelsbetingelser", "privatlivspolitik", "platformens-retningslinjer"])
-    .eq("is_published", true);
 
   return (
     <main className="min-h-screen bg-[#FAF6EF] px-4 py-8 text-[#2F2633] sm:py-12">
@@ -171,7 +164,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
                 </div>
               )}
 
-              <SignupForm documents={legalDocuments ?? []} restoreValues={shouldRestoreFormValues} />
+              <SignupForm restoreValues={shouldRestoreFormValues} />
             </>
           )}
 

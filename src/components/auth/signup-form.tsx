@@ -2,16 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { signUpFacilitatorAction } from "@/app/auth/actions";
-import { LegalConsentLinks } from "@/components/auth/legal-consent-links";
-
-type LegalDocument = {
-  body: string;
-  slug: string;
-  title: string;
-};
 
 type SignupFormValues = {
-  acceptedTerms: boolean;
   email: string;
   fullName: string;
   password: string;
@@ -19,7 +11,6 @@ type SignupFormValues = {
 };
 
 type SignupFormProps = {
-  documents: LegalDocument[];
   initialEmail?: string;
   restoreValues?: boolean;
   returnToEmailFirstLogin?: boolean;
@@ -27,7 +18,6 @@ type SignupFormProps = {
 
 const signupDraftKey = "soulevents:signup-form-draft:v1";
 const emptyValues: SignupFormValues = {
-  acceptedTerms: false,
   email: "",
   fullName: "",
   password: "",
@@ -47,7 +37,7 @@ function normalizePhone(value: string) {
   return value.replace(/\D/g, "").slice(0, 8);
 }
 
-export function SignupForm({ documents, initialEmail = "", restoreValues = false, returnToEmailFirstLogin = false }: SignupFormProps) {
+export function SignupForm({ initialEmail = "", restoreValues = false, returnToEmailFirstLogin = false }: SignupFormProps) {
   const [values, setValues] = useState<SignupFormValues>({ ...emptyValues, email: initialEmail });
   const [successTarget, setSuccessTarget] = useState("login");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -170,20 +160,6 @@ export function SignupForm({ documents, initialEmail = "", restoreValues = false
           />
         </label>
       </div>
-
-      <label className="flex items-start gap-3 rounded-[1.25rem] bg-[#EDE4F7]/65 p-4 text-sm leading-6 text-[#2F2633]/72">
-        <input
-          checked={values.acceptedTerms}
-          className="mt-1 size-4 accent-[#7A4EAB]"
-          name="accepted_terms"
-          onChange={(event) => updateValue("acceptedTerms", event.currentTarget.checked)}
-          required
-          type="checkbox"
-        />
-        <span>
-          <LegalConsentLinks documents={documents} />
-        </span>
-      </label>
 
       <button
         aria-disabled={isSubmitting}

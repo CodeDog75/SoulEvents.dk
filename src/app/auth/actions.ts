@@ -93,7 +93,7 @@ export async function continueWithEmailAction(formData: FormData) {
   );
 
   const existingUser = await getAuthUserByEmail(email);
-  const step = existingUser ? "password" : "signup";
+  const step = existingUser ? "password" : "new";
 
   redirect(`/auth/login?step=${step}&email=${encodeURIComponent(email)}`);
 }
@@ -283,7 +283,6 @@ export async function signUpFacilitatorAction(formData: FormData) {
   const password = getString(formData, "password");
   const successTarget = getString(formData, "success_target");
   const authReturnPath = getString(formData, "auth_return_path");
-  const acceptedTerms = formData.get("accepted_terms") === "on";
   const signupPath =
     authReturnPath === "email-first" && email
       ? `/auth/login?step=signup&email=${encodeURIComponent(email)}`
@@ -301,10 +300,6 @@ export async function signUpFacilitatorAction(formData: FormData) {
 
   if (password.length < 8) {
     authRedirect(signupPath, "Adgangskoden skal være mindst 8 tegn.");
-  }
-
-  if (!acceptedTerms) {
-    authRedirect(signupPath, "Du skal acceptere betingelserne for at fortsætte.");
   }
 
   await enforceAuthRateLimit("auth:signup", signupPath);
@@ -360,8 +355,6 @@ export async function signUpFacilitatorAction(formData: FormData) {
   }
 
   const admin = createAdminClient();
-  const now = new Date().toISOString();
-
   const { error: profileError } = await admin.from("profiles").upsert(
     {
       id: user.id,
@@ -382,9 +375,6 @@ export async function signUpFacilitatorAction(formData: FormData) {
       profile_id: user.id,
       status: "pending",
       company_name: null,
-      accepted_terms_at: now,
-      accepted_privacy_at: now,
-      accepted_guidelines_at: now,
     },
     { onConflict: "profile_id" },
   );

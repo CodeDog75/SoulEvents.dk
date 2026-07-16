@@ -6,7 +6,6 @@ import { SignupForm } from "@/components/auth/signup-form";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { BrandLogo } from "@/components/brand-logo";
 import { createPageMetadata } from "@/lib/open-graph";
-import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = createPageMetadata({
   title: "Log ind | SoulEvents.dk",
@@ -31,7 +30,7 @@ function normalizeEmail(value?: string) {
 }
 
 function authStep(value?: string) {
-  if (value === "password" || value === "signup") {
+  if (value === "new" || value === "password" || value === "signup") {
     return value;
   }
 
@@ -50,7 +49,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const title =
     currentStep === "password"
       ? "Velkommen tilbage"
-      : currentStep === "signup"
+      : currentStep === "new"
+        ? "Vi kunne ikke finde en konto med denne e-mail"
+        : currentStep === "signup"
         ? "Lad os oprette din arrangørkonto"
         : loginRole === "admin"
           ? "Admin-login"
@@ -58,19 +59,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const description =
     currentStep === "password"
       ? "Skriv din adgangskode for at fortsætte."
-      : currentStep === "signup"
-        ? "E-mailen ser ny ud hos SoulEvents. Opret en gratis arrangørkonto og kom videre til din profil."
+      : currentStep === "new"
+        ? "Det ser ud til, at du er ny hos SoulEvents."
+        : currentStep === "signup"
+        ? "Opret din konto. Bagefter hjælper vi dig roligt videre til din arrangørprofil."
         : loginRole === "admin"
           ? "Start med din e-mailadresse. Hvis kontoen findes, går du videre til login."
           : "Start med din e-mailadresse. Så finder vi den rigtige vej for dig.";
-  const supabase = currentStep === "signup" ? await createClient() : null;
-  const { data: legalDocuments } = supabase
-    ? await supabase
-        .from("legal_documents")
-        .select("title, slug, body")
-        .in("slug", ["handelsbetingelser", "privatlivspolitik", "platformens-retningslinjer"])
-        .eq("is_published", true)
-    : { data: null };
 
   return (
     <main className="min-h-screen bg-[#F4EEF8] px-4 py-6 text-[#2F2633] sm:py-10 lg:grid lg:place-items-center">
@@ -212,32 +207,52 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               </>
             ) : null}
 
-            {currentStep === "signup" ? (
+            {currentStep === "new" ? (
               <div className="mt-7 space-y-6">
                 <section className="rounded-[1.5rem] border border-[#A8BFA3]/30 bg-[#F2F8EF] p-5 shadow-soft">
                   <h2 className="text-lg font-semibold leading-snug text-[#2F2633]">
                     Vi kunne ikke finde en konto med denne e-mail.
                   </h2>
                   <p className="mt-3 text-sm leading-6 text-[#2F2633]/70">
-                    Det ser ud til, at du er ny hos SoulEvents. Hvis du ønsker at oprette en arrangørprofil, kan du gøre det her. Det er gratis og tager kun et par minutter.
+                    Det ser ud til, at du er ny hos SoulEvents.
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-[#2F2633]/70">
+                    Hvis du ønsker at blive arrangør, kan du oprette en gratis konto og derefter opbygge din profil.
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-[#2F2633]/70">
+                    Det tager kun et par minutter.
                   </p>
                   <div className="mt-4 rounded-2xl border border-[#7A4EAB]/12 bg-white/75 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#4B5645]/70">E-mail</p>
                     <p className="mt-1 break-all text-sm font-semibold text-[#2F2633]">{selectedEmail}</p>
                   </div>
-                  <p className="mt-4 text-sm text-[#2F2633]/64">
-                    Har du skrevet forkert?{" "}
+                  <div className="mt-5 grid gap-4">
                     <Link
-                      className="font-semibold text-[#7A4EAB] hover:text-[#D8A7B1]"
-                      href={selectedEmail ? `/auth/login?email=${encodeURIComponent(selectedEmail)}` : "/auth/login"}
+                      className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6A4199] hover:shadow-lift"
+                      href={`/auth/login?step=signup&email=${encodeURIComponent(selectedEmail)}`}
                     >
-                      Brug en anden e-mail
+                      Fortsæt og opret arrangørprofil
                     </Link>
-                  </p>
+                    <p className="text-center text-sm text-[#2F2633]/64">
+                      Har du skrevet e-mailen forkert?{" "}
+                      <Link
+                        className="font-semibold text-[#7A4EAB] hover:text-[#D8A7B1]"
+                        href={selectedEmail ? `/auth/login?email=${encodeURIComponent(selectedEmail)}` : "/auth/login"}
+                      >
+                        Prøv en anden e-mailadresse
+                      </Link>
+                    </p>
+                  </div>
                 </section>
+              </div>
+            ) : null}
 
+            {currentStep === "signup" ? (
+              <div className="mt-7">
+                <p className="mb-5 rounded-[1.25rem] border border-[#A8BFA3]/25 bg-[#F2F8EF] p-4 text-sm leading-6 text-[#2F2633]/70">
+                  Vi bruger e-mailen nedenfor til din konto. Juridisk accept kommer først, når din profil er klar til at blive sendt til godkendelse.
+                </p>
                 <SignupForm
-                  documents={legalDocuments ?? []}
                   initialEmail={selectedEmail}
                   returnToEmailFirstLogin
                 />
