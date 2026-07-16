@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { type ChangeEvent, useEffect, useRef, useState, useTransition } from "react";
+import { type ChangeEvent, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { saveFacilitatorMoodImageAction } from "@/app/facilitator/profile/actions";
 import { imageUploadAccept, prepareImageFileForUpload } from "@/lib/images/client-image-upload";
 
@@ -465,9 +465,11 @@ function OnboardingShell({
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === steps.length - 1;
   const shellRef = useRef<HTMLDivElement | null>(null);
+  const contentScrollRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    shellRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  useLayoutEffect(() => {
+    shellRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    contentScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, [currentIndex]);
 
   return (
@@ -489,7 +491,7 @@ function OnboardingShell({
         </div>
 
         <div className="grid min-h-[calc(100svh-3rem)] content-between gap-8 lg:h-full lg:min-h-0 lg:grid-rows-[minmax(0,1fr)_auto] lg:gap-5 lg:overflow-hidden lg:px-6 lg:py-6 xl:px-8 xl:py-7">
-          <div className="grid gap-8 lg:min-h-0 lg:gap-5 lg:overflow-y-auto lg:pr-1">
+          <div className="grid gap-8 lg:min-h-0 lg:gap-5 lg:overflow-y-auto lg:pr-1" ref={contentScrollRef}>
             <div className="min-h-8">
               {isFirst ? (
                 <Link className="text-sm font-semibold text-ink/55 underline-offset-4 hover:text-sage-700 hover:underline" href={backHref}>
