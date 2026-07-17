@@ -5,7 +5,9 @@ import { AuthMessage } from "@/components/auth/auth-message";
 import { SignupForm } from "@/components/auth/signup-form";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { OnboardingIntro, OnboardingShell } from "@/components/onboarding/onboarding-shell";
+import { getBrandLogoSources, type LogoSettingClient } from "@/lib/brand-logo";
 import { createPageMetadata } from "@/lib/open-graph";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = createPageMetadata({
   title: "Log ind | SoulEvents.dk",
@@ -38,7 +40,8 @@ function authStep(value?: string) {
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const { confirmation, email, message, role, step } = await searchParams;
+  const [{ confirmation, email, message, role, step }, supabase] = await Promise.all([searchParams, createClient()]);
+  const logoSources = await getBrandLogoSources(supabase as unknown as LogoSettingClient);
   const currentStep = authStep(step);
   const selectedEmail = normalizeEmail(email);
   const loginRole = role === "admin" ? "admin" : role === "facilitator" ? "facilitator" : null;
@@ -72,7 +75,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       backLink={{ href: "/", label: "Tilbage til forsiden" }}
       mode="auth"
       scrollKey={currentStep}
-      visualPanel={{ text: "En rolig vej ind til din profil, dine begivenheder og dit fællesskab." }}
+      visualPanel={{
+        logoSources,
+        text: "En rolig vej ind til din profil, dine begivenheder og dit fællesskab.",
+      }}
     >
       <div className="mx-auto w-full max-w-md">
         <OnboardingIntro

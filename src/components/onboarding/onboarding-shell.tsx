@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { type ReactNode, useLayoutEffect, useRef } from "react";
+import type { BrandLogoSources } from "@/lib/brand-logo";
 
 type OnboardingMode = "auth" | "confirmation" | "password" | "profile" | "success" | "welcome";
 
@@ -12,6 +13,7 @@ type VisualPanel = {
   imageSrc?: string;
   kicker?: string;
   logoHref?: string;
+  logoSources?: BrandLogoSources;
   text?: string;
 };
 
@@ -39,6 +41,11 @@ const defaultVisualPanel: Required<Pick<VisualPanel, "imageSrc" | "kicker" | "lo
   text: "En rolig vej ind til din profil, dine begivenheder og dit fællesskab.",
 };
 
+const fallbackLogoSources: BrandLogoSources = {
+  desktop: "/brand/soulevents-logo.png",
+  mobile: "/brand/soulevents-logo.png",
+};
+
 export function OnboardingShell({
   backLink,
   backNavigation,
@@ -53,6 +60,7 @@ export function OnboardingShell({
   const shellRef = useRef<HTMLDivElement | null>(null);
   const contentScrollRef = useRef<HTMLDivElement | null>(null);
   const panel = { ...defaultVisualPanel, ...visualPanel };
+  const logoSources = visualPanel?.logoSources ?? fallbackLogoSources;
 
   useLayoutEffect(() => {
     shellRef.current?.scrollTo({ top: 0, behavior: "auto" });
@@ -71,7 +79,7 @@ export function OnboardingShell({
           (showVisualPanel ? "lg:max-w-[1040px] lg:grid-cols-[42%_58%] xl:max-w-[1120px]" : "lg:max-w-[640px]")
         }
       >
-        {showVisualPanel ? <OnboardingVisualPanel panel={panel} /> : null}
+        {showVisualPanel ? <OnboardingVisualPanel logoSources={logoSources} panel={panel} /> : null}
 
         <div className="grid min-h-[calc(100svh-3rem)] content-between gap-8 lg:h-full lg:min-h-0 lg:grid-rows-[minmax(0,1fr)_auto] lg:gap-5 lg:overflow-hidden lg:px-6 lg:py-6 xl:px-8 xl:py-7">
           <div className="grid gap-8 lg:min-h-0 lg:gap-5 lg:overflow-y-auto lg:pr-1" ref={contentScrollRef}>
@@ -97,7 +105,38 @@ export function OnboardingShell({
   );
 }
 
-function OnboardingVisualPanel({ panel }: { panel: Required<Pick<VisualPanel, "imageSrc" | "kicker" | "logoHref" | "text">> & VisualPanel }) {
+function isSvgLogoSrc(src: string) {
+  return src.split("?")[0]?.toLowerCase().endsWith(".svg") ?? false;
+}
+
+function OnboardingLogo({
+  className,
+  priority,
+  src,
+  tone = "default",
+}: {
+  className: string;
+  priority?: boolean;
+  src: string;
+  tone?: "default" | "inverse";
+}) {
+  const toneClassName = tone === "inverse" ? " brightness-0 invert drop-shadow-[0_8px_24px_rgba(0,0,0,0.28)]" : "";
+
+  if (isSvgLogoSrc(src)) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img alt="SoulEvents.dk" className={className + " object-contain" + toneClassName} height={240} src={src} width={520} />;
+  }
+
+  return <Image alt="SoulEvents.dk" className={className + " object-contain" + toneClassName} height={240} priority={priority} src={src} width={520} />;
+}
+
+function OnboardingVisualPanel({
+  logoSources,
+  panel,
+}: {
+  logoSources: BrandLogoSources;
+  panel: Required<Pick<VisualPanel, "imageSrc" | "kicker" | "logoHref" | "text">> & VisualPanel;
+}) {
   return (
     <aside className="relative hidden h-full overflow-hidden bg-sage-700 lg:block" aria-hidden="true">
       <Image
@@ -110,15 +149,8 @@ function OnboardingVisualPanel({ panel }: { panel: Required<Pick<VisualPanel, "i
       />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(47,36,55,0.18),rgba(47,36,55,0.38)),linear-gradient(90deg,rgba(151,161,132,0.16),rgba(231,221,231,0.12))]" />
       <div className="relative flex h-full flex-col justify-between p-10 text-white">
-        <Link aria-label="SoulEvents forside" className="inline-flex w-fit" href={panel.logoHref}>
-          <Image
-            alt="SoulEvents.dk"
-            className="h-28 w-28 object-contain brightness-0 invert"
-            height={112}
-            priority
-            src="/brand/soulevents-logo.png"
-            width={112}
-          />
+        <Link aria-label="SoulEvents forside" className="mt-5 inline-flex w-fit" href={panel.logoHref}>
+          <OnboardingLogo className="h-auto w-[143px] max-w-[min(165px,21vw)]" priority src={logoSources.desktop} tone="inverse" />
         </Link>
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-white/70">{panel.kicker}</p>

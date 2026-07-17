@@ -40,6 +40,7 @@ import {
 } from "@/app/facilitator/profile/actions";
 import { imageUploadAccept, prepareImageFileForUpload } from "@/lib/images/client-image-upload";
 import { OnboardingShell as SharedOnboardingShell } from "@/components/onboarding/onboarding-shell";
+import type { BrandLogoSources } from "@/lib/brand-logo";
 
 type Region = {
   id: string;
@@ -96,6 +97,7 @@ type ProfileFormProps = {
   backLabel?: string;
   errorSection?: string | null;
   feedbackMessage?: string | null;
+  logoSources?: BrandLogoSources;
   profile: {
     full_name: string;
     email: string;
@@ -462,6 +464,7 @@ function OnboardingShell({
   hideBackNavigation = false,
   hidePrimaryAction = false,
   isBusy,
+  logoSources,
   onBack,
   onContinue,
   presentationMode = "editing",
@@ -479,6 +482,7 @@ function OnboardingShell({
   hideBackNavigation?: boolean;
   hidePrimaryAction?: boolean;
   isBusy: boolean;
+  logoSources?: BrandLogoSources;
   onBack: () => void;
   onContinue: () => void;
   presentationMode?: "admin" | "editing" | "onboarding";
@@ -530,7 +534,10 @@ function OnboardingShell({
         }
         mode="profile"
         scrollKey={currentIndex}
-        visualPanel={{ text: "En rolig vej ind til din profil, dine begivenheder og dit fællesskab." }}
+        visualPanel={{
+          logoSources,
+          text: "En rolig vej ind til din profil, dine begivenheder og dit fællesskab.",
+        }}
       >
         {children}
       </SharedOnboardingShell>
@@ -668,6 +675,19 @@ function MissingCard({ children, onClick }: { children: React.ReactNode; onClick
   );
 }
 
+function isSvgSrc(src: string) {
+  return src.split("?")[0]?.toLowerCase().endsWith(".svg") ?? false;
+}
+
+function InlineBrandLogo({ className, src }: { className: string; src: string }) {
+  if (isSvgSrc(src)) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img alt="SoulEvents" className={className + " object-contain"} height={240} src={src} width={520} />;
+  }
+
+  return <Image alt="SoulEvents" className={className + " object-contain"} height={240} src={src} width={520} />;
+}
+
 export function ProfileForm({
   autosaveEnabled = true,
   backHref = "/facilitator",
@@ -679,6 +699,7 @@ export function ProfileForm({
   categories,
   selectedCategoryIds,
   galleryImages,
+  logoSources,
   serviceTitles,
   selectedServiceTitleIds,
 }: ProfileFormProps) {
@@ -728,6 +749,7 @@ export function ProfileForm({
   const [stepSaveStatus, setStepSaveStatus] = useState<SlotStatus>({ message: "", status: "idle" });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const currentStep = activeSteps[stepIndex] ?? activeSteps[0] ?? steps[0];
+  const activeDesktopLogoSrc = logoSources?.desktop ?? "/brand/soulevents-logo.png";
   const displayedStep =
     presentationMode !== "onboarding" && currentStep.id === "review"
       ? {
@@ -1127,13 +1149,14 @@ export function ProfileForm({
       hideBackNavigation={presentationMode === "onboarding" && currentStep.id === "complete"}
       hidePrimaryAction={presentationMode === "onboarding" && currentStep.id === "complete"}
       isBusy={isBusy}
+      logoSources={logoSources}
       onBack={goBack}
       onContinue={continueFlow}
       presentationMode={presentationMode}
     >
       {currentStep.id === "welcome" ? (
         <div className="mb-6 flex justify-center">
-          <img alt="SoulEvents" className="h-20 w-auto object-contain" src="/brand/soulevents-logo.png" />
+          <InlineBrandLogo className="h-20 w-auto" src={activeDesktopLogoSrc} />
         </div>
       ) : null}
 
@@ -1501,7 +1524,7 @@ export function ProfileForm({
               </div>
               <div className="grid min-h-[220px] grid-rows-[1fr_auto] justify-items-center gap-3 rounded-[24px] bg-white p-4 text-center shadow-soft">
                 <div className="grid aspect-square w-full max-w-[150px] place-items-center rounded-[24px] bg-sage-50 p-4">
-                  <img alt="SoulEvents" className="h-full w-full object-contain" src="/brand/soulevents-logo.png" />
+                  <InlineBrandLogo className="h-full w-full" src={activeDesktopLogoSrc} />
                 </div>
                 <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-midnight">SoulEvents</p>
               </div>

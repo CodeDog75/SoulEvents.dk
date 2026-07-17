@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { getBrandLogoSettingValues, isSvgLogoUrl, resolveBrandLogoUrl, type LogoSettingClient } from "@/lib/brand-logo";
+import { getBrandLogoSources, isSvgLogoUrl, resolveBrandLogoUrl, type BrandLogoSources, type LogoSettingClient } from "@/lib/brand-logo";
 import { createClient } from "@/lib/supabase/server";
 
 type BrandLogoProps = {
@@ -7,20 +7,10 @@ type BrandLogoProps = {
   priority?: boolean;
 };
 
-type LogoSources = {
-  desktop: string;
-  mobile: string;
-};
-
-async function getLogoSrc(): Promise<LogoSources> {
+async function getLogoSrc(): Promise<BrandLogoSources> {
   try {
     const supabase = await createClient();
-    const { desktop, mobile } = await getBrandLogoSettingValues(supabase as unknown as LogoSettingClient);
-    const desktopSrc = resolveBrandLogoUrl(desktop);
-    return {
-      desktop: desktopSrc,
-      mobile: mobile ? resolveBrandLogoUrl(mobile) : desktopSrc,
-    };
+    return getBrandLogoSources(supabase as unknown as LogoSettingClient);
   } catch {
     const fallbackSrc = resolveBrandLogoUrl(null);
     return { desktop: fallbackSrc, mobile: fallbackSrc };

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Images, Leaf, Tags } from "lucide-react";
 import { OnboardingIntro, OnboardingShell } from "@/components/onboarding/onboarding-shell";
 import { createPageMetadata } from "@/lib/open-graph";
+import { getBrandLogoSources, type LogoSettingClient } from "@/lib/brand-logo";
 import { getDashboardPath, requireProfile } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -41,6 +42,7 @@ export default async function FacilitatorWelcomePage() {
   }
 
   const supabase = await createClient();
+  const logoSources = await getBrandLogoSources(supabase as unknown as LogoSettingClient);
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
     .select("company_name, short_description, postal_code, city, facilitator_categories(category_id)")
@@ -81,7 +83,10 @@ export default async function FacilitatorWelcomePage() {
       }
       mode="welcome"
       scrollKey="facilitator-welcome"
-      visualPanel={{ text: "En varm begyndelse på en profil, mennesker kan mærke." }}
+      visualPanel={{
+        logoSources,
+        text: "En varm begyndelse på en profil, mennesker kan mærke.",
+      }}
     >
       <OnboardingIntro
         eyebrow="Arrangørprofil"

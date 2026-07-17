@@ -5,6 +5,7 @@ import { AuthMessage } from "@/components/auth/auth-message";
 import { ProfileForm } from "@/components/facilitator/profile-form";
 import { SecurityPasswordForm } from "@/components/facilitator/security-password-form";
 import { requireProfile } from "@/lib/auth/roles";
+import { getBrandLogoSources, type LogoSettingClient } from "@/lib/brand-logo";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -53,6 +54,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     { data: serviceRows },
     { count: publishedEventCount },
     { data: authUserData, error: authUserError },
+    logoSources,
   ] = await Promise.all([
     supabase.from("facilitator_profiles").select("*").eq("profile_id", profile.id).single(),
     supabase.from("regions").select("id, name, slug").order("sort_order"),
@@ -74,6 +76,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
       .eq("facilitator_profiles.profile_id", profile.id)
       .in("status", ["active", "sold_out", "completed", "cancelled"]),
     admin.auth.admin.getUserById(profile.id),
+    getBrandLogoSources(supabase as unknown as LogoSettingClient),
   ]);
 
   const selectedCategoryIds =
@@ -188,6 +191,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
           facilitatorProfile={facilitatorProfile}
           feedbackMessage={message ?? null}
           galleryImages={galleryImages}
+          logoSources={logoSources}
           presentationMode={presentationMode}
           profile={profile}
           regions={regions ?? []}

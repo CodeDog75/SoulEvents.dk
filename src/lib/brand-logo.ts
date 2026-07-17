@@ -18,6 +18,11 @@ export type LogoSettingClient = {
   };
 };
 
+export type BrandLogoSources = {
+  desktop: string;
+  mobile: string;
+};
+
 function appBaseUrl() {
   const baseUrl = (env.appUrl || "https://www.soulevents.dk").replace(/\/$/, "");
 
@@ -88,6 +93,16 @@ export async function getBrandLogoSettingValues(supabase: LogoSettingClient) {
   const desktop = desktopResult.data?.value ?? null;
   const mobile = mobileResult.data?.value ?? null;
   return { desktop, mobile };
+}
+
+export async function getBrandLogoSources(supabase: LogoSettingClient): Promise<BrandLogoSources> {
+  const { desktop, mobile } = await getBrandLogoSettingValues(supabase);
+  const desktopSrc = resolveBrandLogoUrl(desktop);
+
+  return {
+    desktop: desktopSrc,
+    mobile: mobile ? resolveBrandLogoUrl(mobile) : desktopSrc,
+  };
 }
 
 export async function getEmailBrandLogoUrl() {
