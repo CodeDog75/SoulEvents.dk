@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, CircleUserRound, ExternalLink, Mail, MapPinned, Phone, Ticket } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { OrganizerBadges } from "@/components/badges/organizer-badges";
@@ -9,7 +9,9 @@ import { BookingForm } from "@/components/events/detail/booking-form";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
-import { createPageMetadata, publicMediaUrl, stripHtml } from "@/lib/open-graph";
+import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
+import { buildEventJsonLd, buildEventMetadata } from "@/lib/seo/public-page-metadata";
+import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,7 +19,8 @@ export const dynamic = "force-dynamic";
 
 type EventDetailPageProps = {
   params: Promise<{
-    id: string;
+    id?: string;
+    slug?: string;
   }>;
   searchParams: Promise<{ admin_return?: string; booking?: string; message?: string }>;
 };
@@ -26,34 +29,104 @@ function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function eventIdentifier(params: { id?: string; slug?: string }) {
+  return params.slug ?? params.id ?? "";
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function withSearch(path: string, searchParams: Record<string, string | undefined>) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (value) params.set(key, value);
+  }
+  const query = params.toString();
+  return query ? path + "?" + query : path;
+}
+
+function splitSpecialties(input: string | null | undefined) {
+  return (input ?? "")
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
 export async function generateMetadata({ params }: EventDetailPageProps): Promise<Metadata> {
-  const { id } = await params;
+  const identifier = eventIdentifier(await params);
   const supabase = await createClient();
-  const { data: event } = await supabase
+  let { data: event } = await supabase
     .from("events")
     .select(
       `
       id,
+      slug,
       status,
       title,
       short_description,
       long_description,
       starts_at,
       ends_at,
+      city,
+      event_format,
       cover_image_path,
       facilitator_profiles!inner(
         status,
         is_paused,
         is_disabled,
         company_name,
+        specialties,
+        facilitator_categories(categories(name, slug)),
         profiles!facilitator_profiles_profile_id_fkey(full_name)
       ),
+      regions(name),
+      event_categories(categories(name, color_hex)),
       event_main_categories(main_categories(name, image_path)),
+      event_tags(tags(name)),
       event_images(image_path, sort_order)
     `,
     )
-    .eq("id", id)
+    .eq("slug", identifier)
     .maybeSingle();
+
+  if (!event && isUuid(identifier)) {
+    const fallbackResult = await supabase
+      .from("events")
+      .select(
+        `
+        id,
+        slug,
+        status,
+        title,
+        short_description,
+        long_description,
+        starts_at,
+        ends_at,
+        city,
+        event_format,
+        cover_image_path,
+        facilitator_profiles!inner(
+          status,
+          is_paused,
+          is_disabled,
+          company_name,
+          specialties,
+          facilitator_categories(categories(name, slug)),
+          profiles!facilitator_profiles_profile_id_fkey(full_name)
+        ),
+        regions(name),
+        event_categories(categories(name, color_hex)),
+        event_main_categories(main_categories(name, image_path)),
+        event_tags(tags(name)),
+        event_images(image_path, sort_order)
+      `,
+      )
+      .eq("id", identifier)
+      .maybeSingle();
+    event = fallbackResult.data;
+  }
 
   const facilitator = first((event as any)?.facilitator_profiles);
   const isPublishedEvent = event ? ["active", "sold_out"].includes(event.status) : false;
@@ -66,11 +139,14 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
     !facilitator?.is_disabled;
 
   if (!event || !isPublicEvent) {
-    return createPageMetadata({
-      title: "Event | SoulEvents.dk",
-      description: "Find nærværende events på SoulEvents.dk.",
-      path: "/events/" + id,
-    });
+    return {
+      ...createPageMetadata({
+        title: "Event | SoulEvents.dk",
+        description: "Find nærværende events på SoulEvents.dk.",
+        path: publicEventPath(identifier || "event"),
+      }),
+      robots: { index: false, follow: false },
+    };
   }
 
   const images = [...(((event as any).event_images ?? []) as Array<{ image_path: string | null; sort_order: number | null }>)]
@@ -84,15 +160,43 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
   const imageUrl = eventImagePath ? publicMediaUrl(supabase, eventImagePath) : null;
   const facilitatorUser = first(facilitator?.profiles);
   const facilitatorName = facilitator?.company_name || facilitatorUser?.full_name || "SoulEvents";
-  const description = stripHtml(event.short_description || event.long_description) || "Se eventet og arrangøren på SoulEvents.dk.";
+  const categories = [
+    ...(((event as any).event_main_categories ?? [])
+      .map((row: any) => first(row.main_categories)?.name)
+      .filter(Boolean) as string[]),
+    ...(((event as any).event_categories ?? [])
+      .map((row: any) => first(row.categories)?.name)
+      .filter(Boolean) as string[]),
+  ];
+  const tags =
+    ((event as any).event_tags ?? [])
+      .map((row: any) => first(row.tags)?.name)
+      .filter(Boolean) ?? [];
+  const organizerCategories =
+    facilitator?.facilitator_categories
+      ?.map((row: any) => first(row.categories))
+      .filter((category: any) => category?.slug)
+      .map((category: any) => category.name) ?? [];
+  const metadata = buildEventMetadata({
+    categories,
+    city: event.city,
+    description: event.short_description || event.long_description,
+    eventFormat: event.event_format,
+    organizerCategories,
+    organizerName: facilitatorName,
+    organizerSpecialties: splitSpecialties((facilitator as any)?.specialties),
+    startsAt: event.starts_at,
+    tags,
+    title: event.title,
+  });
 
   return createPageMetadata({
-    title: event.title + " | SoulEvents.dk",
-    description,
+    title: metadata.title,
+    description: metadata.description,
     imageTitle: event.title,
     imageSubtitle: "Event af " + facilitatorName,
     imageUrl,
-    path: "/events/" + id,
+    path: publicEventPath(event.slug),
     type: "article",
   });
 }
@@ -135,16 +239,19 @@ function ensureUrl(url: string) {
 }
 
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
-  const [{ id }, { admin_return: adminReturn, booking, message }] = await Promise.all([params, searchParams]);
+  const [resolvedParams, { admin_return: adminReturn, booking, message }] = await Promise.all([params, searchParams]);
+  const identifier = eventIdentifier(resolvedParams);
+  const isLegacyRoute = Boolean(resolvedParams.id);
   const messageVariant = booking === "sent" ? "success" : "notice";
   const supabase = await createClient();
   const viewer = await getCurrentProfile();
 
-  const { data: event } = await supabase
+  let { data: event } = await supabase
     .from("events")
     .select(
       `
       id,
+      slug,
       status,
       title,
       short_description,
@@ -170,28 +277,33 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       facilitator_profiles!inner(
         id,
         profile_id,
+        slug,
         status,
         is_paused,
         is_disabled,
         company_name,
         profile_image_path,
         short_description,
+        specialties,
         website_url,
         facebook_url,
         instagram_url,
         is_active_host,
         is_experienced_host,
+        facilitator_categories(categories(name, slug)),
         profiles!facilitator_profiles_profile_id_fkey(full_name)
       ),
       regions(name),
       event_categories(categories(name, color_hex)),
       event_main_categories(main_categories(name, color_hex, image_path)),
+      event_tags(tags(name)),
       event_images(image_path, alt_text, sort_order),
       event_co_organizers(
         status,
         facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(
-          id,
-          status,
+            id,
+            slug,
+            status,
           is_paused,
           is_disabled,
           company_name,
@@ -203,14 +315,93 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       )
     `,
     )
-    .eq("id", id)
+    .eq("slug", identifier)
     .maybeSingle();
+
+  if (!event && isUuid(identifier)) {
+    const fallbackResult = await supabase
+      .from("events")
+      .select(
+        `
+        id,
+        slug,
+        status,
+        title,
+        short_description,
+        long_description,
+        starts_at,
+        ends_at,
+        address_line,
+        postal_code,
+        city,
+        latitude,
+        longitude,
+        price_cents,
+        event_format,
+        online_description,
+        online_url_or_note,
+        practical_information,
+        cover_image_path,
+        capacity,
+        contact_email,
+        contact_phone,
+        facebook_url,
+        instagram_url,
+        facilitator_profiles!inner(
+          id,
+          profile_id,
+          slug,
+          status,
+          is_paused,
+          is_disabled,
+          company_name,
+          profile_image_path,
+          short_description,
+          specialties,
+          website_url,
+          facebook_url,
+          instagram_url,
+          is_active_host,
+          is_experienced_host,
+          facilitator_categories(categories(name, slug)),
+          profiles!facilitator_profiles_profile_id_fkey(full_name)
+        ),
+        regions(name),
+        event_categories(categories(name, color_hex)),
+        event_main_categories(main_categories(name, color_hex, image_path)),
+        event_tags(tags(name)),
+        event_images(image_path, alt_text, sort_order),
+        event_co_organizers(
+          status,
+          facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(
+            id,
+            slug,
+            status,
+            is_paused,
+            is_disabled,
+            company_name,
+            profile_image_path,
+            specialties,
+            facilitator_categories(categories(name, color_hex, slug)),
+            profiles!facilitator_profiles_profile_id_fkey(full_name)
+          )
+        )
+      `,
+      )
+      .eq("id", identifier)
+      .maybeSingle();
+    event = fallbackResult.data;
+  }
 
   if (!event) {
     notFound();
   }
 
-  const availableSeats = await getAvailableEventSeats(createAdminClient(), id, event.capacity);
+  if (isLegacyRoute && event.slug) {
+    permanentRedirect(withSearch(publicEventPath(event.slug), { admin_return: adminReturn, booking, message }));
+  }
+
+  const availableSeats = await getAvailableEventSeats(createAdminClient(), event.id, event.capacity);
   const facilitatorProfile = Array.isArray(event.facilitator_profiles)
     ? event.facilitator_profiles[0]
     : event.facilitator_profiles;
@@ -235,6 +426,10 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     event.event_main_categories
       ?.map((row) => (Array.isArray(row.main_categories) ? row.main_categories[0] : row.main_categories))
       .filter((category): category is { name: string | null; color_hex: string | null; image_path: string | null } => Boolean(category)) ?? [];
+  const tags =
+    event.event_tags
+      ?.map((row: any) => (Array.isArray(row.tags) ? row.tags[0] : row.tags))
+      .filter((tag: any): tag is { name: string } => Boolean(tag?.name)) ?? [];
   const images = [...(event.event_images ?? [])].sort(
     (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
   );
@@ -252,6 +447,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       : null;
   const eventCoverLabel = mainCategories[0]?.name || categories[0]?.name || "SoulEvents";
   const eventCoverColor = mainCategories[0]?.color_hex || categories[0]?.color_hex || "#D89A94";
+  const canonicalEventUrl = absoluteUrl(publicEventPath(event.slug || event.id));
 
   const facilitatorLinks = [
     facilitatorProfile?.website_url ? { label: "Hjemmeside", href: ensureUrl(facilitatorProfile.website_url) } : null,
@@ -269,9 +465,52 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           !coOrganizer.is_paused &&
           !coOrganizer.is_disabled,
       ) ?? [];
+  const eventJsonLd = buildEventJsonLd({
+    canonicalUrl: canonicalEventUrl,
+    categories: [...mainCategories.map((category) => category.name), ...categories.map((category) => category.name)],
+    city: event.city || region?.name,
+    coOrganizers: coOrganizers.map((coOrganizer: any) => {
+      const coOrganizerUser = first(coOrganizer.profiles);
+      return {
+        name: coOrganizer.company_name || coOrganizerUser?.full_name || "Medarrangør",
+        url: absoluteUrl(publicFacilitatorPath(coOrganizer.slug || coOrganizer.id)),
+      };
+    }),
+    description: event.short_description || event.long_description,
+    endDate: event.ends_at,
+    eventFormat: event.event_format,
+    imageUrl: eventCoverUrl,
+    isSoldOut,
+    location: {
+      addressLine: event.address_line,
+      city: event.city,
+      name: [event.address_line, event.city].filter(Boolean).join(", ") || event.city || region?.name,
+      postalCode: event.postal_code,
+      region: region?.name,
+    },
+    organizerCategories:
+      facilitatorProfile?.facilitator_categories
+        ?.map((row: any) => first(row.categories))
+        .filter((category: any) => category?.name)
+        .map((category: any) => category.name) ?? [],
+    organizerName: facilitatorName,
+    organizerSpecialties: splitSpecialties((facilitatorProfile as any)?.specialties),
+    organizerUrl: absoluteUrl(publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id)),
+    priceCents: event.price_cents,
+    startsAt: event.starts_at,
+    status: event.status,
+    tags: tags.map((tag) => tag.name),
+    title: event.title,
+  });
 
   return (
     <main className="min-h-screen bg-cream">
+      {isPublicEvent ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(eventJsonLd).replace(/</g, "\\u003c") }}
+        />
+      ) : null}
       <header className="bg-white shadow-soft">
         <div className="mx-auto max-w-[1400px] px-5 py-5 sm:px-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
@@ -395,7 +634,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               )}
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Link className="font-semibold text-sage-700 transition hover:text-rose" href={"/facilitators/" + facilitatorProfile.id}>{facilitatorName}</Link>
+                  <Link className="font-semibold text-sage-700 transition hover:text-rose" href={publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id)}>{facilitatorName}</Link>
                   <OrganizerBadges badges={[facilitatorProfile?.is_experienced_host ? "experienced" : null, facilitatorProfile?.is_active_host ? "active" : null].filter(Boolean) as never} />
                 </div>
                 <p className="mt-2 text-sm leading-6 text-ink/66">
@@ -419,7 +658,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                 )}
                 <Link
                   className="mt-4 inline-flex h-11 items-center justify-center rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-sage-700 hover:shadow-lift"
-                  href={"/facilitators/" + facilitatorProfile.id}
+                  href={publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id)}
                 >
                   Se arrangørens profil
                 </Link>
@@ -446,7 +685,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                   return (
                     <Link
                       className="flex gap-4 rounded-[20px] border border-[#E5D4F7] bg-[#FAF8FC] p-4 transition hover:border-[#7A5D91]"
-                      href={"/facilitators/" + coOrganizer.id}
+                      href={publicFacilitatorPath(coOrganizer.slug || coOrganizer.id)}
                       key={coOrganizer.id}
                     >
                       {coOrganizerImageUrl ? (
@@ -547,6 +786,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
 
           <ShareEventButton
             eventId={event.id}
+            eventSlug={event.slug}
             eventTitle={event.title}
             facilitatorName={facilitatorName}
             startsAt={event.starts_at}

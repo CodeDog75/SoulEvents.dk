@@ -49,6 +49,14 @@ export async function getHomepageOgImageUrl(client?: SiteSettingClient) {
 }
 
 export function ogImageUrlForPath(path: string) {
+  if (path.startsWith("/event/")) {
+    return absoluteUrl(path.replace(/\/$/, "") + "/opengraph-image");
+  }
+
+  if (path.startsWith("/arrangor/")) {
+    return absoluteUrl(path.replace(/\/$/, "") + "/opengraph-image");
+  }
+
   if (path.startsWith("/events/")) {
     return absoluteUrl(path.replace(/\/$/, "") + "/opengraph-image");
   }

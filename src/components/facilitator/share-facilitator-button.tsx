@@ -3,15 +3,17 @@
 import { Check, Copy, Mail, MessageCircle, Share2 } from "lucide-react";
 import type { MouseEvent } from "react";
 import { useState } from "react";
+import { publicFacilitatorPath } from "@/lib/slug";
 
 type ShareFacilitatorButtonProps = {
   facilitatorName: string;
   facilitatorId: string;
+  facilitatorSlug?: string | null;
 };
 
-export function ShareFacilitatorButton({ facilitatorName, facilitatorId }: ShareFacilitatorButtonProps) {
+export function ShareFacilitatorButton({ facilitatorName, facilitatorId, facilitatorSlug }: ShareFacilitatorButtonProps) {
   const [copied, setCopied] = useState(false);
-  const relativeUrl = "/facilitators/" + facilitatorId;
+  const relativeUrl = publicFacilitatorPath(facilitatorSlug || facilitatorId);
 
   function getShareUrl() {
     return typeof window === "undefined" ? relativeUrl : window.location.origin + relativeUrl;

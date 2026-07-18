@@ -78,6 +78,7 @@ export type Database = {
           disabled_at: string | null;
           disabled_by: string | null;
           disabled_reason: string | null;
+          slug: string;
           company_name: string | null;
           facilitator_hero_key: string | null;
           profile_image_path: string | null;

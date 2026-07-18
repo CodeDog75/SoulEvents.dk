@@ -1,9 +1,11 @@
 import { env } from "@/lib/env";
 import { escapeHtml, formatDate, formatMoney, sendLoggedEmail } from "@/lib/email/resend-mail";
+import { publicEventPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type ReminderEvent = {
   id: string;
+  slug?: string | null;
   title: string;
   short_description: string | null;
   ends_at: string;
@@ -33,9 +35,9 @@ function unsubscribeUrl(token: string) {
   return appUrl.replace(/\/$/, "") + "/reminders/unsubscribe?token=" + encodeURIComponent(token);
 }
 
-function eventUrl(eventId: string) {
+function eventUrl(event: Pick<ReminderEvent, "id" | "slug">) {
   const appUrl = env.appUrl || "https://www.soulevents.dk";
-  return appUrl.replace(/\/$/, "") + "/events/" + eventId;
+  return appUrl.replace(/\/$/, "") + publicEventPath(event.slug || event.id);
 }
 
 function facilitatorName(event: ReminderEvent) {
@@ -92,7 +94,7 @@ export async function notifyFacilitatorEventReminderSubscribers(eventId: string)
   const admin = createAdminClient();
   const { data: event } = await admin
     .from("events")
-    .select("id, title, short_description, starts_at, ends_at, price_cents, city, event_format, facilitator_id, facilitator_profiles(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))")
+    .select("id, slug, title, short_description, starts_at, ends_at, price_cents, city, event_format, facilitator_id, facilitator_profiles(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))")
     .eq("id", eventId)
     .eq("status", "active")
     .gte("ends_at", new Date().toISOString())
@@ -114,7 +116,7 @@ export async function notifyFacilitatorEventReminderSubscribers(eventId: string)
 
   const typedEvent = event as ReminderEvent;
   const name = facilitatorName(typedEvent);
-  const url = eventUrl(typedEvent.id);
+  const url = eventUrl(typedEvent);
 
   for (const reminder of reminders) {
     const { error: notificationError } = await admin

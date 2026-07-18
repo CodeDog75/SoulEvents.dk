@@ -19,7 +19,7 @@ import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-da
 import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes, recordLegalAcceptances } from "@/lib/legal/documents";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
-import { createSlug } from "@/lib/slug";
+import { createSlug, publicEventPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { EventStatus } from "@/types/database";
 
@@ -79,9 +79,9 @@ function facilitatorOverviewRedirect(message: string): never {
   redirect(`/facilitator?message=${encodeURIComponent(message)}`);
 }
 
-function publicEventUrl(eventId: string) {
+function publicEventUrl(eventId: string, eventSlug?: string | null) {
   const appUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.soulevents.dk").trim().replace(/\/$/, "");
-  return appUrl + "/events/" + eventId;
+  return appUrl + publicEventPath(eventSlug || eventId);
 }
 
 function appUrl(path = "") {
@@ -791,12 +791,13 @@ export async function createEventAction(formData: FormData) {
   }
 
   let existingEventStatus: EventStatus | null = null;
+  let existingEventSlug: string | null = null;
   let previousEventSnapshot: EventUpdateSnapshot | null = null;
 
   if (existingEventId) {
     const { data: existingEvent } = await supabase
       .from("events")
-      .select("id, status, title, starts_at, ends_at, address_line, postal_code, city, country, price_cents, event_format, online_description, online_url_or_note")
+      .select("id, slug, status, title, starts_at, ends_at, address_line, postal_code, city, country, price_cents, event_format, online_description, online_url_or_note")
       .eq("id", existingEventId)
       .eq("facilitator_id", facilitatorProfile.id)
       .maybeSingle();
@@ -806,6 +807,7 @@ export async function createEventAction(formData: FormData) {
     }
 
     existingEventStatus = existingEvent.status as EventStatus;
+    existingEventSlug = existingEvent.slug ?? null;
     previousEventSnapshot = existingEvent as EventUpdateSnapshot;
   }
 
@@ -1174,7 +1176,7 @@ export async function createEventAction(formData: FormData) {
             eventId: existingEventId,
             eventStartsAt: startsAt,
             eventTitle: title,
-            eventUrl: publicEventUrl(existingEventId),
+            eventUrl: publicEventUrl(existingEventId, existingEventSlug),
             facilitatorName: contactName || "Arrangør",
             fields: changedFields,
             location: formatLocation({
@@ -1282,7 +1284,7 @@ export async function createEventAction(formData: FormData) {
       online_url_or_note: onlineUrlOrNote,
       practical_information: practicalInformation,
     })
-    .select("id")
+    .select("id, slug")
     .single();
 
   if (eventError || !event) {

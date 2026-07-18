@@ -2,9 +2,11 @@
 
 import { Copy, Mail, MessageCircle, Send, Share2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { publicEventPath } from "@/lib/slug";
 
 type ShareEventButtonProps = {
   eventId: string;
+  eventSlug?: string | null;
   eventTitle: string;
   facilitatorName: string;
   startsAt: string;
@@ -17,15 +19,16 @@ function formatEventDate(startsAt: string) {
   }).format(new Date(startsAt));
 }
 
-export function ShareEventButton({ eventId, eventTitle, facilitatorName, startsAt }: ShareEventButtonProps) {
+export function ShareEventButton({ eventId, eventSlug, eventTitle, facilitatorName, startsAt }: ShareEventButtonProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const shareData = useMemo(() => {
+    const relativeUrl = publicEventPath(eventSlug || eventId);
     const eventUrl =
       typeof window === "undefined"
-        ? "/events/" + eventId
-        : window.location.origin + "/events/" + eventId;
+        ? relativeUrl
+        : window.location.origin + relativeUrl;
     const eventDate = formatEventDate(startsAt);
     const text =
       "Jeg fandt dette event på SoulEvents: " +
@@ -42,7 +45,7 @@ export function ShareEventButton({ eventId, eventTitle, facilitatorName, startsA
       text,
       title: eventTitle,
     };
-  }, [eventId, eventTitle, facilitatorName, startsAt]);
+  }, [eventId, eventSlug, eventTitle, facilitatorName, startsAt]);
 
   async function shareEvent() {
     if (navigator.share) {

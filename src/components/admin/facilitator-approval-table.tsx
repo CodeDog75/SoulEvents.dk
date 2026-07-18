@@ -3,10 +3,12 @@ import { Check, ExternalLink, Eye, Pencil, Slash, UserRoundCheck } from "lucide-
 import { disableFacilitatorAction, reactivateFacilitatorAction, updateFacilitatorStatusAction } from "@/app/admin/facilitators/actions";
 import { FacilitatorStatusBadge } from "@/components/admin/facilitator-status-badge";
 import { RequestFacilitatorChangesDialog } from "@/components/admin/reject-facilitator-dialog";
+import { publicFacilitatorPath } from "@/lib/slug";
 import type { FacilitatorStatus } from "@/types/database";
 
 type FacilitatorRow = {
   id: string;
+  slug?: string | null;
   status: FacilitatorStatus;
   is_disabled?: boolean | null;
   is_paused?: boolean | null;
@@ -154,7 +156,7 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
               <div className="flex flex-wrap content-start gap-2 lg:justify-end">
                 <Link
                   className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
-                  href={"/facilitators/" + facilitator.id + "?admin_return=/admin%23admin-facilitators"}
+                  href={publicFacilitatorPath(facilitator.slug || facilitator.id) + "?admin_return=/admin%23admin-facilitators"}
                 >
                   <Eye className="size-4" aria-hidden="true" />
                   Se profil

@@ -44,6 +44,7 @@ import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onbo
 import { parseProfileChangeRequest, type ProfileChangeRequest } from "@/lib/facilitators/profile-change-request";
 import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
 import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
+import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -597,7 +598,7 @@ function EventCard({
           <div className="flex flex-wrap gap-2">
             <Link
               className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]"
-              href={"/events/" + event.id}
+              href={publicEventPath(event.slug || event.id)}
             >
               Se detaljer
             </Link>
@@ -650,7 +651,7 @@ function EventCard({
               Tilmeldinger
             </Link>
             {isActive ? (
-              <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={"/events/" + event.id}>
+              <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={publicEventPath(event.slug || event.id)}>
                 Se event
               </Link>
             ) : null}
@@ -930,7 +931,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, status, is_paused, is_disabled, host_reference_id, company_name, facilitator_hero_key, profile_image_path, address_line, city, postal_code, short_description, specialties, offers_services, service_description, is_active_host, is_experienced_host, max_ticket_price_per_person, facilitator_categories(category_id, categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
+      "id, slug, status, is_paused, is_disabled, host_reference_id, company_name, facilitator_hero_key, profile_image_path, address_line, city, postal_code, short_description, specialties, offers_services, service_description, is_active_host, is_experienced_host, max_ticket_price_per_person, facilitator_categories(category_id, categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
     )
     .eq("profile_id", profile.id)
     .single();
@@ -940,7 +941,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
   const profileName = facilitatorProfile?.company_name || profile.full_name || "Personlig profil";
-  const fullProfileHref = facilitatorProfile?.id ? "/facilitators/" + facilitatorProfile.id + "?facilitator_return=/facilitator" : null;
+  const fullProfileHref = facilitatorProfile?.id ? publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id) + "?facilitator_return=/facilitator" : null;
   const categoryNames =
     facilitatorProfile?.facilitator_categories
       ?.map((row: CategoryRelation) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
@@ -988,7 +989,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
       ? await Promise.all([
           supabase
             .from("events")
-            .select("id, title, status, starts_at, ends_at, created_at, updated_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), bookings(id)")
+            .select("id, slug, title, status, starts_at, ends_at, created_at, updated_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), bookings(id)")
             .eq("facilitator_id", facilitatorProfile.id)
             .order("starts_at", { ascending: false }),
           supabase
@@ -1011,7 +1012,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .in("events.status", ["active", "sold_out"]),
           supabase
             .from("event_co_organizers")
-            .select("id, status, response_token, events(id, title, starts_at, status, facilitator_profiles!events_facilitator_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)))")
+            .select("id, status, response_token, events(id, slug, title, starts_at, status, facilitator_profiles!events_facilitator_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)))")
             .eq("co_organizer_profile_id", facilitatorProfile.id)
             .in("status", ["pending", "accepted"])
             .order("created_at", { ascending: false }),
@@ -1180,7 +1181,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                   return (
                     <Link
                       className="flex flex-col gap-2 rounded-[18px] border border-[#E5DDEA] bg-[#FAF8FC] p-4 transition hover:border-[#7A5D91] sm:flex-row sm:items-center sm:justify-between"
-                      href={event?.id ? "/events/" + event.id : "/facilitator"}
+                      href={event?.id ? publicEventPath(event.slug || event.id) : "/facilitator"}
                       key={invitation.id}
                     >
                       <span>

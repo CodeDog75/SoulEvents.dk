@@ -30,7 +30,7 @@ type EventOpenGraphRow = {
 };
 
 type OpenGraphImageProps = {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id?: string; slug?: string }>;
 };
 
 function firstImagePath(images: EventOpenGraphRow["event_images"]) {
@@ -42,11 +42,15 @@ function firstCategoryImagePath(categories: EventOpenGraphRow["event_main_catego
 }
 
 export default async function EventOpenGraphImage({ params }: OpenGraphImageProps) {
-  const { id } = await params;
-  const encodedId = encodeURIComponent(id);
+  const { id, slug } = await params;
+  const identifier = slug ?? id ?? "";
+  const lookupColumn = slug ? "slug" : "id";
+  const encodedIdentifier = encodeURIComponent(identifier);
   const rows = await fetchOpenGraphRows<EventOpenGraphRow>(
-    "events?select=title,short_description,long_description,status,starts_at,ends_at,cover_image_path,event_images(image_path,sort_order),event_main_categories(main_categories(name,image_path)),facilitator_profiles(status,is_paused,is_disabled,company_name,profiles!facilitator_profiles_profile_id_fkey(full_name))&id=eq." +
-      encodedId +
+    "events?select=title,short_description,long_description,status,starts_at,ends_at,cover_image_path,event_images(image_path,sort_order),event_main_categories(main_categories(name,image_path)),facilitator_profiles(status,is_paused,is_disabled,company_name,profiles!facilitator_profiles_profile_id_fkey(full_name))&" +
+      lookupColumn +
+      "=eq." +
+      encodedIdentifier +
       "&limit=1",
   );
   const event = rows[0] ?? null;

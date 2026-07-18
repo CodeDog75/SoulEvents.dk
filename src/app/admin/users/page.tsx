@@ -4,6 +4,7 @@ import { getFacilitatorAdminStatus, type FacilitatorAdminStatus } from "@/compon
 import { UserRoleTable } from "@/components/admin/users/user-role-table";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
+import { publicEventPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { EventStatus, FacilitatorStatus } from "@/types/database";
 
@@ -37,6 +38,7 @@ type FacilitatorRow = {
   postal_code: string | null;
   profile_id: string;
   profile_image_path?: string | null;
+  slug?: string | null;
   profiles?: {
     created_at?: string | null;
     email?: string | null;
@@ -76,6 +78,7 @@ type EventRow = {
   event_reference_id?: string | null;
   facilitator_id: string | null;
   id: string;
+  slug?: string | null;
   starts_at: string | null;
   status: string | null;
   title?: string | null;
@@ -471,10 +474,10 @@ function filteredUsersHref(params: {
 }
 
 const facilitatorSelectWithProfiles =
-  "id, profile_id, host_reference_id, status, is_paused, is_disabled, company_name, profile_image_path, short_description, long_description, specialties, address_line, city, postal_code, public_email, public_phone, website_url, created_at, profiles!facilitator_profiles_profile_id_fkey(id, role, full_name, email, phone, created_at)";
+  "id, slug, profile_id, host_reference_id, status, is_paused, is_disabled, company_name, profile_image_path, short_description, long_description, specialties, address_line, city, postal_code, public_email, public_phone, website_url, created_at, profiles!facilitator_profiles_profile_id_fkey(id, role, full_name, email, phone, created_at)";
 
 const facilitatorSelectWithoutProfiles =
-  "id, profile_id, host_reference_id, status, is_paused, is_disabled, company_name, profile_image_path, short_description, long_description, specialties, address_line, city, postal_code, public_email, public_phone, website_url, created_at";
+  "id, slug, profile_id, host_reference_id, status, is_paused, is_disabled, company_name, profile_image_path, short_description, long_description, specialties, address_line, city, postal_code, public_email, public_phone, website_url, created_at";
 
 const legacyFacilitatorSelectWithoutProfiles =
   "id, profile_id, host_reference_id, status, company_name, profile_image_path, short_description, long_description, specialties, address_line, city, postal_code, public_email, public_phone, website_url, created_at";
@@ -660,7 +663,7 @@ function EventSearchResults({
                 <div className="flex flex-wrap content-start gap-2 lg:justify-end">
                   <Link
                     className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta"
-                    href={`/events/${event.id}?admin_return=${encodeURIComponent(returnHref)}`}
+                    href={publicEventPath(event.slug || event.id) + `?admin_return=${encodeURIComponent(returnHref)}`}
                   >
                     <Eye className="size-4" aria-hidden="true" />
                     Se event
@@ -940,6 +943,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       public_phone: facilitator.public_phone,
       role: user?.role ?? "facilitator",
       short_description: facilitator.short_description,
+      slug: facilitator.slug,
       specialties: facilitator.specialties,
       status: facilitator.status,
       total_bookings: bookingStats.totalBookings,
@@ -972,7 +976,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     ? await supabase
         .from("events")
         .select(
-          "id, title, status, starts_at, created_at, updated_at, address_line, city, event_reference_id, facilitator_id, facilitator_profiles(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name, email))",
+          "id, slug, title, status, starts_at, created_at, updated_at, address_line, city, event_reference_id, facilitator_id, facilitator_profiles(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name, email))",
         )
         .order("updated_at", { ascending: false })
         .limit(300)

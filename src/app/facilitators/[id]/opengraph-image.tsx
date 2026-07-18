@@ -22,14 +22,18 @@ type FacilitatorOpenGraphRow = {
 };
 
 type OpenGraphImageProps = {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id?: string; slug?: string }>;
 };
 
 export default async function FacilitatorOpenGraphImage({ params }: OpenGraphImageProps) {
-  const { id } = await params;
+  const { id, slug } = await params;
+  const identifier = slug ?? id ?? "";
+  const lookupColumn = slug ? "slug" : "id";
   const rows = await fetchOpenGraphRows<FacilitatorOpenGraphRow>(
-    "facilitator_profiles?select=company_name,facilitator_hero_key,profile_image_path,short_description,long_description,profiles!facilitator_profiles_profile_id_fkey(full_name),facilitator_images(image_path,sort_order)&id=eq." +
-      encodeURIComponent(id) +
+    "facilitator_profiles?select=company_name,facilitator_hero_key,profile_image_path,short_description,long_description,profiles!facilitator_profiles_profile_id_fkey(full_name),facilitator_images(image_path,sort_order)&" +
+      lookupColumn +
+      "=eq." +
+      encodeURIComponent(identifier) +
       "&status=eq.approved&is_paused=eq.false&is_disabled=eq.false&limit=1",
   );
   const facilitator = rows[0] ?? null;

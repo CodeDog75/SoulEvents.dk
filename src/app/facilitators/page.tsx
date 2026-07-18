@@ -5,6 +5,7 @@ import { ArrowLeft, CalendarDays, Filter, Search, UserRound } from "lucide-react
 import { BrandLogo } from "@/components/brand-logo";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
 import { createPageMetadata } from "@/lib/open-graph";
+import { publicFacilitatorPath } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -78,7 +79,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
     supabase
       .from("facilitator_profiles")
       .select(
-        "id, host_reference_id, company_name, profile_image_path, short_description, city, is_online_facilitator, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))",
+        "id, slug, host_reference_id, company_name, profile_image_path, short_description, city, is_online_facilitator, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))",
       )
       .eq("status", "approved")
       .eq("is_paused", false)
@@ -221,7 +222,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
                   "group overflow-hidden rounded-card shadow-soft transition hover:-translate-y-1 hover:shadow-lift " +
                   (platformOwner ? "border border-[#D8C7EE] bg-[#F4F0FA]" : "bg-white")
                 }
-                href={"/facilitators/" + facilitator.id}
+                href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
                 key={facilitator.id}
               >
                 <div className={"relative aspect-[4/3] " + (platformOwner ? "bg-[#EDE4F7]" : "bg-sage-50")}>

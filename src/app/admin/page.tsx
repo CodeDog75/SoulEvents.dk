@@ -27,6 +27,7 @@ import { AuthMessage } from "@/components/auth/auth-message";
 import { FacilitatorStatusBadge } from "@/components/admin/facilitator-status-badge";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireRole } from "@/lib/auth/roles";
+import { publicEventPath } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -162,13 +163,13 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     supabase.from("facilitator_event_reminders").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase
       .from("facilitator_profiles")
-      .select("id, host_reference_id, status, is_paused, is_disabled, company_name, profile_image_path, city, postal_code, short_description, long_description, created_at, profiles!facilitator_profiles_profile_id_fkey(full_name)")
+      .select("id, slug, host_reference_id, status, is_paused, is_disabled, company_name, profile_image_path, city, postal_code, short_description, long_description, created_at, profiles!facilitator_profiles_profile_id_fkey(full_name)")
       .in("status", ["pending", "changes_requested"])
       .eq("is_paused", false)
       .eq("is_disabled", false)
       .order("created_at", { ascending: false })
       .limit(6),
-    supabase.from("events").select("id, title, status, starts_at, created_at, updated_at, facilitator_profiles(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))").order("created_at", { ascending: false }).limit(5),
+    supabase.from("events").select("id, slug, title, status, starts_at, created_at, updated_at, facilitator_profiles(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))").order("created_at", { ascending: false }).limit(5),
     supabase.from("bookings").select("id, participant_name, created_at, events(title)").order("created_at", { ascending: false }).limit(5),
     supabase
       .from("facilitator_admin_messages")
@@ -399,7 +400,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     <p className="mt-1 text-xs font-semibold text-ink/55">
                       Oprettet {formatDateTime(event.created_at)} · Senest ændret {formatDateTime(event.updated_at)}
                     </p>
-                    <Link className="mt-2 inline-flex text-sm font-semibold text-sage-700" href={"/events/" + event.id + "?admin_return=/admin%23admin-new-events"}>
+                    <Link className="mt-2 inline-flex text-sm font-semibold text-sage-700" href={publicEventPath(event.slug || event.id) + "?admin_return=/admin%23admin-new-events"}>
                       Åbn event
                     </Link>
                   </div>

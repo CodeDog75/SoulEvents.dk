@@ -51,6 +51,7 @@ type PublicFacilitatorProfileProps = {
   };
   events: PublicEvent[];
   facilitatorId: string;
+  facilitatorSlug?: string | null;
   galleryImages: GalleryImage[];
   name: string;
   presentationText?: string | null;
@@ -124,6 +125,7 @@ export function PublicFacilitatorProfile({
   coverImage,
   events,
   facilitatorId,
+  facilitatorSlug,
   galleryImages,
   name,
   presentationText,
@@ -227,7 +229,7 @@ export function PublicFacilitatorProfile({
             </section>
           ) : null}
 
-          <ShareFacilitatorButton facilitatorId={facilitatorId} facilitatorName={name} />
+          <ShareFacilitatorButton facilitatorId={facilitatorId} facilitatorName={name} facilitatorSlug={facilitatorSlug} />
 
           <section className="scroll-mt-8 rounded-[30px] border border-[#D8CBE4] bg-[#F4F0F7] p-6 shadow-[0_18px_45px_rgba(47,36,55,0.06)]" id="reminder-signup">
             <h2 className="font-serif text-3xl font-semibold text-[#2F2437]">Følg nye events</h2>

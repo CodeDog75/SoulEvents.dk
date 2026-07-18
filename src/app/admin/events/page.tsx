@@ -4,6 +4,7 @@ import { ArrowLeft, Archive, Check, Clock3, Eye, Search, Slash } from "lucide-re
 import { updateAdminEventStatusAction } from "@/app/admin/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
+import { publicEventPath } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 import type { EventStatus } from "@/types/database";
 
@@ -86,7 +87,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
 
   let query = supabase
     .from("events")
-    .select("id, title, status, starts_at, created_at, updated_at, city, event_format, facilitator_profiles(status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name, email)), regions(name), event_categories(categories(name))")
+    .select("id, slug, title, status, starts_at, created_at, updated_at, city, event_format, facilitator_profiles(status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name, email)), regions(name), event_categories(categories(name))")
     .order("created_at", { ascending: false })
     .limit(queryText ? 300 : 80);
 
@@ -251,7 +252,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                     </div>
 
                     <div className="flex flex-wrap content-start gap-2 lg:justify-end">
-                      <Link className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta" href={"/events/" + event.id + "?admin_return=/admin/events"}>
+                      <Link className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta" href={publicEventPath(event.slug || event.id) + "?admin_return=/admin/events"}>
                         <Eye className="size-4" aria-hidden="true" />
                         Vis
                       </Link>

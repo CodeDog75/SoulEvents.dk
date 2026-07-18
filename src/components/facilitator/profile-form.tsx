@@ -53,6 +53,7 @@ import {
   type FacilitatorHeroKey,
 } from "@/lib/facilitators/hero-collection";
 import { facilitatorWorkAreas, sortFacilitatorWorkAreas } from "@/lib/facilitators/work-areas";
+import { publicFacilitatorPath } from "@/lib/slug";
 
 type Region = {
   id: string;
@@ -69,6 +70,7 @@ type Category = {
 
 type FacilitatorProfile = {
   id?: string | null;
+  slug?: string | null;
   status?: string | null;
   company_name: string | null;
   facilitator_hero_key?: string | null;
@@ -1137,8 +1139,7 @@ export function ProfileForm({
     ? "Online arrangør"
     : [facilitatorProfile.city, facilitatorProfile.country].filter(Boolean).join(", ") || null;
   const fullProfileHref = facilitatorProfile.id
-    ? "/facilitators/" +
-      facilitatorProfile.id +
+    ? publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id) +
       (adminReturnTo
         ? "?admin_return=" + encodeURIComponent(adminReturnTo)
         : presentationMode === "admin"

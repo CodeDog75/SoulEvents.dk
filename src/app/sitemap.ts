@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { siteBaseUrl } from "@/lib/open-graph";
+import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type SitemapEntry = MetadataRoute.Sitemap[number];
@@ -75,28 +76,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     safeRows("facilitator_profiles", async () => {
       const { data, error } = await admin
         .from("facilitator_profiles")
-        .select("id, updated_at")
+        .select("slug, updated_at")
         .eq("status", "approved")
         .eq("is_paused", false)
         .eq("is_disabled", false)
+        .not("slug", "is", null)
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
-      return (data ?? []) as Array<{ id: string; updated_at: string | null }>;
+      return (data ?? []) as Array<{ slug: string; updated_at: string | null }>;
     }),
     safeRows("events", async () => {
       const { data, error } = await admin
         .from("events")
-        .select("id, updated_at, starts_at, ends_at, facilitator_profiles!inner(status, is_paused, is_disabled)")
+        .select("slug, updated_at, starts_at, ends_at, facilitator_profiles!inner(status, is_paused, is_disabled)")
         .in("status", ["active", "sold_out"])
         .or("ends_at.gte." + now + ",and(ends_at.is.null,starts_at.gte." + now + ")")
         .eq("facilitator_profiles.status", "approved")
         .eq("facilitator_profiles.is_paused", false)
         .eq("facilitator_profiles.is_disabled", false)
+        .not("slug", "is", null)
         .order("starts_at", { ascending: true });
 
       if (error) throw error;
-      return (data ?? []) as Array<{ id: string; starts_at: string | null; updated_at: string | null }>;
+      return (data ?? []) as Array<{ slug: string; starts_at: string | null; updated_at: string | null }>;
     }),
     safeRows("legal_documents", async () => {
       const { data, error } = await admin
@@ -124,8 +127,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const dynamicEntries = [
     ...categories.map((category) => entry("/categories/" + category.slug, category)),
-    ...facilitators.map((facilitator) => entry("/facilitators/" + facilitator.id, facilitator)),
-    ...events.map((event) => entry("/events/" + event.id, event)),
+    ...facilitators.map((facilitator) => entry(publicFacilitatorPath(facilitator.slug), facilitator)),
+    ...events.map((event) => entry(publicEventPath(event.slug), event)),
     ...legalDocuments.map((document) => entry("/legal/" + document.slug, document)),
     ...inspirators.map((inspirator) => entry("/inspiration/" + inspirator.slug, inspirator)),
   ];

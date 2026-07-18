@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 import { redirect } from "next/navigation";
+import { publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-function messageRedirect(facilitatorId: string, message: string): never {
-  redirect("/facilitators/" + facilitatorId + "?reminder_message=" + encodeURIComponent(message) + "#reminder-signup");
+function messageRedirect(facilitatorId: string, message: string, facilitatorSlug?: string | null): never {
+  redirect(publicFacilitatorPath(facilitatorSlug || facilitatorId) + "?reminder_message=" + encodeURIComponent(message) + "#reminder-signup");
 }
 
 function normalizeEmail(value: FormDataEntryValue | null) {
@@ -23,7 +24,7 @@ export async function subscribeToFacilitatorReminderAction(facilitatorId: string
   const admin = createAdminClient();
   const { data: facilitator } = await admin
     .from("facilitator_profiles")
-    .select("id")
+    .select("id, slug")
     .eq("id", facilitatorId)
     .eq("status", "approved")
     .eq("is_paused", false)
@@ -48,9 +49,12 @@ export async function subscribeToFacilitatorReminderAction(facilitatorId: string
     );
 
   if (error) {
-    messageRedirect(facilitatorId, "Påmindelsen kunne ikke gemmes. Prøv igen.");
+    messageRedirect(facilitatorId, "Påmindelsen kunne ikke gemmes. Prøv igen.", facilitator.slug);
   }
 
   revalidatePath("/facilitators/" + facilitatorId);
-  messageRedirect(facilitatorId, "Tak. Vi giver dig besked på e-mail, når arrangøren opretter et nyt event.");
+  if (facilitator.slug) {
+    revalidatePath(publicFacilitatorPath(facilitator.slug));
+  }
+  messageRedirect(facilitatorId, "Tak. Vi giver dig besked på e-mail, når arrangøren opretter et nyt event.", facilitator.slug);
 }

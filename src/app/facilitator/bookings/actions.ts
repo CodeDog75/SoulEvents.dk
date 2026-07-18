@@ -7,14 +7,19 @@ import { env } from "@/lib/env";
 import { syncEventCapacityStatus } from "@/lib/events/capacity";
 import { getString } from "@/lib/forms/form-data";
 import { requireRole } from "@/lib/auth/roles";
+import { publicEventPath } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 import type { BookingStatus } from "@/types/database";
 
 const responseStatuses: BookingStatus[] = ["confirmed", "cancelled"];
 
-function publicEventUrl(eventId: string) {
+function firstRelation<T>(value: T | T[] | null | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function publicEventUrl(eventId: string, eventSlug?: string | null) {
   const appUrl = (env.appUrl || "https://www.soulevents.dk").trim().replace(/\/$/, "");
-  return appUrl + "/events/" + eventId;
+  return appUrl + publicEventPath(eventSlug || eventId);
 }
 
 function bookingsRedirect(message: string, eventId?: string | null): never {
@@ -65,7 +70,8 @@ export async function updateBookingStatusAction(formData: FormData) {
       status,
       event_title_snapshot,
       event_starts_at_snapshot,
-      facilitator_name_snapshot
+      facilitator_name_snapshot,
+      events(slug)
     `,
     )
     .eq("id", bookingId)
@@ -101,7 +107,7 @@ export async function updateBookingStatusAction(formData: FormData) {
     eventTitle: booking.event_title_snapshot,
     eventStartsAt: booking.event_starts_at_snapshot,
     facilitatorName: booking.facilitator_name_snapshot,
-    eventUrl: status === "confirmed" ? publicEventUrl(booking.event_id) : null,
+    eventUrl: status === "confirmed" ? publicEventUrl(booking.event_id, firstRelation(booking.events)?.slug ?? null) : null,
   });
 
   revalidatePath("/facilitator");

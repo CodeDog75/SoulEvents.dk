@@ -25,6 +25,7 @@ import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
 import { publicMediaUrl } from "@/lib/media/public-url";
 import { createPageMetadata, getHomepageOgImageUrl } from "@/lib/open-graph";
 import { getAreaOption } from "@/lib/regions/areas";
+import { publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -59,6 +60,7 @@ function splitSpecialties(input: string | null | undefined) {
 
 type LocalServiceProvider = {
   id: string;
+  slug?: string | null;
   name: string;
   imageUrl: string | null;
   serviceLabels: string[];
@@ -630,7 +632,7 @@ async function getSearchEvents(selected: {
   let query = supabase
     .from("events")
     .select(
-      "id, status, title, short_description, starts_at, created_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, host_reference_id, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), regions(name), event_categories(categories(id, name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug)), event_tags(tag_id, tags(name))",
+      "id, slug, status, title, short_description, starts_at, created_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, host_reference_id, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), regions(name), event_categories(categories(id, name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug)), event_tags(tag_id, tags(name))",
     )
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
@@ -859,7 +861,7 @@ async function getLocalServiceProviders(selected: {
   const { data: providers } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, host_reference_id, company_name, profile_image_path, short_description, specialties, service_description, city, country, latitude, longitude, offers_services, show_in_local_service_results, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name, slug), facilitator_categories(categories(name, slug)), facilitator_tags(tags(name))",
+      "id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, service_description, city, country, latitude, longitude, offers_services, show_in_local_service_results, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name, slug), facilitator_categories(categories(name, slug)), facilitator_tags(tags(name))",
     )
     .eq("status", "approved")
     .eq("is_paused", false)
@@ -910,6 +912,7 @@ async function getLocalServiceProviders(selected: {
 
       return {
         id: provider.id,
+        slug: provider.slug,
         name: provider.company_name || profile?.full_name || "Arrangør",
         imageUrl: provider.profile_image_path
           ? supabase.storage.from("media").getPublicUrl(provider.profile_image_path).data.publicUrl
@@ -945,7 +948,7 @@ function LocalServiceProviderSection({ providers }: { providers: LocalServicePro
         {providers.slice(0, 3).map((provider) => (
           <Link
             className="group rounded-card border border-white bg-white p-4 shadow-soft transition hover:-translate-y-0.5 hover:border-[#D7C4F0]"
-            href={"/facilitators/" + provider.id}
+            href={publicFacilitatorPath(provider.slug || provider.id)}
             key={provider.id}
           >
             <div className="flex items-start gap-3">
@@ -995,6 +998,7 @@ function mapFacilitatorCard(facilitator: any, supabase: Awaited<ReturnType<typeo
 
   return {
     id: facilitator.id,
+    slug: facilitator.slug ?? null,
     hostReferenceId: facilitator.host_reference_id ?? null,
     name: facilitator.company_name || profile?.full_name || "Arrangør",
     imageUrl: facilitator.profile_image_path
@@ -1017,7 +1021,7 @@ async function getFeaturedHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex))")
+    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex))")
     .eq("status", "approved")
     .eq("is_paused", false)
     .eq("is_disabled", false)
@@ -1041,7 +1045,7 @@ async function getNewHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex))")
+    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex))")
     .eq("status", "approved")
     .eq("is_paused", false)
     .eq("is_disabled", false)
@@ -1064,7 +1068,7 @@ async function getHomeFacilitators(queryText: string) {
   const { data: facilitators } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, host_reference_id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, is_online_facilitator, is_active_host, is_experienced_host, website_url, facebook_url, instagram_url, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_tags(tags(name))",
+      "id, slug, host_reference_id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, is_online_facilitator, is_active_host, is_experienced_host, website_url, facebook_url, instagram_url, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_tags(tags(name))",
     )
     .eq("status", "approved")
     .eq("is_paused", false)
@@ -1116,6 +1120,7 @@ async function getHomeFacilitators(queryText: string) {
 
     return {
       id: facilitator.id,
+      slug: facilitator.slug ?? null,
       hostReferenceId: facilitator.host_reference_id ?? null,
       name: facilitator.company_name || profile?.full_name || "Arrangør",
       imageUrl: facilitator.profile_image_path
@@ -1627,7 +1632,7 @@ export default async function Home({ searchParams }: HomeProps) {
                           {facilitatorCards.slice(0, 3).map((facilitator) => (
                             <Link
                               className="flex items-center justify-between gap-3 rounded-md border border-olive/10 bg-[#EDE4F7]/55 px-4 py-3 text-sm font-semibold text-[#2F2633] transition hover:border-sage-700"
-                              href={"/facilitators/" + facilitator.id}
+                              href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
                               key={facilitator.id}
                             >
                               <span>{facilitator.name}</span>

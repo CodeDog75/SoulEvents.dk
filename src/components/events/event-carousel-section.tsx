@@ -8,9 +8,11 @@ import { CapacityBadge } from "@/components/events/capacity-badge";
 import { EventDateBox, EventImageStatusTag, formatEventTime } from "@/components/events/event-card-overlays";
 import type { PublicEvent } from "@/components/events/public-event-list";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
+import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 
 type FacilitatorCarouselCard = {
   id: string;
+  slug?: string | null;
   name: string;
   imageUrl: string | null;
   tagline: string;
@@ -76,7 +78,7 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
   return (
     <Link
       className="group block min-w-[280px] max-w-[280px] shrink-0 snap-start overflow-hidden rounded-[24px] bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[320px] sm:max-w-[320px] lg:min-w-[340px] lg:max-w-[340px]"
-      href={"/events/" + event.id}
+      href={publicEventPath(event.slug || event.id)}
     >
       <div
         className="relative aspect-[16/11] overflow-hidden bg-[#FAF6EF]"
@@ -261,7 +263,7 @@ function FacilitatorCardVisual({ facilitator }: { facilitator: FacilitatorCarous
   return (
     <Link
       className="group block min-w-[72vw] max-w-[72vw] snap-start overflow-hidden rounded-[24px] bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[280px] sm:max-w-[280px] lg:min-w-[300px] lg:max-w-[300px]"
-      href={"/facilitators/" + facilitator.id}
+              href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
     >
       <div className="relative aspect-[4/3] bg-sage-50">
         {facilitator.isExperiencedHost ? (

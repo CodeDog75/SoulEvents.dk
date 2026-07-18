@@ -2,9 +2,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { Search, Sparkles, UserRound } from "lucide-react";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
+import { publicFacilitatorPath } from "@/lib/slug";
 
 type FacilitatorCard = {
   id: string;
+  slug?: string | null;
   name: string;
   imageUrl: string | null;
   tagline: string;
@@ -66,7 +68,7 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
             {facilitators.map((facilitator) => (
               <Link
                 className="group min-w-[250px] max-w-[250px] snap-start overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[300px] sm:max-w-[300px]"
-                href={"/facilitators/" + facilitator.id}
+                href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
                 key={facilitator.id}
               >
                 <div className="relative aspect-[4/3] bg-sage-50">

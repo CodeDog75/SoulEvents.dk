@@ -8,6 +8,7 @@ import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus }
 import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
 import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
 import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes } from "@/lib/legal/documents";
+import { publicEventPath } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -83,7 +84,7 @@ type FacilitatorEventsPageProps = {
 };
 
 export default async function FacilitatorEventsPage({ searchParams }: FacilitatorEventsPageProps) {
-  const [{ draft, event, message, step, receipt }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const [{ draft, event: receiptEventId, message, step, receipt }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
   const supabase = await createClient();
 
   const [
@@ -159,6 +160,15 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
           .eq("primary_organizer_profile_id", facilitatorProfile.id)
           .in("status", ["pending", "accepted"])
       : { data: [] };
+  const { data: receiptEvent } =
+    receipt === "published" && receiptEventId && facilitatorProfile
+      ? await supabase
+          .from("events")
+          .select("id, slug")
+          .eq("id", receiptEventId)
+          .eq("facilitator_id", facilitatorProfile.id)
+          .maybeSingle()
+      : { data: null };
   const hasReachedDraftLimit = !selectedDraft && Boolean(limitStatus && limitStatus.draftCount >= limitStatus.maxDraftEvents);
   const hasReachedActiveLimit = Boolean(limitStatus && limitStatus.activeCount >= limitStatus.maxActiveEvents);
 
@@ -246,8 +256,8 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
                 </p>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
-                {receipt === "published" && event ? (
-                  <Link className="inline-flex h-11 items-center justify-center rounded-button bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft" href={"/events/" + event}>
+                {receipt === "published" && receiptEventId ? (
+                  <Link className="inline-flex h-11 items-center justify-center rounded-button bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft" href={publicEventPath(receiptEvent?.slug || receiptEventId)}>
                     Se event
                   </Link>
                 ) : null}

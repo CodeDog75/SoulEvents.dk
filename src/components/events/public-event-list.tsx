@@ -3,9 +3,11 @@ import Image from "next/image";
 import { ArrowRight, CalendarDays, Clock3, MapPinned, Ticket } from "lucide-react";
 import { CapacityBadge } from "@/components/events/capacity-badge";
 import { EventDateBox, EventImageStatusTag, formatEventTime } from "@/components/events/event-card-overlays";
+import { publicEventPath } from "@/lib/slug";
 
 export type PublicEvent = {
   id: string;
+  slug?: string | null;
   status?: string | null;
   title: string;
   short_description: string;
@@ -190,7 +192,7 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
 
         return (
           <Link
-            href={"/events/" + event.id}
+            href={publicEventPath(event.slug || event.id)}
             className="group block overflow-hidden rounded-card border border-olive/10 bg-white shadow-soft transition hover:-translate-y-0.5 hover:border-sage-700/25 hover:shadow-lift"
             key={event.id}
           >

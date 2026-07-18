@@ -23,6 +23,7 @@ import { AdminActionMenu, AdminActionMenuScope } from "@/components/admin/action
 import { DisableFacilitatorDialog } from "@/components/admin/disable-facilitator-dialog";
 import { FacilitatorAdminCard, getFacilitatorAdminTask } from "@/components/admin/facilitator-admin-card";
 import { RequestFacilitatorChangesDialog } from "@/components/admin/reject-facilitator-dialog";
+import { publicFacilitatorPath } from "@/lib/slug";
 import type { AppRole, FacilitatorStatus } from "@/types/database";
 
 type FacilitatorOverviewRow = {
@@ -60,6 +61,7 @@ type FacilitatorOverviewRow = {
   public_phone?: string | null;
   role: AppRole;
   short_description?: string | null;
+  slug?: string | null;
   specialties?: string | null;
   status: FacilitatorStatus;
   total_bookings: number;
@@ -368,7 +370,7 @@ export function UserRoleTable({ currentProfileId, exportHref, facilitators, high
             const isPendingReview = facilitator.status === "pending" && !facilitator.is_disabled && !facilitator.is_paused;
             const actions = (
               <>
-                <Link className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={"/facilitators/" + facilitator.id + "?admin_return=" + encodeURIComponent(returnHref)}>
+                <Link className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={publicFacilitatorPath(facilitator.slug || facilitator.id) + "?admin_return=" + encodeURIComponent(returnHref)}>
                   <Eye className="size-4" aria-hidden="true" />
                   Se profil
                 </Link>

@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapboxMap, Popup } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { CalendarDays, HeartHandshake, MapPinned } from "lucide-react";
+import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 
 type MapEvent = {
   id: string;
+  slug?: string | null;
   title: string;
   startsAt: string;
   priceCents: number;
@@ -22,6 +24,7 @@ type MapEvent = {
 
 type MapServiceProvider = {
   id: string;
+  slug?: string | null;
   name: string;
   serviceLabels: string[];
   city: string | null;
@@ -195,6 +198,8 @@ function eventPopupItem(event: MapEvent, isFirst: boolean, compact = false) {
     ? "<div style=\"display:inline-flex; width:max-content; max-width:100%; background:#7F9466; color:white; border-radius:999px; padding:5px 10px; font-size:11px; font-weight:700; margin-bottom:8px;\">" + categoryName + "</div>"
     : "";
 
+  const eventHref = publicEventPath(event.slug || event.id);
+
   if (compact) {
     return [
       "<div style=\"display:flex; gap:10px; padding:" + (isFirst ? "0 0 12px" : "12px 0") + "; border-top:" + (isFirst ? "0" : "1px solid rgba(127,148,102,.18)") + ";\">",
@@ -203,7 +208,7 @@ function eventPopupItem(event: MapEvent, isFirst: boolean, compact = false) {
       "<h3 style=\"font-size:14px; margin:0 34px 4px 0; line-height:1.25; color:#2F4F3E; font-weight:800;\">" + title + "</h3>",
       "<p style=\"font-size:12px; margin:0 0 3px; color:#526456; font-weight:600;\">" + facilitatorName + "</p>",
       "<p style=\"font-size:12px; margin:0 0 8px; color:#2F4F3E;\">" + date + "</p>",
-      "<a href=\"/events/" + event.id + "\" style=\"display:inline-flex; min-height:32px; align-items:center; justify-content:center; border-radius:999px; background:transparent; color:#2F4F3E; border:1px solid #2F4F3E; padding:7px 12px; font-size:12px; font-weight:800; text-decoration:none;\">Se event</a>",
+      "<a href=\"" + eventHref + "\" style=\"display:inline-flex; min-height:32px; align-items:center; justify-content:center; border-radius:999px; background:transparent; color:#2F4F3E; border:1px solid #2F4F3E; padding:7px 12px; font-size:12px; font-weight:800; text-decoration:none;\">Se event</a>",
       "</div>",
       "</div>",
     ].join("");
@@ -219,7 +224,7 @@ function eventPopupItem(event: MapEvent, isFirst: boolean, compact = false) {
     "<p style=\"font-size:13px; margin:0 0 6px; color:#2F4F3E;\">" + date + "</p>",
     distance,
     "<p style=\"font-size:13px; margin:8px 0 12px; color:#2F4F3E; font-weight:800;\">" + formatPrice(event.priceCents) + "</p>",
-    "<a href=\"/events/" + event.id + "\" style=\"display:inline-flex; min-height:36px; align-items:center; justify-content:center; border-radius:999px; background:transparent; color:#2F4F3E; border:1px solid #2F4F3E; padding:8px 14px; font-size:13px; font-weight:800; text-decoration:none;\">Se event</a>",
+    "<a href=\"" + eventHref + "\" style=\"display:inline-flex; min-height:36px; align-items:center; justify-content:center; border-radius:999px; background:transparent; color:#2F4F3E; border:1px solid #2F4F3E; padding:8px 14px; font-size:13px; font-weight:800; text-decoration:none;\">Se event</a>",
     "</div>",
     "</div>",
   ].join("");
@@ -227,6 +232,7 @@ function eventPopupItem(event: MapEvent, isFirst: boolean, compact = false) {
 
 function servicePopupHtml(provider: MapServiceProvider) {
   const title = escapeHtml(provider.name);
+  const providerHref = publicFacilitatorPath(provider.slug || provider.id);
   const serviceLabel = provider.serviceLabels[0] ? escapeHtml(provider.serviceLabels[0]) : "Tilbud og sessioner";
   const place = [provider.city, provider.area].filter(Boolean).map((value) => escapeHtml(String(value))).join(", ");
 
@@ -236,7 +242,7 @@ function servicePopupHtml(provider: MapServiceProvider) {
     "<h3 style=\"font-size:16px; margin:0 34px 6px 0; line-height:1.25; color:#2F4F3E; font-weight:800;\">" + title + "</h3>",
     "<p style=\"font-size:13px; margin:0 0 6px; color:#526456; font-weight:700;\">" + serviceLabel + "</p>",
     place ? "<p style=\"font-size:12px; margin:0 0 12px; color:#526456;\">" + place + "</p>" : "",
-    "<a href=\"/facilitators/" + provider.id + "\" style=\"display:inline-flex; min-height:34px; align-items:center; justify-content:center; border-radius:999px; background:transparent; color:#2F4F3E; border:1px solid #2F4F3E; padding:8px 14px; font-size:12px; font-weight:800; text-decoration:none;\">Se profil</a>",
+    "<a href=\"" + providerHref + "\" style=\"display:inline-flex; min-height:34px; align-items:center; justify-content:center; border-radius:999px; background:transparent; color:#2F4F3E; border:1px solid #2F4F3E; padding:8px 14px; font-size:12px; font-weight:800; text-decoration:none;\">Se profil</a>",
     "</div>",
   ].join("");
 }

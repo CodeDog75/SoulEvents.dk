@@ -2,9 +2,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { UserRound } from "lucide-react";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
+import { publicFacilitatorPath } from "@/lib/slug";
 
 export type HomeFacilitatorCard = {
   id: string;
+  slug?: string | null;
   name: string;
   imageUrl: string | null;
   city: string | null;
@@ -20,7 +22,7 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
   return (
     <Link
       className="group block overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift"
-      href={"/facilitators/" + facilitator.id}
+      href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
     >
       <div className="relative aspect-[4/3] bg-sage-50">
         {facilitator.isExperiencedHost ? (

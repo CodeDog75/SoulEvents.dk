@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { organizerBadgesFromFlags } from "@/components/badges/organizer-badges";
 import { PublicFacilitatorProfile } from "@/components/facilitator/public-facilitator-profile";
 import { subscribeToFacilitatorReminderAction } from "./actions";
@@ -10,19 +10,38 @@ import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
 import { resolveFacilitatorHero } from "@/lib/facilitators/hero-collection";
 import { withFacilitatorMoodImageFallback } from "@/lib/facilitators/mood-image-fallback";
 import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
-import { createPageMetadata, publicMediaUrl, stripHtml } from "@/lib/open-graph";
+import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
+import { buildFacilitatorMetadata, buildProfilePageJsonLd } from "@/lib/seo/public-page-metadata";
+import { publicFacilitatorPath } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 type FacilitatorPageProps = {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id?: string; slug?: string }>;
   searchParams?: Promise<{ admin_return?: string; facilitator_return?: string; reminder_message?: string }>;
 };
 
 function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function facilitatorIdentifier(params: { id?: string; slug?: string }) {
+  return params.slug ?? params.id ?? "";
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function withSearch(path: string, searchParams: Record<string, string | undefined>) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (value) params.set(key, value);
+  }
+  const query = params.toString();
+  return query ? path + "?" + query : path;
 }
 
 function ensureUrl(url: string) {
@@ -37,12 +56,20 @@ function splitSpecialties(input: string | null | undefined) {
     .slice(0, 3);
 }
 
+function facilitatorCategories(facilitator: any) {
+  return (
+    facilitator?.facilitator_categories
+      ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
+      .filter((category: any) => category?.slug && facilitatorWorkAreaSlugSet.has(category.slug)) ?? []
+  );
+}
+
 function nameOf(facilitator: any) {
   const profile = first(facilitator?.profiles);
   return facilitator?.company_name || profile?.full_name || "Arrangør";
 }
 
-function getBackLink(referer: string | null, currentId: string) {
+function getBackLink(referer: string | null, currentPath: string) {
   if (!referer) {
     return { href: "/facilitators", label: "Tilbage til arrangører" };
   }
@@ -58,7 +85,7 @@ function getBackLink(referer: string | null, currentId: string) {
       return { href: "/facilitators", label: "Tilbage til arrangører" };
     }
 
-    if (url.pathname === "/facilitators/" + currentId) {
+    if (url.pathname === currentPath || url.pathname.startsWith("/facilitators/") || url.pathname.startsWith("/arrangor/")) {
       return { href: "/facilitators", label: "Tilbage til arrangører" };
     }
   } catch {
@@ -101,21 +128,21 @@ function isMissingHeroKeyColumn(error: { code?: string; message?: string } | nul
 }
 
 const facilitatorMetadataSelectWithHero =
-  "company_name, facilitator_hero_key, profile_image_path, short_description, long_description, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_images(image_path, sort_order)";
+  "id, slug, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, service_description, city, country, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
 const facilitatorMetadataSelectLegacy =
-  "company_name, profile_image_path, short_description, long_description, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_images(image_path, sort_order)";
+  "id, slug, company_name, profile_image_path, short_description, specialties, long_description, service_description, city, country, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
 const facilitatorSelectWithHero =
-  "id, profile_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
+  "id, profile_id, slug, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 const facilitatorSelectLegacy =
-  "id, profile_id, company_name, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
+  "id, profile_id, slug, company_name, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 
 export async function generateMetadata({ params }: FacilitatorPageProps): Promise<Metadata> {
-  const { id } = await params;
+  const identifier = facilitatorIdentifier(await params);
   const supabase = await createClient();
   let { data: facilitator, error: facilitatorError } = await supabase
     .from("facilitator_profiles")
     .select(facilitatorMetadataSelectWithHero)
-    .eq("id", id)
+    .eq("slug", identifier)
     .eq("status", "approved")
     .eq("is_paused", false)
     .eq("is_disabled", false)
@@ -125,7 +152,7 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
     const legacyResult = await supabase
       .from("facilitator_profiles")
       .select(facilitatorMetadataSelectLegacy)
-      .eq("id", id)
+      .eq("slug", identifier)
       .eq("status", "approved")
       .eq("is_paused", false)
       .eq("is_disabled", false)
@@ -134,12 +161,27 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
     facilitatorError = legacyResult.error;
   }
 
+  if (!facilitator && isUuid(identifier)) {
+    const fallbackResult = await supabase
+      .from("facilitator_profiles")
+      .select(facilitatorMetadataSelectWithHero)
+      .eq("id", identifier)
+      .eq("status", "approved")
+      .eq("is_paused", false)
+      .eq("is_disabled", false)
+      .single();
+    facilitator = fallbackResult.data as typeof facilitator;
+  }
+
   if (!facilitator) {
-    return createPageMetadata({
-      title: "Arrangør | SoulEvents.dk",
-      description: "Find arrangører på SoulEvents.dk.",
-      path: "/facilitators/" + id,
-    });
+    return {
+      ...createPageMetadata({
+        title: "Arrangør | SoulEvents.dk",
+        description: "Find arrangører på SoulEvents.dk.",
+        path: publicFacilitatorPath(identifier || "arrangoer"),
+      }),
+      robots: { index: false, follow: false },
+    };
   }
 
   const name = nameOf(facilitator);
@@ -153,21 +195,41 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
     resolveImagePath: (imagePath) => publicMediaUrl(supabase, imagePath),
   });
   const imageUrl = facilitator.profile_image_path ? publicMediaUrl(supabase, facilitator.profile_image_path) : moodImage.url;
-  const description = stripHtml(facilitator.short_description || facilitator.long_description) || "Find arrangørprofil på SoulEvents.dk.";
+  const { data: upcomingEvents } = await supabase
+    .from("events")
+    .select("title")
+    .eq("facilitator_id", facilitator.id)
+    .in("status", ["active", "sold_out"])
+    .gte("ends_at", new Date().toISOString())
+    .order("starts_at", { ascending: true })
+    .limit(2);
+  const metadata = buildFacilitatorMetadata({
+    categories: facilitatorCategories(facilitator).map((category: any) => category.name),
+    city: facilitator.city,
+    country: facilitator.country,
+    eventTitles: (upcomingEvents ?? []).map((event) => event.title),
+    name,
+    presentationText: facilitator.long_description || facilitator.short_description,
+    region: first((facilitator as any).regions)?.name,
+    serviceDescription: (facilitator as any).service_description,
+    specialties: splitSpecialties((facilitator as any).specialties),
+  });
 
   return createPageMetadata({
-    title: name + " | Arrangør på SoulEvents.dk",
-    description,
+    title: metadata.title,
+    description: metadata.description,
     imageTitle: name,
     imageSubtitle: "Arrangør på SoulEvents.dk",
     imageUrl,
-    path: "/facilitators/" + id,
+    path: publicFacilitatorPath(facilitator.slug),
     type: "article",
   });
 }
 
 export default async function PublicFacilitatorPage({ params, searchParams }: FacilitatorPageProps) {
-  const { id } = await params;
+  const resolvedParams = await params;
+  const identifier = facilitatorIdentifier(resolvedParams);
+  const isLegacyRoute = Boolean(resolvedParams.id);
   const resolvedSearchParams = await searchParams;
   const reminderMessage = resolvedSearchParams?.reminder_message ?? "";
   const adminReturnLink = getAdminReturnLink(resolvedSearchParams?.admin_return);
@@ -179,7 +241,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   let { data: publicFacilitator, error: publicFacilitatorError } = await supabase
     .from("facilitator_profiles")
     .select(facilitatorSelectWithHero)
-    .eq("id", id)
+    .eq("slug", identifier)
     .eq("status", "approved")
     .eq("is_paused", false)
     .eq("is_disabled", false)
@@ -189,7 +251,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     const legacyResult = await supabase
       .from("facilitator_profiles")
       .select(facilitatorSelectLegacy)
-      .eq("id", id)
+      .eq("slug", identifier)
       .eq("status", "approved")
       .eq("is_paused", false)
       .eq("is_disabled", false)
@@ -198,28 +260,46 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     publicFacilitatorError = legacyResult.error;
   }
 
+  if (!publicFacilitator && isUuid(identifier)) {
+    const fallbackResult = await supabase
+      .from("facilitator_profiles")
+      .select(facilitatorSelectWithHero)
+      .eq("id", identifier)
+      .eq("status", "approved")
+      .eq("is_paused", false)
+      .eq("is_disabled", false)
+      .single();
+    publicFacilitator = fallbackResult.data as typeof publicFacilitator;
+    publicFacilitatorError = fallbackResult.error;
+  }
+
   if (publicFacilitatorError && publicFacilitatorError.code !== "PGRST116") {
     console.error("[facilitator-profile] public lookup failed", {
       code: publicFacilitatorError.code,
-      id,
+      id: identifier,
       message: publicFacilitatorError.message,
     });
   }
 
-  let { data: previewFacilitator, error: previewFacilitatorError } =
-    !publicFacilitator && ((adminReturnLink && viewer?.role === "admin") || (facilitatorReturnLink && viewer?.role === "facilitator"))
-      ? await createAdminClient().from("facilitator_profiles").select(facilitatorSelectWithHero).eq("id", id).single()
-      : { data: null, error: null };
+  const canPreviewFacilitator =
+    !publicFacilitator && ((adminReturnLink && viewer?.role === "admin") || (facilitatorReturnLink && viewer?.role === "facilitator"));
+  let { data: previewFacilitator, error: previewFacilitatorError } = canPreviewFacilitator
+    ? isUuid(identifier)
+      ? await createAdminClient().from("facilitator_profiles").select(facilitatorSelectWithHero).eq("id", identifier).single()
+      : await createAdminClient().from("facilitator_profiles").select(facilitatorSelectWithHero).eq("slug", identifier).single()
+    : { data: null, error: null };
 
   if (isMissingHeroKeyColumn(previewFacilitatorError)) {
-    const legacyResult = await createAdminClient().from("facilitator_profiles").select(facilitatorSelectLegacy).eq("id", id).single();
+    const legacyResult = isUuid(identifier)
+      ? await createAdminClient().from("facilitator_profiles").select(facilitatorSelectLegacy).eq("id", identifier).single()
+      : await createAdminClient().from("facilitator_profiles").select(facilitatorSelectLegacy).eq("slug", identifier).single();
     previewFacilitator = legacyResult.data as typeof previewFacilitator;
     previewFacilitatorError = legacyResult.error;
   }
   if (previewFacilitatorError) {
     console.error("[facilitator-profile] preview lookup failed", {
       code: previewFacilitatorError.code,
-      id,
+      id: identifier,
       message: previewFacilitatorError.message,
     });
   }
@@ -231,20 +311,30 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     notFound();
   }
 
+  if (isLegacyRoute && facilitatorData.slug) {
+    permanentRedirect(
+      withSearch(publicFacilitatorPath(facilitatorData.slug), {
+        admin_return: resolvedSearchParams?.admin_return,
+        facilitator_return: resolvedSearchParams?.facilitator_return,
+        reminder_message: resolvedSearchParams?.reminder_message,
+      }),
+    );
+  }
+
   if (facilitatorReturnLink && (viewer?.role !== "facilitator" || viewer.id !== facilitatorData.profile_id)) {
     notFound();
   }
 
   await createAdminClient()
     .from("facilitator_profile_views")
-    .insert({ facilitator_id: id });
+    .insert({ facilitator_id: facilitatorData.id });
 
   const { data: events } = await supabase
     .from("events")
     .select(
-      "id, status, title, short_description, starts_at, ends_at, city, price_cents, capacity, event_format, cover_image_path, facilitator_profiles!inner(status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), regions(name), event_categories(categories(name, color_hex)), event_main_categories(main_categories(name, color_hex, image_path))",
+      "id, slug, status, title, short_description, starts_at, ends_at, city, price_cents, capacity, event_format, cover_image_path, facilitator_profiles!inner(status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), regions(name), event_categories(categories(name, color_hex)), event_main_categories(main_categories(name, color_hex, image_path))",
     )
-    .eq("facilitator_id", id)
+    .eq("facilitator_id", facilitatorData.id)
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
     .eq("facilitator_profiles.is_paused", false)
@@ -301,7 +391,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     facilitatorData.tiktok_url ? { label: "TikTok", href: ensureUrl(facilitatorData.tiktok_url) } : null,
   ].filter((link): link is { label: string; href: string } => Boolean(link));
   const isOwnProfilePreview = viewer?.role === "facilitator" && viewer.id === facilitatorData.profile_id;
-  const backLink = adminReturnLink ?? facilitatorReturnLink ?? (isOwnProfilePreview ? { href: "/facilitator", label: "Tilbage til dashboard" } : getBackLink(referer, id));
+  const backLink = adminReturnLink ?? facilitatorReturnLink ?? (isOwnProfilePreview ? { href: "/facilitator", label: "Tilbage til dashboard" } : getBackLink(referer, publicFacilitatorPath(facilitatorData.slug || facilitatorData.id)));
   const badges = organizerBadgesFromFlags({
     isActiveHost: facilitatorData.is_active_host,
     isExperiencedHost: facilitatorData.is_experienced_host,
@@ -314,36 +404,62 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
         imagePath: image.image_path ?? image.imagePath ?? null,
         url: image.url,
       }));
+  const canonicalProfileUrl = absoluteUrl(publicFacilitatorPath(facilitatorData.slug || facilitatorData.id));
+  const profileJsonLd = buildProfilePageJsonLd({
+    canonicalUrl: canonicalProfileUrl,
+    categories: categories.map((category: any) => category.name),
+    city: facilitatorData.city,
+    country: facilitatorData.country,
+    email: publicEmail,
+    eventTitles: eventsWithCapacity.map((event: any) => event.title),
+    imageUrl: imageUrl || coverImage.url,
+    links,
+    name,
+    phone: publicPhone,
+    presentationText,
+    region: region?.name,
+    serviceDescription: facilitatorData.offers_services ? facilitatorData.service_description : null,
+    specialties,
+  });
 
   return (
-    <PublicFacilitatorProfile
-      backLink={backLink}
-      badges={badges}
-      categories={categories.map((category: any) => ({
-        colorHex: category.color_hex,
-        name: category.name,
-      }))}
-      contact={{
-        city: facilitatorData.city,
-        country: facilitatorData.country,
-        email: publicEmail,
-        isOnline: facilitatorData.is_online_facilitator,
-        links,
-        phone: publicPhone,
-        region: region?.name,
-      }}
-      coverImage={coverImage}
-      events={eventsWithCapacity}
-      facilitatorId={facilitatorData.id}
-      galleryImages={publicGalleryImages}
-      name={name}
-      presentationText={presentationText}
-      profileImageUrl={imageUrl}
-      reminderFormAction={subscribeToFacilitatorReminderAction.bind(null, facilitatorData.id)}
-      reminderMessage={reminderMessage}
-      serviceDescription={facilitatorData.offers_services ? facilitatorData.service_description : null}
-      showFallbackNotice={Boolean(adminReturnLink || isOwnProfilePreview)}
-      specialties={specialties}
-    />
+    <>
+      {publicFacilitator ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(profileJsonLd).replace(/</g, "\\u003c") }}
+        />
+      ) : null}
+      <PublicFacilitatorProfile
+        backLink={backLink}
+        badges={badges}
+        categories={categories.map((category: any) => ({
+          colorHex: category.color_hex,
+          name: category.name,
+        }))}
+        contact={{
+          city: facilitatorData.city,
+          country: facilitatorData.country,
+          email: publicEmail,
+          isOnline: facilitatorData.is_online_facilitator,
+          links,
+          phone: publicPhone,
+          region: region?.name,
+        }}
+        coverImage={coverImage}
+        events={eventsWithCapacity}
+        facilitatorId={facilitatorData.id}
+        facilitatorSlug={facilitatorData.slug}
+        galleryImages={publicGalleryImages}
+        name={name}
+        presentationText={presentationText}
+        profileImageUrl={imageUrl}
+        reminderFormAction={subscribeToFacilitatorReminderAction.bind(null, facilitatorData.id)}
+        reminderMessage={reminderMessage}
+        serviceDescription={facilitatorData.offers_services ? facilitatorData.service_description : null}
+        showFallbackNotice={Boolean(adminReturnLink || isOwnProfilePreview)}
+        specialties={specialties}
+      />
+    </>
   );
 }

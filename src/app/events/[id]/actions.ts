@@ -11,11 +11,12 @@ import { env } from "@/lib/env";
 import { getAvailableEventSeats, syncEventCapacityStatus } from "@/lib/events/capacity";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { bookingAcceptanceTypes, getCurrentLegalDocumentVersions } from "@/lib/legal/documents";
+import { publicEventPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-function bookingRedirect(eventId: string, message: string): never {
-  redirect("/events/" + eventId + "?message=" + encodeURIComponent(message) + "#booking-response");
+function bookingRedirect(eventId: string, message: string, eventSlug?: string | null): never {
+  redirect(publicEventPath(eventSlug || eventId) + "?message=" + encodeURIComponent(message) + "#booking-response");
 }
 
 function getSeats(formData: FormData) {
@@ -54,6 +55,7 @@ function bookingAdminAppUrl(origin: string | null) {
 
 const eventSelect = [
   "id,",
+  "slug,",
   "status,",
   "title,",
   "starts_at,",
@@ -84,6 +86,7 @@ type BookingEventResult = {
         profiles?: { email: string | null; full_name: string | null } | { email: string | null; full_name: string | null }[] | null;
       }>;
   id: string;
+  slug?: string | null;
   price_cents: number;
   practical_information?: string | null;
   starts_at: string;
@@ -189,11 +192,11 @@ export async function createBookingAction(formData: FormData) {
 
   if (availableSeats <= 0) {
     await syncEventCapacityStatus(adminSupabase, event.id);
-    bookingRedirect(eventId, "Eventet er udsolgt.");
+    bookingRedirect(eventId, "Eventet er udsolgt.", event.slug);
   }
 
   if (seats > availableSeats) {
-    bookingRedirect(eventId, "Der er kun " + availableSeats + " ledige pladser.");
+    bookingRedirect(eventId, "Der er kun " + availableSeats + " ledige pladser.", event.slug);
   }
 
   const facilitatorProfile = Array.isArray(event.facilitator_profiles)
@@ -238,6 +241,7 @@ export async function createBookingAction(formData: FormData) {
       overCapacity
         ? "Der er desværre ikke nok ledige pladser tilbage."
         : error?.message ? "Tilmeldingen kunne ikke gemmes: " + error.message : "Tilmeldingen kunne ikke gemmes. Prøv igen.",
+      event.slug,
     );
   }
 
@@ -261,7 +265,7 @@ export async function createBookingAction(formData: FormData) {
     });
     await adminSupabase.from("bookings").delete().eq("id", booking.id);
     await syncEventCapacityStatus(adminSupabase, event.id);
-    bookingRedirect(eventId, "Accepten af vilkår kunne ikke gemmes. Prøv igen.");
+    bookingRedirect(eventId, "Accepten af vilkår kunne ikke gemmes. Prøv igen.", event.slug);
   }
 
   const requestHeaders = await headers();
@@ -335,9 +339,11 @@ export async function createBookingAction(formData: FormData) {
       : "Din tilmelding er modtaget, men mailen kunne ikke sendes lige nu. Arrangøren skal stadig først godkende den, før pladsen er endeligt bekræftet.";
 
   revalidatePath("/events/" + eventId);
+  if (event.slug) {
+    revalidatePath(publicEventPath(event.slug));
+  }
   redirect(
-    "/events/" +
-      eventId +
+    publicEventPath(event.slug || eventId) +
       "?booking=sent&message=" +
       encodeURIComponent(successMessage) +
       "#booking-response",
