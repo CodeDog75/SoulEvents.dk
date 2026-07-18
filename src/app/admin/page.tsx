@@ -3,22 +3,25 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   AlertCircle,
+  BarChart3,
   Bell,
   CalendarDays,
   CheckCircle2,
   Clock3,
   FileText,
+  HeartHandshake,
+  Home,
   LayoutDashboard,
-  LayoutGrid,
-  Mail,
   Megaphone,
+  MessageCircle,
   ReceiptText,
   Scale,
+  Settings,
   Search,
-  SlidersHorizontal,
   Sparkles,
   Star,
   Tags,
+  Ticket,
   UserCog,
   UserRound,
   UsersRound,
@@ -131,6 +134,28 @@ function DashboardFacilitatorCard({
   );
 }
 
+const adminCardThemes = {
+  bookings: "bg-[#FFF6E6] text-[#7A4B16] ring-[#E8BD73]/40 group-hover:bg-[#FFEBC2]",
+  burgundy: "bg-[#F8E8E9] text-[#8A3342] ring-[#D9A1A6]/45 group-hover:bg-[#F2DADD]",
+  gold: "bg-[#FFF2C8] text-[#806018] ring-[#E7C661]/45 group-hover:bg-[#FFE99F]",
+  green: "bg-[#EDF5EA] text-[#4F6F48] ring-[#CFE3C8]/55 group-hover:bg-[#E2F0DD]",
+  indigo: "bg-[#EDEAF8] text-[#4F4A86] ring-[#C8C1E8]/45 group-hover:bg-[#E3DEF4]",
+  lavender: "bg-[#F1EAF5] text-[#6E5A86] ring-[#D8CBE4]/55 group-hover:bg-[#E9DFF1]",
+  navy: "bg-[#E6EEF6] text-[#31516C] ring-[#B9CCDC]/45 group-hover:bg-[#DCE8F2]",
+  orange: "bg-[#FFF0DF] text-[#9A5424] ring-[#E8B887]/45 group-hover:bg-[#FFE5C7]",
+  pink: "bg-[#FBE7F0] text-[#934667] ring-[#E7B8CB]/45 group-hover:bg-[#F6D9E8]",
+  platform: "bg-[#E8EFE5] text-[#394E35] ring-[#BBCDB5]/55 group-hover:bg-[#DDE9D8]",
+  slate: "bg-[#ECEDEA] text-[#505852] ring-[#CED3CC]/55 group-hover:bg-[#E2E4E0]",
+  teal: "bg-[#E4F2EF] text-[#2F6E68] ring-[#B9DCD6]/45 group-hover:bg-[#D8ECE8]",
+} as const;
+
+const adminSectionThemes = {
+  content: "border-[#EBDDC8] bg-[#FFF8EC]",
+  events: "border-[#D7E7D2] bg-[#F4FAF1]",
+  facilitators: "border-[#D8CBE4] bg-[#F7F2FA]",
+  platform: "border-[#DADDD8] bg-[#F4F4F1]",
+} as const;
+
 export default async function AdminPage({ searchParams }: AdminPageProps) {
   const [{ message }, profile] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = await createClient();
@@ -189,22 +214,50 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { label: "Events til godkendelse", value: formatNumber(pendingEvents), icon: AlertCircle },
   ];
 
-  const adminLinks = [
-    { href: "/admin/events", title: "Eventmoderation", text: "Godkend, afvis, skjul og arkiver events.", icon: CalendarDays },
-    { href: "/admin/bookings", title: "Tilmeldinger", text: "Se deltagere, status og antal pladser.", icon: ReceiptText },
-    { href: "/admin/messages", title: "Beskeder", text: "Indbakke, sendte svar og arkiverede beskeder.", icon: Mail, badge: openAdminMessages ? `${formatNumber(openAdminMessages)} ubesvarede` : undefined },
-    { href: "/admin/category-architecture", title: "Kategorier & tags", text: "Administrer kategorier, tags og tagfarver ét samlet sted.", icon: Tags },
-    { href: "/admin/about", title: "Om SoulEvents", text: "Rediger den offentlige fortælling, CTA og billeder.", icon: FileText },
-    { href: "/admin/content/bliv-arrangoer", title: "Bliv arrangør", text: "Rediger landingssiden for nye arrangører.", icon: FileText },
-    { href: "/admin/homepage", title: "Forsidebokse og temaer", text: "Styr de store 1:1 bokse og kampagne-temaer på forsiden.", icon: LayoutGrid },
-    { href: "/admin/current-experiences", title: "Aktuelle oplevelser", text: "Opret og styr de eventrækker, der vises på forsiden.", icon: Sparkles },
-    { href: "/admin/inspirators", title: "Inspiratorer", text: "Opret og rediger inspiratorprofiler til inspirationsuniverset.", icon: Sparkles },
-    { href: "/admin/ads", title: "Reklamer / partnerindhold", text: "Styr diskrete reklamer på forsiden og hovedkategorisider.", icon: Megaphone },
-    { href: "/admin/featured-facilitators", title: "Fremhævede arrangører", text: "Vælg hvem der skal vises særskilt på forsiden.", icon: Star },
-    { href: "/admin/settings", title: "Platformindstillinger", text: "Styr grænser for kladder og aktive events per arrangør.", icon: SlidersHorizontal },
-    { href: "/admin/users", title: "Arrangørcenter", text: "Find arrangører, events og styr adminadgang.", icon: UserCog },
-    { href: "/admin/legal", title: "Juridiske dokumenter", text: "Opdater betingelser, privatliv og retningslinjer.", icon: Scale },
-    { href: "/admin/reports", title: "Rapporter og eksport", text: "Excel-eksport til statistik, status og dokumentation.", icon: FileText },
+  const adminSections = [
+    {
+      description: "Administrér profiler, kommunikation og deltagere.",
+      theme: adminSectionThemes.facilitators,
+      title: "Arrangører",
+      items: [
+        { href: "/admin/users", title: "Arrangørcenter", text: "Find arrangører, events og styr adminadgang.", icon: UserCog, theme: adminCardThemes.lavender },
+        { href: "/admin/bookings", title: "Tilmeldinger", text: "Se deltagere, status og antal pladser.", icon: Ticket, theme: adminCardThemes.bookings },
+        { href: "/admin/messages", title: "Beskeder", text: "Indbakke, sendte svar og arkiverede beskeder.", icon: MessageCircle, theme: adminCardThemes.navy, badge: openAdminMessages ? `${formatNumber(openAdminMessages)} ubesvarede` : undefined },
+        { href: "/admin/featured-facilitators", title: "Fremhævede arrangører", text: "Vælg hvem der skal vises særskilt på forsiden.", icon: Star, theme: adminCardThemes.gold },
+      ],
+    },
+    {
+      description: "Moderation, kategorier og oplevelser.",
+      theme: adminSectionThemes.events,
+      title: "Events",
+      items: [
+        { href: "/admin/events", title: "Eventmoderation", text: "Godkend, afvis, skjul og arkiver events.", icon: CalendarDays, theme: adminCardThemes.green },
+        { href: "/admin/current-experiences", title: "Aktuelle oplevelser", text: "Opret og styr de eventrækker, der vises på forsiden.", icon: Sparkles, theme: adminCardThemes.orange },
+        { href: "/admin/category-architecture", title: "Kategorier & tags", text: "Administrer kategorier, tags og tagfarver ét samlet sted.", icon: Tags, theme: adminCardThemes.teal },
+      ],
+    },
+    {
+      description: "Redigér fortælling, forsideliv og inspiration.",
+      theme: adminSectionThemes.content,
+      title: "Indhold",
+      items: [
+        { href: "/admin/about", title: "Om SoulEvents", text: "Rediger den offentlige fortælling, CTA og billeder.", icon: HeartHandshake, theme: adminCardThemes.burgundy },
+        { href: "/admin/content/bliv-arrangoer", title: "Bliv arrangør", text: "Rediger landingssiden for nye arrangører.", icon: FileText, theme: adminCardThemes.green },
+        { href: "/admin/inspirators", title: "Inspiratorer", text: "Opret og rediger inspiratorprofiler til inspirationsuniverset.", icon: Sparkles, theme: adminCardThemes.indigo },
+        { href: "/admin/homepage", title: "Forsidebokse og temaer", text: "Styr de store 1:1 bokse og kampagne-temaer på forsiden.", icon: Home, theme: adminCardThemes.lavender },
+        { href: "/admin/ads", title: "Reklamer / partnerindhold", text: "Styr diskrete reklamer på forsiden og hovedkategorisider.", icon: Megaphone, theme: adminCardThemes.pink },
+      ],
+    },
+    {
+      description: "Indstillinger, jura, rapporter og eksport.",
+      theme: adminSectionThemes.platform,
+      title: "Platform",
+      items: [
+        { href: "/admin/settings", title: "Platformindstillinger", text: "Styr grænser for kladder og aktive events per arrangør.", icon: Settings, theme: adminCardThemes.platform },
+        { href: "/admin/legal", title: "Juridiske dokumenter", text: "Opdater betingelser, privatliv og retningslinjer.", icon: Scale, theme: adminCardThemes.slate },
+        { href: "/admin/reports", title: "Rapporter og eksport", text: "Excel-eksport til statistik, status og dokumentation.", icon: BarChart3, theme: adminCardThemes.navy },
+      ],
+    },
   ];
   const facilitatorReviewCount = (pendingFacilitators ?? 0) + (changesRequestedFacilitators ?? 0);
   const dashboardFacilitators = (recentFacilitators ?? []).slice(0, 5);
@@ -326,18 +379,44 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           </div>
         </section>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-4">
-          {adminLinks.map((item) => (
-            <Link className="relative rounded-md border border-midnight/10 bg-white p-5 shadow-soft transition hover:border-sage-700" href={item.href} key={item.href}>
-              {item.badge && (
-                <span className="absolute right-4 top-4 rounded-full bg-[#F6EFFF] px-3 py-1 text-xs font-semibold text-[#7A4EAB]">
-                  {item.badge}
-                </span>
-              )}
-              <item.icon className="size-5 text-sage-700" aria-hidden="true" />
-              <h2 className="mt-4 font-semibold text-midnight">{item.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-ink/64">{item.text}</p>
-            </Link>
+        <div className="mt-6 grid gap-5">
+          {adminSections.map((section, sectionIndex) => (
+            <section
+              className={
+                "soulevents-fade-in rounded-[28px] border p-4 shadow-soft sm:p-5 " +
+                section.theme +
+                (sectionIndex === 1 ? " delay-75" : sectionIndex === 2 ? " delay-100" : sectionIndex === 3 ? " delay-150" : "")
+              }
+              key={section.title}
+            >
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="font-serif text-3xl font-semibold leading-tight text-midnight">{section.title}</h2>
+                  <p className="mt-1 text-sm leading-6 text-ink/64">{section.description}</p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {section.items.map((item) => (
+                  <Link
+                    className="group relative flex min-h-[13.5rem] cursor-pointer flex-col rounded-[22px] border border-midnight/10 bg-white/86 p-5 shadow-soft transition duration-200 hover:-translate-y-1 hover:border-midnight/15 hover:bg-white hover:shadow-lift focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
+                    href={item.href}
+                    key={item.href}
+                  >
+                    {"badge" in item && item.badge && (
+                      <span className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#7A4EAB] shadow-soft">
+                        {item.badge}
+                      </span>
+                    )}
+                    <span className={"grid size-14 place-items-center rounded-full ring-1 transition duration-200 " + item.theme}>
+                      <item.icon className="size-7" aria-hidden="true" />
+                    </span>
+                    <h3 className="mt-5 text-lg font-semibold leading-tight text-midnight">{item.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-ink/64">{item.text}</p>
+                  </Link>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
 
