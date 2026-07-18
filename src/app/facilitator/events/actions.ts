@@ -13,6 +13,7 @@ import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitat
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
 import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
+import { getFacilitatorPublicEligibility } from "@/lib/facilitators/public-eligibility";
 import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes, recordLegalAcceptances } from "@/lib/legal/documents";
@@ -307,12 +308,23 @@ async function replaceEventRelations(
 }
 
 type CoOrganizerCandidateRow = {
+  categoryIds?: string[];
   city: string | null;
   company_name: string | null;
-  facilitator_categories?: Array<{ categories?: { name: string | null } | { name: string | null }[] | null }> | null;
+  facilitator_categories?: Array<{
+    category_id?: string | null;
+    categories?: { name: string | null } | { name: string | null }[] | null;
+  }> | null;
+  host_reference_id?: string | null;
   id: string;
+  is_disabled?: boolean | null;
+  is_paused?: boolean | null;
+  postal_code?: string | null;
+  profile_id?: string | null;
   profile_image_path: string | null;
   profiles?: { email?: string | null; full_name?: string | null } | { email?: string | null; full_name?: string | null }[] | null;
+  status?: string | null;
+  short_description?: string | null;
   specialties: string | null;
 };
 
@@ -327,6 +339,34 @@ function coOrganizerDisplayName(row: { company_name?: string | null; profiles?: 
 
 function coOrganizerInvitationUrl(token: string) {
   return appUrl("/facilitator/co-organizer-invitations/" + token);
+}
+
+function coOrganizerCategoryIds(row: {
+  categoryIds?: string[];
+  facilitator_categories?: Array<{ category_id?: string | null }> | null;
+}) {
+  return row.categoryIds ?? row.facilitator_categories?.map((relation) => relation.category_id).filter((id): id is string => Boolean(id)) ?? [];
+}
+
+function coOrganizerPublicEligibility(row: CoOrganizerCandidateRow) {
+  const profile = firstRelation(row.profiles);
+  return getFacilitatorPublicEligibility({
+    categoryIds: coOrganizerCategoryIds(row),
+    city: row.city,
+    companyName: row.company_name,
+    fullName: profile?.full_name,
+    hostReferenceId: row.host_reference_id,
+    isDisabled: row.is_disabled,
+    isPaused: row.is_paused,
+    postalCode: row.postal_code,
+    profileImagePath: row.profile_image_path,
+    shortDescription: row.short_description,
+    status: row.status,
+  });
+}
+
+function isEligibleCoOrganizer(row: CoOrganizerCandidateRow) {
+  return coOrganizerPublicEligibility(row).isEligible;
 }
 
 async function createCoOrganizerInvitations(
@@ -369,7 +409,7 @@ async function createCoOrganizerInvitations(
 
   const { data: candidates, error: candidateError } = await supabase
     .from("facilitator_profiles")
-    .select("id, status, is_paused, is_disabled, company_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name)")
+    .select("id, profile_id, status, is_paused, is_disabled, host_reference_id, company_name, profile_image_path, short_description, city, postal_code, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, full_name)")
     .in("id", newProfileIds)
     .eq("status", "approved")
     .eq("is_paused", false)
@@ -383,11 +423,23 @@ async function createCoOrganizerInvitations(
     eventFormRedirect("Medarrangører kunne ikke valideres lige nu.", { eventId: input.eventId });
   }
 
-  const candidateMap = new Map((candidates ?? []).map((candidate) => [candidate.id, candidate]));
+  const eligibleCandidates = [];
+  for (const candidate of (candidates ?? []) as CoOrganizerCandidateRow[]) {
+    if (isEligibleCoOrganizer(candidate)) {
+      eligibleCandidates.push(candidate);
+    } else {
+      console.error("Co-organizer candidate rejected by public eligibility", {
+        candidateId: candidate.id,
+        missing: coOrganizerPublicEligibility(candidate).missing,
+      });
+    }
+  }
+
+  const candidateMap = new Map(eligibleCandidates.map((candidate) => [candidate.id, candidate]));
   const invalidProfileIds = newProfileIds.filter((profileId) => !candidateMap.has(profileId));
 
   if (invalidProfileIds.length > 0) {
-    eventFormRedirect("En valgt medarrangør har ikke en aktiv godkendt profil.", { eventId: input.eventId });
+    eventFormRedirect("Denne arrangørprofil kan ikke længere inviteres. Profilen er muligvis sat på pause, deaktiveret eller ikke fuldt oprettet.", { eventId: input.eventId });
   }
 
   const { data: insertedRows, error: insertError } = await supabase
@@ -439,6 +491,110 @@ async function createCoOrganizerInvitations(
   }
 }
 
+async function validateActiveCoOrganizersForPublication(
+  supabase: AdminClient,
+  input: {
+    eventId: string;
+    primaryOrganizerProfileId: string;
+  },
+) {
+  const { data: coOrganizerRows, error } = await supabase
+    .from("event_co_organizers")
+    .select(
+      "id, status, co_organizer_profile_id, facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(id, profile_id, status, is_paused, is_disabled, host_reference_id, company_name, profile_image_path, short_description, city, postal_code, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(full_name))",
+    )
+    .eq("event_id", input.eventId)
+    .eq("primary_organizer_profile_id", input.primaryOrganizerProfileId)
+    .in("status", [...activeCoOrganizerStatuses]);
+
+  if (error) {
+    console.error("Co-organizer publication validation failed", {
+      eventId: input.eventId,
+      message: error.message,
+    });
+    eventFormRedirect("Medarrangørerne kunne ikke valideres lige nu.", { eventId: input.eventId, step: "0" });
+  }
+
+  const invalidRows: Array<{ co_organizer_profile_id: string }> = [];
+
+  for (const row of coOrganizerRows ?? []) {
+    const coOrganizerProfile = firstRelation(row.facilitator_profiles);
+    if (!coOrganizerProfile || !isEligibleCoOrganizer(coOrganizerProfile as CoOrganizerCandidateRow)) {
+      invalidRows.push(row);
+    }
+  }
+
+  if (invalidRows.length > 0) {
+    console.error("Inactive co-organizer blocked event publication", {
+      eventId: input.eventId,
+      invalidCoOrganizerProfileIds: invalidRows.map((row) => row.co_organizer_profile_id),
+    });
+    eventFormRedirect("Denne arrangørprofil kan ikke længere inviteres. Profilen er muligvis sat på pause, deaktiveret eller ikke fuldt oprettet.", {
+      eventId: input.eventId,
+      step: "0",
+    });
+  }
+}
+
+async function validateRequestedCoOrganizerProfileIds(
+  supabase: AdminClient,
+  input: {
+    eventId?: string | null;
+    primaryOrganizerProfileId: string;
+    requestedProfileIds: string[];
+  },
+) {
+  const requestedProfileIds = Array.from(new Set(input.requestedProfileIds.filter(Boolean)));
+
+  if (requestedProfileIds.length === 0) {
+    return;
+  }
+
+  if (requestedProfileIds.includes(input.primaryOrganizerProfileId)) {
+    eventFormRedirect("Du kan ikke invitere dig selv som medarrangør.", { eventId: input.eventId, step: "0" });
+  }
+
+  const { data: candidates, error } = await supabase
+    .from("facilitator_profiles")
+    .select("id, profile_id, status, is_paused, is_disabled, host_reference_id, company_name, profile_image_path, short_description, city, postal_code, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(full_name)")
+    .in("id", requestedProfileIds);
+
+  if (error) {
+    console.error("Requested co-organizer validation failed", {
+      eventId: input.eventId ?? null,
+      message: error.message,
+    });
+    eventFormRedirect("Medarrangørerne kunne ikke valideres lige nu.", { eventId: input.eventId, step: "0" });
+  }
+
+  const validProfileIds = new Set<string>();
+  for (const candidate of (candidates ?? []) as CoOrganizerCandidateRow[]) {
+    if (isEligibleCoOrganizer(candidate)) {
+      validProfileIds.add(candidate.id);
+    }
+  }
+  const invalidProfileIds = requestedProfileIds.filter((profileId) => !validProfileIds.has(profileId));
+
+  if (invalidProfileIds.length > 0) {
+    console.error("Inactive requested co-organizer blocked event publication", {
+      eventId: input.eventId ?? null,
+      invalidCoOrganizerProfileIds: invalidProfileIds,
+    });
+    eventFormRedirect("Denne arrangørprofil kan ikke længere inviteres. Profilen er muligvis sat på pause, deaktiveret eller ikke fuldt oprettet.", { eventId: input.eventId, step: "0" });
+  }
+}
+
+async function notifySubscribersWithoutBlockingPublication(eventId: string) {
+  try {
+    await notifyFacilitatorEventReminderSubscribers(eventId);
+  } catch (error) {
+    console.error("Facilitator event reminder notification failed after publication", {
+      eventId,
+      message: error instanceof Error ? error.message : "Ukendt fejl.",
+    });
+  }
+}
+
 export async function searchCoOrganizerCandidatesAction(query: string, eventId?: string | null) {
   const profile = await requireRole("facilitator");
   const supabase = createAdminClient();
@@ -474,7 +630,7 @@ export async function searchCoOrganizerCandidatesAction(query: string, eventId?:
   const { data, error } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, company_name, profile_image_path, city, specialties, facilitator_categories(categories(name)), profiles!facilitator_profiles_profile_id_fkey(full_name)",
+      "id, profile_id, host_reference_id, status, is_paused, is_disabled, company_name, profile_image_path, short_description, city, postal_code, specialties, facilitator_categories(category_id, categories(name)), profiles!facilitator_profiles_profile_id_fkey(full_name)",
     )
     .eq("status", "approved")
     .eq("is_paused", false)
@@ -488,9 +644,13 @@ export async function searchCoOrganizerCandidatesAction(query: string, eventId?:
 
   const normalizedNeedle = normalizedQuery.toLowerCase();
 
-  return ((data ?? []) as CoOrganizerCandidateRow[])
+  const matchedCandidates = ((data ?? []) as CoOrganizerCandidateRow[])
     .filter((candidate) => {
       if (excludedProfileIds.has(candidate.id)) {
+        return false;
+      }
+
+      if (!coOrganizerPublicEligibility(candidate).isEligible) {
         return false;
       }
 
@@ -511,7 +671,9 @@ export async function searchCoOrganizerCandidatesAction(query: string, eventId?:
         .toLowerCase();
 
       return haystack.includes(normalizedNeedle);
-    })
+    });
+
+  return matchedCandidates
     .slice(0, 8)
     .map((candidate) => {
       const profileImageUrl = candidate.profile_image_path
@@ -885,6 +1047,21 @@ export async function createEventAction(formData: FormData) {
     eventsRedirect("Postnummeret kunne ikke kobles til et område. Tjek postnummeret.");
   }
 
+  if (!isDraft) {
+    await validateRequestedCoOrganizerProfileIds(supabase, {
+      eventId: existingEventId,
+      primaryOrganizerProfileId: facilitatorProfile.id,
+      requestedProfileIds: requestedCoOrganizerProfileIds,
+    });
+
+    if (existingEventId) {
+      await validateActiveCoOrganizersForPublication(supabase, {
+        eventId: existingEventId,
+        primaryOrganizerProfileId: facilitatorProfile.id,
+      });
+    }
+  }
+
   const hasAddressForGeocoding = Boolean(addressLine && postalCode && city);
   const coordinates =
     !isDanishPhysicalEvent || !hasAddressForGeocoding
@@ -1067,7 +1244,7 @@ export async function createEventAction(formData: FormData) {
         new_value: "active",
         reason: "auto_approve_events",
       });
-      await notifyFacilitatorEventReminderSubscribers(existingEventId);
+      await notifySubscribersWithoutBlockingPublication(existingEventId);
       redirect("/facilitator/events?receipt=published&event=" + existingEventId);
     }
 
@@ -1184,7 +1361,7 @@ export async function createEventAction(formData: FormData) {
       new_value: "active",
       reason: "auto_approve_events",
     });
-    await notifyFacilitatorEventReminderSubscribers(event.id);
+    await notifySubscribersWithoutBlockingPublication(event.id);
     redirect("/facilitator/events?receipt=published&event=" + event.id);
   }
 
@@ -1261,6 +1438,11 @@ export async function updateEventStatusAction(formData: FormData) {
     if (limitStatus && limitStatus.activeCount >= limitStatus.maxActiveEvents) {
       eventsRedirect(activeLimitMessage(limitStatus.maxActiveEvents));
     }
+
+    await validateActiveCoOrganizersForPublication(supabase, {
+      eventId,
+      primaryOrganizerProfileId: facilitatorProfile.id,
+    });
   }
 
   const { error } = await supabase
@@ -1279,7 +1461,7 @@ export async function updateEventStatusAction(formData: FormData) {
   }
 
   if (status === "active") {
-    await notifyFacilitatorEventReminderSubscribers(eventId);
+    await notifySubscribersWithoutBlockingPublication(eventId);
   }
 
   revalidatePath("/facilitator");
@@ -1349,6 +1531,11 @@ export async function publishDraftEventAction(formData: FormData) {
     }
   }
 
+  await validateActiveCoOrganizersForPublication(supabase, {
+    eventId: event.id,
+    primaryOrganizerProfileId: facilitatorProfile.id,
+  });
+
   const { data: updatedEvent, error } = await supabase
     .from("events")
     .update({ status: nextStatus })
@@ -1372,7 +1559,7 @@ export async function publishDraftEventAction(formData: FormData) {
       reason: "draft_publish",
     });
 
-    await notifyFacilitatorEventReminderSubscribers(event.id);
+    await notifySubscribersWithoutBlockingPublication(event.id);
   }
 
   revalidatePath("/facilitator");
@@ -1620,7 +1807,7 @@ export async function respondToCoOrganizerInvitationAction(formData: FormData) {
   }
 
   if (response === "withdrawn" && invitation.status !== "accepted") {
-    redirect("/facilitator?message=" + encodeURIComponent("Du kan kun trække dig fra accepterede invitationer."));
+    redirect("/facilitator?message=" + encodeURIComponent("Du kan kun trække dig fra events, hvor du står som medarrangør."));
   }
 
   const { error: updateError } = await supabase
@@ -1664,6 +1851,6 @@ export async function respondToCoOrganizerInvitationAction(formData: FormData) {
   revalidatePath("/events/" + invitation.event_id);
   redirect(
     "/facilitator?message=" +
-      encodeURIComponent(response === "accepted" ? "Invitationen er accepteret." : response === "withdrawn" ? "Du er trukket som medarrangør." : "Invitationen er afvist."),
+      encodeURIComponent(response === "accepted" ? "Invitationen er bekræftet." : response === "withdrawn" ? "Du er trukket som medarrangør." : "Du har sagt nej tak til invitationen."),
   );
 }

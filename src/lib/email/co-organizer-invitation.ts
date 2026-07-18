@@ -28,39 +28,51 @@ export async function sendCoOrganizerInvitationEmail(input: CoOrganizerInvitatio
   ];
 
   const html = await renderEmailLayout({
-    title: "Du er inviteret som medarrangør",
+    title: escapeHtml(input.primaryOrganizerName) + " har inviteret dig som medarrangør",
     children: [
       "<p>Hej " + escapeHtml(input.recipientName) + "</p>",
-      "<p>" + escapeHtml(input.primaryOrganizerName) + " har inviteret dig til at blive vist som medarrangør på eventet:</p>",
+      "<p>Du er blevet inviteret til at stå som <strong>medarrangør</strong> på dette event på SoulEvents.</p>",
       renderEmailTable(rows),
-      "<p>Som medarrangør bliver din SoulEvents-profil vist på eventet, når du har accepteret invitationen.</p>",
-      "<p>Den primære arrangør ejer og administrerer eventet og modtager alle tilmeldinger.</p>",
-      "<p>Du kan acceptere eller afvise invitationen på SoulEvents.</p>",
-      renderEmailButton(input.invitationUrl, "Se invitation"),
+      "<p>Hvis du bekræfter invitationen, bliver din arrangørprofil vist sammen med den primære arrangør på eventet.</p>",
+      "<p><strong>Hvad betyder det?</strong></p>",
+      "<ul><li>Din profil vises på eventet som medarrangør.</li><li>Gæster kan besøge din profil via eventet.</li><li>Den primære arrangør ejer fortsat eventet.</li><li>Alle tilmeldinger og administration håndteres fortsat af den primære arrangør.</li></ul>",
+      "<p>Du får altså ingen administrative opgaver på eventet.</p>",
+      renderEmailButton(input.invitationUrl, "Bekræft eller afvis invitation"),
+      "<p>Har du ikke forventet denne invitation, kan du blot vælge <strong>Nej tak</strong>.</p>",
     ].join(""),
   });
 
   const text = [
-    "Du er inviteret som medarrangør",
+    input.primaryOrganizerName + " har inviteret dig som medarrangør",
     "",
     "Hej " + input.recipientName,
     "",
-    input.primaryOrganizerName + " har inviteret dig til at blive vist som medarrangør på eventet:",
+    "Du er blevet inviteret til at stå som medarrangør på dette event på SoulEvents:",
     input.eventTitle,
     "",
     "Dato: " + formatDate(input.eventStartsAt),
     "Primær arrangør: " + input.primaryOrganizerName,
     "",
-    "Som medarrangør bliver din SoulEvents-profil vist på eventet, når du har accepteret invitationen.",
-    "Den primære arrangør ejer og administrerer eventet og modtager alle tilmeldinger.",
-    "Se invitation: " + input.invitationUrl,
+    "Hvis du bekræfter invitationen, bliver din arrangørprofil vist sammen med den primære arrangør på eventet.",
+    "",
+    "Når du bekræfter invitationen:",
+    "- Din profil vises på eventet som medarrangør.",
+    "- Gæster kan besøge din profil via eventet.",
+    "- Den primære arrangør ejer fortsat eventet.",
+    "- Alle tilmeldinger og administration håndteres fortsat af den primære arrangør.",
+    "",
+    "Du får altså ingen administrative opgaver på eventet.",
+    "",
+    "Bekræft eller afvis invitation: " + input.invitationUrl,
+    "",
+    "Har du ikke forventet denne invitation, kan du blot vælge Nej tak.",
     ...renderPlainTextFooter(),
   ].join("\n");
 
   return sendLoggedEmail({
     type: "co_organizer_invitation",
     to: input.recipientEmail,
-    subject: "Du er inviteret som medarrangør på " + input.eventTitle,
+    subject: 'Vil du stå som medarrangør på "' + input.eventTitle + '"?',
     html,
     text,
     eventId: input.eventId,
@@ -69,14 +81,14 @@ export async function sendCoOrganizerInvitationEmail(input: CoOrganizerInvitatio
 
 export async function sendCoOrganizerStatusEmail(input: CoOrganizerStatusEmailInput) {
   const statusCopy = {
-    accepted: "har accepteret invitationen og vises nu som medarrangør på eventet.",
-    declined: "har afvist invitationen.",
+    accepted: "har bekræftet invitationen og vises nu som medarrangør på eventet.",
+    declined: "har sagt nej tak til at stå som medarrangør på eventet.",
     withdrawn: "har trukket sig som medarrangør.",
     cancelled: "er fjernet som medarrangør.",
   }[input.status];
 
   const html = await renderEmailLayout({
-    title: "Status på medarrangørinvitation",
+    title: "Status på medarrangør",
     children: [
       "<p>Hej " + escapeHtml(input.primaryOrganizerName) + "</p>",
       "<p>" + escapeHtml(input.coOrganizerName) + " " + escapeHtml(statusCopy) + "</p>",
@@ -85,7 +97,7 @@ export async function sendCoOrganizerStatusEmail(input: CoOrganizerStatusEmailIn
   });
 
   const text = [
-    "Status på medarrangørinvitation",
+    "Status på medarrangør",
     "",
     "Hej " + input.primaryOrganizerName,
     "",

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Script from "next/script";
+import { BrowserInjectedAttributeCleanup } from "@/components/browser-injected-attribute-cleanup";
 import { CookieConsentManager } from "@/components/cookie-consent-manager";
 import { getSiteFaviconUrl } from "@/lib/brand-logo";
 import { createPageMetadata, getHomepageOgImageUrl, siteBaseUrl } from "@/lib/open-graph";
@@ -23,34 +23,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const browserInjectedAttributeCleanup = `
-(() => {
-  const removeInjectedAttributes = () => {
-    const elements = [document.documentElement, document.body, ...document.querySelectorAll("[__gcruniqueid], [__gcrremoteframetoken]")].filter(Boolean);
-
-    for (const element of elements) {
-      for (const attribute of Array.from(element.attributes || [])) {
-        if (attribute.name.startsWith("__gcr")) {
-          element.removeAttribute(attribute.name);
-        }
-      }
-    }
-  };
-
-  removeInjectedAttributes();
-
-  if (typeof MutationObserver !== "undefined") {
-    new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.type === "attributes" && mutation.attributeName?.startsWith("__gcr")) {
-          mutation.target.removeAttribute(mutation.attributeName);
-        }
-      }
-    }).observe(document.documentElement, { attributes: true, subtree: true });
-  }
-})();
-`;
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -58,14 +30,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="da" suppressHydrationWarning>
-      <body>
+      <body suppressHydrationWarning>
         {children}
         <CookieConsentManager />
-        <Script
-          dangerouslySetInnerHTML={{ __html: browserInjectedAttributeCleanup }}
-          id="browser-injected-attribute-cleanup"
-          strategy="beforeInteractive"
-        />
+        <BrowserInjectedAttributeCleanup />
       </body>
     </html>
   );

@@ -83,18 +83,36 @@ async function logEmail(input: {
     return;
   }
 
-  const admin = createAdminClient();
-  await admin.from("email_logs").insert({
-    type: input.type,
-    recipient_email: input.recipientEmail,
-    subject: input.subject,
-    status: input.status,
-    resend_message_id: input.resendMessageId ?? null,
-    booking_id: input.bookingId ?? null,
-    event_id: input.eventId ?? null,
-    error_message: input.errorMessage ?? null,
-    sent_at: input.sentAt ?? null,
-  });
+  try {
+    const admin = createAdminClient();
+    const { error } = await admin.from("email_logs").insert({
+      type: input.type,
+      recipient_email: input.recipientEmail,
+      subject: input.subject,
+      status: input.status,
+      resend_message_id: input.resendMessageId ?? null,
+      booking_id: input.bookingId ?? null,
+      event_id: input.eventId ?? null,
+      error_message: input.errorMessage ?? null,
+      sent_at: input.sentAt ?? null,
+    });
+
+    if (error) {
+      console.error("Mail log insert failed", {
+        eventId: input.eventId ?? null,
+        message: error.message,
+        status: input.status,
+        type: input.type,
+      });
+    }
+  } catch (error) {
+    console.error("Mail log insert failed unexpectedly", {
+      eventId: input.eventId ?? null,
+      message: error instanceof Error ? error.message : "Ukendt fejl.",
+      status: input.status,
+      type: input.type,
+    });
+  }
 }
 
 export async function sendLoggedEmail(input: SendLoggedEmailInput) {

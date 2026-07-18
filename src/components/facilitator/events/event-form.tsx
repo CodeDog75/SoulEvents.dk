@@ -95,6 +95,7 @@ type CoOrganizerInvitation = {
   id: string;
   imageUrl?: string | null;
   name: string;
+  profileIsActive?: boolean;
   profileId: string;
   status: "pending" | "accepted";
 };
@@ -849,6 +850,7 @@ export function EventForm({
     ? null
     : new Intl.NumberFormat("da-DK").format(facilitator.maxTicketPricePerPerson) + " kr.";
   const existingCoOrganizers = draftEvent?.coOrganizerInvitations ?? [];
+  const inactiveExistingCoOrganizers = existingCoOrganizers.filter((coOrganizer) => coOrganizer.profileIsActive === false);
   const activeCoOrganizerCount = existingCoOrganizers.length + selectedCoOrganizers.length;
   const canAddCoOrganizer = activeCoOrganizerCount < 2;
   const numericPriceValue = Number(priceValue || 0);
@@ -1260,7 +1262,7 @@ export function EventForm({
       const results = await searchCoOrganizerCandidatesAction(nextQuery, draftEvent?.id ?? null);
       const filteredResults = results.filter((candidate) => !existingProfileIds.has(candidate.id));
       setCoOrganizerCandidates(filteredResults);
-      setCoOrganizerSearchMessage(filteredResults.length === 0 ? "Ingen aktive arrangører matcher søgningen." : "");
+      setCoOrganizerSearchMessage(filteredResults.length === 0 ? "Ingen aktive og fuldførte arrangørprofiler matcher din søgning." : "");
     });
   }
 
@@ -1983,9 +1985,10 @@ export function EventForm({
   }
 
   const hasReachedActiveLimit = Boolean(activeLimitMessage);
+  const coOrganizerBlocksSubmit = inactiveExistingCoOrganizers.length > 0;
   const activeLimitBlocksSubmit = hasReachedActiveLimit && !isEditingPublishedEvent;
   const ticketPriceLimitBlocksSubmit = ticketPriceLimitExceeded;
-  const canPublish = missingInvitationItems.length === 0 && !activeLimitBlocksSubmit && !ticketPriceLimitBlocksSubmit;
+  const canPublish = missingInvitationItems.length === 0 && !coOrganizerBlocksSubmit && !activeLimitBlocksSubmit && !ticketPriceLimitBlocksSubmit;
   const legalAcceptanceBlocksSubmit = requiresOrganizerAcceptance && !acceptedOrganizerTerms;
   const canSubmitEvent = canPublish && !legalAcceptanceBlocksSubmit;
 
@@ -2005,6 +2008,8 @@ export function EventForm({
               ? isEditingPublishedEvent
                 ? "Ændringerne er klar"
                 : "Din invitation er klar"
+              : coOrganizerBlocksSubmit
+                ? "Medarrangør skal fjernes"
               : activeLimitBlocksSubmit
                 ? "Grænsen for aktive events er nået"
                 : ticketPriceLimitBlocksSubmit
@@ -2021,6 +2026,8 @@ export function EventForm({
             </p>
           ) : activeLimitBlocksSubmit ? (
             <p className="mt-2">{activeLimitMessage}</p>
+          ) : coOrganizerBlocksSubmit ? (
+            <p className="mt-2">Fjern medarrangører, der ikke længere har en aktiv godkendt profil, før eventet kan offentliggøres.</p>
           ) : ticketPriceLimitBlocksSubmit ? (
             <p className="mt-2">
               Den angivne billetpris overstiger den nuværende beløbsgrænse. Har dit event behov for en højere billetpris, er du velkommen til
@@ -2107,12 +2114,14 @@ export function EventForm({
                 : "bg-[#D8CBE4] text-white shadow-none")
             }
             name="status"
-            disabled={activeLimitBlocksSubmit || ticketPriceLimitBlocksSubmit || legalAcceptanceBlocksSubmit || isSubmittingEventUpdate}
+            disabled={coOrganizerBlocksSubmit || activeLimitBlocksSubmit || ticketPriceLimitBlocksSubmit || legalAcceptanceBlocksSubmit || isSubmittingEventUpdate}
             type="submit"
             value={primarySubmitStatus}
           >
             {isSubmittingEventUpdate
               ? "Gemmer..."
+              : coOrganizerBlocksSubmit
+                ? "Fjern inaktiv medarrangør"
               : canPublish
               ? isEditingPublishedEvent
                 ? "Gem ændringer"
@@ -2427,19 +2436,34 @@ export function EventForm({
           <div className="grid gap-1">
             <h3 className="text-lg font-semibold text-midnight">Afholder du eventet sammen med andre?</h3>
             <p className="text-sm leading-6 text-ink/68">
-              Du kan invitere op til to medarrangører med en aktiv profil på SoulEvents. Medarrangøren vises først på eventet, når invitationen er accepteret.
+              Du kan invitere op til to medarrangører med en aktiv profil på SoulEvents. Medarrangøren vises først på eventet, når invitationen er bekræftet.
             </p>
           </div>
 
           {existingCoOrganizers.length > 0 || selectedCoOrganizers.length > 0 ? (
             <div className="grid gap-3">
               {existingCoOrganizers.map((coOrganizer) => (
-                <div className="flex items-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-3 shadow-sm" key={coOrganizer.id}>
+                <div
+                  className={
+                    "flex items-start gap-3 rounded-card border p-3 shadow-sm " +
+                    (coOrganizer.profileIsActive === false ? "border-[#E8D2CC] bg-[#FFF8F6]" : "border-[#E5D4F7] bg-white")
+                  }
+                  key={coOrganizer.id}
+                >
                   <CoOrganizerAvatar imageUrl={coOrganizer.imageUrl} name={coOrganizer.name} />
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-midnight">{coOrganizer.name}</p>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#7A5D91]">
-                      {coOrganizer.status === "accepted" ? "Accepteret" : "Afventer svar"}
+                    <p
+                      className={
+                        "text-xs font-semibold uppercase tracking-wide " +
+                        (coOrganizer.profileIsActive === false ? "text-[#9A4F45]" : "text-[#7A5D91]")
+                      }
+                    >
+                      {coOrganizer.profileIsActive === false
+                        ? "Ikke aktiv - fjern før publicering"
+                        : coOrganizer.status === "accepted"
+                          ? "Bekræftet"
+                          : "Afventer bekræftelse"}
                     </p>
                     {coOrganizer.city ? <p className="mt-1 text-sm text-ink/58">{coOrganizer.city}</p> : null}
                   </div>

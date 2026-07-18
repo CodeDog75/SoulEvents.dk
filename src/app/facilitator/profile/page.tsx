@@ -4,7 +4,6 @@ import { ArrowLeft, ArrowRight, CheckCircle2, CircleUserRound } from "lucide-rea
 import { sendFacilitatorProfileToReviewAction } from "@/app/facilitator/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { ProfileForm } from "@/components/facilitator/profile-form";
-import { SecurityPasswordForm } from "@/components/facilitator/security-password-form";
 import { requireProfile } from "@/lib/auth/roles";
 import { resolveNameParts } from "@/lib/auth/names";
 import { getBrandLogoSources, type LogoSettingClient } from "@/lib/brand-logo";
@@ -39,7 +38,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     { data: categories },
     { data: categoryRows },
     { count: publishedEventCount },
-    { data: authUserData, error: authUserError },
+    { data: authUserData },
     logoSources,
   ] = await Promise.all([
     supabase.from("facilitator_profiles").select("*").eq("profile_id", profile.id).single(),
@@ -89,9 +88,6 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
   const backHref = profile.role === "admin" ? "/admin" : "/facilitator";
   const hasPublishedEventHistory = (publishedEventCount ?? 0) > 0;
   const eventCtaLabel = hasPublishedEventHistory ? "Opret nyt event" : "Opret dit første event";
-  const authProviders = authUserData.user?.identities?.map((identity) => identity.provider).filter(Boolean) ?? [];
-  const passwordLoginAvailable = !authUserError && (authProviders.length === 0 || authProviders.includes("email"));
-  const primaryOauthProvider = authProviders.find((provider) => provider === "google" || provider === "facebook") ?? authProviders[0] ?? null;
   const authMetadata = authUserData.user?.user_metadata ?? {};
   const nameParts = resolveNameParts({
     firstName: typeof authMetadata.first_name === "string" ? authMetadata.first_name : null,
@@ -292,9 +288,6 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
           selectedCategoryIds={selectedCategoryIds}
           showEmailConfirmedStep={confirmed === "1"}
         />
-        <div className="mt-6">
-          <SecurityPasswordForm oauthProvider={primaryOauthProvider} passwordLoginAvailable={passwordLoginAvailable} />
-        </div>
       </section>
     </main>
   );

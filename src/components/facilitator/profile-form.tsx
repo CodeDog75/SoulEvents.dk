@@ -21,6 +21,7 @@ import {
   Moon,
   Music,
   PartyPopper,
+  PencilLine,
   Sparkles,
   Sun,
   Upload,
@@ -408,7 +409,7 @@ function ReviewJump({
     <section
       aria-label={label}
       className={
-        "block w-full min-w-0 cursor-pointer rounded-[24px] text-left transition hover:bg-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 " +
+        "group relative block w-full min-w-0 cursor-pointer rounded-[24px] text-left transition hover:bg-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 " +
         className
       }
       onClick={onClick}
@@ -421,8 +422,20 @@ function ReviewJump({
       role="button"
       tabIndex={0}
     >
+      <EditIndicator />
       {children}
     </section>
+  );
+}
+
+function EditIndicator() {
+  return (
+    <span
+      className="pointer-events-none absolute right-3 top-3 z-10 grid size-11 place-items-center rounded-full border border-white/70 bg-white/70 text-ink/55 opacity-80 shadow-soft backdrop-blur-md transition group-hover:bg-white/88 group-hover:text-midnight group-hover:opacity-100 group-focus-visible:bg-white group-focus-visible:text-midnight group-focus-visible:opacity-100 sm:size-10"
+      aria-hidden="true"
+    >
+      <PencilLine className="size-4" />
+    </span>
   );
 }
 
@@ -487,6 +500,7 @@ function OnboardingShell({
   canContinue = true,
   ctaLabel,
   ctaHelper,
+  footerLeading,
 }: {
   backHref: string;
   backLabel: string;
@@ -495,6 +509,7 @@ function OnboardingShell({
   currentIndex: number;
   ctaLabel?: string;
   ctaHelper?: string;
+  footerLeading?: React.ReactNode;
   hideBackNavigation?: boolean;
   hidePrimaryAction?: boolean;
   isBusy: boolean;
@@ -543,6 +558,7 @@ function OnboardingShell({
         footer={
           footer ? (
             <>
+              {footerLeading}
               {footer}
               {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
             </>
@@ -600,6 +616,7 @@ function OnboardingShell({
 
           {hidePrimaryAction ? null : (
             <div className="pb-2">
+              {footerLeading}
               {footer}
               {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
             </div>
@@ -1340,6 +1357,22 @@ export function ProfileForm({
               : undefined
       }
       ctaHelper={presentationMode === "onboarding" && currentStep.id === "approval" ? "Din profil sendes til godkendelse." : undefined}
+      footerLeading={
+        currentStep.id === "review" && fullProfileHref ? (
+          <div className="mb-3 grid gap-2 text-center">
+            <p className="text-sm font-medium text-ink/55">Se hvordan hele profilen vises for gæster</p>
+            <Link
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-sage-700/20 bg-white px-5 text-sm font-semibold text-sage-700 shadow-soft transition hover:border-sage-700/40 hover:bg-sage-50"
+              href={fullProfileHref}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Se fuld profilvisning
+              <ExternalLink className="size-4" aria-hidden="true" />
+            </Link>
+          </div>
+        ) : null
+      }
       hideBackNavigation={presentationMode === "onboarding" && currentStep.id === "complete"}
       hidePrimaryAction={presentationMode === "onboarding" && currentStep.id === "complete"}
       isBusy={isBusy}
@@ -1571,81 +1604,56 @@ export function ProfileForm({
         <div className="rounded-[34px] border border-midnight/5 bg-[#F4F0E9] p-4 shadow-soft sm:p-6">
           <div className="grid gap-5">
             <section className="grid gap-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Dit valgte profilbanner</p>
                   <p className="mt-1 text-sm leading-6 text-ink/60">
                     Banneret bruges øverst på din offentlige profil. Hele profilvisningen åbnes separat.
                   </p>
                 </div>
-                <button
-                  className="inline-flex h-10 w-fit items-center rounded-full bg-white px-4 text-sm font-semibold text-midnight shadow-soft transition hover:bg-sage-50"
-                  onClick={() => editFromReview("profile-image")}
-                  type="button"
-                >
-                  Rediger banner
-                </button>
               </div>
 
-              <div className="overflow-hidden rounded-[28px] bg-midnight shadow-soft">
-                <div className="relative aspect-[16/7] max-h-[220px] min-h-[160px] sm:min-h-[190px] lg:max-h-[240px]">
-                  <Image
-                    alt={heroPreview.altText}
-                    className="object-cover"
-                    fill
-                    sizes="(min-width: 1024px) 560px, 100vw"
-                    src={heroPreview.url}
-                    style={{ objectPosition: heroPreview.objectPositionDesktop ?? "center center" }}
-                    unoptimized
-                  />
+              <ReviewJump label="Rediger profilbanner" onClick={() => editFromReview("profile-image")}>
+                <div className="overflow-hidden rounded-[28px] bg-midnight shadow-soft transition group-hover:shadow-lift">
+                  <div className="relative aspect-[16/7] max-h-[220px] min-h-[160px] sm:min-h-[190px] lg:max-h-[240px]">
+                    <Image
+                      alt={heroPreview.altText}
+                      className="object-cover"
+                      fill
+                      sizes="(min-width: 1024px) 560px, 100vw"
+                      src={heroPreview.url}
+                      style={{ objectPosition: heroPreview.objectPositionDesktop ?? "center center" }}
+                      unoptimized
+                    />
+                  </div>
                 </div>
-              </div>
+              </ReviewJump>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
                 <p className="text-sm font-semibold text-ink/60">Valgt banner: {heroPreview.label}</p>
-                {fullProfileHref ? (
-                  <Link
-                    className="inline-flex h-10 w-fit items-center gap-2 rounded-full border border-sage-700/20 bg-white px-4 text-sm font-semibold text-sage-700 shadow-soft transition hover:border-sage-700/40 hover:bg-sage-50"
-                    href={fullProfileHref}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    Se fuld profilvisning
-                    <ExternalLink className="size-4" aria-hidden="true" />
-                  </Link>
-                ) : null}
               </div>
             </section>
 
             <section className="grid gap-3 rounded-[26px] bg-white/70 p-4 sm:grid-cols-[112px_minmax(0,1fr)] sm:p-5">
-              <button
-                className="group aspect-square overflow-hidden rounded-[24px] bg-sage-50 text-sage-700 transition hover:ring-2 hover:ring-sage-700/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
-                onClick={() => editFromReview("profile-image")}
-                type="button"
-              >
-                <span className="sr-only">Rediger profilbillede</span>
-                {profileImageUrl ? (
-                  <img alt="" className="h-full w-full object-cover transition group-hover:scale-[1.02]" src={profileImageUrl} />
-                ) : (
-                  <span className="grid h-full place-items-center">
-                    <Camera className="size-8" aria-hidden="true" />
-                  </span>
-                )}
-              </button>
-              <button
-                className="min-w-0 rounded-[20px] p-2 text-left transition hover:bg-white/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
-                onClick={() => editFromReview("person")}
-                type="button"
-              >
+              <ReviewJump label="Rediger profilbillede" onClick={() => editFromReview("profile-image")}>
+                <div className="aspect-square overflow-hidden rounded-[24px] bg-sage-50 text-sage-700 transition group-hover:ring-2 group-hover:ring-sage-700/25">
+                  {profileImageUrl ? (
+                    <img alt="" className="h-full w-full object-cover transition group-hover:scale-[1.02]" src={profileImageUrl} />
+                  ) : (
+                    <span className="grid h-full place-items-center">
+                      <Camera className="size-8" aria-hidden="true" />
+                    </span>
+                  )}
+                </div>
+              </ReviewJump>
+              <ReviewJump label="Rediger profilnavn og lokation" onClick={() => editFromReview("person")} className="p-2 pr-14">
                 <span className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Profilnavn</span>
-                <span className="mt-2 block break-words font-serif text-3xl font-semibold leading-tight text-midnight">
-                  {publicProfileName || "Profilnavn mangler"}
-                </span>
+                <span className="mt-2 block break-words font-serif text-3xl font-semibold leading-tight text-midnight">{publicProfileName || "Profilnavn mangler"}</span>
                 {reviewPlace ? <span className="mt-2 block text-sm font-semibold text-ink/55">{reviewPlace}</span> : null}
-              </button>
+              </ReviewJump>
             </section>
 
-            <ReviewJump label="Rediger arbejdsområder og speciale" onClick={() => editFromReview("experiences")} className="p-2 -m-2">
+            <ReviewJump label="Rediger arbejdsområder og speciale" onClick={() => editFromReview("experiences")} className="-m-2 p-2 pr-14">
               <div className="grid gap-4 rounded-[26px] bg-white/70 p-4 sm:p-5">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Arbejdsområder</p>
@@ -1698,7 +1706,7 @@ export function ProfileForm({
               </div>
             </ReviewJump>
 
-            <ReviewJump label="Rediger om mig" onClick={() => editFromReview("story")} className="p-2 -m-2">
+            <ReviewJump label="Rediger om mig" onClick={() => editFromReview("story")} className="-m-2 p-2 pr-14">
               {story.trim() ? (
                 <p className="min-w-0 whitespace-pre-line text-base leading-8 text-ink/72">{story}</p>
               ) : (
@@ -1709,7 +1717,7 @@ export function ProfileForm({
             </ReviewJump>
 
             {offersIndividualServices || presentationMode !== "onboarding" ? (
-              <ReviewJump label="Rediger individuelle ydelser" onClick={() => editFromReview("services")} className="p-2 -m-2">
+              <ReviewJump label="Rediger individuelle ydelser" onClick={() => editFromReview("services")} className="-m-2 p-2 pr-14">
                 <div className="grid gap-3">
                   <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Individuelle ydelser</p>
                   {hasIndividualServicesDescription ? (
@@ -1732,7 +1740,7 @@ export function ProfileForm({
             ) : null}
 
             {hasLinks ? (
-              <ReviewJump label="Rediger links" onClick={() => editFromReview("links")} className="p-2 -m-2">
+              <ReviewJump label="Rediger links" onClick={() => editFromReview("links")} className="-m-2 p-2 pr-14">
                 <LinkRows facebook={facebook} instagram={instagram} website={website} youtube={youtube} />
               </ReviewJump>
             ) : null}

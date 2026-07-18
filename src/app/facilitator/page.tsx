@@ -32,6 +32,8 @@ import {
 import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction, publishDraftEventAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { DashboardGreeting } from "@/components/facilitator/dashboard-greeting";
+import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
+import { SecurityPasswordForm } from "@/components/facilitator/security-password-form";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireRole } from "@/lib/auth/roles";
 import { draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
@@ -67,6 +69,7 @@ type MoodImage = {
 type DashboardMoodImage = {
   altText?: string | null;
   isFallback?: boolean;
+  sortOrder?: number | null;
   url: string;
 };
 
@@ -142,6 +145,13 @@ function isOlderThanMonths(value: Date, now: Date, months: number) {
   const threshold = new Date(value);
   threshold.setMonth(threshold.getMonth() + months);
   return threshold < now;
+}
+
+function splitSpecialties(input: string | null | undefined) {
+  return (input ?? "")
+    .split(/\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function getProfileReadiness({
@@ -262,161 +272,120 @@ function getDashboardAction({
   };
 }
 
-function DashboardHeader({
-  heroImageUrl,
-  name,
-  profileReadiness,
+function DashboardGreetingIntro({ name, profileReadiness }: { name: string | null; profileReadiness: ProfileReadiness }) {
+  return (
+    <section className="rounded-[28px] border border-[#E5DDEA] bg-white/72 px-5 py-4 shadow-[0_14px_36px_rgba(47,36,55,0.06)] sm:px-6">
+      <h1 className="font-serif text-3xl font-semibold leading-tight text-[#2F2437] sm:text-4xl">
+        <DashboardGreeting name={name} />
+      </h1>
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6E6475] sm:text-base">
+        {profileReadiness.isComplete
+          ? "Det er en smuk dag til at samle mennesker."
+          : "Velkommen til dit lille hjørne af SoulEvents. Næste skridt er at gøre profilen klar."}
+      </p>
+      {profileReadiness.missingItems.length > 0 ? (
+        <p className="mt-3 max-w-3xl rounded-[18px] border border-[#D8CBE4] bg-[#F1EAF5] px-4 py-3 text-sm font-semibold leading-6 text-[#6E5285]">
+          Mangler: {profileReadiness.missingItems.join(", ")}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function DashboardHeaderActions({
+  fullProfileHref,
   primaryAction,
 }: {
-  heroImageUrl?: string | null;
-  name: string | null;
-  profileReadiness: ProfileReadiness;
+  fullProfileHref?: string | null;
   primaryAction: DashboardAction;
 }) {
   const Icon = primaryAction.icon;
-  const heroBackgroundImage = heroImageUrl
-    ? [
-        "linear-gradient(90deg, rgba(25,20,20,0.84) 0%, rgba(25,20,20,0.64) 38%, rgba(25,20,20,0.28) 72%, rgba(25,20,20,0.12) 100%)",
-        "linear-gradient(to bottom, rgba(20,16,22,0.16) 0%, rgba(20,16,22,0.04) 42%, rgba(20,16,22,0.20) 100%)",
-        "linear-gradient(135deg, rgba(122,93,145,0.18) 0%, rgba(250,247,242,0.10) 52%, rgba(95,122,85,0.10) 100%)",
-        `url("${heroImageUrl.replace(/"/g, "%22")}")`,
-      ].join(", ")
-    : "linear-gradient(90deg, rgba(25,20,20,0.76) 0%, rgba(25,20,20,0.44) 44%, rgba(25,20,20,0.12) 100%), radial-gradient(circle at 74% 24%, rgba(255,255,255,0.30), transparent 32%), linear-gradient(135deg,#796287,#A98EAB 48%,#D8CBBB)";
 
   return (
-    <section
-      className="relative min-h-[430px] overflow-hidden rounded-[38px] bg-cover bg-center p-6 text-white shadow-[0_24px_70px_rgba(47,36,55,0.20)] sm:min-h-[480px] sm:p-8 lg:min-h-[560px] lg:p-10"
-      style={{ backgroundImage: heroBackgroundImage }}
-    >
-      <div className="flex min-h-[382px] max-w-[580px] flex-col justify-between sm:min-h-[416px] lg:min-h-[480px]">
-        <div>
-          <h1 className="max-w-[560px] font-serif text-4xl font-semibold leading-tight drop-shadow-[0_2px_18px_rgba(0,0,0,0.22)] sm:text-5xl">
-            <DashboardGreeting name={name} />
-          </h1>
-          <p className="mt-4 max-w-[520px] text-base leading-7 text-white/88 drop-shadow-[0_1px_12px_rgba(0,0,0,0.18)] sm:text-lg">
-            {profileReadiness.isComplete
-              ? "Det er en smuk dag til at samle mennesker."
-              : "Velkommen til dit lille hjørne af SoulEvents. Næste skridt er at gøre profilen klar."}
-          </p>
-          {profileReadiness.missingItems.length > 0 ? (
-            <p className="mt-4 max-w-[520px] rounded-[20px] border border-white/18 bg-white/14 px-4 py-3 text-sm font-semibold leading-6 text-white/88 backdrop-blur-md">
-              Mangler: {profileReadiness.missingItems.join(", ")}
-            </p>
-          ) : null}
-        </div>
-        <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
-          {primaryAction.isDisabled ? (
-            <p className="rounded-[18px] border border-white/18 bg-white/14 px-4 py-3 text-sm font-semibold text-white/88 backdrop-blur-md">
-              {primaryAction.description}
-            </p>
-          ) : (
-            <Link
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-[#2F2437] shadow-soft transition duration-200 hover:-translate-y-0.5 hover:bg-[#FAF7F2] hover:shadow-[0_14px_32px_rgba(0,0,0,0.18)]"
-              href={primaryAction.href}
-            >
-              <Icon className="size-4" aria-hidden="true" />
-              {primaryAction.label}
-            </Link>
-          )}
-          <Link
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/42 bg-white/10 px-5 text-sm font-semibold text-white shadow-soft backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:bg-white/20"
-            href="/facilitator/profile"
-          >
-            <PencilLine className="size-4" aria-hidden="true" />
-            Ret profil
-          </Link>
-        </div>
-      </div>
-    </section>
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+      {primaryAction.isDisabled ? (
+        <p className="rounded-[18px] border border-[#D8CBE4] bg-[#F1EAF5] px-4 py-3 text-sm font-semibold text-[#6E5285]">
+          {primaryAction.description}
+        </p>
+      ) : (
+        <Link
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-6 text-sm font-semibold text-white shadow-soft transition duration-200 hover:-translate-y-0.5 hover:bg-[#6E5285] hover:shadow-[0_14px_32px_rgba(47,36,55,0.16)]"
+          href={primaryAction.href}
+        >
+          <Icon className="size-4" aria-hidden="true" />
+          {primaryAction.label}
+        </Link>
+      )}
+      <Link
+        className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-[#D8CBE4] bg-white/82 px-5 text-sm font-semibold text-[#6E5285] shadow-soft transition duration-200 hover:-translate-y-0.5 hover:border-[#7A5D91] hover:text-[#5B4778]"
+        href="/facilitator/profile"
+      >
+        <PencilLine className="size-4" aria-hidden="true" />
+        Ret profil
+      </Link>
+      {fullProfileHref ? (
+        <Link
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-transparent px-4 text-sm font-semibold text-[#6E6475] transition hover:text-[#7A5D91]"
+          href={fullProfileHref}
+        >
+          <Eye className="size-4" aria-hidden="true" />
+          Se som gæst
+        </Link>
+      ) : null}
+    </div>
   );
 }
 
-function CompactProfileCard({
-  fullProfileHref,
+function MoodImageStrip({
   isUsingFallbackMoodImage,
-  profileImageUrl,
-  profileName,
-  workAreas,
   moodImages,
 }: {
-  fullProfileHref?: string | null;
   isUsingFallbackMoodImage?: boolean;
   moodImages: DashboardMoodImage[];
-  profileImageUrl?: string | null;
-  profileName: string;
-  workAreas: Array<{ colorHex?: string | null; name: string }>;
 }) {
+  if (moodImages.length === 0) return null;
+
   return (
-    <section className="overflow-hidden rounded-[32px] border border-[#E5DDEA] bg-[#F8F3FA] shadow-[0_18px_45px_rgba(47,36,55,0.10)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_55px_rgba(47,36,55,0.14)]">
-      <div className="relative min-h-[360px] overflow-hidden bg-[#EDE5F1] sm:min-h-[390px] lg:min-h-[420px]">
-        {profileImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img alt="" className="absolute inset-0 h-full w-full object-cover object-center" src={profileImageUrl} />
-        ) : (
-          <span className="absolute inset-0 grid place-items-center bg-gradient-to-br from-[#EDE5F1] via-[#D8CBE4] to-[#C7DDBC] text-7xl font-semibold text-white/86">
-            {profileName.slice(0, 1).toUpperCase()}
-          </span>
-        )}
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(20,16,22,0.03)_28%,rgba(20,16,22,0.30)_58%,rgba(20,16,22,0.90)_100%)]" />
-        <div className="absolute inset-x-0 bottom-0 z-10 bg-[linear-gradient(to_top,rgba(20,16,22,0.50),rgba(20,16,22,0.16)_62%,transparent)] px-5 pb-5 pt-24 text-white">
-          <h2 className="text-2xl font-semibold leading-tight drop-shadow-[0_2px_14px_rgba(0,0,0,0.68)]">{profileName}</h2>
-          {workAreas.length > 0 ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {workAreas.slice(0, 4).map((area) => (
-                <span className="rounded-full border border-white/58 bg-[#141016]/42 px-3 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-md" key={area.name}>
-                  {area.name}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </div>
-      <div className="p-5">
-        {moodImages.length > 0 ? (
-          <div>
-            <p className="text-sm font-semibold text-[#2F2437]">Stemninger</p>
-            <div className={"mt-3 grid gap-2 " + (moodImages.length === 1 ? "grid-cols-1" : moodImages.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
-              {moodImages.slice(0, 3).map((image, index) => (
-                <div className="aspect-[4/3] overflow-hidden rounded-[18px] bg-white shadow-sm" key={image.url}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    alt={image.altText || "Stemningsbillede " + (index + 1)}
-                    className="h-full w-full object-cover transition duration-500 hover:scale-[1.04]"
-                    src={image.url}
-                  />
-                </div>
-              ))}
-            </div>
-            {isUsingFallbackMoodImage ? (
-              <p className="mt-3 rounded-[18px] border border-[#D8CBE4] bg-[#F1EAF5] px-3 py-2 text-xs font-semibold leading-5 text-[#6E5285]">
-                Du bruger i øjeblikket SoulEvents&apos; standardbillede. Upload dine egne stemningsbilleder for at gøre din profil mere personlig.
-              </p>
-            ) : null}
+    <section className="rounded-[24px] border border-[#E5DDEA] bg-white/82 p-5 shadow-[0_18px_45px_rgba(47,36,55,0.06)]">
+      <p className="text-sm font-semibold text-[#2F2437]">Stemninger</p>
+      <div className={"mt-3 grid gap-2 " + (moodImages.length === 1 ? "grid-cols-1" : moodImages.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
+        {moodImages.slice(0, 3).map((image, index) => (
+          <div className="aspect-[4/3] overflow-hidden rounded-[18px] bg-white shadow-sm" key={image.url}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              alt={image.altText || "Stemningsbillede " + (index + 1)}
+              className="h-full w-full object-cover transition duration-500 hover:scale-[1.04]"
+              src={image.url}
+            />
           </div>
-        ) : null}
-        <div className={moodImages.length > 0 ? "mt-5 grid gap-2" : "grid gap-2"}>
-          <Link
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285]"
-            href="/facilitator/profile"
-          >
-            <PencilLine className="size-4" aria-hidden="true" />
-            Ret profil
-          </Link>
-          {fullProfileHref ? (
-            <Link
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#D8CBE4] bg-[#FAF7F2] px-4 text-sm font-semibold text-[#6E6475] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
-              href={fullProfileHref}
-            >
-              <Eye className="size-4" aria-hidden="true" />
-              Se som gæst
-            </Link>
-          ) : null}
-        </div>
+        ))}
       </div>
+      {isUsingFallbackMoodImage ? (
+        <p className="mt-3 rounded-[18px] border border-[#D8CBE4] bg-[#F1EAF5] px-3 py-2 text-xs font-semibold leading-5 text-[#6E5285]">
+          Du bruger i øjeblikket SoulEvents&apos; standardbillede. Upload dine egne stemningsbilleder for at gøre din profil mere personlig.
+        </p>
+      ) : null}
     </section>
   );
 }
 
+function DashboardSupportAside() {
+  return (
+    <aside className="w-full space-y-4 lg:self-start">
+      <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft">
+        <div className="flex items-center gap-3">
+          <span className="grid size-10 place-items-center rounded-full bg-[#DDE8D7] text-[#4E6A45]">
+            <Leaf className="size-5" aria-hidden="true" />
+          </span>
+          <h2 className="font-semibold text-[#2F2437]">Roligt tip</h2>
+        </div>
+        <p className="mt-3 text-sm leading-6 text-[#6E6475]">
+          Hold eventteksten enkel: hvad skal ske, hvem er det for, og hvad kan deltageren forvente?
+        </p>
+      </section>
+    </aside>
+  );
+}
 function BookingAttentionCard({ pendingCount, pendingHref }: { pendingCount: number; pendingHref: string }) {
   const hasPending = pendingCount > 0;
 
@@ -832,11 +801,15 @@ function SettingsPanel({
   adminMessages,
   isOpen,
   isPaused,
+  oauthProvider,
+  passwordLoginAvailable,
   unreadMessageCount,
 }: {
   adminMessages: any[];
   isOpen: boolean;
   isPaused: boolean;
+  oauthProvider?: string | null;
+  passwordLoginAvailable: boolean;
   unreadMessageCount: number;
 }) {
 
@@ -850,6 +823,10 @@ function SettingsPanel({
         <ChevronDown className="size-4 text-[#A08BB4]" aria-hidden="true" />
       </summary>
       <div className="grid gap-4 border-t border-[#E5DDEA] p-5 lg:grid-cols-2">
+        <div className="lg:col-span-2">
+          <SecurityPasswordForm oauthProvider={oauthProvider} passwordLoginAvailable={passwordLoginAvailable} />
+        </div>
+
         <form action={sendFacilitatorAdminMessageAction} className="rounded-[20px] border border-[#E5DDEA] bg-[#FAF7F2] p-5">
           <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Kontakt</p>
           <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Skriv til SoulEvents administration</h2>
@@ -953,7 +930,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, status, is_paused, is_disabled, host_reference_id, company_name, facilitator_hero_key, profile_image_path, address_line, city, postal_code, short_description, offers_services, service_description, is_active_host, is_experienced_host, max_ticket_price_per_person, facilitator_categories(category_id, categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
+      "id, status, is_paused, is_disabled, host_reference_id, company_name, facilitator_hero_key, profile_image_path, address_line, city, postal_code, short_description, specialties, offers_services, service_description, is_active_host, is_experienced_host, max_ticket_price_per_person, facilitator_categories(category_id, categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
     )
     .eq("profile_id", profile.id)
     .single();
@@ -974,6 +951,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
       .sort((a: MoodImage, b: MoodImage) => a.sort_order - b.sort_order)
       .map((image: MoodImage) => ({
         altText: image.alt_text,
+        sortOrder: image.sort_order,
         url: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,
       })) ?? [];
   const moodImageFallback = withFacilitatorMoodImageFallback(moodImages, {
@@ -982,14 +960,21 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const visibleMoodImages = moodImageFallback.images.map((image) => ({
     altText: image.altText,
     isFallback: moodImageFallback.isUsingFallback,
+    sortOrder: "sortOrder" in image ? image.sortOrder : null,
     url: image.url ?? resolveFacilitatorMoodImage([], { fallbackAltText: "Roligt SoulEvents naturbillede" }).url,
   }));
-  const heroImageUrl = resolveFacilitatorHero({
+  const heroImage = resolveFacilitatorHero({
     fallbackAltText: "Roligt SoulEvents naturbillede",
     heroKey: facilitatorProfile?.facilitator_hero_key,
     moodImages,
     preferCustomWhenUnset: true,
-  }).url;
+  });
+  const profileSpecialties = splitSpecialties(facilitatorProfile?.specialties);
+  const profilePlace = facilitatorProfile?.city || null;
+  const { data: authUserData, error: authUserError } = await supabase.auth.admin.getUserById(profile.id);
+  const authProviders = authUserData.user?.identities?.map((identity) => identity.provider).filter(Boolean) ?? [];
+  const passwordLoginAvailable = !authUserError && (authProviders.length === 0 || authProviders.includes("email"));
+  const primaryOauthProvider = authProviders.find((provider) => provider === "google" || provider === "facebook") ?? authProviders[0] ?? null;
   const now = new Date();
   const [
     { data: events },
@@ -1119,18 +1104,31 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
-        <div className="min-w-0 space-y-6">
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="space-y-6">
           <AuthMessage message={message} />
+
+          <DashboardGreetingIntro name={profile.full_name} profileReadiness={profileReadiness} />
+
+          <ProfileIdentityHeader
+            actions={<DashboardHeaderActions fullProfileHref={fullProfileHref} primaryAction={primaryAction} />}
+            categories={categoryNames.map((category) => ({
+              colorHex: category.color_hex,
+              name: category.name,
+            }))}
+            coverImage={heroImage}
+            name={profileName}
+            place={profilePlace}
+            profileImageUrl={profileImageUrl}
+            specialties={profileSpecialties}
+          />
 
           <AdminMessageCta unreadCount={unreadMessageCount} />
 
-          <DashboardHeader
-            heroImageUrl={heroImageUrl}
-            name={profile.full_name}
-            profileReadiness={profileReadiness}
-            primaryAction={primaryAction}
-          />
+          <MoodImageStrip isUsingFallbackMoodImage={moodImageFallback.isUsingFallback} moodImages={visibleMoodImages} />
+
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="min-w-0 space-y-6">
 
           {onboardingState === "changes_requested" ? (
             <ProfileChangesRequestedCard canSubmit={profileReadiness.isComplete} request={profileChangeRequest} />
@@ -1142,6 +1140,9 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Invitationer til events</p>
               <h2 className="mt-2 text-2xl font-semibold text-[#2F2437]">Du er inviteret som medarrangør</h2>
+              <p className="mt-2 text-sm leading-6 text-ink/64">
+                Bekræft kun, hvis du ønsker at stå som medarrangør på eventet. Den primære arrangør står fortsat for tilmeldinger og administration.
+              </p>
               <div className="mt-4 grid gap-3">
                 {pendingCoOrganizerInvitations.map((invitation) => {
                   const event = first(invitation.events);
@@ -1160,7 +1161,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                           Primær arrangør: {owner?.company_name || ownerUser?.full_name || "Arrangør"}
                         </span>
                       </span>
-                      <span className="text-sm font-semibold text-[#7A5D91]">Se invitation</span>
+                      <span className="text-sm font-semibold text-[#7A5D91]">Bekræft invitation</span>
                     </Link>
                   );
                 })}
@@ -1262,42 +1263,20 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             </section>
           ) : null}
 
-        </div>
-
-        <aside className="w-full space-y-4 lg:self-start">
-          <CompactProfileCard
-            fullProfileHref={fullProfileHref}
-            isUsingFallbackMoodImage={moodImageFallback.isUsingFallback}
-            moodImages={visibleMoodImages}
-            profileImageUrl={profileImageUrl}
-            profileName={profileName}
-            workAreas={categoryNames.map((category) => ({
-              colorHex: category.color_hex,
-              name: category.name,
-            }))}
-          />
-
-          <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft">
-            <div className="flex items-center gap-3">
-              <span className="grid size-10 place-items-center rounded-full bg-[#DDE8D7] text-[#4E6A45]">
-                <Leaf className="size-5" aria-hidden="true" />
-              </span>
-              <h2 className="font-semibold text-[#2F2437]">Roligt tip</h2>
             </div>
-            <p className="mt-3 text-sm leading-6 text-[#6E6475]">
-              Hold eventteksten enkel: hvad skal ske, hvem er det for, og hvad kan deltageren forvente?
-            </p>
-          </section>
-        </aside>
 
-        <section className="lg:col-span-2">
+            <DashboardSupportAside />
+          </div>
+
           <SettingsPanel
             adminMessages={messageRows}
             isOpen={unreadMessageCount > 0 || messages === "open"}
             isPaused={Boolean(facilitatorProfile?.is_paused)}
+            oauthProvider={primaryOauthProvider}
+            passwordLoginAvailable={passwordLoginAvailable}
             unreadMessageCount={unreadMessageCount}
           />
-        </section>
+        </div>
       </section>
     </main>
   );

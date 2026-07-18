@@ -61,7 +61,13 @@ export async function updateSession(request: NextRequest) {
   };
 
   const redirectToLogin = () => {
+    const isPublicCoOrganizerInvitation = request.nextUrl.pathname.startsWith("/facilitator/co-organizer-invitations/");
+
     if (request.nextUrl.pathname.startsWith("/auth/")) {
+      return clearSupabaseCookies();
+    }
+
+    if (isPublicCoOrganizerInvitation) {
       return clearSupabaseCookies();
     }
 

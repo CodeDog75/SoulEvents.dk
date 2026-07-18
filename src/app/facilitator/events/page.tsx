@@ -30,14 +30,20 @@ type CoOrganizerInvitationRow = {
     | {
         city?: string | null;
         company_name?: string | null;
+        is_disabled?: boolean | null;
+        is_paused?: boolean | null;
         profile_image_path?: string | null;
+        status?: string | null;
         facilitator_categories?: Array<{ categories?: { name?: string | null } | { name?: string | null }[] | null }> | null;
         profiles?: { full_name?: string | null } | { full_name?: string | null }[] | null;
       }
     | Array<{
         city?: string | null;
         company_name?: string | null;
+        is_disabled?: boolean | null;
+        is_paused?: boolean | null;
         profile_image_path?: string | null;
+        status?: string | null;
         facilitator_categories?: Array<{ categories?: { name?: string | null } | { name?: string | null }[] | null }> | null;
         profiles?: { full_name?: string | null } | { full_name?: string | null }[] | null;
       }>
@@ -147,7 +153,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
       ? await supabase
           .from("event_co_organizers")
           .select(
-            "id, status, co_organizer_profile_id, facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(city, company_name, profile_image_path, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name)))",
+            "id, status, co_organizer_profile_id, facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(city, company_name, status, is_paused, is_disabled, profile_image_path, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name)))",
           )
           .eq("event_id", selectedDraft.id)
           .eq("primary_organizer_profile_id", facilitatorProfile.id)
@@ -295,6 +301,10 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
                     coOrganizerInvitations: ((coOrganizerInvitations ?? []) as CoOrganizerInvitationRow[]).map((invitation) => {
                       const coOrganizerProfile = first(invitation.facilitator_profiles);
                       const coOrganizerUser = first(coOrganizerProfile?.profiles);
+                      const isProfileActive =
+                        coOrganizerProfile?.status === "approved" &&
+                        !coOrganizerProfile.is_paused &&
+                        !coOrganizerProfile.is_disabled;
                       return {
                         categories:
                           coOrganizerProfile?.facilitator_categories
@@ -307,6 +317,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
                           ? supabase.storage.from("media").getPublicUrl(coOrganizerProfile.profile_image_path).data.publicUrl
                           : null,
                         name: coOrganizerProfile?.company_name || coOrganizerUser?.full_name || "Arrangør",
+                        profileIsActive: Boolean(isProfileActive),
                         profileId: invitation.co_organizer_profile_id,
                         status: invitation.status,
                       };
