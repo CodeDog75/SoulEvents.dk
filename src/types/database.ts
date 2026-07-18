@@ -1,7 +1,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type AppRole = "admin" | "facilitator";
-export type FacilitatorStatus = "pending" | "approved" | "disabled";
+export type FacilitatorStatus = "pending" | "approved" | "disabled" | "changes_requested";
 export type EventStatus = "draft" | "pending_review" | "active" | "rejected" | "sold_out" | "cancelled" | "completed" | "archived";
 export type BookingStatus =
   | "pending"
@@ -11,6 +11,7 @@ export type BookingStatus =
   | "completed"
   | "invoiced"
   | "paid";
+export type CoOrganizerStatus = "pending" | "accepted" | "declined" | "cancelled" | "withdrawn";
 export type InvoiceStatus = "draft" | "approved" | "sent" | "paid" | "cancelled";
 export type EmailStatus = "queued" | "sent" | "failed";
 export type LegalDocumentType = "terms" | "privacy" | "guidelines" | "organizer_terms" | "cookies";
@@ -26,7 +27,9 @@ export type Database = {
         Row: Row<{
           id: string;
           role: AppRole;
+          first_name: string | null;
           full_name: string;
+          last_name: string | null;
           email: string;
           phone: string | null;
           created_at: string;
@@ -78,6 +81,7 @@ export type Database = {
           company_name: string | null;
           profile_image_path: string | null;
           short_description: string;
+          specialties: string | null;
           long_description: string;
           website_url: string | null;
           facebook_url: string | null;
@@ -160,6 +164,25 @@ export type Database = {
         }>;
         Insert: Insert<Database["public"]["Tables"]["bookings"]["Row"]>;
         Update: Update<Database["public"]["Tables"]["bookings"]["Row"]>;
+        Relationships: [];
+      };
+      event_co_organizers: {
+        Row: Row<{
+          id: string;
+          event_id: string;
+          primary_organizer_profile_id: string;
+          co_organizer_profile_id: string;
+          status: CoOrganizerStatus;
+          response_token: string;
+          invited_by_user_id: string | null;
+          invited_at: string;
+          responded_at: string | null;
+          cancelled_at: string | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["event_co_organizers"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["event_co_organizers"]["Row"]>;
         Relationships: [];
       };
       legal_documents: {

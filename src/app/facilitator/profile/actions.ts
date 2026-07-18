@@ -3,8 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth/roles";
+import { resolveNameParts } from "@/lib/auth/names";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { profileApprovalUrl, sendFacilitatorProfileReadyEmail } from "@/lib/email/facilitator-profile-ready";
+import { getFacilitatorProfileReadiness, getFacilitatorSubmissionReadiness } from "@/lib/facilitators/profile-readiness";
+import { facilitatorWorkAreaSlugs } from "@/lib/facilitators/work-areas";
 import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes, recordLegalAcceptances } from "@/lib/legal/documents";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
@@ -44,6 +47,79 @@ function safeRedirectOrigin(origin: string | null) {
   return null;
 }
 
+function shortId(value: string | null | undefined) {
+  return value ? value.slice(0, 8) : null;
+}
+
+function logCategorySaveError(context: {
+  action: string;
+  allowedAreaSlugs?: string[];
+  categoryIds: string[];
+  error: { code?: string; details?: string; hint?: string; message?: string };
+  facilitatorId?: string | null;
+  invalidValues?: string[];
+  profileId?: string | null;
+  resolvedAreaIds?: string[];
+  stage: string;
+  yogaRow?: { id: string; is_active: boolean | null; name: string | null; slug: string | null } | null;
+}) {
+  console.error("[facilitator-profile] category save failed", {
+    action: context.action,
+    allowedAreaSlugs: context.allowedAreaSlugs,
+    categoryCount: context.categoryIds.length,
+    code: context.error.code,
+    details: context.error.details,
+    facilitatorId: shortId(context.facilitatorId),
+    hint: context.error.hint,
+    invalidValues: context.invalidValues,
+    message: context.error.message,
+    profileId: shortId(context.profileId),
+    receivedAreaValues: context.categoryIds,
+    resolvedAreaIds: context.resolvedAreaIds,
+    stage: context.stage,
+    yogaRow: context.yogaRow,
+  });
+}
+
+function categorySaveMessage(error: { code?: string; message?: string }) {
+  if (error.code === "42703" && error.message?.includes("specialties")) {
+    return "Databasen mangler feltet til specialer. Kør migration 068_facilitator_areas_and_specialties.sql og prøv igen.";
+  }
+
+  return "Arrangørprofilen kunne ikke gemmes.";
+}
+
+async function getAllowedCategoryIds(supabase: ReturnType<typeof createAdminClient>) {
+  const { data, error } = await supabase
+    .from("categories")
+    .select("id, name, slug, is_active")
+    .in("slug", facilitatorWorkAreaSlugs)
+    .eq("is_active", true);
+
+  if (error) return { error, ids: new Set<string>(), rows: [] };
+
+  return {
+    error: null,
+    ids: new Set((data ?? []).map((category) => category.id as string)),
+    rows: data ?? [],
+  };
+}
+
+function categoryDebugContext(
+  allowedCategoryResult: Awaited<ReturnType<typeof getAllowedCategoryIds>>,
+  invalidValues: string[] = [],
+) {
+  return {
+    allowedAreaSlugs: allowedCategoryResult.rows.map((category) => category.slug as string).filter(Boolean),
+    invalidValues,
+    resolvedAreaIds: allowedCategoryResult.rows.map((category) => category.id as string).filter(Boolean),
+    yogaRow:
+      allowedCategoryResult.rows.find((category) => category.slug === "yoga") as
+        | { id: string; is_active: boolean | null; name: string | null; slug: string | null }
+        | undefined,
+  };
+}
+
 const editableProfileSections = ["contact", "location", "social", "images", "categories", "services"] as const;
 type EditableProfileSection = (typeof editableProfileSections)[number];
 type ProfileSection = EditableProfileSection | "all";
@@ -70,6 +146,79 @@ function savesSection(section: ProfileSection, target: EditableProfileSection) {
 
 function fallbackErrorSection(section: ProfileSection, fallback: EditableProfileSection): EditableProfileSection {
   return section === "all" ? fallback : section;
+}
+
+function logProfileReference(profileId: string) {
+  return profileId.length > 8 ? profileId.slice(0, 8) + "..." : "unknown";
+}
+
+async function updateProfileContactFields(input: {
+  fullName: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  profileId: string;
+}) {
+  const admin = createAdminClient();
+  const nameParts = resolveNameParts({
+    firstName: input.firstName,
+    fullName: input.fullName,
+    lastName: input.lastName,
+  });
+
+  const { data: authUserData, error: authUserError } = await admin.auth.admin.getUserById(input.profileId);
+  const profileRef = logProfileReference(input.profileId);
+  if (authUserError) {
+    console.error("[facilitator-profile:contact] Auth user metadata could not be loaded", {
+      code: authUserError.code,
+      message: authUserError.message,
+      profileRef,
+    });
+    return { error: authUserError, ok: false };
+  }
+
+  const existingMetadata =
+    authUserData.user?.user_metadata && typeof authUserData.user.user_metadata === "object"
+      ? authUserData.user.user_metadata
+      : {};
+  const { error: authMetadataError } = await admin.auth.admin.updateUserById(input.profileId, {
+    user_metadata: {
+      ...existingMetadata,
+      first_name: nameParts.firstName || undefined,
+      full_name: nameParts.fullName,
+      last_name: nameParts.lastName || undefined,
+    },
+  });
+
+  if (authMetadataError) {
+    console.error("[facilitator-profile:contact] Auth user metadata could not be updated", {
+      code: authMetadataError.code,
+      message: authMetadataError.message,
+      profileRef,
+    });
+    return { error: authMetadataError, ok: false };
+  }
+
+  const { error: profileError } = await admin
+    .from("profiles")
+    .update({
+      full_name: nameParts.fullName,
+      phone: input.phone,
+    })
+    .eq("id", input.profileId);
+
+  if (profileError) {
+    console.error("[facilitator-profile:contact] Profile contact fields could not be updated", {
+      code: profileError.code,
+      details: profileError.details,
+      hint: profileError.hint,
+      message: profileError.message,
+      profileRef,
+    });
+    return { error: profileError, ok: false };
+  }
+
+  return { fullName: nameParts.fullName, ok: true };
 }
 
 function profileRedirect(message: string, origin?: string | null, errorSection?: EditableProfileSection): never {
@@ -146,13 +295,14 @@ function isProfileReady(input: {
   fullName: string | null;
   postalCode: string | null;
 }) {
-  return (
-    Boolean(input.companyName) &&
-    Boolean(input.fullName) &&
-    Boolean(input.postalCode) &&
-    Boolean(input.city) &&
-    input.categoryIds.length > 0
-  );
+  return getFacilitatorProfileReadiness({
+    categoryIds: input.categoryIds,
+    city: input.city,
+    companyName: input.companyName,
+    fullName: input.fullName,
+    postalCode: input.postalCode,
+    shortDescription: "Indsendelse fra klassisk profilformular",
+  }).isComplete;
 }
 
 function profileSuccessRedirect(message: string, ready: boolean, origin?: string | null, savedSection?: ProfileSection): never {
@@ -330,12 +480,14 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
 
   if (section === "contact") {
     const fullName = valueForAutosave(input.values.full_name);
+    const firstName = valueForAutosave(input.values.first_name);
+    const lastName = valueForAutosave(input.values.last_name);
     const phone = valueForAutosave(input.values.phone);
     const companyName = valueForAutosave(input.values.company_name);
     const shortDescription = valueForAutosave(input.values.short_description);
     const longDescription = valueForAutosave(input.values.long_description);
 
-    if (fullName.length > 80 || companyName.length > 100 || shortDescription.length > 300 || longDescription.length > 2000) {
+    if (fullName.length > 80 || firstName.length > 80 || lastName.length > 80 || companyName.length > 100 || shortDescription.length > 300 || longDescription.length > 2000) {
       return { message: "Et felt er længere end tilladt.", ok: false };
     }
 
@@ -343,9 +495,15 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
       return { message: "Telefonnummer skal bestå af præcis 8 tal.", ok: false };
     }
 
-    const { error: profileError } = await supabase.from("profiles").update({ full_name: fullName, phone }).eq("id", profile.id);
+    const contactResult = await updateProfileContactFields({
+      firstName,
+      fullName,
+      lastName,
+      phone,
+      profileId: profile.id,
+    });
 
-    if (profileError) {
+    if (!contactResult.ok) {
       return { message: "Kontaktoplysningerne kunne ikke gemmes.", ok: false };
     }
 
@@ -417,45 +575,59 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
 
   if (section === "services") {
     const offersServices = input.values.offers_services === true;
-    const serviceTitleIds = arrayForAutosave(input.values.service_title_ids);
     const serviceDescription = valueForAutosave(input.values.service_description);
-    const serviceOtherTitle = valueForAutosave(input.values.service_other_title);
     const showInLocalServiceResults = input.values.show_in_local_service_results === true;
 
-    if (serviceDescription.length > 500 || serviceOtherTitle.length > 120) {
+    if (serviceDescription.length > 500) {
       return { message: "Et ydelsesfelt er længere end tilladt.", ok: false };
     }
 
     updates.offers_services = offersServices;
     updates.service_description = offersServices ? serviceDescription : null;
-    updates.service_other_title = offersServices ? serviceOtherTitle : null;
     updates.show_in_local_service_results = offersServices && showInLocalServiceResults;
-
-    const { error: deleteServiceTitleError } = await supabase
-      .from("facilitator_service_titles")
-      .delete()
-      .eq("facilitator_id", facilitatorId);
-
-    if (deleteServiceTitleError) {
-      return { message: "Behandlertitlerne kunne ikke gemmes.", ok: false };
-    }
-
-    if (offersServices && serviceTitleIds.length > 0) {
-      const { error: serviceTitleError } = await supabase.from("facilitator_service_titles").insert(
-        serviceTitleIds.map((serviceTitleId) => ({
-          facilitator_id: facilitatorId,
-          service_title_id: serviceTitleId,
-        })),
-      );
-
-      if (serviceTitleError) {
-        return { message: "Behandlertitlerne kunne ikke gemmes.", ok: false };
-      }
-    }
   }
+
+  let autosaveCategoryDebug: ReturnType<typeof categoryDebugContext> | null = null;
 
   if (section === "categories") {
     const categoryIds = [...new Set(arrayForAutosave(input.values.category_ids))];
+    const specialties = valueForAutosave(input.values.specialties);
+
+    if (specialties.length > 160) {
+      return { message: "Specialet må højst være 160 tegn.", ok: false };
+    }
+
+    if (categoryIds.length === 0) {
+      return { message: "Vælg mindst ét arbejdsområde.", ok: false };
+    }
+
+    const allowedCategoryResult = await getAllowedCategoryIds(supabase);
+    if (allowedCategoryResult.error) {
+      logCategorySaveError({
+        action: "autosaveFacilitatorProfileAction",
+        categoryIds,
+        error: allowedCategoryResult.error,
+        facilitatorId,
+        profileId: profile.id,
+        stage: "load_allowed_categories",
+      });
+      return { message: "Arbejdsområderne kunne ikke kontrolleres.", ok: false };
+    }
+
+    const invalidCategoryIds = categoryIds.filter((categoryId) => !allowedCategoryResult.ids.has(categoryId));
+    autosaveCategoryDebug = categoryDebugContext(allowedCategoryResult, invalidCategoryIds);
+    if (invalidCategoryIds.length > 0) {
+      logCategorySaveError({
+        action: "autosaveFacilitatorProfileAction",
+        categoryIds,
+        error: { message: "Invalid facilitator work area ids", details: invalidCategoryIds.join(",") },
+        facilitatorId,
+        ...autosaveCategoryDebug,
+        profileId: profile.id,
+        stage: "validate_allowed_categories",
+      });
+      return { message: "Vælg et gyldigt arbejdsområde fra listen.", ok: false };
+    }
 
     if (categoryIds.length > 0) {
       const { error: categoryError } = await supabase.from("facilitator_categories").upsert(
@@ -467,6 +639,15 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
       );
 
       if (categoryError) {
+        logCategorySaveError({
+          action: "autosaveFacilitatorProfileAction",
+          categoryIds,
+          error: categoryError,
+          facilitatorId,
+          ...autosaveCategoryDebug,
+          profileId: profile.id,
+          stage: "upsert_facilitator_categories",
+        });
         return { message: "Arbejdsområderne kunne ikke gemmes.", ok: false };
       }
 
@@ -477,22 +658,53 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
         .not("category_id", "in", `(${categoryIds.join(",")})`);
 
       if (deleteCategoryError) {
+        logCategorySaveError({
+          action: "autosaveFacilitatorProfileAction",
+          categoryIds,
+          error: deleteCategoryError,
+          facilitatorId,
+          ...autosaveCategoryDebug,
+          profileId: profile.id,
+          stage: "delete_removed_facilitator_categories",
+        });
         return { message: "Arbejdsområderne kunne ikke gemmes.", ok: false };
       }
     } else {
       const { error: deleteCategoryError } = await supabase.from("facilitator_categories").delete().eq("facilitator_id", facilitatorId);
 
       if (deleteCategoryError) {
+        logCategorySaveError({
+          action: "autosaveFacilitatorProfileAction",
+          categoryIds,
+          error: deleteCategoryError,
+          facilitatorId,
+          ...autosaveCategoryDebug,
+          profileId: profile.id,
+          stage: "delete_all_facilitator_categories",
+        });
         return { message: "Arbejdsområderne kunne ikke gemmes.", ok: false };
       }
     }
+
+    updates.specialties = specialties || null;
   }
 
   if (Object.keys(updates).length > 0) {
     const { error: facilitatorError } = await supabase.from("facilitator_profiles").update(updates).eq("profile_id", profile.id);
 
     if (facilitatorError) {
-      return { message: "Arrangørprofilen kunne ikke gemmes.", ok: false };
+      if (section === "categories") {
+        logCategorySaveError({
+          action: "autosaveFacilitatorProfileAction",
+          categoryIds: arrayForAutosave(input.values.category_ids),
+          error: facilitatorError,
+          facilitatorId,
+          ...(autosaveCategoryDebug ?? {}),
+          profileId: profile.id,
+          stage: "update_facilitator_profile",
+        });
+      }
+      return { message: categorySaveMessage(facilitatorError), ok: false };
     }
   }
 
@@ -500,61 +712,6 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
   revalidatePath("/facilitator/profile");
 
   return { message: "Gemt", ok: true };
-}
-
-export async function saveWorkAreaSuggestionAction(input: string) {
-  const suggestionText = input.trim().replace(/\s+/g, " ");
-
-  if (!suggestionText) {
-    return { message: "", status: "success" as const };
-  }
-
-  if (suggestionText.length < 2) {
-    return { message: "Forslaget er for kort.", status: "error" as const };
-  }
-
-  if (suggestionText.length > 120) {
-    return { message: "Forslaget må højst være 120 tegn.", status: "error" as const };
-  }
-
-  const profile = await requireProfile();
-
-  if (profile.role !== "facilitator") {
-    return { message: "Kun arrangører kan sende forslag til arbejdsområder.", status: "error" as const };
-  }
-
-  const supabase = await createClient();
-  const { data: facilitatorProfile, error: facilitatorError } = await supabase
-    .from("facilitator_profiles")
-    .select("id")
-    .eq("profile_id", profile.id)
-    .single();
-
-  if (facilitatorError || !facilitatorProfile) {
-    return { message: "Forslaget kunne ikke gemmes lige nu.", status: "error" as const };
-  }
-
-  const { error } = await supabase.from("facilitator_work_area_suggestions").insert({
-    facilitator_id: facilitatorProfile.id,
-    profile_id: profile.id,
-    suggestion_text: suggestionText,
-    status: "pending",
-  });
-
-  if (error) {
-    if (error.code === "23505") {
-      return { message: "Forslaget er allerede sendt til SoulEvents.", status: "success" as const };
-    }
-
-    console.error("Work area suggestion could not be saved", {
-      code: error.code,
-      message: error.message,
-    });
-
-    return { message: "Forslaget kunne ikke gemmes lige nu.", status: "error" as const };
-  }
-
-  return { message: "Dit forslag er sendt til SoulEvents.", status: "success" as const };
 }
 
 function valueForAutosave(value: boolean | string | string[] | null | undefined) {
@@ -963,17 +1120,25 @@ export async function submitFacilitatorProfileForReviewAction(input: { acceptedT
     return { message: "Arrangørprofilen kunne ikke hentes.", ok: false };
   }
 
-  const hasDescription = Boolean(
-    facilitatorProfile.long_description?.trim() || facilitatorProfile.short_description?.trim(),
-  );
-  const missingFields = [
-    profile.full_name?.trim() ? null : "navn",
-    facilitatorProfile.company_name?.trim() ? null : "profilnavn",
-    facilitatorProfile.profile_image_path ? null : "profilbillede",
-    facilitatorProfile.facilitator_categories?.length ? null : "arbejdsområder",
-    hasDescription ? null : "fortælling",
-    facilitatorProfile.facilitator_images?.length ? null : "stemningsbillede",
-  ].filter((item): item is string => Boolean(item));
+  const readiness = getFacilitatorSubmissionReadiness({
+    categoryIds: facilitatorProfile.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [],
+    companyName: facilitatorProfile.company_name,
+    fullName: profile.full_name,
+    hasMoodImage: Boolean(facilitatorProfile.facilitator_images?.length),
+    hasProfileImage: Boolean(facilitatorProfile.profile_image_path),
+    shortDescription: facilitatorProfile.long_description || facilitatorProfile.short_description,
+  });
+  const missingLabels = {
+    categories: "arbejdsområder",
+    city: "by",
+    company_name: "profilnavn",
+    full_name: "navn",
+    mood_image: "stemningsbillede",
+    postal_code: "postnummer",
+    profile_image: "profilbillede",
+    short_description: "fortælling",
+  } as const;
+  const missingFields = readiness.missing.map((item) => missingLabels[item]);
 
   if (missingFields.length > 0) {
     return {
@@ -1005,6 +1170,23 @@ export async function submitFacilitatorProfileForReviewAction(input: { acceptedT
     }
   }
 
+  if (facilitatorProfile.status !== "pending") {
+    const { error: statusError } = await supabase
+      .from("facilitator_profiles")
+      .update({ status: "pending" })
+      .eq("id", facilitatorProfile.id);
+
+    if (statusError) {
+      console.error("[facilitator-profile:submit]", imageLogContext({
+        ...logContext,
+        errorCode: statusError.code,
+        errorMessage: statusError.message,
+        message: "Facilitator profile status update failed",
+      }));
+      return { message: "Profilen kunne ikke sendes til gennemgang. Prøv igen.", ok: false };
+    }
+  }
+
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/profile");
 
@@ -1033,6 +1215,8 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   }
 
   const fullName = getString(formData, "full_name");
+  const firstName = getOptionalString(formData, "first_name");
+  const lastName = getOptionalString(formData, "last_name");
   const phone = getOptionalString(formData, "phone");
   const companyName = getOptionalString(formData, "company_name");
   const shortDescription = getString(formData, "short_description");
@@ -1054,9 +1238,8 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   const categoryIds = getAllStrings(formData, "category_ids");
   const uniqueCategoryIds = [...new Set(categoryIds)];
   const offersServices = formData.get("offers_services") === "on";
-  const serviceTitleIds = getAllStrings(formData, "service_title_ids");
   const serviceDescription = getOptionalString(formData, "service_description");
-  const serviceOtherTitle = getOptionalString(formData, "service_other_title");
+  const specialties = getOptionalString(formData, "specialties");
   const showInLocalServiceResults = formData.get("show_in_local_service_results") === "on";
   const galleryPaths = formData
     .getAll("gallery_image_paths")
@@ -1066,7 +1249,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   let existingProfileQuery = supabase
     .from("facilitator_profiles")
     .select(
-      "id, profile_id, address_line, city, company_name, country, facebook_url, instagram_url, is_online_facilitator, long_description, offers_services, postal_code, profile_image_path, public_email, public_phone, region_id, service_description, service_other_title, short_description, show_in_local_service_results, status, tiktok_url, website_url, youtube_url, facilitator_categories(category_id), facilitator_tags(tag_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)",
+      "id, profile_id, address_line, city, company_name, country, facebook_url, instagram_url, is_online_facilitator, long_description, offers_services, postal_code, profile_image_path, public_email, public_phone, region_id, service_description, short_description, show_in_local_service_results, status, tiktok_url, website_url, youtube_url, facilitator_categories(category_id), facilitator_tags(tag_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)",
     );
 
   existingProfileQuery = isAdminEdit
@@ -1113,6 +1296,8 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
 
   const lengthChecks: Array<[boolean, string | null, number, string, EditableProfileSection]> = [
     [savesSection(section, "contact"), fullName, 80, "Navn", "contact"],
+    [savesSection(section, "contact"), firstName, 80, "Fornavn", "contact"],
+    [savesSection(section, "contact"), lastName, 80, "Efternavn", "contact"],
     [savesSection(section, "contact"), companyName, 100, "Profilnavn", "contact"],
     [savesSection(section, "contact"), shortDescription, 300, "Kort præsentation", "contact"],
     [savesSection(section, "contact"), longDescription, 2000, "Uddybende beskrivelse", "contact"],
@@ -1127,8 +1312,8 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     [savesSection(section, "social"), instagramUrl, 300, "Instagram-link", "social"],
     [savesSection(section, "social"), youtubeUrl, 300, "YouTube-link", "social"],
     [savesSection(section, "social"), tiktokUrl, 300, "TikTok-link", "social"],
+    [savesSection(section, "categories"), specialties, 160, "Speciale", "categories"],
     [savesSection(section, "services"), serviceDescription, 500, "Kort beskrivelse af ydelser", "services"],
-    [savesSection(section, "services"), serviceOtherTitle, 120, "Anden titel eller uddybning", "services"],
   ];
 
   for (const [shouldValidate, value, maxLength, label, errorSection] of lengthChecks) {
@@ -1175,29 +1360,56 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     profileRedirect("Vælg mindst ét arbejdsområde, så vi kan placere din profil korrekt.", redirectOrigin, "categories");
   }
 
-  if (
-    savesSection(section, "services") &&
-    offersServices &&
-    serviceTitleIds.length === 0 &&
-    !serviceOtherTitle &&
-    !serviceDescription
-  ) {
-    if (isAdminEdit) {
-      adminProfileRedirect("Vælg mindst én titel/ydelse fra listen, eller skriv en egen titel eller uddybning.", adminReturnTo, "services");
+  let updateCategoryDebug: ReturnType<typeof categoryDebugContext> | null = null;
+
+  if (savesSection(section, "categories")) {
+    const allowedCategoryResult = await getAllowedCategoryIds(supabase);
+    if (allowedCategoryResult.error) {
+      logCategorySaveError({
+        action: "updateFacilitatorProfileAction",
+        categoryIds: uniqueCategoryIds,
+        error: allowedCategoryResult.error,
+        facilitatorId,
+        profileId: targetProfile.id,
+        stage: "load_allowed_categories",
+      });
+      const message = "Arbejdsområderne kunne ikke kontrolleres.";
+      if (isAdminEdit) {
+        adminProfileRedirect(message, adminReturnTo, "categories");
+      }
+      profileRedirect(message, redirectOrigin, "categories");
     }
-    profileRedirect("Vælg mindst én titel/ydelse fra listen, eller skriv din egen titel eller uddybning.", redirectOrigin, "services");
+
+    const invalidCategoryIds = uniqueCategoryIds.filter((categoryId) => !allowedCategoryResult.ids.has(categoryId));
+    updateCategoryDebug = categoryDebugContext(allowedCategoryResult, invalidCategoryIds);
+    if (invalidCategoryIds.length > 0) {
+      logCategorySaveError({
+        action: "updateFacilitatorProfileAction",
+        categoryIds: uniqueCategoryIds,
+        error: { message: "Invalid facilitator work area ids", details: invalidCategoryIds.join(",") },
+        facilitatorId,
+        ...updateCategoryDebug,
+        profileId: targetProfile.id,
+        stage: "validate_allowed_categories",
+      });
+      const message = "Vælg et gyldigt arbejdsområde fra listen.";
+      if (isAdminEdit) {
+        adminProfileRedirect(message, adminReturnTo, "categories");
+      }
+      profileRedirect(message, redirectOrigin, "categories");
+    }
   }
 
   if (savesSection(section, "contact")) {
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({
-        full_name: fullName || targetProfile.full_name || "",
-        phone,
-      })
-      .eq("id", targetProfile.id);
+    const contactResult = await updateProfileContactFields({
+      firstName: firstName ?? "",
+      fullName,
+      lastName: lastName ?? "",
+      phone,
+      profileId: targetProfile.id,
+    });
 
-    if (profileError) {
+    if (!contactResult.ok) {
       if (isAdminEdit) {
         adminProfileRedirect("Profilen kunne ikke gemmes.", adminReturnTo, "contact");
       }
@@ -1263,8 +1475,11 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   if (savesSection(section, "services")) {
     facilitatorUpdates.offers_services = offersServices;
     facilitatorUpdates.service_description = offersServices ? serviceDescription : null;
-    facilitatorUpdates.service_other_title = offersServices ? serviceOtherTitle : null;
     facilitatorUpdates.show_in_local_service_results = offersServices && showInLocalServiceResults;
+  }
+
+  if (savesSection(section, "categories")) {
+    facilitatorUpdates.specialties = specialties || null;
   }
 
   if (Object.keys(facilitatorUpdates).length > 0) {
@@ -1274,7 +1489,18 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       .eq("id", facilitatorId);
 
     if (facilitatorError) {
-      const message = "Arrangørprofilen kunne ikke gemmes.";
+      if (savesSection(section, "categories")) {
+        logCategorySaveError({
+          action: "updateFacilitatorProfileAction",
+          categoryIds: uniqueCategoryIds,
+          error: facilitatorError,
+          facilitatorId,
+          ...(updateCategoryDebug ?? {}),
+          profileId: targetProfile.id,
+          stage: "update_facilitator_profile",
+        });
+      }
+      const message = categorySaveMessage(facilitatorError);
       if (isAdminEdit) {
         adminProfileRedirect(message, adminReturnTo, fallbackErrorSection(section, "contact"));
       }
@@ -1292,6 +1518,15 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     );
 
     if (categoryError) {
+      logCategorySaveError({
+        action: "updateFacilitatorProfileAction",
+        categoryIds: uniqueCategoryIds,
+        error: categoryError,
+        facilitatorId,
+        ...(updateCategoryDebug ?? {}),
+        profileId: targetProfile.id,
+        stage: "upsert_facilitator_categories",
+      });
       if (isAdminEdit) {
         adminProfileRedirect("Arbejdsområderne kunne ikke gemmes.", adminReturnTo, "categories");
       }
@@ -1305,40 +1540,19 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       .not("category_id", "in", `(${uniqueCategoryIds.join(",")})`);
 
     if (deleteCategoryError) {
+      logCategorySaveError({
+        action: "updateFacilitatorProfileAction",
+        categoryIds: uniqueCategoryIds,
+        error: deleteCategoryError,
+        facilitatorId,
+        ...(updateCategoryDebug ?? {}),
+        profileId: targetProfile.id,
+        stage: "delete_removed_facilitator_categories",
+      });
       if (isAdminEdit) {
         adminProfileRedirect("Arbejdsområderne kunne ikke gemmes.", adminReturnTo, "categories");
       }
       profileRedirect("Arbejdsområderne kunne ikke gemmes.", redirectOrigin, "categories");
-    }
-  }
-
-  if (savesSection(section, "services")) {
-    const { error: deleteServiceTitleError } = await supabase
-      .from("facilitator_service_titles")
-      .delete()
-      .eq("facilitator_id", facilitatorId);
-
-    if (deleteServiceTitleError) {
-      if (isAdminEdit) {
-        adminProfileRedirect("Behandlertitlerne kunne ikke gemmes.", adminReturnTo, "services");
-      }
-      profileRedirect("Behandlertitlerne kunne ikke gemmes.", redirectOrigin, "services");
-    }
-
-    if (offersServices && serviceTitleIds.length > 0) {
-      const { error: serviceTitleError } = await supabase.from("facilitator_service_titles").insert(
-        serviceTitleIds.map((serviceTitleId) => ({
-          facilitator_id: facilitatorId,
-          service_title_id: serviceTitleId,
-        })),
-      );
-
-      if (serviceTitleError) {
-        if (isAdminEdit) {
-          adminProfileRedirect("Behandlertitlerne kunne ikke gemmes.", adminReturnTo, "services");
-        }
-        profileRedirect("Behandlertitlerne kunne ikke gemmes.", redirectOrigin, "services");
-      }
     }
   }
 

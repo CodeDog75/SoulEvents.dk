@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AlertTriangle, ArrowLeft, CalendarPlus, CheckCircle2 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { EventForm } from "@/components/facilitator/events/event-form";
 import { requireRole } from "@/lib/auth/roles";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
+import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
+import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
 import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes } from "@/lib/legal/documents";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,6 +22,31 @@ type SubcategoryRow = {
   subcategory_main_categories?: MainCategoryRelationRow[] | null;
 };
 type BookingRelationRow = { status?: string | null };
+type CoOrganizerInvitationRow = {
+  co_organizer_profile_id: string;
+  id: string;
+  status: "pending" | "accepted";
+  facilitator_profiles?:
+    | {
+        city?: string | null;
+        company_name?: string | null;
+        profile_image_path?: string | null;
+        facilitator_categories?: Array<{ categories?: { name?: string | null } | { name?: string | null }[] | null }> | null;
+        profiles?: { full_name?: string | null } | { full_name?: string | null }[] | null;
+      }
+    | Array<{
+        city?: string | null;
+        company_name?: string | null;
+        profile_image_path?: string | null;
+        facilitator_categories?: Array<{ categories?: { name?: string | null } | { name?: string | null }[] | null }> | null;
+        profiles?: { full_name?: string | null } | { full_name?: string | null }[] | null;
+      }>
+    | null;
+};
+
+function first<T>(value: T | T[] | null | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
 
 function isEventImageMessage(message?: string) {
   if (!message) {
@@ -78,6 +106,15 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
     supabase.from("tags").select("id, name").eq("is_active", true).order("sort_order"),
   ]);
 
+  const onboardingState = await getFacilitatorOnboardingStateForProfile(supabase, {
+    fullName: profile.full_name,
+    profileId: profile.id,
+  });
+
+  if (onboardingState === "onboarding" || onboardingState === "changes_requested") {
+    redirect("/facilitator/profile");
+  }
+
 
   const { data: selectedDraft } =
     draft && facilitatorProfile
@@ -105,6 +142,17 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
           .order("created_at", { ascending: false })
           .limit(5)
       : { data: [] };
+  const { data: coOrganizerInvitations } =
+    selectedDraft && facilitatorProfile
+      ? await supabase
+          .from("event_co_organizers")
+          .select(
+            "id, status, co_organizer_profile_id, facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(city, company_name, profile_image_path, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name)))",
+          )
+          .eq("event_id", selectedDraft.id)
+          .eq("primary_organizer_profile_id", facilitatorProfile.id)
+          .in("status", ["pending", "accepted"])
+      : { data: [] };
   const hasReachedDraftLimit = !selectedDraft && Boolean(limitStatus && limitStatus.draftCount >= limitStatus.maxDraftEvents);
   const hasReachedActiveLimit = Boolean(limitStatus && limitStatus.activeCount >= limitStatus.maxActiveEvents);
 
@@ -114,13 +162,12 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
   const initialStep = Math.min(Math.max(Number(step ?? "0") || 0, 0), 4);
   const draftMessage = message && message.toLowerCase().includes("kladde") ? message : undefined;
   const eventFormMessage = isOrganizerAcceptanceMessage(message) ? message : draftMessage;
-  const profileReady =
-    Boolean(profile.full_name) &&
-    Boolean(facilitatorProfile?.company_name) &&
-    Boolean(facilitatorProfile?.short_description && facilitatorProfile.short_description.trim().length >= 20) &&
-    Boolean(facilitatorProfile?.postal_code) &&
-    Boolean(facilitatorProfile?.city) &&
-    Boolean(facilitatorProfile?.facilitator_categories?.length);
+  const profileReady = getFacilitatorProfileReadiness({
+    categoryIds: facilitatorProfile?.facilitator_categories?.map((row: CategoryRelationRow) => row.category_id) ?? [],
+    companyName: facilitatorProfile?.company_name,
+    fullName: profile.full_name,
+    shortDescription: facilitatorProfile?.short_description,
+  }).isComplete;
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#fbfaf7]">
@@ -166,11 +213,11 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
               </div>
             </div>
           </section>
-        ) : facilitatorProfile?.status !== "approved" ? (
+        ) : onboardingState === "pending_review" ? (
           <section className="rounded-md border border-terracotta/25 bg-terracotta/10 p-5">
             <h2 className="font-semibold text-midnight">Profilen afventer godkendelse</h2>
             <p className="mt-1 text-sm leading-6 text-ink/65">
-              Du kan oprette events som kladder, men de bør først sættes aktive, når administrator har godkendt profilen.
+              Du kan oprette events som kladder, men de kan først offentliggøres, når administrator har godkendt profilen.
             </p>
           </section>
         ) : null}
@@ -245,6 +292,25 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
                     tagIds: selectedDraft.event_tags?.map((row: { tag_id: string }) => row.tag_id) ?? [],
                     activeBookingCount:
                       selectedDraft.bookings?.filter((booking: BookingRelationRow) => ["pending", "confirmed"].includes(booking.status ?? "")).length ?? 0,
+                    coOrganizerInvitations: ((coOrganizerInvitations ?? []) as CoOrganizerInvitationRow[]).map((invitation) => {
+                      const coOrganizerProfile = first(invitation.facilitator_profiles);
+                      const coOrganizerUser = first(coOrganizerProfile?.profiles);
+                      return {
+                        categories:
+                          coOrganizerProfile?.facilitator_categories
+                            ?.map((row) => first(row.categories)?.name)
+                            .filter((name): name is string => Boolean(name))
+                            .slice(0, 3) ?? [],
+                        city: coOrganizerProfile?.city ?? null,
+                        id: invitation.id,
+                        imageUrl: coOrganizerProfile?.profile_image_path
+                          ? supabase.storage.from("media").getPublicUrl(coOrganizerProfile.profile_image_path).data.publicUrl
+                          : null,
+                        name: coOrganizerProfile?.company_name || coOrganizerUser?.full_name || "Arrangør",
+                        profileId: invitation.co_organizer_profile_id,
+                        status: invitation.status,
+                      };
+                    }),
                   }
                 : null
             }

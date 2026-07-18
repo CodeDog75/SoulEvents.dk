@@ -4,6 +4,7 @@ import { UserRoleTable } from "@/components/admin/users/user-role-table";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { FacilitatorStatus } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ type FacilitatorRow = {
   public_email: string | null;
   public_phone: string | null;
   short_description: string | null;
-  status: "approved" | "disabled" | "pending";
+  status: FacilitatorStatus;
   website_url: string | null;
 };
 

@@ -21,6 +21,7 @@ import { PublicFacilitatorCarousel } from "@/components/facilitator/public-facil
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import { env } from "@/lib/env";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
+import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
 import { publicMediaUrl } from "@/lib/media/public-url";
 import { createPageMetadata, getHomepageOgImageUrl } from "@/lib/open-graph";
 import { getAreaOption } from "@/lib/regions/areas";
@@ -48,19 +49,19 @@ function isHiddenHomepageFacilitator(facilitator: { host_reference_id?: string |
   return Boolean(facilitator?.host_reference_id && hiddenHomepageFacilitatorReferenceIds.has(facilitator.host_reference_id));
 }
 
-function splitOtherTreatmentForms(input: string | null | undefined) {
+function splitSpecialties(input: string | null | undefined) {
   return (input ?? "")
-    .split(/\r?\n/)
+    .split(/\r?\n|,/)
     .map((item) => item.trim())
     .filter(Boolean)
-    .slice(0, 2);
+    .slice(0, 3);
 }
 
 type LocalServiceProvider = {
   id: string;
   name: string;
   imageUrl: string | null;
-  serviceTitles: string[];
+  serviceLabels: string[];
   city: string | null;
   area: string | null;
   description: string;
@@ -816,16 +817,10 @@ async function getExperienceGroups() {
 function localServiceTextMatchesCategory(provider: any, categoryLabel: string) {
   if (!categoryLabel) return true;
   const needle = categoryLabel.toLowerCase();
-  const serviceTitles = (provider.facilitator_service_titles ?? [])
-    .map((row: any) => {
-      const title = Array.isArray(row.service_titles) ? row.service_titles[0] : row.service_titles;
-      return title?.name ?? "";
-    })
-    .join(" ");
   const categories = (provider.facilitator_categories ?? [])
     .map((row: any) => {
       const category = Array.isArray(row.categories) ? row.categories[0] : row.categories;
-      return category?.name ?? "";
+      return category?.slug && facilitatorWorkAreaSlugSet.has(category.slug) ? category.name ?? "" : "";
     })
     .join(" ");
   const tags = (provider.facilitator_tags ?? [])
@@ -838,8 +833,7 @@ function localServiceTextMatchesCategory(provider: any, categoryLabel: string) {
     provider.company_name,
     provider.short_description,
     provider.service_description,
-    provider.service_other_title,
-    serviceTitles,
+    provider.specialties,
     categories,
     tags,
   ]
@@ -865,7 +859,7 @@ async function getLocalServiceProviders(selected: {
   const { data: providers } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, host_reference_id, company_name, profile_image_path, short_description, service_description, service_other_title, city, country, latitude, longitude, offers_services, show_in_local_service_results, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name, slug), facilitator_categories(categories(name)), facilitator_tags(tags(name)), facilitator_service_titles(service_titles(name, is_active))",
+      "id, host_reference_id, company_name, profile_image_path, short_description, specialties, service_description, city, country, latitude, longitude, offers_services, show_in_local_service_results, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name, slug), facilitator_categories(categories(name, slug)), facilitator_tags(tags(name))",
     )
     .eq("status", "approved")
     .eq("is_paused", false)
@@ -902,15 +896,13 @@ async function getLocalServiceProviders(selected: {
     .map((provider: any) => {
       const profile = Array.isArray(provider.profiles) ? provider.profiles[0] : provider.profiles;
       const region = Array.isArray(provider.regions) ? provider.regions[0] : provider.regions;
-      const serviceTitles = (provider.facilitator_service_titles ?? [])
+      const categories = (provider.facilitator_categories ?? [])
         .map((row: any) => {
-          const title = Array.isArray(row.service_titles) ? row.service_titles[0] : row.service_titles;
-          return title?.name ?? "";
+          const category = Array.isArray(row.categories) ? row.categories[0] : row.categories;
+          return category?.slug && facilitatorWorkAreaSlugSet.has(category.slug) ? category.name ?? "" : "";
         })
         .filter(Boolean);
-      const otherTreatmentForms = splitOtherTreatmentForms(provider.service_other_title);
-      const visibleServiceTitles = [...serviceTitles, ...otherTreatmentForms]
-        .slice(0, 3);
+      const visibleServiceLabels = [...categories, ...splitSpecialties(provider.specialties)].slice(0, 3);
       const distanceKm =
         userLocation && typeof provider.latitude === "number" && typeof provider.longitude === "number"
           ? distanceInKm(userLocation, { latitude: provider.latitude, longitude: provider.longitude })
@@ -922,7 +914,7 @@ async function getLocalServiceProviders(selected: {
         imageUrl: provider.profile_image_path
           ? supabase.storage.from("media").getPublicUrl(provider.profile_image_path).data.publicUrl
           : null,
-        serviceTitles: visibleServiceTitles,
+        serviceLabels: visibleServiceLabels,
         city: provider.city || null,
         area: region?.name || provider.country || null,
         description: provider.service_description || provider.short_description || "",
@@ -976,11 +968,11 @@ function LocalServiceProviderSection({ providers }: { providers: LocalServicePro
                 <p className="mt-1 text-xs text-[#2F2633]/58">{[provider.city, provider.area].filter(Boolean).join(", ")}</p>
               </div>
             </div>
-            {provider.serviceTitles.length > 0 && (
+            {provider.serviceLabels.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
-                {provider.serviceTitles.map((title) => (
-                  <span className="rounded-full bg-[#EDE4F7] px-3 py-1 text-xs font-semibold text-[#7A4EAB]" key={title}>
-                    {title}
+                {provider.serviceLabels.map((label) => (
+                  <span className="rounded-full bg-[#EDE4F7] px-3 py-1 text-xs font-semibold text-[#7A4EAB]" key={label}>
+                    {label}
                   </span>
                 ))}
               </div>

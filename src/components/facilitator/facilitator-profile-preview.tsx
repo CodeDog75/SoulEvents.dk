@@ -28,7 +28,6 @@ type FacilitatorProfilePreviewProps = {
   profileImageUrl?: string | null;
   profileName: string;
   serviceDescription?: string | null;
-  serviceTitles?: string[];
   shortDescription?: string | null;
   title?: string;
 };
@@ -46,7 +45,6 @@ export function FacilitatorProfilePreview({
   profileImageUrl,
   profileName,
   serviceDescription,
-  serviceTitles = [],
   shortDescription,
   title,
 }: FacilitatorProfilePreviewProps) {
@@ -112,20 +110,10 @@ export function FacilitatorProfilePreview({
             <OrganizerBadges badges={badges} />
           </div>
         ) : null}
-        {serviceTitles.length > 0 ? (
+        {serviceDescription ? (
           <div className="mt-4 rounded-card border border-[#E5D4F7] bg-white/80 p-3 text-left shadow-soft">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Titler og ydelser</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {serviceTitles.map((serviceTitle) => (
-                <span
-                  className="rounded-full bg-[#EDE4F7] px-3 py-1 text-xs font-semibold text-[#7A4EAB]"
-                  key={serviceTitle}
-                >
-                  {serviceTitle}
-                </span>
-              ))}
-            </div>
-            {serviceDescription ? <p className="mt-3 text-sm leading-6 text-ink/68">{serviceDescription}</p> : null}
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Individuelle ydelser</p>
+            <p className="mt-2 text-sm leading-6 text-ink/68">{serviceDescription}</p>
           </div>
         ) : null}
 

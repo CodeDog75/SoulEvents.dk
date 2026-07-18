@@ -1,4 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
+import { resolveNameParts } from "@/lib/auth/names";
 import type { AppRole } from "@/types/database";
 
 export const disabledFacilitatorLoginMessage =
@@ -14,7 +16,9 @@ export type AuthUserLike = {
     provider?: string;
   }>;
   user_metadata?: {
+    first_name?: string;
     full_name?: string;
+    last_name?: string;
     name?: string;
     role?: string;
   };
@@ -64,22 +68,17 @@ export type PostAuthResult =
       type: "disabled";
     };
 
-function userDisplayName(user: AuthUserLike) {
-  return user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Bruger";
+function userNameParts(user: AuthUserLike) {
+  const fallbackName = user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Bruger";
+  return resolveNameParts({
+    firstName: user.user_metadata?.first_name,
+    fullName: fallbackName,
+    lastName: user.user_metadata?.last_name,
+  });
 }
 
 function roleForUser(user: AuthUserLike): AppRole {
   return user.user_metadata?.role === "admin" ? "admin" : "facilitator";
-}
-
-function isFacilitatorProfileComplete(facilitatorProfile: NonNullable<EnsuredAuthProfile["facilitatorProfile"]>) {
-  return (
-    Boolean(facilitatorProfile.company_name) &&
-    Boolean(facilitatorProfile.postal_code) &&
-    Boolean(facilitatorProfile.city) &&
-    Boolean(facilitatorProfile.short_description && facilitatorProfile.short_description.trim().length >= 20) &&
-    Boolean(facilitatorProfile.facilitator_categories?.length)
-  );
 }
 
 export async function ensureAppProfileForAuthUser(user: AuthUserLike): Promise<EnsuredAuthProfile> {
@@ -114,11 +113,12 @@ export async function ensureAppProfileForAuthUser(user: AuthUserLike): Promise<E
   const role = appProfile?.role ?? roleForUser(user);
 
   if (!appProfile) {
+    const nameParts = userNameParts(user);
     const { data: insertedProfile, error: profileError } = await admin
       .from("profiles")
       .insert({
         email: user.email || "",
-        full_name: userDisplayName(user),
+        full_name: nameParts.fullName,
         id: user.id,
         phone: null,
         role,
@@ -166,7 +166,7 @@ export async function ensureAppProfileForAuthUser(user: AuthUserLike): Promise<E
       facilitatorProfile = existingFacilitatorProfile as NonNullable<EnsuredAuthProfile["facilitatorProfile"]>;
     }
 
-    needsProfileCompletion = !isFacilitatorProfileComplete(facilitatorProfile);
+    needsProfileCompletion = true;
   }
 
   return {
@@ -200,7 +200,15 @@ export async function getPostAuthRedirect(context: PostAuthContext): Promise<Pos
     };
   }
 
-  if (ensuredProfile.needsProfileCompletion) {
+  const admin = createAdminClient();
+  const onboardingState = ensuredProfile.facilitatorProfile
+    ? await getFacilitatorOnboardingStateForProfile(admin, {
+        fullName: ensuredProfile.profile.full_name,
+        profileId: ensuredProfile.profile.id,
+      })
+    : "onboarding";
+
+  if (onboardingState === "onboarding" || onboardingState === "changes_requested") {
     const path = ensuredProfile.isNewProfile
       ? "/facilitator/welcome"
       : "/facilitator/profile";

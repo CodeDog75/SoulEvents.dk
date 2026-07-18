@@ -19,9 +19,10 @@ import {
   Send,
   Tags,
   Ticket,
+  X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createEventAction } from "@/app/facilitator/events/actions";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { cancelCoOrganizerInvitationAction, createEventAction, searchCoOrganizerCandidatesAction } from "@/app/facilitator/events/actions";
 import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
 
 type Region = {
@@ -85,6 +86,26 @@ type DraftEvent = {
   subcategoryIds?: string[];
   tagIds?: string[];
   activeBookingCount?: number;
+  coOrganizerInvitations?: CoOrganizerInvitation[];
+};
+
+type CoOrganizerInvitation = {
+  categories?: string[];
+  city?: string | null;
+  id: string;
+  imageUrl?: string | null;
+  name: string;
+  profileId: string;
+  status: "pending" | "accepted";
+};
+
+type CoOrganizerCandidate = {
+  categories?: string[];
+  city?: string | null;
+  id: string;
+  imageUrl?: string | null;
+  name: string;
+  specialties?: string | null;
 };
 
 type EventFormProps = {
@@ -228,6 +249,17 @@ function TagPill({
       {checked ? <span aria-hidden="true">{"✓"}</span> : null}
       {tag.name}
     </label>
+  );
+}
+
+function CoOrganizerAvatar({ imageUrl, name }: { imageUrl?: string | null; name: string }) {
+  return imageUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img alt="" className="size-11 rounded-[14px] object-cover" src={imageUrl} />
+  ) : (
+    <span className="grid size-11 place-items-center rounded-[14px] bg-[#F4F0F7] text-sm font-semibold text-[#7A5D91]">
+      {name.slice(0, 1).toUpperCase()}
+    </span>
   );
 }
 
@@ -791,6 +823,12 @@ export function EventForm({
   const selectedRegionName = regions.find((region) => region.id === regionId)?.name ?? "";
   const currentCoverImageUrl = coverPreviewUrl || draftEvent?.coverImageUrl || "";
   const [titleValue, setTitleValue] = useState(value(draftEvent?.title));
+  const [coOrganizerSearchOpen, setCoOrganizerSearchOpen] = useState(false);
+  const [coOrganizerSearchQuery, setCoOrganizerSearchQuery] = useState("");
+  const [coOrganizerCandidates, setCoOrganizerCandidates] = useState<CoOrganizerCandidate[]>([]);
+  const [selectedCoOrganizers, setSelectedCoOrganizers] = useState<CoOrganizerCandidate[]>([]);
+  const [coOrganizerSearchMessage, setCoOrganizerSearchMessage] = useState("");
+  const [isSearchingCoOrganizers, startCoOrganizerSearch] = useTransition();
   const titleBoxStateClass = titleValue.trim()
     ? "border-[#CFE3C8] bg-[#F6FBF3]"
     : "border-[#F0D6D2] bg-[#FFF8F6]";
@@ -810,6 +848,9 @@ export function EventForm({
   const formattedMaxTicketPrice = facilitator.maxTicketPricePerPerson === null
     ? null
     : new Intl.NumberFormat("da-DK").format(facilitator.maxTicketPricePerPerson) + " kr.";
+  const existingCoOrganizers = draftEvent?.coOrganizerInvitations ?? [];
+  const activeCoOrganizerCount = existingCoOrganizers.length + selectedCoOrganizers.length;
+  const canAddCoOrganizer = activeCoOrganizerCount < 2;
   const numericPriceValue = Number(priceValue || 0);
   const ticketPriceLimitExceeded =
     priceMode === "paid" &&
@@ -1200,6 +1241,49 @@ export function EventForm({
   function updateStartDate(nextDate: string) {
     setStartDate(nextDate);
     setEndDate((currentEndDate) => (currentEndDate && currentEndDate >= nextDate ? currentEndDate : nextDate));
+  }
+
+  function searchCoOrganizers(nextQuery: string) {
+    setCoOrganizerSearchQuery(nextQuery);
+    setCoOrganizerSearchMessage("");
+
+    if (nextQuery.trim().length < 2) {
+      setCoOrganizerCandidates([]);
+      return;
+    }
+
+    startCoOrganizerSearch(async () => {
+      const existingProfileIds = new Set([
+        ...existingCoOrganizers.map((coOrganizer) => coOrganizer.profileId),
+        ...selectedCoOrganizers.map((coOrganizer) => coOrganizer.id),
+      ]);
+      const results = await searchCoOrganizerCandidatesAction(nextQuery, draftEvent?.id ?? null);
+      const filteredResults = results.filter((candidate) => !existingProfileIds.has(candidate.id));
+      setCoOrganizerCandidates(filteredResults);
+      setCoOrganizerSearchMessage(filteredResults.length === 0 ? "Ingen aktive arrangører matcher søgningen." : "");
+    });
+  }
+
+  function addCoOrganizer(candidate: CoOrganizerCandidate) {
+    if (!canAddCoOrganizer) {
+      setCoOrganizerSearchMessage("Du kan højst invitere to medarrangører.");
+      return;
+    }
+
+    setSelectedCoOrganizers((current) => {
+      if (current.some((item) => item.id === candidate.id)) {
+        return current;
+      }
+
+      return [...current, candidate].slice(0, 2 - existingCoOrganizers.length);
+    });
+    setCoOrganizerSearchQuery("");
+    setCoOrganizerCandidates([]);
+    setCoOrganizerSearchMessage("Medarrangøren inviteres, når eventet gemmes.");
+  }
+
+  function removeSelectedCoOrganizer(candidateId: string) {
+    setSelectedCoOrganizers((current) => current.filter((candidate) => candidate.id !== candidateId));
   }
 
 
@@ -1939,8 +2023,8 @@ export function EventForm({
             <p className="mt-2">{activeLimitMessage}</p>
           ) : ticketPriceLimitBlocksSubmit ? (
             <p className="mt-2">
-              Din konto er godkendt til events med en billetpris på op til <strong>{formattedMaxTicketPrice}</strong> pr. deltager. Ønsker du at
-              annoncere dyrere events eller retreats, er du velkommen til at kontakte SoulEvents for en individuel aftale.
+              Den angivne billetpris overstiger den nuværende beløbsgrænse. Har dit event behov for en højere billetpris, er du velkommen til
+              at kontakte SoulEvents på hej@soulevents.dk.
             </p>
           ) : legalAcceptanceBlocksSubmit ? (
             <p className="mt-2">
@@ -2181,6 +2265,9 @@ export function EventForm({
       {draftEvent?.id ? <input name="event_id" type="hidden" value={draftEvent.id} /> : null}
       <input name="current_step" type="hidden" value={currentStep} />
       <input name="current_cover_image_path" type="hidden" value={value(draftEvent?.cover_image_path)} />
+      {selectedCoOrganizers.map((coOrganizer) => (
+        <input key={coOrganizer.id} name="co_organizer_profile_ids" type="hidden" value={coOrganizer.id} />
+      ))}
       {showParticipantNotificationDialog ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-midnight/35 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="event-update-dialog-title">
           <section className="w-full max-w-lg rounded-card bg-white p-5 shadow-lift sm:p-6">
@@ -2336,6 +2423,111 @@ export function EventForm({
         <div className={"rounded-[20px] transition " + highlightMissingClass("description")} id="event-description-field">
           <EventDescriptionField defaultValue={value(draftEvent?.long_description || draftEvent?.short_description)} />
         </div>
+        <section className="grid gap-4 rounded-[22px] border border-[#E5D4F7] bg-[#FAF8FC] p-4 md:p-5">
+          <div className="grid gap-1">
+            <h3 className="text-lg font-semibold text-midnight">Afholder du eventet sammen med andre?</h3>
+            <p className="text-sm leading-6 text-ink/68">
+              Du kan invitere op til to medarrangører med en aktiv profil på SoulEvents. Medarrangøren vises først på eventet, når invitationen er accepteret.
+            </p>
+          </div>
+
+          {existingCoOrganizers.length > 0 || selectedCoOrganizers.length > 0 ? (
+            <div className="grid gap-3">
+              {existingCoOrganizers.map((coOrganizer) => (
+                <div className="flex items-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-3 shadow-sm" key={coOrganizer.id}>
+                  <CoOrganizerAvatar imageUrl={coOrganizer.imageUrl} name={coOrganizer.name} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-midnight">{coOrganizer.name}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#7A5D91]">
+                      {coOrganizer.status === "accepted" ? "Accepteret" : "Afventer svar"}
+                    </p>
+                    {coOrganizer.city ? <p className="mt-1 text-sm text-ink/58">{coOrganizer.city}</p> : null}
+                  </div>
+                  <button
+                    className="inline-flex h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-3 text-xs font-semibold text-ink/64 transition hover:border-[#B56F8A] hover:text-[#B56F8A]"
+                    formAction={cancelCoOrganizerInvitationAction}
+                    name="invitation_id"
+                    type="submit"
+                    value={coOrganizer.id}
+                  >
+                    Fjern
+                  </button>
+                </div>
+              ))}
+
+              {selectedCoOrganizers.map((coOrganizer) => (
+                <div className="flex items-start gap-3 rounded-card border border-[#D8CBE4] bg-white p-3 shadow-sm" key={coOrganizer.id}>
+                  <CoOrganizerAvatar imageUrl={coOrganizer.imageUrl} name={coOrganizer.name} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-midnight">{coOrganizer.name}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#7A5D91]">Inviteres når eventet gemmes</p>
+                    {coOrganizer.city ? <p className="mt-1 text-sm text-ink/58">{coOrganizer.city}</p> : null}
+                  </div>
+                  <button
+                    aria-label={"Fjern " + coOrganizer.name}
+                    className="grid size-9 place-items-center rounded-full border border-midnight/10 bg-white text-ink/54 transition hover:border-[#B56F8A] hover:text-[#B56F8A]"
+                    onClick={() => removeSelectedCoOrganizer(coOrganizer.id)}
+                    type="button"
+                  >
+                    <X className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {canAddCoOrganizer ? (
+            <div className="grid gap-3">
+              {!coOrganizerSearchOpen ? (
+                <button
+                  className="inline-flex h-11 w-fit items-center gap-2 rounded-button border border-[#7A5D91]/25 bg-white px-4 text-sm font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
+                  onClick={() => setCoOrganizerSearchOpen(true)}
+                  type="button"
+                >
+                  <Plus className="size-4" aria-hidden="true" />
+                  Tilføj medarrangør
+                </button>
+              ) : (
+                <div className="grid gap-3">
+                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                    Søg efter medarrangør
+                    <input
+                      className="h-12 rounded-card border border-[#D8CBE4] bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      onChange={(event) => searchCoOrganizers(event.target.value)}
+                      placeholder="Søg på profilnavn, by eller speciale"
+                      type="search"
+                      value={coOrganizerSearchQuery}
+                    />
+                  </label>
+                  {isSearchingCoOrganizers ? <p className="text-sm text-ink/58">Søger...</p> : null}
+                  {coOrganizerSearchMessage ? <p className="text-sm font-semibold text-[#6E5A86]">{coOrganizerSearchMessage}</p> : null}
+                  {coOrganizerCandidates.length > 0 ? (
+                    <div className="grid gap-2">
+                      {coOrganizerCandidates.map((candidate) => (
+                        <button
+                          className="flex items-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-3 text-left shadow-sm transition hover:border-[#7A5D91]"
+                          key={candidate.id}
+                          onClick={() => addCoOrganizer(candidate)}
+                          type="button"
+                        >
+                          <CoOrganizerAvatar imageUrl={candidate.imageUrl} name={candidate.name} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-semibold text-midnight">{candidate.name}</span>
+                            <span className="block text-sm text-ink/58">{[candidate.city, ...(candidate.categories ?? [])].filter(Boolean).join(" · ")}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="rounded-card border border-[#E8E0D2] bg-white px-4 py-3 text-sm font-semibold text-ink/64">
+              Maksimum er nået: ét event kan have én primær arrangør og højst to medarrangører.
+            </p>
+          )}
+        </section>
       </section>
 {renderStepAccordionHeader(1)}
       <section className={isStepOpen(1) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-5 sm:p-6 " + highlightMissingClass(eventFormat === "online" ? "online" : "location") : "hidden"} id="event-location-field">
@@ -2530,9 +2722,9 @@ export function EventForm({
             Vælg først gratis eller betaling i trinlinjen ovenfor.
           </p>
         ) : null}
-        <div className="grid gap-4 md:grid-cols-2 md:items-start">
+        <div className="grid gap-4 md:grid-cols-2 md:items-stretch">
           {priceMode === "paid" ? (
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
+            <label className="grid min-h-[180px] content-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-5 text-sm font-medium text-ink/72 shadow-soft">
               <span>Pris i kr.</span>
               <input
                 autoComplete="off"
@@ -2546,34 +2738,20 @@ export function EventForm({
                 value={priceValue}
               />
               <span className="text-xs leading-5 text-ink/52">Pris inklusive moms.</span>
-              {formattedMaxTicketPrice ? (
-                <span className="rounded-md bg-[#F4F0F7] px-3 py-2 text-xs font-semibold leading-5 text-[#6E5A86]">
-                  Din maksimale billetpris: {formattedMaxTicketPrice}
-                </span>
-              ) : (
-                <span className="rounded-md bg-[#F3F7F0] px-3 py-2 text-xs font-semibold leading-5 text-[#4F6F48]">
-                  Din konto har ingen begrænsning på billetpris.
-                </span>
-              )}
-              {ticketPriceLimitExceeded && formattedMaxTicketPrice ? (
-                <span className="rounded-md border border-[#EAC6C0] bg-[#FFF8F6] px-3 py-2 text-xs font-semibold leading-5 text-[#8B3E35]">
-                  Din konto er godkendt til events med en billetpris på op til {formattedMaxTicketPrice} pr. deltager. Ønsker du at annoncere dyrere
-                  events eller retreats, er du velkommen til at kontakte SoulEvents for en individuel aftale.
-                </span>
-              ) : null}
             </label>
           ) : (
             <input name="price" type="hidden" value="0" />
           )}
 
           {priceMode === "free" ? (
-            <div className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm font-semibold text-[#6E5A86]">
-              Eventet er gratis for deltagere.
+            <div className="grid min-h-[180px] content-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-5 text-sm text-ink/70 shadow-soft">
+              <h3 className="text-base font-semibold text-midnight">Gratis</h3>
+              <p className="leading-6">Dette event er gratis for deltagerne.</p>
             </div>
           ) : null}
 
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span>Maks. antal deltagere</span>
+          <label className="grid min-h-[180px] content-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-5 text-sm font-medium text-ink/72 shadow-soft">
+            <span className="text-base font-semibold text-midnight">Maks. antal deltagere</span>
             <input
               autoComplete="off"
               className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(capacityValue)}

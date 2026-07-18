@@ -113,7 +113,7 @@ export async function GET(request: Request) {
     supabase
       .from("facilitator_profiles")
       .select(
-        "id, host_reference_id, status, company_name, public_email, public_phone, website_url, facebook_url, instagram_url, address_line, postal_code, city, country, created_at, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name)), facilitator_tags(tags(name)), facilitator_service_titles(service_titles(name))",
+        "id, host_reference_id, status, company_name, public_email, public_phone, website_url, facebook_url, instagram_url, address_line, postal_code, city, country, created_at, offers_services, service_description, specialties, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name)), facilitator_tags(tags(name))",
       )
       .order("created_at", { ascending: false }),
     eventsQuery,
@@ -168,7 +168,7 @@ export async function GET(request: Request) {
       namesFromRows(facilitator.facilitator_categories, "categories"),
       namesFromRows(facilitator.facilitator_tags, "tags"),
       boolValue(facilitator.offers_services),
-      namesFromRows(facilitator.facilitator_service_titles, "service_titles"),
+      facilitator.specialties,
       facilitator.service_description,
       dateValue(facilitator.created_at),
       viewsByFacilitator.get(facilitator.id) ?? 0,
@@ -238,7 +238,7 @@ export async function GET(request: Request) {
   <h1>SoulEvents statistikeksport</h1>
   <p>Periode: ${periodText}</p>
   ${section("Arrangører", [
-    "Arrangør-ID", "Status", "Vist navn/virksomhed", "Rigtigt navn", "Login e-mail", "Privat telefon", "Offentlig e-mail", "Offentlig telefon", "Hjemmeside", "Facebook", "Instagram", "Adresse", "Postnummer", "By", "Område", "Land", "Kategorier", "Tags", "Tilbyder ydelser", "Titler/ydelser", "Ydelsesbeskrivelse", "Oprettet", "Profilvisninger", "Påmindelses-mails", "Events i perioden", "Kladder", "Aktive", "Afholdte", "Aflyste", "Tilmeldinger", "Pladser", "Bookingværdi"
+    "Arrangør-ID", "Status", "Vist navn/virksomhed", "Rigtigt navn", "Login e-mail", "Privat telefon", "Offentlig e-mail", "Offentlig telefon", "Hjemmeside", "Facebook", "Instagram", "Adresse", "Postnummer", "By", "Område", "Land", "Kategorier", "Tags", "Tilbyder ydelser", "Specialer", "Ydelsesbeskrivelse", "Oprettet", "Profilvisninger", "Påmindelses-mails", "Events i perioden", "Kladder", "Aktive", "Afholdte", "Aflyste", "Tilmeldinger", "Pladser", "Bookingværdi"
   ], facilitatorRows)}
   ${section("Events", [
     "Event-ID", "Titel", "Status", "Arrangør-ID", "Arrangør", "Oprettet", "Start", "Slut", "Format", "By", "Land", "Hovedkategorier", "Underkategorier", "Kategorier", "Tags", "Deltagerpris", "Kapacitet", "Tilmeldinger", "Pladser", "Bookingværdi"

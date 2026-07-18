@@ -1,9 +1,9 @@
 import {
   ArrowRight,
   Bell,
-  CalendarCheck2,
   CalendarDays,
   CalendarPlus,
+  ChevronDown,
   CheckCircle2,
   Clock3,
   Copy,
@@ -11,6 +11,7 @@ import {
   Inbox,
   Leaf,
   Mail,
+  MoreHorizontal,
   PauseCircle,
   PencilLine,
   RotateCcw,
@@ -20,14 +21,18 @@ import {
 } from "lucide-react";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
-import { activateFacilitatorProfileAction, requestFacilitatorProfileClosureAction, sendFacilitatorAdminMessageAction } from "@/app/facilitator/actions";
+import { redirect } from "next/navigation";
+import { activateFacilitatorProfileAction, requestFacilitatorProfileClosureAction, sendFacilitatorAdminMessageAction, sendFacilitatorProfileToReviewAction } from "@/app/facilitator/actions";
 import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction, publishDraftEventAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { SignOutButton } from "@/components/auth/sign-out-button";
-import { FacilitatorProfilePreview } from "@/components/facilitator/facilitator-profile-preview";
 import { requireRole } from "@/lib/auth/roles";
 import { draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
+import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
+import { parseProfileChangeRequest, type ProfileChangeRequest } from "@/lib/facilitators/profile-change-request";
+import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
+import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -40,13 +45,18 @@ type FacilitatorPageProps = {
 };
 
 type CategoryRelation = {
-  categories?: { name: string; color_hex?: string } | { name: string; color_hex?: string }[] | null;
+  categories?: { name: string; slug?: string; color_hex?: string } | { name: string; slug?: string; color_hex?: string }[] | null;
 };
 
 type MoodImage = {
   image_path: string;
   alt_text: string | null;
   sort_order: number;
+};
+
+type DashboardMoodImage = {
+  altText?: string | null;
+  url: string;
 };
 
 type ProfileReadiness = {
@@ -92,14 +102,6 @@ function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function splitOtherTreatmentForms(input: string | null | undefined) {
-  return (input ?? "")
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 2);
-}
-
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
@@ -121,21 +123,42 @@ function isPastEvent(event: { ends_at?: string | null; starts_at: string; status
   return event.status === "completed" || event.status === "cancelled" || new Date(event.ends_at ?? event.starts_at) < now;
 }
 
+function eventEndDate(event: { ends_at?: string | null; starts_at: string }) {
+  return new Date(event.ends_at ?? event.starts_at);
+}
+
+function isOlderThanMonths(value: Date, now: Date, months: number) {
+  const threshold = new Date(value);
+  threshold.setMonth(threshold.getMonth() + months);
+  return threshold < now;
+}
+
 function getProfileReadiness({
   categoryCount,
   facilitatorProfile,
+  fullName,
 }: {
   categoryCount: number;
   facilitatorProfile: any;
+  fullName?: string | null;
 }): ProfileReadiness {
   const missingItems = [];
-  const shortDescription = facilitatorProfile?.short_description?.trim() ?? "";
+  const readiness = getFacilitatorProfileReadiness({
+    categoryIds: Array.from({ length: categoryCount }, (_, index) => String(index)),
+    companyName: facilitatorProfile?.company_name,
+    fullName,
+    shortDescription: facilitatorProfile?.long_description || facilitatorProfile?.short_description,
+  });
 
-  if (!facilitatorProfile?.company_name?.trim()) {
+  if (readiness.missing.includes("company_name")) {
     missingItems.push("Profilnavn");
   }
 
-  if (shortDescription.length < 20) {
+  if (readiness.missing.includes("full_name")) {
+    missingItems.push("Navn");
+  }
+
+  if (readiness.missing.includes("short_description")) {
     missingItems.push("Kort præsentation");
   }
 
@@ -143,11 +166,7 @@ function getProfileReadiness({
     missingItems.push("Profilbillede");
   }
 
-  if (!facilitatorProfile?.postal_code?.trim() || !facilitatorProfile?.city?.trim()) {
-    missingItems.push("Postnummer og by");
-  }
-
-  if (categoryCount === 0) {
+  if (readiness.missing.includes("categories")) {
     missingItems.push("Mindst én kategori");
   }
 
@@ -232,169 +251,151 @@ function getDashboardAction({
   };
 }
 
-function DashboardActionCard({ action, fullProfileHref }: { action: DashboardAction; fullProfileHref?: string | null }) {
-  const Icon = action.icon;
-
-  return (
-    <div className="w-full rounded-[24px] border border-[#D8CBE4] bg-[#F4F0F7] p-5 shadow-[0_10px_30px_rgba(122,93,145,0.10)] md:max-w-[320px] md:p-6">
-      <div className="hidden md:block">
-        <h2 className="text-2xl font-semibold leading-tight text-[#2F2437]">🌿 {action.title}</h2>
-        <p className="mt-3 text-sm leading-6 text-[#6E6475]">{action.description}</p>
-      </div>
-      <p className="mb-3 text-center text-xs font-medium leading-5 text-[#6E6475] md:hidden">{action.description}</p>
-      {action.isDisabled ? (
-        <div className="mt-4 rounded-[18px] border border-[#D8CBE4] bg-white/80 p-4 text-sm leading-6 text-[#6E6475]">
-          <p className="font-semibold text-[#2F2437]">{action.title}</p>
-          <p className="mt-1">{action.description}</p>
-        </div>
-      ) : (
-        <div className="grid gap-2 md:mt-6">
-          <Link
-            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285] hover:shadow-[0_8px_18px_rgba(122,93,145,0.18)]"
-            href={action.href}
-          >
-            <Icon className="size-4" aria-hidden="true" />
-            {action.label}
-          </Link>
-          {fullProfileHref ? (
-            <Link
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-[#D8CBE4] bg-white px-5 text-sm font-semibold text-[#6E5A86] shadow-soft transition hover:-translate-y-0.5 hover:border-[#7A5D91] hover:text-[#7A5D91]"
-              href={fullProfileHref}
-            >
-              <Eye className="size-4" aria-hidden="true" />
-              Vis profil
-            </Link>
-          ) : null}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function DashboardHeader({
+  heroImageUrl,
   name,
-  hostReferenceId,
   profileReadiness,
   primaryAction,
-  fullProfileHref,
 }: {
-  fullProfileHref?: string | null;
+  heroImageUrl?: string | null;
   name: string | null;
-  hostReferenceId?: string | null;
   profileReadiness: ProfileReadiness;
   primaryAction: DashboardAction;
 }) {
-  const statusClassName =
-    profileReadiness.tone === "ready"
-      ? "bg-[#DDE8D7] text-[#4E6A45]"
-      : profileReadiness.tone === "paused"
-        ? "bg-[#F4E7C8] text-[#7A6235]"
-        : "bg-[#FFF7E8] text-[#8A6A2E]";
+  const Icon = primaryAction.icon;
+  const heroBackgroundImage = heroImageUrl
+    ? [
+        "linear-gradient(90deg, rgba(25,20,20,0.84) 0%, rgba(25,20,20,0.64) 38%, rgba(25,20,20,0.28) 72%, rgba(25,20,20,0.12) 100%)",
+        "linear-gradient(to bottom, rgba(20,16,22,0.16) 0%, rgba(20,16,22,0.04) 42%, rgba(20,16,22,0.20) 100%)",
+        "linear-gradient(135deg, rgba(122,93,145,0.18) 0%, rgba(250,247,242,0.10) 52%, rgba(95,122,85,0.10) 100%)",
+        `url("${heroImageUrl.replace(/"/g, "%22")}")`,
+      ].join(", ")
+    : "linear-gradient(90deg, rgba(25,20,20,0.76) 0%, rgba(25,20,20,0.44) 44%, rgba(25,20,20,0.12) 100%), radial-gradient(circle at 74% 24%, rgba(255,255,255,0.30), transparent 32%), linear-gradient(135deg,#796287,#A98EAB 48%,#D8CBBB)";
 
   return (
-    <section className="overflow-hidden rounded-[28px] border border-[#E5DDEA] bg-white p-6 shadow-soft sm:p-8">
-      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Arrangør</p>
-          <h1 className="mt-2 text-3xl font-semibold leading-tight text-[#2F2437] sm:text-4xl">
-            Hej {name || "og velkommen"} 🌿
-          </h1>
-          <p className="mt-3 max-w-2xl text-base leading-7 text-[#6E6475]">
-            {profileReadiness.isComplete
-              ? "Du er godt i gang. Dashboardet viser det næste naturlige skridt for dig."
-              : "Velkommen til SoulEvents. Lad os gøre din profil klar, så deltagere trygt kan møde dig."}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2 text-sm font-semibold">
-            <span className={"inline-flex items-center gap-2 rounded-full px-4 py-2 " + statusClassName}>
-              <CheckCircle2 className="size-4" aria-hidden="true" />
-              {profileReadiness.label}
-            </span>
-            {hostReferenceId ? (
-              <span className="inline-flex items-center rounded-full bg-[#F4F0F7] px-4 py-2 text-[#6E5A86]">
-                Medlemsnummer {hostReferenceId}
-              </span>
-            ) : null}
-          </div>
-          <div className="mt-5 rounded-[20px] bg-[#FAF7F2] p-4 text-sm leading-6 text-[#6E6475]">
-            <p className="font-semibold text-[#2F2437]">{profileReadiness.message}</p>
-            {profileReadiness.missingItems.length > 0 ? (
-              <div className="mt-3">
-                <p className="font-semibold text-[#2F2437]">Du mangler kun:</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {profileReadiness.missingItems.map((item) => (
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#8A6A2E] shadow-sm" key={item}>
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-        <DashboardActionCard action={primaryAction} fullProfileHref={fullProfileHref} />
-      </div>
-    </section>
-  );
-}
-
-function ProfileStatusPanel({ profileReadiness }: { profileReadiness: ProfileReadiness }) {
-  const toneClass =
-    profileReadiness.tone === "ready"
-      ? "border-[#C7DDBC] bg-[#F4FAF1] text-[#4E6A45]"
-      : profileReadiness.tone === "paused"
-        ? "border-[#E6D4A8] bg-[#FFF8E8] text-[#7A6235]"
-        : "border-[#E8D6A8] bg-[#FFF9EC] text-[#8A6A2E]";
-
-  return (
-    <section className={"rounded-[24px] border p-4 shadow-soft " + toneClass}>
-      <p className="text-xs font-semibold uppercase tracking-wide opacity-80">Profilstatus</p>
-      <div className="mt-2 flex items-center gap-2">
-        <CheckCircle2 className="size-5 shrink-0" aria-hidden="true" />
-        <p className="font-semibold">{profileReadiness.label}</p>
-      </div>
-      <p className="mt-2 text-sm leading-6 opacity-90">{profileReadiness.message}</p>
-    </section>
-  );
-}
-
-function StatsCard({
-  description,
-  icon: Icon,
-  label,
-  value,
-  tone,
-  href,
-}: {
-  description: string;
-  icon: React.ElementType;
-  label: string;
-  value: number;
-  tone: "lavender" | "sage" | "cream" | "rose";
-  href: string;
-}) {
-  const tones = {
-    lavender: "bg-[#F4F0F7] text-[#6E5A86]",
-    sage: "bg-[#DDE8D7] text-[#4E6A45]",
-    cream: "bg-[#FAF7F2] text-[#756758]",
-    rose: "bg-[#F7E9EC] text-[#8B5B68]",
-  };
-
-  return (
-    <Link
-      className="group flex min-h-[88px] items-center gap-4 rounded-[18px] border border-[#E5DDEA] bg-white px-4 py-3 shadow-soft transition hover:-translate-y-0.5 hover:border-[#D8CBE4] hover:shadow-lg sm:rounded-[22px] sm:px-5 sm:py-4"
-      href={href}
+    <section
+      className="relative min-h-[430px] overflow-hidden rounded-[38px] bg-cover bg-center p-6 text-white shadow-[0_24px_70px_rgba(47,36,55,0.20)] sm:min-h-[480px] sm:p-8 lg:min-h-[560px] lg:p-10"
+      style={{ backgroundImage: heroBackgroundImage }}
     >
-      <span className={"grid size-10 shrink-0 place-items-center rounded-full sm:size-11 " + tones[tone]}>
-        <Icon className="size-5" aria-hidden="true" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-lg font-semibold leading-tight text-[#2F2437] sm:text-xl">
-          {value} {label}
-        </span>
-        <span className="mt-1 block text-sm leading-5 text-[#6E6475]">{description}</span>
-      </span>
-      <ArrowRight className="size-4 shrink-0 text-[#A08BB4] transition group-hover:translate-x-0.5 group-hover:text-[#7A5D91]" aria-hidden="true" />
-    </Link>
+      <div className="flex min-h-[382px] max-w-[580px] flex-col justify-between sm:min-h-[416px] lg:min-h-[480px]">
+        <div>
+          <h1 className="max-w-[560px] font-serif text-4xl font-semibold leading-tight drop-shadow-[0_2px_18px_rgba(0,0,0,0.22)] sm:text-5xl">
+            Godmorgen {name || "og velkommen"} 🌿
+          </h1>
+          <p className="mt-4 max-w-[520px] text-base leading-7 text-white/88 drop-shadow-[0_1px_12px_rgba(0,0,0,0.18)] sm:text-lg">
+            {profileReadiness.isComplete
+              ? "Det er en smuk dag til at samle mennesker."
+              : "Velkommen til dit lille hjørne af SoulEvents. Næste skridt er at gøre profilen klar."}
+          </p>
+          {profileReadiness.missingItems.length > 0 ? (
+            <p className="mt-4 max-w-[520px] rounded-[20px] border border-white/18 bg-white/14 px-4 py-3 text-sm font-semibold leading-6 text-white/88 backdrop-blur-md">
+              Mangler: {profileReadiness.missingItems.join(", ")}
+            </p>
+          ) : null}
+        </div>
+        <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
+          {primaryAction.isDisabled ? (
+            <p className="rounded-[18px] border border-white/18 bg-white/14 px-4 py-3 text-sm font-semibold text-white/88 backdrop-blur-md">
+              {primaryAction.description}
+            </p>
+          ) : (
+            <Link
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-[#2F2437] shadow-soft transition duration-200 hover:-translate-y-0.5 hover:bg-[#FAF7F2] hover:shadow-[0_14px_32px_rgba(0,0,0,0.18)]"
+              href={primaryAction.href}
+            >
+              <Icon className="size-4" aria-hidden="true" />
+              {primaryAction.label}
+            </Link>
+          )}
+          <Link
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/42 bg-white/10 px-5 text-sm font-semibold text-white shadow-soft backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:bg-white/20"
+            href="/facilitator/profile"
+          >
+            <PencilLine className="size-4" aria-hidden="true" />
+            Ret profil
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CompactProfileCard({
+  fullProfileHref,
+  profileImageUrl,
+  profileName,
+  workAreas,
+  moodImages,
+}: {
+  fullProfileHref?: string | null;
+  moodImages: DashboardMoodImage[];
+  profileImageUrl?: string | null;
+  profileName: string;
+  workAreas: Array<{ colorHex?: string | null; name: string }>;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[32px] border border-[#E5DDEA] bg-[#F8F3FA] shadow-[0_18px_45px_rgba(47,36,55,0.10)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_55px_rgba(47,36,55,0.14)]">
+      <div className="relative min-h-[360px] overflow-hidden bg-[#EDE5F1] sm:min-h-[390px] lg:min-h-[420px]">
+        {profileImageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img alt="" className="absolute inset-0 h-full w-full object-cover object-center" src={profileImageUrl} />
+        ) : (
+          <span className="absolute inset-0 grid place-items-center bg-gradient-to-br from-[#EDE5F1] via-[#D8CBE4] to-[#C7DDBC] text-7xl font-semibold text-white/86">
+            {profileName.slice(0, 1).toUpperCase()}
+          </span>
+        )}
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(20,16,22,0.03)_28%,rgba(20,16,22,0.30)_58%,rgba(20,16,22,0.90)_100%)]" />
+        <div className="absolute inset-x-0 bottom-0 z-10 bg-[linear-gradient(to_top,rgba(20,16,22,0.50),rgba(20,16,22,0.16)_62%,transparent)] px-5 pb-5 pt-24 text-white">
+          <h2 className="text-2xl font-semibold leading-tight drop-shadow-[0_2px_14px_rgba(0,0,0,0.68)]">{profileName}</h2>
+          {workAreas.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {workAreas.slice(0, 4).map((area) => (
+                <span className="rounded-full border border-white/58 bg-[#141016]/42 px-3 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-md" key={area.name}>
+                  {area.name}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <div className="p-5">
+        {moodImages.length > 0 ? (
+          <div>
+            <p className="text-sm font-semibold text-[#2F2437]">Stemninger</p>
+            <div className={"mt-3 grid gap-2 " + (moodImages.length === 1 ? "grid-cols-1" : moodImages.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
+              {moodImages.slice(0, 3).map((image, index) => (
+                <div className="aspect-[4/3] overflow-hidden rounded-[18px] bg-white shadow-sm" key={image.url}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt={image.altText || "Stemningsbillede " + (index + 1)}
+                    className="h-full w-full object-cover transition duration-500 hover:scale-[1.04]"
+                    src={image.url}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className={moodImages.length > 0 ? "mt-5 grid gap-2" : "grid gap-2"}>
+          <Link
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285]"
+            href="/facilitator/profile"
+          >
+            <PencilLine className="size-4" aria-hidden="true" />
+            Ret profil
+          </Link>
+          {fullProfileHref ? (
+            <Link
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#D8CBE4] bg-[#FAF7F2] px-4 text-sm font-semibold text-[#6E6475] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
+              href={fullProfileHref}
+            >
+              <Eye className="size-4" aria-hidden="true" />
+              Se som gæst
+            </Link>
+          ) : null}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -404,12 +405,12 @@ function BookingAttentionCard({ pendingCount }: { pendingCount: number }) {
   return (
     <section
       className={
-        "rounded-[24px] border p-5 shadow-soft sm:p-6 " +
-        (hasPending ? "border-[#E8D6A8] bg-[#FFF9EC]" : "border-[#C9DAC1] bg-[#F3F8F0]")
+        "rounded-[32px] border p-5 shadow-[0_18px_45px_rgba(47,36,55,0.08)] sm:p-6 " +
+        (hasPending ? "border-[#E8D6A8] bg-[#FFF8E8]" : "border-[#E5DDEA] bg-white")
       }
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-3">
+        <div className="flex min-w-0 gap-3">
           <span
             className={
               "mt-0.5 grid size-10 shrink-0 place-items-center rounded-full " +
@@ -419,22 +420,74 @@ function BookingAttentionCard({ pendingCount }: { pendingCount: number }) {
             {hasPending ? <Inbox className="size-5" aria-hidden="true" /> : <CheckCircle2 className="size-5" aria-hidden="true" />}
           </span>
           <div>
-            <h2 className="text-lg font-semibold text-[#2F2437]">Tilmeldinger</h2>
-            <p className="mt-1 text-sm leading-6 text-[#6E6475]">
-              {hasPending
-                ? `Du har ${pendingCount} ${pendingCount === 1 ? "tilmelding" : "tilmeldinger"}, der afventer din bekræftelse.`
-                : "Alle aktuelle tilmeldinger er behandlet."}
+            <h2 className="text-xl font-semibold text-[#2F2437]">Tilmeldinger</h2>
+            <p className="mt-1 text-sm font-semibold leading-6 text-[#6E6475]">
+              {hasPending ? `${pendingCount} ${pendingCount === 1 ? "afventer" : "afventer"} bekræftelse` : "Ingen tilmeldinger kræver handling"}
             </p>
           </div>
         </div>
-        {hasPending ? (
+        <Link
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285]"
+          href="/facilitator/bookings"
+        >
+          Se tilmeldinger
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function ProfileChangesRequestedCard({
+  canSubmit,
+  request,
+}: {
+  canSubmit: boolean;
+  request: ProfileChangeRequest | null;
+}) {
+  return (
+    <section className="rounded-[32px] border border-[#E8D6A8] bg-[#FFF8E8] p-5 shadow-[0_18px_45px_rgba(47,36,55,0.08)] sm:p-6">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold uppercase tracking-wide text-[#8A6A2E]">Profil kræver ændringer</p>
+          <h2 className="mt-2 text-2xl font-semibold text-[#2F2437]">Din profil kræver et par ændringer</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6E6475]">
+            Vi har gennemgået din profil. Ret venligst punkterne herunder, og send profilen til ny godkendelse, når du er klar.
+          </p>
+          {request?.fields.length ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {request.fields.map((field) => (
+                <span className="rounded-full border border-[#E8D6A8] bg-white/72 px-3 py-1 text-sm font-semibold text-[#6F5A35]" key={field}>
+                  {field}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {request?.comment ? (
+            <blockquote className="mt-4 rounded-[20px] border border-[#E8D6A8] bg-white/70 p-4 text-sm leading-6 text-[#4F4537]">
+              {request.comment}
+            </blockquote>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
           <Link
-            className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285]"
-            href="/facilitator/bookings"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285]"
+            href="/facilitator/profile"
           >
-            Se tilmeldinger
+            <PencilLine className="size-4" aria-hidden="true" />
+            Ret profil
           </Link>
-        ) : null}
+          <form action={sendFacilitatorProfileToReviewAction}>
+            <button
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[#D8CBE4] bg-white px-5 text-sm font-semibold text-[#6E6475] transition hover:border-[#7A5D91] hover:text-[#7A5D91] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!canSubmit}
+              type="submit"
+            >
+              Send til ny godkendelse
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </button>
+          </form>
+        </div>
       </div>
     </section>
   );
@@ -452,19 +505,21 @@ function StatusAction({ eventId, status, children }: { eventId: string; status: 
   );
 }
 
+type DashboardEventVariant = "draft" | "active" | "completed" | "cancelled";
+
 function EventCard({
   event,
   facilitatorStatus,
+  isExpiringSoon = false,
   maxTicketPricePerPerson,
-  tone = "default",
+  variant,
 }: {
   event: any;
   facilitatorStatus?: string | null;
+  isExpiringSoon?: boolean;
   maxTicketPricePerPerson?: number | null;
-  tone?: "default" | "muted";
+  variant: DashboardEventVariant;
 }) {
-  const categories =
-    event.event_categories?.map((row: any) => first(row.categories)?.name).filter((name: string | undefined): name is string => Boolean(name)) ?? [];
   const bookingCount = event.bookings?.length ?? 0;
   const location = event.event_format === "online" ? "Online" : event.city || "Lokation kommer";
   const isDraft = event.status === "draft";
@@ -475,7 +530,6 @@ function EventCard({
         maxTicketPricePerPerson,
       })
     : null;
-  const completedChecklistItems = draftReadiness?.checklist.filter((item) => item.valid).length ?? 0;
   const isActive = event.status === "active" || event.status === "sold_out";
   const isCopyableAsDraft =
     event.status === "active" ||
@@ -483,32 +537,52 @@ function EventCard({
     event.status === "completed" ||
     event.status === "cancelled" ||
     new Date(event.starts_at) < new Date();
-  const statusUpdatedLabel =
-    event.status === "draft"
-      ? "Kladde opdateret"
-      : event.status === "active"
-        ? "Aktiveret/senest opdateret"
-        : event.status === "pending_review"
-          ? "Sendt til godkendelse/senest opdateret"
-          : event.status === "cancelled"
-            ? "Deaktiveret/aflyst"
-            : "Status opdateret";
 
-  const cardClass =
-    tone === "muted"
-      ? "border-[#D8D2CA] bg-[#F1EEE9]"
-      : isDraft
-        ? "border-[#D8D2CA] bg-[#F1EEE9]"
-        : "border-[#E5DDEA] bg-white";
+  const variantStyles: Record<DashboardEventVariant, { accent: string; card: string; note: string }> = {
+    active: {
+      accent: "bg-[#DDE8D7]",
+      card: "border-[#D7E4D1] bg-white",
+      note: "border-[#CFE3C8] bg-[#F3F7F0] text-[#4F6F48]",
+    },
+    cancelled: {
+      accent: "bg-[#F1D6DE]",
+      card: "border-[#E9CED6] bg-[#FFF8FA]",
+      note: "border-[#E9CED6] bg-[#FFF1F5] text-[#8B5B68]",
+    },
+    completed: {
+      accent: "bg-[#D8D2CA]",
+      card: "border-[#E5DDEA] bg-[#FAF8F4]",
+      note: "border-[#E8DEC9] bg-[#FBF5E8] text-[#756758]",
+    },
+    draft: {
+      accent: "bg-[#EBDCC3]",
+      card: "border-[#E8DEC9] bg-[#FFF9EC]",
+      note: "border-[#E8DEC9] bg-[#FBF5E8] text-[#6F5A35]",
+    },
+  };
+
+  const currentStyle = variantStyles[variant];
+  const statusMessage = draftReadiness
+    ? draftReadiness.canPublish
+      ? "Klar til offentliggørelse"
+      : `${draftReadiness.checklist.filter((item) => !item.valid).length} ting mangler før offentliggørelse`
+    : variant === "active"
+      ? "Klar til tilmeldinger"
+      : variant === "completed"
+        ? "Afsluttet event"
+        : variant === "cancelled"
+          ? "Eventet er aflyst"
+          : null;
 
   return (
-    <article className={"rounded-[24px] border p-5 shadow-soft " + cardClass}>
-      <div className="flex flex-wrap items-center gap-2">
+    <article className={"relative overflow-hidden rounded-[28px] border p-5 shadow-[0_16px_38px_rgba(47,36,55,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_48px_rgba(47,36,55,0.12)] " + currentStyle.card}>
+      <div className={"absolute inset-x-0 top-0 h-1.5 " + currentStyle.accent} />
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
         <span className={"rounded-full px-3 py-1 text-xs font-semibold " + statusClass(event.status)}>{statusLabel(event.status)}</span>
-        {event.event_reference_id ? <span className="rounded-full bg-[#FAF7F2] px-3 py-1 text-xs font-semibold text-[#6E6475]">Ref. {event.event_reference_id}</span> : null}
+        {event.event_reference_id ? <span className="text-xs font-semibold text-[#8B7F93]">Ref. {event.event_reference_id}</span> : null}
       </div>
       <h3 className="mt-4 text-xl font-semibold leading-tight text-[#2F2437]">{event.title || "Event uden titel"}</h3>
-      <div className="mt-4 grid gap-2 text-sm text-[#6E6475]">
+      <div className="mt-4 grid gap-2 text-sm leading-5 text-[#6E6475]">
         <p className="inline-flex items-center gap-2">
           <CalendarDays className="size-4 text-[#7A5D91]" aria-hidden="true" />
           {formatDate(event.starts_at)}
@@ -521,62 +595,44 @@ function EventCard({
           <Ticket className="size-4 text-[#7A5D91]" aria-hidden="true" />
           {bookingCount} tilmeldinger
         </p>
-        <p className="inline-flex items-center gap-2">
-          <Clock3 className="size-4 text-[#7A5D91]" aria-hidden="true" />
-          {statusUpdatedLabel}: {formatDateTime(event.updated_at)}
-        </p>
       </div>
-      {categories.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {categories.map((category: string) => (
-            <span className="rounded-full bg-[#F4F0F7] px-3 py-1 text-xs font-semibold text-[#6E5A86]" key={category}>
-              {category}
-            </span>
-          ))}
+      {statusMessage ? (
+        <div className={"mt-5 rounded-[18px] border px-4 py-3 text-sm font-semibold leading-6 " + (draftReadiness?.canPublish ? variantStyles.active.note : currentStyle.note)}>
+          {draftReadiness?.canPublish ? "✓ " : ""}
+          {statusMessage}
+          {isExpiringSoon ? <p className="mt-1 text-xs font-medium">Dette event fjernes fra dashboardet om cirka en måned.</p> : null}
         </div>
       ) : null}
-      {draftReadiness ? (
-        <div
-          className={
-            "mt-5 rounded-[18px] border px-4 py-3 text-sm leading-6 " +
-            (draftReadiness.canPublish
-              ? "border-[#CFE3C8] bg-[#F3F7F0] text-[#4F6F48]"
-              : "border-[#E8DEC9] bg-[#FBF5E8] text-[#6F5A35]")
-          }
-        >
-          <p className="font-semibold">
-            {draftReadiness.canPublish ? "🟢 Klar til offentliggørelse" : "🟡 Mangler før offentliggørelse"}
-          </p>
-          {draftReadiness.canPublish ? (
-            <p className="mt-1">Alle oplysninger er udfyldt.</p>
-          ) : (
-            <>
-              <div className="mt-3 grid gap-1">
-                {draftReadiness.checklist.map((item) => (
-                  <p className="flex items-center justify-between gap-3" key={item.key}>
-                    <span>{item.valid ? "✅" : "❌"} {item.label}</span>
-                  </p>
-                ))}
-              </div>
-              <p className="mt-3 font-semibold">
-                {completedChecklistItems} af {draftReadiness.checklist.length} krav opfyldt
-              </p>
-            </>
-          )}
-        </div>
-      ) : null}
-      <div className="mt-5 flex flex-wrap gap-2">
-        {draftReadiness?.canPublish ? (
-          <div className="grid gap-2">
+      <div className="mt-5 grid gap-3">
+        {variant === "completed" ? (
+          <div className="flex flex-wrap gap-2">
+            <Link
+              className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]"
+              href={"/events/" + event.id}
+            >
+              Se detaljer
+            </Link>
+            {isCopyableAsDraft ? (
+              <form action={copyEventAsDraftAction}>
+                <input name="event_id" type="hidden" value={event.id} />
+                <button className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-[#E5DDEA] bg-white px-4 text-sm font-semibold text-[#2F2437] transition hover:border-[#7A5D91] hover:text-[#7A5D91]" type="submit">
+                  <Copy className="size-4" aria-hidden="true" />
+                  Kopiér som nyt event
+                </button>
+              </form>
+            ) : null}
+          </div>
+        ) : draftReadiness?.canPublish ? (
+          <>
             <form action={publishDraftEventAction}>
               <input name="event_id" type="hidden" value={event.id} />
-              <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]" type="submit">
+              <button className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]" type="submit">
                 <ArrowRight className="size-4" aria-hidden="true" />
                 Offentliggør event
               </button>
             </form>
             <p className="max-w-md text-xs leading-5 text-ink/58">
-              Ved at offentliggøre bekræfter du, at eventet overholder SoulEvents&apos; gældende{" "}
+              Ved offentliggørelse bekræfter du SoulEvents&apos;{" "}
               <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/arrangoervilkaar" target="_blank">
                 arrangørvilkår
               </Link>{" "}
@@ -586,151 +642,118 @@ function EventCard({
               </Link>
               .
             </p>
-          </div>
-        ) : null}
-        <Link
-          className={
-            "inline-flex min-h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition " +
-            (draftReadiness?.canPublish
-              ? "border border-[#E5DDEA] bg-white text-[#2F2437] hover:border-[#7A5D91] hover:text-[#7A5D91]"
-              : "bg-[#7A5D91] text-white hover:bg-[#6E4F86]")
-          }
-          href={"/facilitator/events?draft=" + event.id}
-        >
-          <PencilLine className="size-4" aria-hidden="true" />
-          {isDraft ? "Fortsæt redigering" : "Rediger"}
-        </Link>
-        <Link
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#E5DDEA] bg-white px-4 text-sm font-semibold text-[#2F2437] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
-          href={"/facilitator/bookings?event=" + event.id}
-        >
-          <Inbox className="size-4" aria-hidden="true" />
-          Se tilmeldinger
-        </Link>
-        {isActive ? (
+          </>
+        ) : (
           <Link
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#E5DDEA] bg-white px-4 text-sm font-semibold text-[#2F2437] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
-            href={"/events/" + event.id}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]"
+            href={isActive ? "/facilitator/bookings?event=" + event.id : "/facilitator/events?draft=" + event.id}
           >
-            <ArrowRight className="size-4" aria-hidden="true" />
-            Del event
+            {isActive ? <Inbox className="size-4" aria-hidden="true" /> : <PencilLine className="size-4" aria-hidden="true" />}
+            {isActive ? "Se tilmeldinger" : "Fortsæt redigering"}
           </Link>
-        ) : null}
-        {event.status === "draft" ? (
-          <form action={deleteDraftEventAction}>
-            <input name="event_id" type="hidden" value={event.id} />
-            <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 transition hover:bg-red-100" type="submit">
-              <XCircle className="size-4" aria-hidden="true" />
-              Slet kladde
-            </button>
-          </form>
-        ) : null}
-        {isCopyableAsDraft ? (
-          <form action={copyEventAsDraftAction}>
-            <input name="event_id" type="hidden" value={event.id} />
-            <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#E5DDEA] bg-[#F4F0F7] px-4 text-sm font-semibold text-[#6E5A86]" type="submit">
-              <Copy className="size-4" aria-hidden="true" />
-              Kopiér som nyt event
-            </button>
-          </form>
-        ) : null}
-        {event.status === "pending_review" ? (
-          <StatusAction eventId={event.id} status="draft">
-            <RotateCcw className="size-4" aria-hidden="true" />
-            Fortryd indsendelse
-          </StatusAction>
-        ) : null}
-        {event.status !== "cancelled" && event.status !== "draft" && event.status !== "pending_review" ? (
-          <StatusAction eventId={event.id} status="cancelled">
-            <PauseCircle className="size-4" aria-hidden="true" />
-            Aflys
-          </StatusAction>
+        )}
+        {variant !== "completed" ? (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold text-[#6E5A86]">
+            <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={"/facilitator/events?draft=" + event.id}>
+              {isDraft ? "Fortsæt redigering" : "Rediger"}
+            </Link>
+            <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={"/facilitator/bookings?event=" + event.id}>
+              Tilmeldinger
+            </Link>
+            {isActive ? (
+              <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={"/events/" + event.id}>
+                Se event
+              </Link>
+            ) : null}
+            <details className="relative">
+              <summary className="inline-flex cursor-pointer list-none items-center gap-1 whitespace-nowrap transition hover:text-[#7A5D91]">
+                Flere
+                <MoreHorizontal className="size-4" aria-hidden="true" />
+              </summary>
+              <div className="mt-3 grid gap-2 rounded-[18px] border border-[#E5DDEA] bg-white p-3 shadow-soft">
+                {isCopyableAsDraft ? (
+                  <form action={copyEventAsDraftAction}>
+                    <input name="event_id" type="hidden" value={event.id} />
+                    <button className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#F4F0F7] px-3 text-xs font-semibold text-[#6E5A86]" type="submit">
+                      <Copy className="size-3.5" aria-hidden="true" />
+                      Kopiér som nyt event
+                    </button>
+                  </form>
+                ) : null}
+                {event.status === "draft" ? (
+                  <form action={deleteDraftEventAction}>
+                    <input name="event_id" type="hidden" value={event.id} />
+                    <button className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-800" type="submit">
+                      <XCircle className="size-3.5" aria-hidden="true" />
+                      Slet kladde
+                    </button>
+                  </form>
+                ) : null}
+                {event.status === "pending_review" ? (
+                  <StatusAction eventId={event.id} status="draft">
+                    <RotateCcw className="size-3.5" aria-hidden="true" />
+                    Fortryd indsendelse
+                  </StatusAction>
+                ) : null}
+                {event.status !== "cancelled" && event.status !== "draft" && event.status !== "pending_review" ? (
+                  <StatusAction eventId={event.id} status="cancelled">
+                    <PauseCircle className="size-3.5" aria-hidden="true" />
+                    Aflys
+                  </StatusAction>
+                ) : null}
+              </div>
+            </details>
+          </div>
         ) : null}
       </div>
     </article>
   );
 }
 
-function EventSection({
-  title,
-  text,
+function EventCountPill({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-[#E5DDEA] bg-[#FAF8F4] px-3 py-1.5 text-xs font-semibold text-[#6E6475]">
+      {label}
+      <span className="rounded-full bg-white px-2 py-0.5 text-[#7A5D91]">{value}</span>
+    </span>
+  );
+}
+
+function EventGrid({
   events,
   facilitatorStatus,
   id,
   maxTicketPricePerPerson,
-  tone = "default",
-  emptyText = "Her vises dine events, når de er klar.",
+  title,
+  variant,
 }: {
-  title: string;
-  text?: string;
   events: any[];
   facilitatorStatus?: string | null;
   id?: string;
   maxTicketPricePerPerson?: number | null;
-  tone?: "default" | "muted";
-  emptyText?: string;
+  title: string;
+  variant: DashboardEventVariant;
 }) {
+  if (events.length === 0) return null;
+
   return (
     <section id={id}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-[#2F2437]">{title}</h2>
-          {text ? <p className="mt-1 text-sm leading-6 text-[#6E6475]">{text}</p> : null}
-        </div>
-      </div>
+      <h3 className="text-lg font-semibold text-[#2F2437]">{title}</h3>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        {events.length > 0 ? (
-          events.map((event) => (
+        {events.map((event) => {
+          const eventVariant = event.status === "cancelled" ? "cancelled" : variant;
+          return (
             <EventCard
               event={event}
               facilitatorStatus={facilitatorStatus}
+              isExpiringSoon={variant === "completed" && isOlderThanMonths(eventEndDate(event), new Date(), 11)}
               key={event.id}
               maxTicketPricePerPerson={maxTicketPricePerPerson}
-              tone={tone}
+              variant={eventVariant}
             />
-          ))
-        ) : (
-          <div className="rounded-[24px] border border-[#E5DDEA] bg-white p-6 text-sm leading-6 text-[#6E6475] shadow-soft lg:col-span-2">
-            {emptyText}
-          </div>
-        )}
+          );
+        })}
       </div>
-    </section>
-  );
-}
-
-function InsightCard({ events }: { events: any[] }) {
-  const categoryCounts = events.reduce<Record<string, number>>((acc, event) => {
-    for (const row of event.event_categories ?? []) {
-      const name = first(row.categories)?.name;
-      if (name) acc[name] = (acc[name] ?? 0) + 1;
-    }
-    return acc;
-  }, {});
-  const topCategories = Object.entries(categoryCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4);
-
-  if (topCategories.length === 0) {
-    return null;
-  }
-
-  return (
-    <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
-      <h2 className="text-xl font-semibold text-[#2F2437]">Indblik</h2>
-      <p className="mt-1 text-sm text-[#6E6475]">Små mønstre og kategorier, når der er nok data.</p>
-      {topCategories.length > 0 ? (
-        <div className="mt-5">
-          <p className="text-sm font-semibold text-[#2F2437]">Mest brugte kategorier</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {topCategories.map(([name, count]) => (
-              <span className="rounded-full bg-[#F4F0F7] px-3 py-1 text-xs font-semibold text-[#6E5A86]" key={name}>
-                {name} · {count}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }
@@ -783,15 +806,15 @@ function AdminMessageCta({ unreadCount }: { unreadCount: number }) {
 function SettingsPanel({ adminMessages, isPaused, unreadMessageCount }: { adminMessages: any[]; isPaused: boolean; unreadMessageCount: number }) {
 
   return (
-    <details className="rounded-[18px] border border-[#E5DDEA] bg-white/70 shadow-soft" id="beskeder-admin" open>
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#6E6475] transition hover:text-[#7A5D91]">
+    <details className="rounded-[32px] border border-[#E5DDEA] bg-white shadow-[0_18px_45px_rgba(47,36,55,0.08)]" id="beskeder-admin">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-[#2F2437] transition hover:text-[#7A5D91] sm:px-6">
         <span className="inline-flex items-center gap-2">
           <Settings className="size-4 text-[#7A5D91]" aria-hidden="true" />
-          Din kontakt med SoulEvents
+          Hjælp og profilindstillinger
         </span>
-        <span className="text-lg leading-none text-[#A08BB4]">⌄</span>
+        <ChevronDown className="size-4 text-[#A08BB4]" aria-hidden="true" />
       </summary>
-      <div className="grid gap-4 border-t border-[#E5DDEA] p-4 lg:grid-cols-2">
+      <div className="grid gap-4 border-t border-[#E5DDEA] p-5 lg:grid-cols-2">
         <form action={sendFacilitatorAdminMessageAction} className="rounded-[20px] border border-[#E5DDEA] bg-[#FAF7F2] p-5">
           <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Kontakt</p>
           <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Skriv til SoulEvents administration</h2>
@@ -825,7 +848,7 @@ function SettingsPanel({ adminMessages, isPaused, unreadMessageCount }: { adminM
             </button>
           </form>
         ) : (
-          <form action={requestFacilitatorProfileClosureAction} className="rounded-[20px] border border-[#E5DDEA] bg-[#FAF7F2] p-5">
+          <form action={requestFacilitatorProfileClosureAction} className="rounded-[20px] border border-[#E9CED6] bg-[#FFF8FA] p-5">
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Pause</p>
             <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Sæt profil på pause</h2>
             <p className="mt-2 text-sm leading-6 text-[#6E6475]">
@@ -890,13 +913,12 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, status, is_paused, is_disabled, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, offers_services, service_description, service_other_title, is_active_host, is_experienced_host, max_ticket_price_per_person, facilitator_categories(category_id, categories(name, color_hex)), facilitator_tags(tag_id, tags(name)), facilitator_images(image_path, alt_text, sort_order), facilitator_service_titles(service_title_id, service_titles(name, is_active))",
+      "id, status, is_paused, is_disabled, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, offers_services, service_description, is_active_host, is_experienced_host, max_ticket_price_per_person, facilitator_categories(category_id, categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
     )
     .eq("profile_id", profile.id)
     .single();
 
   const status = facilitatorProfile?.status ?? "pending";
-  const hostReferenceId = facilitatorProfile?.host_reference_id ?? null;
   const profileImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
@@ -905,29 +927,24 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const categoryNames =
     facilitatorProfile?.facilitator_categories
       ?.map((row: CategoryRelation) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
-      .filter((category): category is { name: string; color_hex?: string } => Boolean(category)) ?? [];
-  const serviceTitleNames =
-    facilitatorProfile?.offers_services
-      ? facilitatorProfile.facilitator_service_titles
-          ?.map((row: any) => (Array.isArray(row.service_titles) ? row.service_titles[0] : row.service_titles))
-          .filter((title: any) => Boolean(title?.name))
-          .map((title: { name: string }) => title.name) ?? []
-      : [];
-  const otherTreatmentForms = facilitatorProfile?.offers_services
-    ? splitOtherTreatmentForms(facilitatorProfile.service_other_title)
-    : [];
-  const tagNames =
-    facilitatorProfile?.facilitator_tags
-      ?.map((row: any) => (Array.isArray(row.tags) ? row.tags[0] : row.tags))
-      .filter((tag: any) => Boolean(tag?.name))
-      .map((tag: { name: string }) => tag.name) ?? [];
-  const profileBadges = [
-    facilitatorProfile?.is_experienced_host ? "experienced" : null,
-    facilitatorProfile?.is_active_host ? "active" : null,
-  ].filter(Boolean) as Array<"experienced" | "active">;
-
+      .filter((category): category is { name: string; slug: string; color_hex?: string } => Boolean(category?.slug && facilitatorWorkAreaSlugSet.has(category.slug))) ?? [];
+  const moodImages =
+    facilitatorProfile?.facilitator_images
+      ?.slice()
+      .sort((a: MoodImage, b: MoodImage) => a.sort_order - b.sort_order)
+      .map((image: MoodImage) => ({
+        altText: image.alt_text,
+        url: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,
+      })) ?? [];
+  const heroImageUrl = moodImages[0]?.url ?? null;
   const now = new Date();
-  const [{ data: events }, { data: adminMessages }, { count: pendingBookingCount }] =
+  const [
+    { data: events },
+    { data: adminMessages },
+    { count: pendingBookingCount },
+    { data: coOrganizerInvitations },
+    { data: latestChangeRequest },
+  ] =
     facilitatorProfile
       ? await Promise.all([
           supabase
@@ -948,42 +965,69 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .eq("status", "pending")
             .in("events.status", ["active", "sold_out"])
             .gte("events.ends_at", now.toISOString()),
+          supabase
+            .from("event_co_organizers")
+            .select("id, status, response_token, events(id, title, starts_at, status, facilitator_profiles!events_facilitator_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)))")
+            .eq("co_organizer_profile_id", facilitatorProfile.id)
+            .in("status", ["pending", "accepted"])
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("admin_audit_log")
+            .select("reason")
+            .eq("facilitator_id", facilitatorProfile.id)
+            .eq("action", "facilitator_changes_requested")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         ])
-      : [{ data: [] }, { data: [] }, { count: 0 }];
-
-  const moodImages =
-    facilitatorProfile?.facilitator_images
-      ?.slice()
-      .sort((a: MoodImage, b: MoodImage) => a.sort_order - b.sort_order)
-      .map((image: MoodImage) => ({
-        altText: image.alt_text,
-        imagePath: image.image_path,
-        url: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,
-      })) ?? [];
+      : [{ data: [] }, { data: [] }, { count: 0 }, { data: [] }, { data: null }];
 
   const eventRows = (events ?? []) as any[];
   const limitStatus = facilitatorProfile
     ? await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id)
     : { activeCount: 0, draftCount: 0, maxActiveEvents: 10, maxDraftEvents: 5 };
   const messageRows = (adminMessages ?? []) as any[];
+  const coOrganizerRows = (coOrganizerInvitations ?? []) as any[];
+  const pendingCoOrganizerInvitations = coOrganizerRows.filter((row) => row.status === "pending");
+  const acceptedCoOrganizerInvitations = coOrganizerRows.filter((row) => row.status === "accepted");
   const unreadMessageCount = 0;
   const activeEvents = eventRows.filter((event) => ["active", "sold_out", "pending_review"].includes(event.status) && !isPastEvent(event, now));
   const completedEvents = eventRows.filter((event) => isPastEvent(event, now));
-  const heldEvents = completedEvents.filter((event) => event.status !== "cancelled");
+  const visibleCompletedEvents = completedEvents.filter((event) => !isOlderThanMonths(eventEndDate(event), now, 12));
   const draftEvents = eventRows.filter((event) => event.status === "draft");
   const profileReadiness = getProfileReadiness({
     categoryCount: categoryNames.length,
     facilitatorProfile,
+    fullName: profile.full_name,
   });
-  const primaryAction = getDashboardAction({
+  const onboardingState = await getFacilitatorOnboardingStateForProfile(supabase, {
+    fullName: profile.full_name,
+    profileId: profile.id,
+  });
+
+  if (onboardingState === "onboarding") {
+    redirect("/facilitator/profile");
+  }
+
+  const profileChangeRequest = parseProfileChangeRequest(latestChangeRequest?.reason);
+
+  const defaultPrimaryAction = getDashboardAction({
     draftEvents,
     maxDraftEvents: limitStatus.maxDraftEvents,
     profileReadiness,
   });
-  const hasDashboardActivity = activeEvents.length > 0 || draftEvents.length > 0 || completedEvents.length > 0 || (pendingBookingCount ?? 0) > 0;
-  const showPerformanceDashboard = profileReadiness.isComplete && hasDashboardActivity;
+  const primaryAction =
+    onboardingState === "changes_requested"
+      ? {
+          description: "Ret de punkter, SoulEvents har markeret, og send profilen til ny godkendelse.",
+          href: "/facilitator/profile",
+          icon: PencilLine,
+          label: "Ret profil",
+          title: "Profil kræver ændringer",
+        }
+      : defaultPrimaryAction;
   return (
-    <main className="min-h-screen bg-[#F8F3FA] text-[#2F2437]">
+    <main className="min-h-screen bg-[#FAF8F4] text-[#2F2437]">
       <header className="border-b border-[#E5DDEA] bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <Link className="inline-flex items-center gap-2 text-sm font-semibold text-[#6E6475] transition hover:text-[#7A5D91]" href="/">
@@ -998,105 +1042,156 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           <AuthMessage message={message} />
 
           <DashboardHeader
+            heroImageUrl={heroImageUrl}
             name={profile.full_name}
-            hostReferenceId={hostReferenceId}
             profileReadiness={profileReadiness}
             primaryAction={primaryAction}
-            fullProfileHref={fullProfileHref}
           />
 
-          {showPerformanceDashboard ? (
-            <div className="space-y-3">
-              <section className="grid gap-3 sm:grid-cols-3">
-                <StatsCard
-                  description="Dine kommende events."
-                  href="#aktive-events"
-                  icon={CalendarCheck2}
-                  label="Aktive events"
-                  value={activeEvents.length}
-                  tone="lavender"
-                />
-                <StatsCard
-                  description={`Du har ${draftEvents.length} ${draftEvents.length === 1 ? "event" : "events"}, der mangler at blive færdiggjort.`}
-                  href="#kladder"
-                  icon={CalendarDays}
-                  label="Kladder"
-                  value={draftEvents.length}
-                  tone="sage"
-                />
-                <StatsCard
-                  description={`Du har afholdt i alt ${heldEvents.length} ${heldEvents.length === 1 ? "event" : "events"}.`}
-                  href="#tidligere-events"
-                  icon={Clock3}
-                  label="Afholdte events"
-                  value={heldEvents.length}
-                  tone="cream"
-                />
-              </section>
-              <BookingAttentionCard pendingCount={pendingBookingCount ?? 0} />
-            </div>
-          ) : profileReadiness.isComplete ? (
-            <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
-              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Næste skridt</p>
-              <h2 className="mt-2 text-2xl font-semibold text-[#2F2437]">Din profil er klar</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6E6475]">
-                Fantastisk. Nu er du klar til at invitere mennesker til dit første event, mens SoulEvents gennemgår din profil.
-              </p>
-              <Link
-                className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285]"
-                href="/facilitator/events"
-              >
-                <CalendarPlus className="size-4" aria-hidden="true" />
-                Opret event
-              </Link>
-            </section>
+          {onboardingState === "changes_requested" ? (
+            <ProfileChangesRequestedCard canSubmit={profileReadiness.isComplete} request={profileChangeRequest} />
           ) : null}
+
+          {profileReadiness.isComplete ? <BookingAttentionCard pendingCount={pendingBookingCount ?? 0} /> : null}
 
           <AdminMessageCta unreadCount={unreadMessageCount} />
 
-          {profileReadiness.isComplete && draftEvents.length > 0 ? (
-            <EventSection
-              facilitatorStatus={facilitatorProfile?.status}
-              id="kladder"
-              maxTicketPricePerPerson={facilitatorProfile?.max_ticket_price_per_person}
-              title="Kladder"
-              text="Events du kan åbne og gøre færdige i dit eget tempo."
-              events={draftEvents}
-            />
+          {pendingCoOrganizerInvitations.length > 0 ? (
+            <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Invitationer til events</p>
+              <h2 className="mt-2 text-2xl font-semibold text-[#2F2437]">Du er inviteret som medarrangør</h2>
+              <div className="mt-4 grid gap-3">
+                {pendingCoOrganizerInvitations.map((invitation) => {
+                  const event = first(invitation.events);
+                  const owner = first(event?.facilitator_profiles);
+                  const ownerUser = first(owner?.profiles);
+                  return (
+                    <Link
+                      className="flex flex-col gap-2 rounded-[18px] border border-[#E5DDEA] bg-[#FAF8FC] p-4 transition hover:border-[#7A5D91] sm:flex-row sm:items-center sm:justify-between"
+                      href={"/facilitator/co-organizer-invitations/" + invitation.response_token}
+                      key={invitation.id}
+                    >
+                      <span>
+                        <span className="block font-semibold text-midnight">{event?.title ?? "Event"}</span>
+                        <span className="mt-1 block text-sm text-ink/62">
+                          {event?.starts_at ? formatDateTime(event.starts_at) + " · " : ""}
+                          Primær arrangør: {owner?.company_name || ownerUser?.full_name || "Arrangør"}
+                        </span>
+                      </span>
+                      <span className="text-sm font-semibold text-[#7A5D91]">Se invitation</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {acceptedCoOrganizerInvitations.length > 0 ? (
+            <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Events, jeg medvirker på</p>
+              <div className="mt-4 grid gap-3">
+                {acceptedCoOrganizerInvitations.map((invitation) => {
+                  const event = first(invitation.events);
+                  const owner = first(event?.facilitator_profiles);
+                  const ownerUser = first(owner?.profiles);
+                  return (
+                    <Link
+                      className="flex flex-col gap-2 rounded-[18px] border border-[#E5DDEA] bg-[#FAF8FC] p-4 transition hover:border-[#7A5D91] sm:flex-row sm:items-center sm:justify-between"
+                      href={event?.id ? "/events/" + event.id : "/facilitator"}
+                      key={invitation.id}
+                    >
+                      <span>
+                        <span className="block font-semibold text-midnight">{event?.title ?? "Event"}</span>
+                        <span className="mt-1 block text-sm text-ink/62">
+                          {event?.starts_at ? formatDateTime(event.starts_at) + " · " : ""}
+                          Primær arrangør: {owner?.company_name || ownerUser?.full_name || "Arrangør"}
+                        </span>
+                      </span>
+                      <span className="text-sm font-semibold text-[#7A5D91]">Se event</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
           ) : null}
 
           {profileReadiness.isComplete ? (
-            <EventSection id="aktive-events" title="Dine aktive events" text="Kommende events og events, der er ved at blive gjort klar." events={activeEvents} />
-          ) : null}
-
-          {showPerformanceDashboard ? <InsightCard events={eventRows} /> : null}
-
-          {showPerformanceDashboard ? (
-            <EventSection id="tidligere-events" title="Tidligere events" emptyText="Her vises dine events, når de er udløbet på dato." events={completedEvents.slice(0, 6)} tone="muted" />
+            <section id="mine-events" className="rounded-[32px] border border-[#E5DDEA] bg-white p-5 shadow-[0_18px_45px_rgba(47,36,55,0.08)] sm:p-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0 lg:flex-1">
+                  <h2 className="text-2xl font-semibold text-[#2F2437]">Mine events</h2>
+                  <p className="mt-1 text-sm leading-6 text-[#6E6475]">
+                    {draftEvents.length + activeEvents.length + visibleCompletedEvents.length > 0
+                      ? "Her finder du dine kladder, kommende events og tidligere events."
+                      : "Hvert event begynder med en idé. Når du opretter dit første event, bliver det synligt for mennesker over hele Danmark, som søger netop den oplevelse, du skaber."}
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <EventCountPill label="Kladder" value={draftEvents.length} />
+                    <EventCountPill label="Aktive" value={activeEvents.length} />
+                    <EventCountPill label="Afsluttede" value={visibleCompletedEvents.length} />
+                  </div>
+                </div>
+                {draftEvents.length + activeEvents.length + visibleCompletedEvents.length === 0 ? (
+                  <Link
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285] sm:w-auto lg:min-w-[210px] lg:shrink-0"
+                    href="/facilitator/events"
+                  >
+                    <CalendarPlus className="size-4" aria-hidden="true" />
+                    Opret første event
+                  </Link>
+                ) : null}
+              </div>
+              <div className="mt-6 grid gap-8 border-t border-[#EFE8F2] pt-6">
+                <EventGrid
+                  events={draftEvents}
+                  facilitatorStatus={facilitatorProfile?.status}
+                  id="kladder"
+                  maxTicketPricePerPerson={facilitatorProfile?.max_ticket_price_per_person}
+                  title="Kladder"
+                  variant="draft"
+                />
+                <EventGrid
+                  events={activeEvents}
+                  facilitatorStatus={facilitatorProfile?.status}
+                  id="aktive-events"
+                  maxTicketPricePerPerson={facilitatorProfile?.max_ticket_price_per_person}
+                  title="Aktive events"
+                  variant="active"
+                />
+                {visibleCompletedEvents.length > 0 ? (
+                  <details className="rounded-[24px] border border-[#E5DDEA] bg-[#FAF8F4] p-4">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-[#2F2437]">
+                      Se tidligere events ({visibleCompletedEvents.length})
+                      <ChevronDown className="size-4 text-[#A08BB4]" aria-hidden="true" />
+                    </summary>
+                    <div className="mt-5 border-t border-[#E5DDEA] pt-5">
+                      <EventGrid
+                        events={visibleCompletedEvents.slice(0, 12)}
+                        facilitatorStatus={facilitatorProfile?.status}
+                        id="tidligere-events"
+                        maxTicketPricePerPerson={facilitatorProfile?.max_ticket_price_per_person}
+                        title="Tidligere events"
+                        variant="completed"
+                      />
+                    </div>
+                  </details>
+                ) : null}
+              </div>
+            </section>
           ) : null}
 
         </div>
 
         <aside className="w-full space-y-4 lg:self-start">
-          <ProfileStatusPanel profileReadiness={profileReadiness} />
-
-          <FacilitatorProfilePreview
-            badges={profileBadges}
-            categories={categoryNames.map((category) => ({
-              colorHex: category.color_hex,
-              name: category.name,
-            }))}
-            editHref="/facilitator/profile"
+          <CompactProfileCard
             fullProfileHref={fullProfileHref}
-            city={facilitatorProfile?.city}
-            introText="Sådan møder deltagerne dig på SoulEvents.dk."
             moodImages={moodImages}
             profileImageUrl={profileImageUrl}
             profileName={profileName}
-            serviceDescription={facilitatorProfile?.offers_services ? facilitatorProfile.service_description : null}
-            serviceTitles={[...serviceTitleNames, ...otherTreatmentForms, ...tagNames]}
-            title="Din profilvisning"
-            shortDescription={facilitatorProfile?.short_description}
+            workAreas={categoryNames.map((category) => ({
+              colorHex: category.color_hex,
+              name: category.name,
+            }))}
           />
 
           <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft">

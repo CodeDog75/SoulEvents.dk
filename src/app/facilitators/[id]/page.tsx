@@ -11,6 +11,7 @@ import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitat
 import { subscribeToFacilitatorReminderAction } from "./actions";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
+import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
 import { createPageMetadata, publicMediaUrl, stripHtml } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -30,12 +31,12 @@ function ensureUrl(url: string) {
   return /^https?:\/\//i.test(url) ? url : "https://" + url;
 }
 
-function splitOtherTreatmentForms(input: string | null | undefined) {
+function splitSpecialties(input: string | null | undefined) {
   return (input ?? "")
-    .split(/\r?\n/)
+    .split(/\r?\n|,/)
     .map((item) => item.trim())
     .filter(Boolean)
-    .slice(0, 2);
+    .slice(0, 3);
 }
 
 function nameOf(facilitator: any) {
@@ -205,7 +206,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   const viewer = await getCurrentProfile();
 
   const facilitatorSelect =
-    "id, profile_id, company_name, profile_image_path, short_description, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, service_other_title, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_images(image_path, alt_text, sort_order), facilitator_service_titles(service_titles(name, is_active))";
+    "id, profile_id, company_name, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
   const { data: publicFacilitator, error: publicFacilitatorError } = await supabase
     .from("facilitator_profiles")
     .select(facilitatorSelect)
@@ -284,15 +285,8 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   const categories =
     facilitatorData.facilitator_categories
       ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
-      .filter(Boolean) ?? [];
-  const serviceTitles =
-    facilitatorData.facilitator_service_titles
-      ?.map((row: any) => {
-        const serviceTitle = Array.isArray(row.service_titles) ? row.service_titles[0] : row.service_titles;
-        return serviceTitle?.name ?? "";
-      })
-      .filter(Boolean) ?? [];
-  const treatmentForms = [...serviceTitles, ...splitOtherTreatmentForms(facilitatorData.service_other_title)];
+      .filter((category: any) => category?.slug && facilitatorWorkAreaSlugSet.has(category.slug)) ?? [];
+  const specialties = splitSpecialties(facilitatorData.specialties);
   const publicEmail = facilitatorData.public_email || profile?.email || null;
   const publicPhone = facilitatorData.public_phone || profile?.phone || null;
   const links = [
@@ -352,6 +346,11 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
                       {category.name}
                     </span>
                   ))}
+                  {specialties.map((specialty) => (
+                    <span className="rounded-full border border-midnight/15 bg-white px-3 py-1 text-xs font-semibold text-midnight" key={specialty}>
+                      {specialty}
+                    </span>
+                  ))}
                 </div>
                 <h1 className="mt-4 text-5xl font-medium leading-tight text-olive">{name}</h1>
                 <p className="mt-4 max-w-3xl text-base leading-7 text-ink/72">
@@ -374,19 +373,10 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
             </div>
           </section>
 
-          {facilitatorData.offers_services && treatmentForms.length > 0 ? (
+          {facilitatorData.offers_services && facilitatorData.service_description ? (
             <section className="rounded-card bg-white p-8 shadow-soft">
-              <h2 className="text-4xl font-medium text-olive">Behandlingsformer</h2>
-              <div className="mt-5 flex flex-wrap gap-2">
-                {treatmentForms.map((treatmentForm) => (
-                  <span className="rounded-full border border-sage-700/15 bg-sage-50 px-3 py-1.5 text-sm font-semibold text-sage-700" key={treatmentForm}>
-                    {treatmentForm}
-                  </span>
-                ))}
-              </div>
-              {facilitatorData.service_description ? (
-                <p className="mt-4 text-sm leading-7 text-ink/72">{facilitatorData.service_description}</p>
-              ) : null}
+              <h2 className="text-4xl font-medium text-olive">Individuelle ydelser</h2>
+              <p className="mt-4 whitespace-pre-line text-sm leading-7 text-ink/72">{facilitatorData.service_description}</p>
             </section>
           ) : null}
 

@@ -10,6 +10,8 @@ import {
 import { AuthMessage } from "@/components/auth/auth-message";
 import { ProfileForm } from "@/components/facilitator/profile-form";
 import { requireRole } from "@/lib/auth/roles";
+import { parseProfileChangeRequest } from "@/lib/facilitators/profile-change-request";
+import { facilitatorWorkAreaSlugs } from "@/lib/facilitators/work-areas";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +41,7 @@ function statusLabel(facilitator: any) {
   if (facilitator.is_disabled) return "Deaktiveret";
   if (facilitator.is_paused) return "Sat på pause";
   if (facilitator.status === "approved") return "Aktiv";
+  if (facilitator.status === "changes_requested") return "Kræver ændringer";
   return "Afventer";
 }
 
@@ -52,8 +55,7 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
     { data: facilitator, error: facilitatorError },
     { data: regions },
     { data: categories },
-    { data: serviceTitles },
-    { data: serviceRows },
+    { data: moderationHistory },
   ] = await Promise.all([
     supabase
       .from("facilitator_profiles")
@@ -63,13 +65,14 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
       .eq("id", id)
       .maybeSingle(),
     supabase.from("regions").select("id, name, slug").order("sort_order"),
-    supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
-    supabase.from("service_titles").select("id, name, is_active, sort_order").eq("is_active", true).order("sort_order").order("name"),
+    supabase.from("categories").select("id, name, slug, description").in("slug", facilitatorWorkAreaSlugs).eq("is_active", true).order("sort_order"),
     supabase
-      .from("facilitator_profiles")
-      .select("id, facilitator_service_titles(service_title_id, service_titles(id, name, is_active, sort_order))")
-      .eq("id", id)
-      .maybeSingle(),
+      .from("admin_audit_log")
+      .select("id, action, reason, old_value, new_value, created_at, profiles!admin_audit_log_actor_profile_id_fkey(full_name, email)")
+      .eq("facilitator_id", id)
+      .in("action", ["facilitator_changes_requested", "facilitator_resubmitted_for_review", "facilitator_status_changed"])
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   if (facilitatorError) {
@@ -96,14 +99,6 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
   const profile = first(facilitator.profiles) as { email: string; full_name: string; id: string; phone: string | null } | null;
   const selectedCategoryIds = facilitator.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [];
   const galleryImages = [...(facilitator.facilitator_images ?? [])].sort((a: any, b: any) => a.sort_order - b.sort_order);
-  const selectedServiceTitleIds = serviceRows?.facilitator_service_titles?.map((row: { service_title_id: string }) => row.service_title_id) ?? [];
-  const historicalServiceTitles =
-    serviceRows?.facilitator_service_titles
-      ?.map((row: any) => (Array.isArray(row.service_titles) ? row.service_titles[0] : row.service_titles))
-      .filter((title: any) => title && !title.is_active) ?? [];
-  const visibleServiceTitles = [...(serviceTitles ?? []), ...historicalServiceTitles].filter(
-    (title, index, all) => all.findIndex((item) => item.id === title.id) === index,
-  );
   const profileForForm = {
     email: profile?.email ?? "",
     full_name: profile?.full_name ?? "",
@@ -244,6 +239,52 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
           </form>
         </section>
 
+        {moderationHistory?.length ? (
+          <section className="mb-6 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+            <h2 className="text-lg font-semibold text-midnight">Moderationshistorik</h2>
+            <div className="mt-4 grid gap-3">
+              {moderationHistory.map((item: any) => {
+                const actor = first(item.profiles);
+                const changeRequest = parseProfileChangeRequest(item.reason);
+                const actionLabel =
+                  item.action === "facilitator_changes_requested"
+                    ? "Anmodet om ændringer"
+                    : item.action === "facilitator_resubmitted_for_review"
+                      ? "Sendt til ny godkendelse"
+                      : item.new_value === "approved"
+                        ? "Profil godkendt"
+                        : "Status ændret";
+
+                return (
+                  <article className="rounded-[18px] border border-[#E5DDEA] bg-[#FAF8FC] p-4" key={item.id}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold text-midnight">{actionLabel}</p>
+                      <time className="text-xs font-semibold text-ink/52">
+                        {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.created_at))}
+                      </time>
+                    </div>
+                    <p className="mt-1 text-sm text-ink/64">
+                      {actor?.full_name || actor?.email || "System"}
+                    </p>
+                    {changeRequest?.fields.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {changeRequest.fields.map((field) => (
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#6F5A35]" key={field}>
+                            {field}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {changeRequest?.comment ? (
+                      <p className="mt-3 rounded-md bg-white p-3 text-sm leading-6 text-ink/72">{changeRequest.comment}</p>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
         <ProfileForm
           adminReturnTo={thisPageHref}
           adminTargetFacilitatorId={id}
@@ -260,8 +301,6 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
           regions={regions ?? []}
           savedSection={saved ?? null}
           selectedCategoryIds={selectedCategoryIds}
-          selectedServiceTitleIds={selectedServiceTitleIds}
-          serviceTitles={visibleServiceTitles}
           submitLabel="Gem hele arrangørprofilen"
         />
       </section>

@@ -3,13 +3,29 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
+import { facilitatorProfileEditUrl, sendFacilitatorProfileChangesRequestedEmail } from "@/lib/email/facilitator-profile-changes-requested";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { FacilitatorStatus } from "@/types/database";
 
 const allowedStatuses: FacilitatorStatus[] = ["pending", "approved"];
-const editableStatuses: FacilitatorStatus[] = ["pending", "approved"];
+const editableStatuses: FacilitatorStatus[] = ["pending", "approved", "changes_requested"];
 const missingColumnErrorCodes = ["42703", "PGRST204"];
+
+const profileChangeFieldLabels = {
+  description: "Beskrivelse",
+  mood_images: "Stemningsbilleder",
+  other: "Andet",
+  profile_image: "Profilbillede",
+  social_links: "Sociale medier",
+  website: "Hjemmeside",
+  work_areas: "Arbejdsområder",
+} as const;
+
+type FacilitatorProfileContact = {
+  email?: string | null;
+  full_name?: string | null;
+};
 
 function adminRedirect(message: string): never {
   redirect(`/admin?message=${encodeURIComponent(message)}`);
@@ -143,7 +159,7 @@ export async function archiveFacilitatorAdminMessageAction(formData: FormData) {
 }
 
 export async function updateFacilitatorStatusAction(formData: FormData) {
-  await requireRole("admin");
+  const adminProfile = await requireRole("admin");
 
   const facilitatorId = getString(formData, "facilitator_id");
   const status = getString(formData, "status") as FacilitatorStatus;
@@ -157,27 +173,114 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
     adminRedirect("En godkendt eller deaktiveret arrangør kan ikke sættes tilbage til afventer. Brug deaktiver, hvis profilen ikke skal være synlig.");
   }
 
-const supabase = createAdminClient();
+  const supabase = createAdminClient();
+  const { data: previousFacilitator } = await supabase
+    .from("facilitator_profiles")
+    .select("status")
+    .eq("id", facilitatorId)
+    .maybeSingle();
   const { error } = await supabase
     .from("facilitator_profiles")
     .update({ status })
     .eq("id", facilitatorId);
 
   if (error) {
-    adminRedirect("Arrangørtatus kunne ikke opdateres.");
+    adminRedirect("Arrangørstatus kunne ikke opdateres.");
   }
 
   revalidatePath("/admin");
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/profile");
 
+  await supabase.from("admin_audit_log").insert({
+    actor_profile_id: adminProfile.id,
+    action: "facilitator_status_changed",
+    facilitator_id: facilitatorId,
+    old_value: previousFacilitator?.status ?? null,
+    new_value: status,
+  });
+
   const labels: Record<FacilitatorStatus, string> = {
     pending: "sat tilbage til afventer",
     approved: "godkendt",
     disabled: "deaktiveret",
+    changes_requested: "markeret som kræver ændringer",
   };
 
   adminRedirect(`Arrangør er ${labels[status]}.`);
+}
+
+export async function requestFacilitatorProfileChangesAction(formData: FormData) {
+  const adminProfile = await requireRole("admin");
+
+  const facilitatorId = getString(formData, "facilitator_id");
+  const changeFields = getAllStrings(formData, "change_fields").filter(
+    (value): value is keyof typeof profileChangeFieldLabels => value in profileChangeFieldLabels,
+  );
+  const comment = getString(formData, "change_comment");
+  const requestedFieldLabels = changeFields.map((field) => profileChangeFieldLabels[field]);
+
+  if (!facilitatorId || changeFields.length === 0 || !comment || comment.length > 1000) {
+    adminRedirect("Vælg mindst ét område og skriv en kort kommentar til arrangøren.");
+  }
+
+  const supabase = createAdminClient();
+  const { data: facilitator, error: facilitatorError } = await supabase
+    .from("facilitator_profiles")
+    .select("id, status, company_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name)")
+    .eq("id", facilitatorId)
+    .maybeSingle();
+
+  if (facilitatorError || !facilitator) {
+    adminRedirect("Arrangøren kunne ikke findes.");
+  }
+
+  if (facilitator.status !== "pending") {
+    adminRedirect("Kun arrangører, der afventer godkendelse, kan markeres som kræver ændringer her.");
+  }
+
+  const relatedProfile = facilitator.profiles as FacilitatorProfileContact | FacilitatorProfileContact[] | null;
+  const profile = Array.isArray(relatedProfile) ? relatedProfile[0] : relatedProfile;
+  const facilitatorName = facilitator.company_name || profile?.full_name || "Din arrangørprofil";
+  const previousStatus = facilitator.status;
+
+  const { error: statusError } = await supabase
+    .from("facilitator_profiles")
+    .update({ status: "changes_requested" })
+    .eq("id", facilitator.id);
+
+  if (statusError) {
+    adminRedirect("Profilen kunne ikke markeres som kræver ændringer. Kontrollér at migration 071 er kørt.");
+  }
+
+  await supabase.from("admin_audit_log").insert({
+    actor_profile_id: adminProfile.id,
+    action: "facilitator_changes_requested",
+    facilitator_id: facilitator.id,
+    old_value: previousStatus,
+    new_value: "changes_requested",
+    reason: JSON.stringify({
+      comment,
+      fields: requestedFieldLabels,
+    }),
+  });
+
+  const mailSent = await sendFacilitatorProfileChangesRequestedEmail({
+    comment,
+    facilitatorEmail: profile?.email ?? null,
+    facilitatorName,
+    fields: requestedFieldLabels,
+    profileEditUrl: facilitatorProfileEditUrl(),
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/users");
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/profile");
+  revalidatePath("/facilitators/" + facilitator.id);
+  revalidatePath("/admin/facilitators/" + facilitator.id + "/edit");
+
+  adminRedirect(mailSent ? "Der er sendt en anmodning om ændringer til arrangøren." : "Profilen er markeret som kræver ændringer, men e-mailen kunne ikke sendes.");
 }
 
 export async function disableFacilitatorAction(formData: FormData) {
@@ -403,7 +506,7 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   }
 
   if (!editableStatuses.includes(status)) {
-    adminFacilitatorEditRedirect(facilitatorId, "Ugyldig arrangørtatus.");
+    adminFacilitatorEditRedirect(facilitatorId, "Ugyldig arrangørstatus.");
   }
 
   if (!fullName) {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Minus, Plus, Send } from "lucide-react";
+import { Clock3, Minus, Plus, Send } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { createBookingAction } from "@/app/events/[id]/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
@@ -14,6 +14,7 @@ type BookingFormProps = {
   capacity?: number | null;
   message?: string;
   messageVariant?: "notice" | "success";
+  bookingSent?: boolean;
 };
 
 const inputClass =
@@ -48,7 +49,7 @@ function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-export function BookingForm({ eventId, availableSeats, capacity, message, messageVariant = "notice" }: BookingFormProps) {
+export function BookingForm({ eventId, availableSeats, capacity, message, messageVariant = "notice", bookingSent = false }: BookingFormProps) {
   const isSoldOut = availableSeats <= 0;
   const formRef = useRef<HTMLFormElement>(null);
   const highSeatSubmitConfirmedRef = useRef(false);
@@ -343,7 +344,25 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
 
       {message && (
         <div id="booking-response" className="mt-4 grid scroll-mt-8 gap-3">
-          <AuthMessage message={message} variant={messageVariant} />
+          {bookingSent ? (
+            <div className="rounded-card border border-[#E5D4F7] bg-[#FAF7FE] p-5 text-midnight shadow-soft">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#6E5A86] shadow-soft">
+                  <Clock3 aria-hidden="true" className="h-5 w-5" />
+                </span>
+                <div className="grid gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6E5A86]">Tilmelding modtaget</p>
+                  <h3 className="text-lg font-semibold leading-tight text-midnight">Din tilmelding afventer arrangørens bekræftelse</h3>
+                  <p className="text-sm leading-6 text-ink/72">{message}</p>
+                  <p className="text-sm font-semibold leading-6 text-ink/72">
+                    Hold øje med din indbakke. Din endelige bekræftelse sendes i en separat e-mail.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <AuthMessage message={message} variant={messageVariant} />
+          )}
           <Link
             className="inline-flex h-11 items-center justify-center rounded-md border border-sage-700/25 bg-white px-4 text-sm font-semibold text-sage-700 transition hover:border-sage-700 hover:bg-sage-50"
             href="/"

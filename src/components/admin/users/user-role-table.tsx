@@ -75,6 +75,7 @@ function facilitatorStatusLabel(facilitator: FacilitatorOverviewRow) {
   if (facilitator.is_disabled) return "Deaktiveret";
   if (facilitator.is_paused) return "Sat på pause";
   if (facilitator.status === "approved") return "Aktiv";
+  if (facilitator.status === "changes_requested") return "Kræver ændringer";
   return "Afventer";
 }
 
@@ -82,6 +83,7 @@ function facilitatorStatusClass(facilitator: FacilitatorOverviewRow) {
   if (facilitator.is_disabled) return "bg-midnight/10 text-midnight";
   if (facilitator.is_paused) return "bg-[#F4F0F7] text-[#6E5A86]";
   if (facilitator.status === "approved") return "bg-sage-50 text-sage-700";
+  if (facilitator.status === "changes_requested") return "bg-[#FFF7E8] text-[#8A6A2E]";
   return "bg-terracotta/10 text-terracotta";
 }
 

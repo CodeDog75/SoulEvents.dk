@@ -22,6 +22,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";
+import { RequestFacilitatorChangesDialog } from "@/components/admin/reject-facilitator-dialog";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { updateFacilitatorStatusAction } from "@/app/admin/facilitators/actions";
 import { requireRole } from "@/lib/auth/roles";
@@ -53,6 +54,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   const [
     { count: activeFacilitators },
     { count: pendingFacilitators },
+    { count: changesRequestedFacilitators },
     { count: upcomingEvents },
     { count: onlineEvents },
     { count: pendingEvents },
@@ -65,6 +67,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   ] = await Promise.all([
     supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "approved").eq("is_paused", false).eq("is_disabled", false),
     supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "changes_requested"),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "active").gte("starts_at", today.toISOString()),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "active").eq("event_format", "online").gte("starts_at", today.toISOString()),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "pending_review"),
@@ -87,6 +90,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { label: "Tilmeldinger seneste 30 dage", value: formatNumber(recentBookings), icon: ReceiptText },
     { label: "Påmindelses-mails", value: formatNumber(reminderSubscribers), icon: Bell },
     { label: "Nye arrangøransøgninger", value: formatNumber(pendingFacilitators), icon: Clock3 },
+    { label: "Kræver ændringer", value: formatNumber(changesRequestedFacilitators), icon: AlertCircle },
     { label: "Events til godkendelse", value: formatNumber(pendingEvents), icon: AlertCircle },
   ];
 
@@ -95,7 +99,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { href: "/admin/bookings", title: "Tilmeldinger", text: "Se deltagere, status og antal pladser.", icon: ReceiptText },
     { href: "/admin/messages", title: "Beskeder", text: "Indbakke, sendte svar og arkiverede beskeder.", icon: Mail, badge: openAdminMessages ? `${formatNumber(openAdminMessages)} ubesvarede` : undefined },
     { href: "/admin/category-architecture", title: "Kategorier & tags", text: "Administrer kategorier, tags og tagfarver ét samlet sted.", icon: Tags },
-    { href: "/admin/service-titles", title: "Behandlertitler", text: "Styr titler og ydelsestyper til arrangørprofiler.", icon: UserCog },
     { href: "/admin/about", title: "Om SoulEvents", text: "Rediger den offentlige fortælling, CTA og billeder.", icon: FileText },
     { href: "/admin/content/bliv-arrangoer", title: "Bliv arrangør", text: "Rediger landingssiden for nye arrangører.", icon: FileText },
     { href: "/admin/homepage", title: "Forsidebokse og temaer", text: "Styr de store 1:1 bokse og kampagne-temaer på forsiden.", icon: LayoutGrid },
@@ -246,10 +249,11 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             <div className="mt-4 grid gap-3">
               {(recentFacilitators ?? []).map((facilitator: any) => {
                 const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
+                const facilitatorName = facilitator.company_name || profile?.full_name || "Uden navn";
                 return (
                   <div className="rounded-md bg-sage-50 p-3" key={facilitator.id}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold text-midnight">{facilitator.company_name || profile?.full_name || "Uden navn"}</p>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="font-semibold text-midnight">{facilitatorName}</p>
                       {facilitator.host_reference_id && (
                         <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-sage-700">
                           {facilitator.host_reference_id}
@@ -259,7 +263,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     <p className="mt-1 text-xs text-ink/64">
                       {new Intl.DateTimeFormat("da-DK").format(new Date(facilitator.created_at))} · {facilitator.status}
                     </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       <Link
                         className="inline-flex min-h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-3 text-xs font-semibold text-ink/70 transition hover:border-sage-700 hover:text-sage-700"
                         href={"/facilitators/" + facilitator.id + "?admin_return=/admin%23admin-new-facilitators"}
@@ -273,16 +277,19 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                         Rediger
                       </Link>
                       {facilitator.status === "pending" && (
-                        <form action={updateFacilitatorStatusAction}>
-                          <input name="facilitator_id" type="hidden" value={facilitator.id} />
-                          <input name="status" type="hidden" value="approved" />
-                          <button
-                            className="inline-flex min-h-9 items-center justify-center rounded-full bg-sage-700 px-3 text-xs font-semibold text-white shadow-soft transition hover:bg-sage-800"
-                            type="submit"
-                          >
-                            Godkend
-                          </button>
-                        </form>
+                        <>
+                          <RequestFacilitatorChangesDialog facilitatorId={facilitator.id} facilitatorName={facilitatorName} />
+                          <form action={updateFacilitatorStatusAction}>
+                            <input name="facilitator_id" type="hidden" value={facilitator.id} />
+                            <input name="status" type="hidden" value="approved" />
+                            <button
+                              className="inline-flex min-h-9 items-center justify-center rounded-full bg-sage-700 px-3 text-xs font-semibold text-white shadow-soft transition hover:bg-sage-800"
+                              type="submit"
+                            >
+                              Godkend
+                            </button>
+                          </form>
+                        </>
                       )}
                     </div>
                   </div>

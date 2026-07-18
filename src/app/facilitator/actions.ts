@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
+import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function getText(formData: FormData, key: string) {
@@ -19,7 +20,7 @@ async function getFacilitatorForCurrentUser() {
   const admin = createAdminClient();
   const { data: facilitator } = await admin
     .from("facilitator_profiles")
-    .select("id, company_name, status, is_disabled, is_paused")
+    .select("id, company_name, profile_image_path, short_description, long_description, status, is_disabled, is_paused, facilitator_categories(category_id)")
     .eq("profile_id", profile.id)
     .single();
 
@@ -120,6 +121,53 @@ export async function activateFacilitatorProfileAction() {
   revalidatePath("/facilitators");
   revalidatePath("/facilitators/" + facilitator.id);
   go("Din arrangørprofil er aktiv igen. Din profil og dine aktive events kan nu vises på SoulEvents.");
+}
+
+export async function sendFacilitatorProfileToReviewAction() {
+  const { admin, facilitator, profile } = await getFacilitatorForCurrentUser();
+
+  if (facilitator.is_disabled) {
+    go("Din arrangørkonto er deaktiveret. Kontakt SoulEvents, hvis du mener, at dette er en fejl.");
+  }
+
+  if (facilitator.status !== "changes_requested") {
+    go("Din profil kan ikke sendes til ny godkendelse lige nu.");
+  }
+
+  const readiness = getFacilitatorProfileReadiness({
+    categoryIds: facilitator.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [],
+    companyName: facilitator.company_name,
+    fullName: profile.full_name,
+    shortDescription: facilitator.long_description || facilitator.short_description,
+  });
+
+  if (!readiness.isComplete || !facilitator.profile_image_path) {
+    go("Ret de manglende profiloplysninger, før du sender profilen til ny godkendelse.");
+  }
+
+  const { error } = await admin
+    .from("facilitator_profiles")
+    .update({ status: "pending" })
+    .eq("id", facilitator.id);
+
+  if (error) {
+    console.error("sendFacilitatorProfileToReviewAction failed", error);
+    go("Profilen kunne ikke sendes til ny godkendelse. Prøv igen.");
+  }
+
+  await admin.from("admin_audit_log").insert({
+    actor_profile_id: profile.id,
+    action: "facilitator_resubmitted_for_review",
+    facilitator_id: facilitator.id,
+    old_value: "changes_requested",
+    new_value: "pending",
+  });
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/profile");
+  revalidatePath("/admin");
+  revalidatePath("/admin/users");
+  go("Din profil er sendt til ny godkendelse.");
 }
 
 export async function markFacilitatorAdminMessagesReadAction() {

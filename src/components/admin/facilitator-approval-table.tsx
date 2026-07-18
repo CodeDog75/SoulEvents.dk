@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Check, ExternalLink, Eye, Pencil, Slash, UserRoundCheck } from "lucide-react";
 import { disableFacilitatorAction, reactivateFacilitatorAction, updateFacilitatorStatusAction } from "@/app/admin/facilitators/actions";
+import { RequestFacilitatorChangesDialog } from "@/components/admin/reject-facilitator-dialog";
 import type { FacilitatorStatus } from "@/types/database";
 
 type FacilitatorRow = {
@@ -40,6 +41,7 @@ function statusLabel(facilitator: FacilitatorRow) {
   if (facilitator.is_disabled) return "Deaktiveret";
   if (facilitator.is_paused) return "Sat på pause";
   if (facilitator.status === "approved") return "Aktiv";
+  if (facilitator.status === "changes_requested") return "Kræver ændringer";
   return "Afventer";
 }
 
@@ -47,6 +49,7 @@ function statusClass(facilitator: FacilitatorRow) {
   if (facilitator.is_disabled) return "bg-midnight/10 text-midnight";
   if (facilitator.is_paused) return "bg-[#F4F0F7] text-[#6E5A86]";
   if (facilitator.status === "approved") return "bg-sage-50 text-sage-700";
+  if (facilitator.status === "changes_requested") return "bg-[#FFF7E8] text-[#8A6A2E]";
   return "bg-terracotta/10 text-terracotta";
 }
 
@@ -97,6 +100,7 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
             facilitator.facilitator_categories
               ?.map((row) => row.categories?.name)
               .filter((name): name is string => Boolean(name)) ?? [];
+          const facilitatorName = facilitator.company_name || facilitator.profiles?.full_name || "Uden navn";
 
           return (
             <article className="grid gap-5 p-5 lg:grid-cols-[1fr_auto]" key={facilitator.id}>
@@ -113,7 +117,7 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
                 </div>
 
                 <h3 className="mt-3 text-lg font-semibold text-midnight">
-                  {facilitator.company_name || facilitator.profiles?.full_name || "Uden navn"}
+                  {facilitatorName}
                 </h3>
                 <p className="mt-1 text-sm text-ink/64">
                   {facilitator.profiles?.full_name} · {facilitator.profiles?.email}
@@ -169,24 +173,29 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
               <div className="flex flex-wrap content-start gap-2 lg:justify-end">
                 <Link
                   className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
-                  href={"/admin/facilitators/" + facilitator.id + "/edit"}
-                >
-                  <Pencil className="size-4" aria-hidden="true" />
-                  Rediger
-                </Link>
-                <Link
-                  className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
                   href={"/facilitators/" + facilitator.id + "?admin_return=/admin%23admin-facilitators"}
                 >
                   <Eye className="size-4" aria-hidden="true" />
                   Se profil
                 </Link>
+                <Link
+                  className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
+                  href={"/admin/facilitators/" + facilitator.id + "/edit"}
+                >
+                  <Pencil className="size-4" aria-hidden="true" />
+                  Rediger
+                </Link>
                 {facilitator.status !== "approved" && (
-                  <StatusButton facilitatorId={facilitator.id} status="approved">
-                    <Check className="size-4" aria-hidden="true" />
-                    Godkend
-                  </StatusButton>
-                )}
+                  <>
+                    {facilitator.status === "pending" ? (
+                      <RequestFacilitatorChangesDialog facilitatorId={facilitator.id} facilitatorName={facilitatorName} />
+                    ) : null}
+                    <StatusButton facilitatorId={facilitator.id} status="approved">
+                      <Check className="size-4" aria-hidden="true" />
+                      Godkend
+                    </StatusButton>
+                  </>
+                )}
                 {facilitator.is_disabled ? (
                   <form action={reactivateFacilitatorAction}>
                     <input name="facilitator_id" type="hidden" value={facilitator.id} />

@@ -15,6 +15,7 @@ import {
   Heart,
   HeartHandshake,
   ImagePlus,
+  Info,
   Leaf,
   Link2,
   Moon,
@@ -30,17 +31,19 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { type ChangeEvent, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { resolveNameParts } from "@/lib/auth/names";
 import {
   autosaveFacilitatorProfileAction,
   saveFacilitatorMoodImageAction,
   saveFacilitatorProfileImageAction,
-  saveWorkAreaSuggestionAction,
   submitFacilitatorProfileForReviewAction,
 } from "@/app/facilitator/profile/actions";
 import { imageUploadAccept, prepareImageFileForUpload } from "@/lib/images/client-image-upload";
 import { OnboardingShell as SharedOnboardingShell } from "@/components/onboarding/onboarding-shell";
 import type { BrandLogoSources } from "@/lib/brand-logo";
+import { facilitatorWorkAreas, sortFacilitatorWorkAreas } from "@/lib/facilitators/work-areas";
 
 type Region = {
   id: string;
@@ -49,14 +52,10 @@ type Region = {
 };
 
 type Category = {
+  description?: string | null;
   id: string;
   name: string;
-};
-
-type ServiceTitle = {
-  id: string;
-  name: string;
-  is_active?: boolean;
+  slug?: string | null;
 };
 
 type FacilitatorProfile = {
@@ -80,7 +79,7 @@ type FacilitatorProfile = {
   region_id: string | null;
   offers_services?: boolean | null;
   service_description?: string | null;
-  service_other_title?: string | null;
+  specialties?: string | null;
   show_in_local_service_results?: boolean | null;
 };
 
@@ -99,7 +98,9 @@ type ProfileFormProps = {
   feedbackMessage?: string | null;
   logoSources?: BrandLogoSources;
   profile: {
+    first_name?: string | null;
     full_name: string;
+    last_name?: string | null;
     email: string;
     phone: string | null;
   };
@@ -111,8 +112,6 @@ type ProfileFormProps = {
   selectedCategoryIds: string[];
   galleryImages: GalleryImage[];
   savedSection?: string | null;
-  serviceTitles: ServiceTitle[];
-  selectedServiceTitleIds: string[];
   submitLabel?: string;
 };
 
@@ -142,25 +141,6 @@ type SlotStatus = {
 
 const moodImageMaxFileSize = 15 * 1024 * 1024;
 
-const fallbackTreatmentForms: ServiceTitle[] = [
-  { id: "healing", name: "Healing" },
-  { id: "reiki", name: "Reiki" },
-  { id: "kropsterapi", name: "Kropsterapi" },
-  { id: "massage", name: "Massage" },
-  { id: "terapi", name: "Terapi" },
-  { id: "coaching", name: "Coaching" },
-  { id: "clairvoyance", name: "Clairvoyance" },
-  { id: "astrologi", name: "Astrologi" },
-  { id: "zoneterapi", name: "Zoneterapi" },
-  { id: "akupunktur", name: "Akupunktur" },
-  { id: "hypnose", name: "Hypnose" },
-  { id: "samtaleforloeb", name: "Samtaleforløb" },
-  { id: "energiarbejde", name: "Energiarbejde" },
-  { id: "lydhealing", name: "Lydhealing" },
-  { id: "breathwork", name: "Breathwork" },
-  { id: "meditation-1-1", name: "Meditation 1:1" },
-];
-
 function sortedByDanishName<T extends { name: string }>(items: T[]) {
   return [...items].sort((a, b) => a.name.localeCompare(b.name, "da-DK"));
 }
@@ -179,6 +159,12 @@ function workAreaIconForName(name: string): LucideIcon {
   if (normalized.includes("hjerte") || normalized.includes("relation")) return Heart;
   if (normalized.includes("sol") || normalized.includes("lys")) return Sun;
   return HandHeart;
+}
+
+function workAreaDescriptionForCategory(category: Category) {
+  if (category.description) return category.description;
+  const workArea = facilitatorWorkAreas.find((area) => area.slug === category.slug);
+  return workArea?.examples.join(", ") ?? null;
 }
 
 const steps: Array<{
@@ -214,8 +200,8 @@ const steps: Array<{
   {
     eyebrow: "Arbejdsområder",
     id: "experiences",
-    text: "Vælg de områder, der bedst beskriver dit arbejde og det, du inviterer mennesker ind i.",
-    title: "Inden for hvilke områder arbejder du?",
+    text: "Vælg de områder, der bedst beskriver dit arbejde. Du kan også tilføje dit konkrete speciale.",
+    title: "Hvilke områder arbejder du med?",
   },
   {
     eyebrow: "Din fortælling",
@@ -262,28 +248,12 @@ function value(input: string | null | undefined) {
   return input ?? "";
 }
 
-function splitOtherTreatmentForms(input: string | null | undefined) {
+function splitSpecialties(input: string | null | undefined) {
   return value(input)
-    .split(/\r?\n/)
+    .split(/\r?\n|,/)
     .map((item) => item.trim())
     .filter(Boolean)
-    .slice(0, 2);
-}
-
-function joinOtherTreatmentForms(items: string[]) {
-  return items
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("\n");
-}
-
-function splitName(fullName: string) {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  return {
-    firstName: parts[0] ?? "",
-    lastName: parts.slice(1).join(" "),
-  };
+    .slice(0, 3);
 }
 
 function publicImageUrl(path: string) {
@@ -304,22 +274,57 @@ function workAreaClass(selected: boolean, isLong = false) {
 }
 
 function SelectionCardContent({
+  description,
   Icon,
   label,
+  onInfoToggle,
+  showInfo,
   selected,
 }: {
+  description?: string | null;
   Icon: LucideIcon;
   label: string;
+  onInfoToggle?: () => void;
+  showInfo?: boolean;
   selected: boolean;
 }) {
   return (
     <>
-      <span className="flex min-w-0 flex-1 items-center gap-3">
-        <Icon
-          aria-hidden="true"
-          className={selected ? "size-5 shrink-0 text-sage-700" : "size-5 shrink-0 text-sage-700/55"}
-        />
-        <span className="min-w-0 whitespace-normal break-words text-left leading-snug">{label}</span>
+      <span className="flex min-w-0 flex-1 flex-col gap-2">
+        <span className="flex min-w-0 items-center gap-3">
+          <Icon
+            aria-hidden="true"
+            className={selected ? "size-5 shrink-0 text-sage-700" : "size-5 shrink-0 text-sage-700/55"}
+          />
+          <span className="min-w-0 whitespace-normal break-words text-left leading-snug">{label}</span>
+          {description ? (
+            <span
+              aria-label={"Se eksempler for " + label}
+              className="ml-auto grid size-8 shrink-0 place-items-center rounded-full text-sage-700/65 transition hover:bg-sage-50 hover:text-sage-700"
+              onClick={(event) => {
+                event.stopPropagation();
+                onInfoToggle?.();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onInfoToggle?.();
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              title={description}
+            >
+              <Info className="size-4" aria-hidden="true" />
+            </span>
+          ) : null}
+        </span>
+        {description && showInfo ? (
+          <span className="rounded-[14px] border border-sage-700/10 bg-white/80 px-3 py-2 text-left text-xs font-medium leading-5 text-ink/62">
+            {description}
+          </span>
+        ) : null}
       </span>
       <Circle className={selected ? "ml-2 size-4 shrink-0 fill-sage-700/15 text-sage-700" : "ml-2 size-4 shrink-0 text-sage-700/45"} aria-hidden="true" />
     </>
@@ -700,10 +705,13 @@ export function ProfileForm({
   selectedCategoryIds,
   galleryImages,
   logoSources,
-  serviceTitles,
-  selectedServiceTitleIds,
 }: ProfileFormProps) {
-  const names = splitName(profile.full_name);
+  const router = useRouter();
+  const names = resolveNameParts({
+    firstName: profile.first_name,
+    fullName: profile.full_name,
+    lastName: profile.last_name,
+  });
   const activeSteps =
     presentationMode === "onboarding"
       ? (showEmailConfirmedStep ? ["account", ...onboardingStepIds] : onboardingStepIds)
@@ -713,6 +721,8 @@ export function ProfileForm({
   const [stepIndex, setStepIndex] = useState(0);
   const [isBusy, setIsBusy] = useState(false);
   const [returnToReview, setReturnToReview] = useState(false);
+  const continueInProgressRef = useRef(false);
+  const continueTimeoutRef = useRef<number | null>(null);
   const [, startImageTransition] = useTransition();
   const [firstName, setFirstName] = useState(names.firstName);
   const [lastName, setLastName] = useState(names.lastName);
@@ -732,23 +742,22 @@ export function ProfileForm({
   const [moodImageStatuses, setMoodImageStatuses] = useState<SlotStatus[]>(
     Array.from({ length: 3 }, () => ({ message: "", status: "idle" })),
   );
-  const [selectedExperiences, setSelectedExperiences] = useState(selectedCategoryIds);
+  const visibleCategoryIds = new Set(categories.map((category) => category.id));
+  const initialSelectedCategoryIds = selectedCategoryIds.filter((categoryId) => visibleCategoryIds.has(categoryId));
+  const [selectedExperiences, setSelectedExperiences] = useState(initialSelectedCategoryIds);
   const [story, setStory] = useState(value(facilitatorProfile.long_description || facilitatorProfile.short_description));
   const [website, setWebsite] = useState(value(facilitatorProfile.website_url));
   const [facebook, setFacebook] = useState(value(facilitatorProfile.facebook_url));
   const [instagram, setInstagram] = useState(value(facilitatorProfile.instagram_url));
   const [youtube, setYoutube] = useState(value(facilitatorProfile.youtube_url));
   const [offersIndividualServices, setOffersIndividualServices] = useState(Boolean(facilitatorProfile.offers_services));
-  const [selectedTreatmentIds, setSelectedTreatmentIds] = useState(selectedServiceTitleIds);
-  const [otherTreatmentForms, setOtherTreatmentForms] = useState<[string, string]>(() => {
-    const values = splitOtherTreatmentForms(facilitatorProfile.service_other_title);
-    return [values[0] ?? "", values[1] ?? ""];
-  });
-  const [otherExperience, setOtherExperience] = useState("");
-  const [workAreaSuggestionStatus, setWorkAreaSuggestionStatus] = useState<SlotStatus>({ message: "", status: "idle" });
+  const [serviceDescription, setServiceDescription] = useState(value(facilitatorProfile.service_description));
+  const [specialties, setSpecialties] = useState(value(facilitatorProfile.specialties));
+  const [openAreaInfoId, setOpenAreaInfoId] = useState<string | null>(null);
   const [stepSaveStatus, setStepSaveStatus] = useState<SlotStatus>({ message: "", status: "idle" });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const currentStep = activeSteps[stepIndex] ?? activeSteps[0] ?? steps[0];
+  const shellBackHref = presentationMode === "onboarding" ? "/auth/login" : backHref;
   const activeDesktopLogoSrc = logoSources?.desktop ?? "/brand/soulevents-logo.png";
   const displayedStep =
     presentationMode !== "onboarding" && currentStep.id === "review"
@@ -761,13 +770,8 @@ export function ProfileForm({
       : currentStep;
   const publicProfileName = useCustomProfileName ? profileName.trim() : fullPublicName;
   const hasWorkArea = selectedExperiences.length > 0;
-  const treatmentOptions = sortedByDanishName(serviceTitles.length > 0 ? serviceTitles : fallbackTreatmentForms);
-  const selectedTreatments = offersIndividualServices
-    ? treatmentOptions.filter((serviceTitle) => selectedTreatmentIds.includes(serviceTitle.id))
-    : [];
-  const otherTreatmentFormValue = joinOtherTreatmentForms(otherTreatmentForms);
-  const otherTreatmentFormChips = splitOtherTreatmentForms(otherTreatmentFormValue);
-  const hasTreatmentForms = offersIndividualServices && (selectedTreatments.length > 0 || otherTreatmentFormChips.length > 0);
+  const specialtyChips = splitSpecialties(specialties);
+  const hasIndividualServicesDescription = offersIndividualServices && serviceDescription.trim().length > 0;
   const hasLinks = Boolean(website.trim() || facebook.trim() || instagram.trim() || youtube.trim());
   const missingRequired = [
     !firstName.trim() || !lastName.trim() ? { label: "Dit navn", step: "person" as PrototypeStep } : null,
@@ -785,9 +789,19 @@ export function ProfileForm({
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
   }, [currentStep.id]);
 
+  useEffect(() => {
+    return () => {
+      if (continueTimeoutRef.current) {
+        window.clearTimeout(continueTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const contactValues = {
     company_name: publicProfileName,
+    first_name: firstName,
     full_name: fullPublicName,
+    last_name: lastName,
     long_description: story,
     phone: profile.phone ?? "",
     short_description: story.trim().slice(0, 300),
@@ -827,7 +841,7 @@ export function ProfileForm({
     if (currentStep.id === "experiences") {
       const result = await autosaveFacilitatorProfileAction({
         section: "categories",
-        values: { category_ids: selectedExperiences },
+        values: { category_ids: selectedExperiences, specialties },
       });
 
       if (!result.ok) return result;
@@ -864,9 +878,7 @@ export function ProfileForm({
         section: "services",
         values: {
           offers_services: offersIndividualServices,
-          service_description: "",
-          service_other_title: otherTreatmentFormValue,
-          service_title_ids: selectedTreatmentIds,
+          service_description: serviceDescription,
           show_in_local_service_results: offersIndividualServices,
         },
       });
@@ -885,41 +897,39 @@ export function ProfileForm({
   }
 
   async function continueFlow() {
+    if (continueInProgressRef.current) {
+      return;
+    }
+
+    if (currentStep.id === "profile-image" && !profileImageUrl) {
+      setStepSaveStatus({ message: "Vælg et profilbillede, før du fortsætter.", status: "error" });
+      return;
+    }
+
+    continueInProgressRef.current = true;
     setIsBusy(true);
     setStepSaveStatus({ message: "", status: "idle" });
 
     const saveResult = await saveCurrentStep();
     if (!saveResult.ok) {
+      continueInProgressRef.current = false;
       setIsBusy(false);
       setStepSaveStatus({ message: saveResult.message, status: "error" });
       return;
     }
 
+    if (presentationMode === "onboarding" && currentStep.id === "approval") {
+      router.push("/facilitator/profile/submitted");
+      return;
+    }
+
     setStepSaveStatus({ message: saveResult.message, status: "success" });
 
-    window.setTimeout(async () => {
-      if (currentStep.id === "experiences" && otherExperience.trim() && presentationMode !== "admin") {
-        setWorkAreaSuggestionStatus({ message: "Sender forslag til SoulEvents...", status: "saving" });
-        const result = await saveWorkAreaSuggestionAction(otherExperience);
-
-        if (result.status === "error") {
-          setIsBusy(false);
-          setWorkAreaSuggestionStatus({ message: result.message, status: "error" });
-          return;
-        }
-
-        setOtherExperience("");
-        setWorkAreaSuggestionStatus({ message: result.message || "Dit forslag er sendt til SoulEvents.", status: "success" });
-      }
-
+    continueTimeoutRef.current = window.setTimeout(() => {
+      continueInProgressRef.current = false;
       setIsBusy(false);
       if (presentationMode !== "onboarding" && currentStep.id === "review") {
-        window.location.href = backHref;
-        return;
-      }
-
-      if (presentationMode === "onboarding" && currentStep.id === "approval") {
-        goToStep("complete");
+        router.push(backHref);
         return;
       }
 
@@ -935,6 +945,11 @@ export function ProfileForm({
   }
 
   function goBack() {
+    continueInProgressRef.current = false;
+    if (continueTimeoutRef.current) {
+      window.clearTimeout(continueTimeoutRef.current);
+      continueTimeoutRef.current = null;
+    }
     setStepSaveStatus({ message: "", status: "idle" });
 
     if (returnToReview && currentStep.id !== "review") {
@@ -948,6 +963,11 @@ export function ProfileForm({
   }
 
   function goToStep(step: PrototypeStep) {
+    continueInProgressRef.current = false;
+    if (continueTimeoutRef.current) {
+      window.clearTimeout(continueTimeoutRef.current);
+      continueTimeoutRef.current = null;
+    }
     const nextIndex = activeSteps.findIndex((item) => item.id === step);
     if (nextIndex >= 0) {
       setStepSaveStatus({ message: "", status: "idle" });
@@ -964,20 +984,6 @@ export function ProfileForm({
     setSelectedExperiences((current) =>
       current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId],
     );
-  }
-
-  function toggleTreatment(serviceTitleId: string) {
-    setSelectedTreatmentIds((current) =>
-      current.includes(serviceTitleId) ? current.filter((id) => id !== serviceTitleId) : [...current, serviceTitleId],
-    );
-  }
-
-  function setOtherTreatmentForm(index: number, nextValue: string) {
-    setOtherTreatmentForms((current) => {
-      const next: [string, string] = [current[0], current[1]];
-      next[index] = nextValue;
-      return next;
-    });
   }
 
   function applyMoodImagePaths(paths: string[]) {
@@ -1128,9 +1134,9 @@ export function ProfileForm({
 
   return (
     <OnboardingShell
-      backHref={backHref}
+      backHref={shellBackHref}
       backLabel={backLabel}
-      canContinue={currentStep.id !== "approval" || acceptedTerms}
+      canContinue={(currentStep.id !== "approval" || acceptedTerms) && (currentStep.id !== "profile-image" || Boolean(profileImageUrl))}
       currentIndex={stepIndex}
       ctaLabel={
         presentationMode === "onboarding"
@@ -1226,57 +1232,46 @@ export function ProfileForm({
       {currentStep.id === "experiences" && (
         <div className="grid gap-5">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {[...categories].sort((a, b) => a.name.localeCompare(b.name, "da-DK")).map((category) => {
-            const selected = selectedExperiences.includes(category.id);
-            const isLong = category.name.length > 17;
-            const WorkAreaIcon = workAreaIconForName(category.name);
-            return (
-              <button
-                className={workAreaClass(selected, isLong)}
-                key={category.id}
-                onClick={() => toggleExperience(category.id)}
-                type="button"
-              >
-                <SelectionCardContent Icon={WorkAreaIcon} label={category.name} selected={selected} />
-              </button>
-            );
-          })}
+            {sortFacilitatorWorkAreas(categories).map((category) => {
+              const selected = selectedExperiences.includes(category.id);
+              const isLong = category.name.length > 17;
+              const WorkAreaIcon = workAreaIconForName(category.name);
+              const description = workAreaDescriptionForCategory(category);
+              return (
+                <button
+                  className={workAreaClass(selected, isLong)}
+                  key={category.id}
+                  onClick={() => toggleExperience(category.id)}
+                  type="button"
+                >
+                  <SelectionCardContent
+                    description={description}
+                    Icon={WorkAreaIcon}
+                    label={category.name}
+                    onInfoToggle={() => setOpenAreaInfoId((current) => (current === category.id ? null : category.id))}
+                    selected={selected}
+                    showInfo={openAreaInfoId === category.id}
+                  />
+                </button>
+              );
+            })}
           </div>
           <div className="rounded-[24px] bg-[#FBF5E9] p-4">
             <p className="text-sm font-semibold leading-6 text-[#695A3C]">
-              Mangler du et arbejdsområde på listen?
+              Beskriv dit speciale
             </p>
             <p className="mt-2 text-xs leading-5 text-ink/55">
-              Send gerne dit forslag til SoulEvents. Forslaget bliver ikke tilføjet til din profil, men bliver sendt til os til vurdering.
+              Skriv det, du mere konkret arbejder med. Det kan for eksempel være Traumeterapeut, Kraniosakral terapeut eller Gongmester.
             </p>
             <div className="mt-3">
               <ClearableInput
                 className="bg-white text-base"
-                maxLength={120}
-                onChange={setOtherExperience}
-                placeholder="Skriv dit forslag til et nyt arbejdsområde"
-                value={otherExperience}
+                maxLength={160}
+                onChange={setSpecialties}
+                placeholder="Skriv dit speciale"
+                value={specialties}
               />
             </div>
-            {otherExperience.trim() ? (
-              <p className="mt-3 text-xs font-semibold leading-5 text-sage-700">
-                Dit forslag sendes til SoulEvents, når du fortsætter.
-              </p>
-            ) : null}
-            {workAreaSuggestionStatus.message ? (
-              <p
-                className={
-                  "mt-3 text-xs font-semibold leading-5 " +
-                  (workAreaSuggestionStatus.status === "error"
-                    ? "text-rose"
-                    : workAreaSuggestionStatus.status === "success"
-                      ? "text-sage-700"
-                      : "text-ink/55")
-                }
-              >
-                {workAreaSuggestionStatus.message}
-              </p>
-            ) : null}
           </div>
         </div>
       )}
@@ -1348,41 +1343,33 @@ export function ProfileForm({
           </div>
 
           {offersIndividualServices ? (
-            <div className="grid gap-5 rounded-[28px] bg-[#FBF5E9] p-4">
-              <div className="grid gap-3">
-                <p className="text-sm font-semibold leading-6 text-[#695A3C]">
-                  Vælg de behandlinger eller individuelle ydelser, du tilbyder.
-                </p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  {treatmentOptions.map((serviceTitle) => {
-                    const selected = selectedTreatmentIds.includes(serviceTitle.id);
-                    const isLong = serviceTitle.name.length > 17;
-                    const TreatmentIcon = workAreaIconForName(serviceTitle.name);
-                    return (
-                      <button
-                        className={workAreaClass(selected, isLong)}
-                        key={serviceTitle.id}
-                        onClick={() => toggleTreatment(serviceTitle.id)}
-                        type="button"
-                      >
-                        <SelectionCardContent Icon={TreatmentIcon} label={serviceTitle.name} selected={selected} />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
+            <div className="rounded-[24px] bg-[#FBF5E9] p-4">
               <div className="rounded-[24px] bg-white p-4 shadow-soft">
                 <p className="text-sm font-semibold leading-6 text-midnight">
-                  Tilbyder du en behandlingsform, som ikke står på listen?
+                  Hvad tilbyder du?
                 </p>
-                <div className="mt-3 grid gap-3">
-                  <ClearableInput onChange={(nextValue) => setOtherTreatmentForm(0, nextValue)} placeholder="" value={otherTreatmentForms[0]} />
-                  <ClearableInput onChange={(nextValue) => setOtherTreatmentForm(1, nextValue)} placeholder="" value={otherTreatmentForms[1]} />
-                </div>
                 <p className="mt-3 text-xs leading-5 text-ink/55">
-                  Der findes mange forskellige navne og retninger. Skriv det her, hvis din behandlingsform ikke står på listen.
+                  Beskriv kort, hvad man kan booke hos dig individuelt.
                 </p>
+                <div className="relative mt-3">
+                  <textarea
+                    className="min-h-36 w-full rounded-[20px] border border-midnight/10 bg-white p-4 pr-12 text-base leading-7 text-midnight shadow-soft outline-none transition duration-200 placeholder:text-ink/35 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/10"
+                    maxLength={500}
+                    onChange={(event) => setServiceDescription(event.target.value)}
+                    placeholder="F.eks. individuelle samtaleforløb, healing, massage eller kraniosakral behandling"
+                    value={serviceDescription}
+                  />
+                  {serviceDescription ? (
+                    <button
+                      aria-label="Ryd felt"
+                      className="absolute right-3 top-3 grid size-9 place-items-center rounded-full text-ink/38 transition hover:bg-midnight/5 hover:text-midnight"
+                      onClick={() => setServiceDescription("")}
+                      type="button"
+                    >
+                      <X className="size-4" aria-hidden="true" />
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
           ) : null}
@@ -1399,21 +1386,31 @@ export function ProfileForm({
             </ReviewJump>
 
             <ReviewJump label="Rediger arbejdsområder" onClick={() => editFromReview("experiences")} className="p-2 -m-2">
-              {hasWorkArea ? (
-                <div className="flex flex-wrap gap-2">
-                  {categories
-                    .filter((category) => selectedExperiences.includes(category.id))
-                    .map((category) => (
-                      <span className="rounded-full border border-sage-700/15 bg-white/65 px-3 py-1.5 text-sm font-semibold text-sage-700" key={category.id}>
-                        {category.name}
+              <div className="grid gap-3">
+                {hasWorkArea ? (
+                  <div className="flex flex-wrap gap-2">
+                    {categories
+                      .filter((category) => selectedExperiences.includes(category.id))
+                      .map((category) => (
+                        <span className="rounded-full border border-sage-700/15 bg-sage-50 px-3 py-1.5 text-sm font-semibold text-sage-700" key={category.id}>
+                          {category.name}
+                        </span>
+                      ))}
+                    {specialtyChips.map((specialty) => (
+                      <span className="rounded-full border border-midnight/15 bg-white px-3 py-1.5 text-sm font-semibold text-midnight" key={specialty}>
+                        {specialty}
                       </span>
                     ))}
+                  </div>
+                ) : (
+                  <div className="rounded-[22px] bg-[#FFF7DE] p-4 text-sm font-semibold leading-6 text-[#715C21]">
+                    Du mangler at vælge mindst ét arbejdsområde.
+                  </div>
+                )}
+                {hasWorkArea && specialtyChips.length === 0 ? (
+                  <p className="text-sm leading-6 text-ink/55">Du kan tilføje et konkret speciale, hvis du vil gøre profilen mere præcis.</p>
+                ) : null}
                 </div>
-              ) : (
-                <div className="rounded-[22px] bg-[#FFF7DE] p-4 text-sm font-semibold leading-6 text-[#715C21]">
-                  Du mangler at vælge mindst ét arbejdsområde.
-                </div>
-              )}
             </ReviewJump>
 
             <ReviewJump label="Rediger profilbillede" onClick={() => editFromReview("profile-image")}>
@@ -1457,22 +1454,15 @@ export function ProfileForm({
               )}
             </ReviewJump>
 
-            {hasTreatmentForms ? (
-              <ReviewJump label="Rediger behandlingsformer" onClick={() => editFromReview("services")} className="p-2 -m-2">
+            {offersIndividualServices ? (
+              <ReviewJump label="Rediger individuelle ydelser" onClick={() => editFromReview("services")} className="p-2 -m-2">
                 <div className="grid gap-3">
-                  <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Behandlingsformer</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedTreatments.map((serviceTitle) => (
-                      <span className="rounded-full border border-sage-700/15 bg-white/65 px-3 py-1.5 text-sm font-semibold text-sage-700" key={serviceTitle.id}>
-                        {serviceTitle.name}
-                      </span>
-                    ))}
-                    {otherTreatmentFormChips.map((treatmentForm) => (
-                      <span className="rounded-full border border-midnight/10 bg-white/65 px-3 py-1.5 text-sm font-semibold text-midnight" key={treatmentForm}>
-                        {treatmentForm}
-                      </span>
-                    ))}
-                  </div>
+                  <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Individuelle ydelser</p>
+                  {hasIndividualServicesDescription ? (
+                    <p className="whitespace-pre-line text-base leading-7 text-ink/72">{serviceDescription}</p>
+                  ) : (
+                    <p className="text-sm leading-6 text-ink/55">Du har valgt, at du tilbyder individuelle ydelser. Tilføj gerne en kort beskrivelse.</p>
+                  )}
                 </div>
               </ReviewJump>
             ) : null}

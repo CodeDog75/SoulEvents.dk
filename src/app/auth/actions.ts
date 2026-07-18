@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAppUrl } from "@/lib/app-url";
+import { composeFullName } from "@/lib/auth/names";
 import { getPostAuthRedirect, type PostAuthResult } from "@/lib/auth/post-auth";
 import { env } from "@/lib/env";
 import {
@@ -280,7 +281,7 @@ export async function signUpFacilitatorAction(formData: FormData) {
   const firstName = getString(formData, "first_name");
   const lastName = getString(formData, "last_name");
   const legacyFullName = getString(formData, "full_name");
-  const fullName = firstName && lastName ? `${firstName} ${lastName}` : legacyFullName;
+  const fullName = firstName && lastName ? composeFullName(firstName, lastName) : legacyFullName;
   const email = getString(formData, "email").toLowerCase();
   const phone = getString(formData, "phone");
   const password = getString(formData, "password");

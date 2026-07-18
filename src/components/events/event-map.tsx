@@ -23,7 +23,7 @@ type MapEvent = {
 type MapServiceProvider = {
   id: string;
   name: string;
-  serviceTitles: string[];
+  serviceLabels: string[];
   city: string | null;
   area: string | null;
   latitude: number | null;
@@ -227,14 +227,14 @@ function eventPopupItem(event: MapEvent, isFirst: boolean, compact = false) {
 
 function servicePopupHtml(provider: MapServiceProvider) {
   const title = escapeHtml(provider.name);
-  const serviceTitle = provider.serviceTitles[0] ? escapeHtml(provider.serviceTitles[0]) : "Tilbud og sessioner";
+  const serviceLabel = provider.serviceLabels[0] ? escapeHtml(provider.serviceLabels[0]) : "Tilbud og sessioner";
   const place = [provider.city, provider.area].filter(Boolean).map((value) => escapeHtml(String(value))).join(", ");
 
   return [
     "<div style=\"font-family: Arial, sans-serif; color:#2F4F3E; padding:18px; width:100%;\">",
     "<p style=\"font-size:11px; margin:0 34px 8px 0; color:#7A4EAB; font-weight:800; letter-spacing:.02em; text-transform:uppercase;\">Ydelse</p>",
     "<h3 style=\"font-size:16px; margin:0 34px 6px 0; line-height:1.25; color:#2F4F3E; font-weight:800;\">" + title + "</h3>",
-    "<p style=\"font-size:13px; margin:0 0 6px; color:#526456; font-weight:700;\">" + serviceTitle + "</p>",
+    "<p style=\"font-size:13px; margin:0 0 6px; color:#526456; font-weight:700;\">" + serviceLabel + "</p>",
     place ? "<p style=\"font-size:12px; margin:0 0 12px; color:#526456;\">" + place + "</p>" : "",
     "<a href=\"/facilitators/" + provider.id + "\" style=\"display:inline-flex; min-height:34px; align-items:center; justify-content:center; border-radius:999px; background:transparent; color:#2F4F3E; border:1px solid #2F4F3E; padding:8px 14px; font-size:12px; font-weight:800; text-decoration:none;\">Se profil</a>",
     "</div>",

@@ -331,8 +331,8 @@ export async function createBookingAction(formData: FormData) {
 
   const successMessage =
     facilitatorMailSent && participantMailSent
-      ? "Tak. Din tilmelding er registreret. Du modtager en mailkvittering, og arrangøren har fået besked."
-      : "Tak. Din tilmelding er registreret. Mailen kunne ikke sendes lige nu, men tilmeldingen er gemt.";
+      ? "Din tilmelding er modtaget, men endnu ikke endeligt bekræftet. Arrangøren skal først godkende den. Du modtager en ny e-mail, så snart det sker."
+      : "Din tilmelding er modtaget, men mailen kunne ikke sendes lige nu. Arrangøren skal stadig først godkende den, før pladsen er endeligt bekræftet.";
 
   revalidatePath("/events/" + eventId);
   redirect(

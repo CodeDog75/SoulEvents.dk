@@ -1,11 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CircleUserRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, CircleUserRound } from "lucide-react";
+import { sendFacilitatorProfileToReviewAction } from "@/app/facilitator/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { ProfileForm } from "@/components/facilitator/profile-form";
 import { SecurityPasswordForm } from "@/components/facilitator/security-password-form";
 import { requireProfile } from "@/lib/auth/roles";
+import { resolveNameParts } from "@/lib/auth/names";
 import { getBrandLogoSources, type LogoSettingClient } from "@/lib/brand-logo";
+import { getFacilitatorOnboardingState } from "@/lib/facilitators/onboarding-state";
+import { parseProfileChangeRequest } from "@/lib/facilitators/profile-change-request";
+import { facilitatorWorkAreaSlugs } from "@/lib/facilitators/work-areas";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,24 +26,6 @@ type FacilitatorProfilePageProps = {
   }>;
 };
 
-function isFacilitatorProfileComplete(input: {
-  categoryCount: number;
-  city?: string | null;
-  companyName?: string | null;
-  postalCode?: string | null;
-  profileImagePath?: string | null;
-  shortDescription?: string | null;
-}) {
-  return (
-    Boolean(input.companyName?.trim()) &&
-    Boolean(input.postalCode?.trim()) &&
-    Boolean(input.city?.trim()) &&
-    Boolean(input.profileImagePath) &&
-    Boolean(input.shortDescription?.trim() && input.shortDescription.trim().length >= 20) &&
-    input.categoryCount > 0
-  );
-}
-
 export default async function FacilitatorProfilePage({ searchParams }: FacilitatorProfilePageProps) {
   const [{ confirmed, errorSection, message, ready, saved }, profile] = await Promise.all([searchParams, requireProfile()]);
   const supabase = await createClient();
@@ -50,24 +37,16 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     { data: regions },
     { data: categories },
     { data: categoryRows },
-    { data: serviceTitles },
-    { data: serviceRows },
     { count: publishedEventCount },
     { data: authUserData, error: authUserError },
     logoSources,
   ] = await Promise.all([
     supabase.from("facilitator_profiles").select("*").eq("profile_id", profile.id).single(),
     supabase.from("regions").select("id, name, slug").order("sort_order"),
-    supabase.from("categories").select("id, name").eq("is_active", true).order("sort_order"),
+    supabase.from("categories").select("id, name, slug, description").in("slug", facilitatorWorkAreaSlugs).eq("is_active", true).order("sort_order"),
     supabase
       .from("facilitator_profiles")
       .select("id, facilitator_categories(category_id), facilitator_images(image_path, alt_text, sort_order)")
-      .eq("profile_id", profile.id)
-      .single(),
-    supabase.from("service_titles").select("id, name, is_active, sort_order").eq("is_active", true).order("sort_order").order("name"),
-    supabase
-      .from("facilitator_profiles")
-      .select("id, facilitator_service_titles(service_title_id, service_titles(id, name, is_active, sort_order))")
       .eq("profile_id", profile.id)
       .single(),
     supabase
@@ -85,16 +64,6 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     categoryRows?.facilitator_images?.sort(
       (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
     ) ?? [];
-  const selectedServiceTitleIds =
-    serviceRows?.facilitator_service_titles?.map((row: { service_title_id: string }) => row.service_title_id) ?? [];
-  const historicalServiceTitles =
-    serviceRows?.facilitator_service_titles
-      ?.map((row: any) => (Array.isArray(row.service_titles) ? row.service_titles[0] : row.service_titles))
-      .filter((title: any) => title && !title.is_active) ?? [];
-  const visibleServiceTitles = [...(serviceTitles ?? []), ...historicalServiceTitles].filter(
-    (title, index, all) => all.findIndex((item) => item.id === title.id) === index,
-  );
-
   if (!facilitatorProfile) {
     return (
       <main className="min-h-screen bg-[#fbfaf7] px-4 py-10">
@@ -108,22 +77,110 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     );
   }
 
+  const { data: latestChangeRequest } = await admin
+    .from("admin_audit_log")
+    .select("reason")
+    .eq("facilitator_id", facilitatorProfile.id)
+    .eq("action", "facilitator_changes_requested")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   const backHref = profile.role === "admin" ? "/admin" : "/facilitator";
   const hasPublishedEventHistory = (publishedEventCount ?? 0) > 0;
   const eventCtaLabel = hasPublishedEventHistory ? "Opret nyt event" : "Opret dit første event";
   const authProviders = authUserData.user?.identities?.map((identity) => identity.provider).filter(Boolean) ?? [];
   const passwordLoginAvailable = !authUserError && (authProviders.length === 0 || authProviders.includes("email"));
   const primaryOauthProvider = authProviders.find((provider) => provider === "google" || provider === "facebook") ?? authProviders[0] ?? null;
-  const presentationMode = isFacilitatorProfileComplete({
-    categoryCount: selectedCategoryIds.length,
-    city: facilitatorProfile.city,
+  const authMetadata = authUserData.user?.user_metadata ?? {};
+  const nameParts = resolveNameParts({
+    firstName: typeof authMetadata.first_name === "string" ? authMetadata.first_name : null,
+    fullName: profile.full_name,
+    lastName: typeof authMetadata.last_name === "string" ? authMetadata.last_name : null,
+  });
+  const profileForForm = {
+    ...profile,
+    first_name: nameParts.firstName || null,
+    full_name: nameParts.fullName || profile.full_name,
+    last_name: nameParts.lastName || null,
+  };
+  const onboardingState = await getFacilitatorOnboardingState(supabase, {
+    categoryIds: selectedCategoryIds,
     companyName: facilitatorProfile.company_name,
-    postalCode: facilitatorProfile.postal_code,
-    profileImagePath: facilitatorProfile.profile_image_path,
+    fullName: profile.full_name,
+    hasMoodImage: galleryImages.length > 0,
+    hasProfileImage: Boolean(facilitatorProfile.profile_image_path),
+    isDisabled: facilitatorProfile.is_disabled,
+    longDescription: facilitatorProfile.long_description,
+    profileId: profile.id,
     shortDescription: facilitatorProfile.short_description,
-  })
-    ? "editing"
-    : "onboarding";
+    status: facilitatorProfile.status,
+  });
+  const isSubmittedForReview = onboardingState === "pending_review";
+  const presentationMode = onboardingState === "approved" || onboardingState === "changes_requested" ? "editing" : "onboarding";
+  const profileChangeRequest = parseProfileChangeRequest(latestChangeRequest?.reason);
+  const canSendForReview =
+    Boolean(facilitatorProfile.profile_image_path) &&
+    Boolean(facilitatorProfile.company_name) &&
+    Boolean(profile.full_name) &&
+    Boolean(facilitatorProfile.long_description || facilitatorProfile.short_description) &&
+    selectedCategoryIds.length > 0;
+
+  if (isSubmittedForReview) {
+    return (
+      <main className="min-h-screen bg-[#fbfaf7]">
+        <header className="border-b border-midnight/10 bg-white">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3">
+              <div className="grid size-10 place-items-center rounded-md bg-sage-700 text-white">
+                <CheckCircle2 className="size-5" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Status: Afventer godkendelse</p>
+                <h1 className="text-xl font-semibold text-midnight">Din profil er sendt til gennemgang</h1>
+              </div>
+            </div>
+            <Link
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta"
+              href="/facilitator"
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+              Dashboard
+            </Link>
+          </div>
+        </header>
+
+        <section className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="rounded-card border border-sage-700/20 bg-white p-6 shadow-soft sm:p-8">
+            <p className="text-xs font-semibold uppercase tracking-wide text-sage-700">Afventer SoulEvents</p>
+            <h2 className="mt-3 text-2xl font-semibold text-midnight">Vi gennemgår din arrangørprofil.</h2>
+            <p className="mt-3 text-sm leading-6 text-ink/70">
+              Profilen er låst, mens vi gennemgår den, så indholdet ikke ændrer sig midt i godkendelsen. Du får besked,
+              når profilen er godkendt, eller hvis vi har brug for ændringer.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-ink/70">
+              Du kan allerede nu oprette dit første event som kladde. Det kan først offentliggøres, når profilen er godkendt.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Link
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500"
+                href="/facilitator/events"
+              >
+                {eventCtaLabel}
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </Link>
+              <Link
+                className="inline-flex h-11 items-center justify-center rounded-button border border-midnight/15 bg-white px-5 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta"
+                href="/facilitator"
+              >
+                Gå til dashboard
+              </Link>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -185,6 +242,42 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
           </section>
         ) : null}
 
+        {onboardingState === "changes_requested" ? (
+          <section className="mb-5 rounded-[24px] border border-[#E8D6A8] bg-[#FFF8E8] p-5 text-sm leading-6 text-[#6E6475] shadow-soft">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#8A6A2E]">Profil kræver ændringer</p>
+            <h2 className="mt-2 text-lg font-semibold text-midnight">Ret punkterne og send profilen til ny godkendelse</h2>
+            {profileChangeRequest?.fields.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {profileChangeRequest.fields.map((field) => (
+                  <span className="rounded-full border border-[#E8D6A8] bg-white/75 px-3 py-1 text-xs font-semibold text-[#6F5A35]" key={field}>
+                    {field}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {profileChangeRequest?.comment ? (
+              <blockquote className="mt-4 rounded-[18px] border border-[#E8D6A8] bg-white/70 p-4 text-[#4F4537]">
+                {profileChangeRequest.comment}
+              </blockquote>
+            ) : null}
+            <form action={sendFacilitatorProfileToReviewAction} className="mt-5">
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-500 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!canSendForReview}
+                type="submit"
+              >
+                Send til ny godkendelse
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </button>
+              {!canSendForReview ? (
+                <p className="mt-2 text-xs font-semibold text-[#8A6A2E]">
+                  Udfyld de nødvendige profiloplysninger, før profilen kan sendes igen.
+                </p>
+              ) : null}
+            </form>
+          </section>
+        ) : null}
+
         <ProfileForm
           categories={categories ?? []}
           errorSection={errorSection ?? null}
@@ -193,12 +286,10 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
           galleryImages={galleryImages}
           logoSources={logoSources}
           presentationMode={presentationMode}
-          profile={profile}
+          profile={profileForForm}
           regions={regions ?? []}
           savedSection={saved ?? null}
           selectedCategoryIds={selectedCategoryIds}
-          selectedServiceTitleIds={selectedServiceTitleIds}
-          serviceTitles={visibleServiceTitles}
           showEmailConfirmedStep={confirmed === "1"}
         />
         <div className="mt-6">

@@ -186,7 +186,21 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       regions(name),
       event_categories(categories(name, color_hex)),
       event_main_categories(main_categories(name, color_hex, image_path)),
-      event_images(image_path, alt_text, sort_order)
+      event_images(image_path, alt_text, sort_order),
+      event_co_organizers(
+        status,
+        facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(
+          id,
+          status,
+          is_paused,
+          is_disabled,
+          company_name,
+          profile_image_path,
+          specialties,
+          facilitator_categories(categories(name, color_hex, slug)),
+          profiles!facilitator_profiles_profile_id_fkey(full_name)
+        )
+      )
     `,
     )
     .eq("id", id)
@@ -244,6 +258,17 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     facilitatorProfile?.facebook_url ? { label: "Facebook", href: ensureUrl(facilitatorProfile.facebook_url) } : null,
     facilitatorProfile?.instagram_url ? { label: "Instagram", href: ensureUrl(facilitatorProfile.instagram_url) } : null,
   ].filter((link): link is { label: string; href: string } => Boolean(link));
+  const coOrganizers =
+    event.event_co_organizers
+      ?.filter((row: any) => row.status === "accepted")
+      .map((row: any) => (Array.isArray(row.facilitator_profiles) ? row.facilitator_profiles[0] : row.facilitator_profiles))
+      .filter(
+        (coOrganizer: any) =>
+          coOrganizer &&
+          coOrganizer.status === "approved" &&
+          !coOrganizer.is_paused &&
+          !coOrganizer.is_disabled,
+      ) ?? [];
 
   return (
     <main className="min-h-screen bg-cream">
@@ -401,6 +426,55 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               </div>
             </div>
           </section>
+
+          {coOrganizers.length > 0 ? (
+            <section className="rounded-card bg-white p-8 shadow-soft">
+              <h2 className="text-4xl font-medium text-olive">Medarrangører</h2>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                {coOrganizers.map((coOrganizer: any) => {
+                  const coOrganizerUser = Array.isArray(coOrganizer.profiles) ? coOrganizer.profiles[0] : coOrganizer.profiles;
+                  const coOrganizerName = coOrganizer.company_name || coOrganizerUser?.full_name || "Arrangør";
+                  const coOrganizerImageUrl = coOrganizer.profile_image_path
+                    ? supabase.storage.from("media").getPublicUrl(coOrganizer.profile_image_path).data.publicUrl
+                    : null;
+                  const coOrganizerCategories =
+                    coOrganizer.facilitator_categories
+                      ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
+                      .filter((category: any) => Boolean(category?.name))
+                      .slice(0, 3) ?? [];
+
+                  return (
+                    <Link
+                      className="flex gap-4 rounded-[20px] border border-[#E5D4F7] bg-[#FAF8FC] p-4 transition hover:border-[#7A5D91]"
+                      href={"/facilitators/" + coOrganizer.id}
+                      key={coOrganizer.id}
+                    >
+                      {coOrganizerImageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img alt="" className="size-16 rounded-[18px] object-cover" src={coOrganizerImageUrl} />
+                      ) : (
+                        <span className="grid size-16 place-items-center rounded-[18px] bg-[#F4F0F7] text-lg font-semibold text-[#7A5D91]">
+                          {coOrganizerName.slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                      <span className="min-w-0">
+                        <span className="block font-semibold text-midnight">{coOrganizerName}</span>
+                        {coOrganizerCategories.length > 0 ? (
+                          <span className="mt-2 flex flex-wrap gap-1.5">
+                            {coOrganizerCategories.map((category: any) => (
+                              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-ink/64" key={category.name}>
+                                {category.name}
+                              </span>
+                            ))}
+                          </span>
+                        ) : null}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
         </div>
 
         <aside className="grid content-start gap-5 lg:sticky lg:top-6">
@@ -483,7 +557,14 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               <h2 className="text-3xl font-medium text-olive">Udsolgt</h2>
             </section>
           ) : isBookable ? (
-            <BookingForm availableSeats={availableSeats} capacity={event.capacity} eventId={event.id} message={message} messageVariant={messageVariant} />
+            <BookingForm
+              availableSeats={availableSeats}
+              bookingSent={booking === "sent"}
+              capacity={event.capacity}
+              eventId={event.id}
+              message={message}
+              messageVariant={messageVariant}
+            />
           ) : (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
               <h2 className="text-3xl font-medium text-olive">Tilmelding er ikke åben</h2>

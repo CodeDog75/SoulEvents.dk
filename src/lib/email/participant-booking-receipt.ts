@@ -31,12 +31,17 @@ async function buildHtml(input: ParticipantBookingReceiptInput) {
     children: [
       '<p style="margin: 0 0 16px;">Hej ' + escapeHtml(input.participantName) + '</p>',
       '<p style="margin: 0 0 12px;">Tak for din tilmelding til ' + escapeHtml(input.eventTitle) + '.</p>',
-      '<p style="margin: 0 0 20px;">Din tilmelding er modtaget og afventer arrangørens bekræftelse.</p>',
+      '<div style="margin: 0 0 22px; padding: 16px; border: 1px solid #E5D4F7; border-radius: 14px; background: #FAF7FE;">',
+      '<p style="margin: 0 0 8px; font-weight: 700; color: #4F3A63;">Afventer arrangørens bekræftelse</p>',
+      '<p style="margin: 0 0 8px;">Din tilmelding er endnu ikke endeligt bekræftet.</p>',
+      '<p style="margin: 0;">Arrangøren gennemgår den nu, og du modtager en ny e-mail, så snart din plads er godkendt.</p>',
+      "</div>",
       renderEmailTable(rows),
       '<h2 style="font-size: 16px; margin: 24px 0 8px; color: #2F2633;">Vigtigt om din tilmelding</h2>',
       '<ul style="padding-left: 20px; margin: 0;">',
       guidelines.map((item) => '<li style="margin-bottom: 8px;">' + escapeHtml(item) + "</li>").join(""),
       "</ul>",
+      '<p style="margin: 20px 0 0;">Du behøver ikke foretage dig noget lige nu. Hold blot øje med din indbakke.</p>',
     ].join(""),
   });
 }
@@ -48,7 +53,9 @@ function buildText(input: ParticipantBookingReceiptInput) {
     "Hej " + input.participantName,
     "",
     "Tak for din tilmelding til " + input.eventTitle + ".",
-    "Din tilmelding er modtaget og afventer arrangørens bekræftelse.",
+    "Afventer arrangørens bekræftelse",
+    "Din tilmelding er endnu ikke endeligt bekræftet.",
+    "Arrangøren gennemgår den nu, og du modtager en ny e-mail, så snart din plads er godkendt.",
     "",
     "Event: " + input.eventTitle,
     "Dato: " + formatDate(input.eventStartsAt),
@@ -57,6 +64,8 @@ function buildText(input: ParticipantBookingReceiptInput) {
     "",
     "Vigtigt om din tilmelding:",
     ...guidelines.map((item) => "- " + item),
+    "",
+    "Du behøver ikke foretage dig noget lige nu. Hold blot øje med din indbakke.",
     ...renderPlainTextFooter(),
   ].join("\n");
 }
