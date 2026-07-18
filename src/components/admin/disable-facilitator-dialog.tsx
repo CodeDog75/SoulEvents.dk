@@ -12,14 +12,18 @@ const deactivationReasons = [
 ] as const;
 
 type DisableFacilitatorDialogProps = {
+  activeEventCount?: number;
   facilitatorId: string;
   facilitatorName: string;
+  isPendingReview?: boolean;
   returnHref: string;
 };
 
 export function DisableFacilitatorDialog({
+  activeEventCount = 0,
   facilitatorId,
   facilitatorName,
+  isPendingReview = false,
   returnHref,
 }: DisableFacilitatorDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -55,10 +59,20 @@ export function DisableFacilitatorDialog({
               Deaktivér denne arrangør?
             </h2>
             <p className="mt-3 text-sm leading-6 text-[#6E6475]" id={descriptionId}>
-              <strong>{facilitatorName}</strong> afventer godkendelse. Profilen fjernes fra godkendelsesflowet og
-              kan ikke offentliggøres eller oprette events, før den genaktiveres af en administrator.
+              <strong>{facilitatorName}</strong>
+              {isPendingReview ? " afventer godkendelse." : " bliver deaktiveret."} Profilen skjules offentligt, og
+              arrangøren kan ikke åbne dashboard, redigere profil eller oprette events, før profilen genaktiveres af
+              en administrator. Historik, events, tilmeldinger og auditspor bevares.
             </p>
           </div>
+
+          {activeEventCount > 0 ? (
+            <div className="mt-5 rounded-[18px] border border-[#FFE2BD] bg-[#FFF7E8] p-4 text-sm font-semibold leading-6 text-[#7A3F11]">
+              Arrangøren har {activeEventCount} kommende {activeEventCount === 1 ? "event" : "events"}. Ved
+              deaktivering skjules arrangørprofilen og de kommende events straks for offentligheden. Historik og
+              tilmeldinger bevares.
+            </div>
+          ) : null}
 
           <div className="mt-5 rounded-[18px] border border-[#FFE2BD] bg-[#FFF7E8] p-4 text-sm font-semibold leading-6 text-[#7A3F11]">
             Brug “Anmod om ændringer”, hvis profilen realistisk kan tilpasses. Brug kun “Deaktivér arrangør”, hvis

@@ -67,6 +67,7 @@ type FacilitatorOverviewRow = {
   total_bookings: number;
   website_url?: string | null;
   can_delete: boolean;
+  delete_blockers?: string[];
 };
 
 type UserRoleTableProps = {
@@ -286,8 +287,11 @@ function DeleteFacilitatorForm({ facilitator, returnHref }: { facilitator: Facil
   if (!facilitator.can_delete) {
     return (
       <div className="rounded-md border border-midnight/10 bg-sage-50 p-3 text-sm leading-6 text-ink/70">
-        <p className="font-bold text-midnight">Denne arrangør kan ikke slettes</p>
-        <p>Arrangøren har aktivitet eller historik, som skal bevares. Deaktivér arrangøren, hvis vedkommende ikke længere skal have adgang til SoulEvents.</p>
+        <p className="font-bold text-midnight">Arrangøren kan ikke slettes permanent</p>
+        <p>Der findes aktivitet eller historik, som skal bevares. Du kan stadig deaktivere arrangøren og straks fjerne adgang og offentlig synlighed.</p>
+        {facilitator.delete_blockers?.length ? (
+          <p className="mt-1 text-xs text-ink/58">Blokeres af: {facilitator.delete_blockers.join(", ")}.</p>
+        ) : null}
       </div>
     );
   }
@@ -406,10 +410,7 @@ export function UserRoleTable({ currentProfileId, exportHref, facilitators, high
                         {facilitator.is_disabled ? <StatusButton facilitator={facilitator} returnHref={returnHref} /> : null}
                         {facilitator.is_paused && !facilitator.is_disabled ? <PauseButton facilitator={facilitator} returnHref={returnHref} /> : null}
                         {!isPendingReview && !facilitator.is_paused && !facilitator.is_disabled ? (
-                          <>
-                            <PauseButton facilitator={facilitator} returnHref={returnHref} />
-                            <StatusButton facilitator={facilitator} returnHref={returnHref} />
-                          </>
+                          <PauseButton facilitator={facilitator} returnHref={returnHref} />
                         ) : null}
                       </div>
                     </div>
@@ -428,8 +429,14 @@ export function UserRoleTable({ currentProfileId, exportHref, facilitators, high
                       <div className="mt-2 flex flex-wrap gap-2">
                         {facilitator.role !== "admin" && <RoleButton label="Gør til admin" profileId={facilitator.profile_id} returnHref={returnHref} role="admin" />}
                         {facilitator.role !== "facilitator" && <RoleButton label="Fjern admin" profileId={facilitator.profile_id} returnHref={returnHref} role="facilitator" />}
-                        {isPendingReview ? (
-                          <DisableFacilitatorDialog facilitatorId={facilitator.id} facilitatorName={displayName} returnHref={returnHref} />
+                        {!facilitator.is_disabled ? (
+                          <DisableFacilitatorDialog
+                            activeEventCount={facilitator.active_events}
+                            facilitatorId={facilitator.id}
+                            facilitatorName={displayName}
+                            isPendingReview={isPendingReview}
+                            returnHref={returnHref}
+                          />
                         ) : null}
                       </div>
                       <div className="mt-3">

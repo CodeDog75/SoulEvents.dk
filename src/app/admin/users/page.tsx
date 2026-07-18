@@ -145,6 +145,7 @@ type EnrichedFacilitatorRow = {
   auto_approve_events?: boolean | null;
   city?: string | null;
   can_delete: boolean;
+  delete_blockers: string[];
   company_name?: string | null;
   completed_events: number;
   created_at: string;
@@ -849,11 +850,23 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     if (!facilitatorId) return;
     relationCountByFacilitator.set(facilitatorId, (relationCountByFacilitator.get(facilitatorId) ?? 0) + 1);
   };
+  const countByFacilitator = (rows: Array<{ facilitator_id?: string | null }> | null | undefined) => {
+    const counts = new Map<string, number>();
+    for (const row of rows ?? []) {
+      if (!row.facilitator_id) continue;
+      counts.set(row.facilitator_id, (counts.get(row.facilitator_id) ?? 0) + 1);
+    }
+    return counts;
+  };
 
   for (const report of (reports ?? []) as Array<{ facilitator_id?: string | null }>) bumpRelationCount(report.facilitator_id);
   for (const invoice of (invoices ?? []) as Array<{ facilitator_id?: string | null }>) bumpRelationCount(invoice.facilitator_id);
   for (const log of (notificationLogs ?? []) as Array<{ facilitator_id?: string | null }>) bumpRelationCount(log.facilitator_id);
   for (const log of (auditLogs ?? []) as Array<{ facilitator_id?: string | null }>) bumpRelationCount(log.facilitator_id);
+  const reportCountsByFacilitator = countByFacilitator(reports as Array<{ facilitator_id?: string | null }> | null);
+  const invoiceCountsByFacilitator = countByFacilitator(invoices as Array<{ facilitator_id?: string | null }> | null);
+  const notificationLogCountsByFacilitator = countByFacilitator(notificationLogs as Array<{ facilitator_id?: string | null }> | null);
+  const auditLogCountsByFacilitator = countByFacilitator(auditLogs as Array<{ facilitator_id?: string | null }> | null);
 
   const messageCountsByFacilitator = new Map<string, number>();
   const messageCountsByProfile = new Map<string, number>();
@@ -894,13 +907,29 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     };
     const bookingStats = bookingStatsByFacilitator.get(facilitator.id) ?? { pendingBookings: 0, totalBookings: 0 };
     const nonDraftEvents = eventStats.eventCount - eventStats.draftEvents;
+    const reportCount = relationCountByFacilitator.get(facilitator.id) ?? 0;
+    const messageCount = (messageCountsByFacilitator.get(facilitator.id) ?? 0) + (messageCountsByProfile.get(facilitator.profile_id) ?? 0);
+    const legalAcceptanceCount = legalAcceptancesByProfile.get(facilitator.profile_id) ?? 0;
+    const monthlyReportCount = reportCountsByFacilitator.get(facilitator.id) ?? 0;
+    const invoiceCount = invoiceCountsByFacilitator.get(facilitator.id) ?? 0;
+    const notificationLogCount = notificationLogCountsByFacilitator.get(facilitator.id) ?? 0;
+    const auditLogCount = auditLogCountsByFacilitator.get(facilitator.id) ?? 0;
+    const deleteBlockers = [
+      nonDraftEvents > 0 ? `${nonDraftEvents} ${nonDraftEvents === 1 ? "event" : "events"}` : null,
+      bookingStats.totalBookings > 0 ? `${bookingStats.totalBookings} ${bookingStats.totalBookings === 1 ? "tilmelding" : "tilmeldinger"}` : null,
+      monthlyReportCount > 0 ? `${monthlyReportCount} ${monthlyReportCount === 1 ? "månedsrapport" : "månedsrapporter"}` : null,
+      invoiceCount > 0 ? `${invoiceCount} ${invoiceCount === 1 ? "fakturakladde" : "fakturakladder"}` : null,
+      notificationLogCount > 0 ? `${notificationLogCount} ${notificationLogCount === 1 ? "eventbesked-log" : "eventbesked-logs"}` : null,
+      auditLogCount > 0 ? `${auditLogCount} ${auditLogCount === 1 ? "auditspor" : "auditspor"}` : null,
+      messageCount > 0 ? `${messageCount} ${messageCount === 1 ? "besked" : "beskeder"}` : null,
+      legalAcceptanceCount > 0 ? `${legalAcceptanceCount} ${legalAcceptanceCount === 1 ? "juridisk accept" : "juridiske accepter"}` : null,
+    ].filter((item): item is string => Boolean(item));
     const historyCount =
       nonDraftEvents +
       bookingStats.totalBookings +
-      (relationCountByFacilitator.get(facilitator.id) ?? 0) +
-      (messageCountsByFacilitator.get(facilitator.id) ?? 0) +
-      (messageCountsByProfile.get(facilitator.profile_id) ?? 0) +
-      (legalAcceptancesByProfile.get(facilitator.profile_id) ?? 0);
+      reportCount +
+      messageCount +
+      legalAcceptanceCount;
     const categories = categoriesByFacilitator.get(facilitator.id) ?? [];
     const tags = tagsByFacilitator.get(facilitator.id) ?? [];
     const lastSignInAt = authActivityLookup.isComplete
@@ -916,6 +945,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       company_name: facilitator.company_name,
       completed_events: eventStats.completedEvents,
       created_at: facilitator.created_at,
+      delete_blockers: deleteBlockers,
       draft_events: eventStats.draftEvents,
       email: user?.email ?? "",
       event_count: eventStats.eventCount,

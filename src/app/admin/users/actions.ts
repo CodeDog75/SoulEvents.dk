@@ -335,6 +335,16 @@ export async function deleteFacilitatorFromOverviewAction(formData: FormData) {
     supabase.from("admin_audit_log").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId),
     supabase.from("legal_document_acceptances").select("id", { count: "exact", head: true }).eq("profile_id", profileId),
   ]);
+  const deleteBlockers = [
+    (nonDraftEvents ?? 0) > 0 ? `${nonDraftEvents} ${nonDraftEvents === 1 ? "event" : "events"}` : null,
+    (bookings ?? 0) > 0 ? `${bookings} ${bookings === 1 ? "tilmelding" : "tilmeldinger"}` : null,
+    (reports ?? 0) > 0 ? `${reports} ${reports === 1 ? "månedsrapport" : "månedsrapporter"}` : null,
+    (invoices ?? 0) > 0 ? `${invoices} ${invoices === 1 ? "fakturakladde" : "fakturakladder"}` : null,
+    (notificationLogs ?? 0) > 0 ? `${notificationLogs} ${notificationLogs === 1 ? "eventbesked-log" : "eventbesked-logs"}` : null,
+    (adminMessages ?? 0) > 0 ? `${adminMessages} ${adminMessages === 1 ? "besked" : "beskeder"}` : null,
+    (auditLogs ?? 0) > 0 ? `${auditLogs} auditspor` : null,
+    (legalAcceptances ?? 0) > 0 ? `${legalAcceptances} ${legalAcceptances === 1 ? "juridisk accept" : "juridiske accepter"}` : null,
+  ].filter(Boolean);
 
   if (
     (nonDraftEvents ?? 0) > 0 ||
@@ -346,7 +356,12 @@ export async function deleteFacilitatorFromOverviewAction(formData: FormData) {
     (auditLogs ?? 0) > 0 ||
     (legalAcceptances ?? 0) > 0
   ) {
-    usersRedirect("Arrangøren har aktivitet eller historik, som skal bevares. Deaktivér arrangøren i stedet.", returnTo);
+    usersRedirect(
+      "Arrangøren kan ikke slettes permanent, fordi der findes historik, som skal bevares: " +
+        deleteBlockers.join(", ") +
+        ". Du kan stadig deaktivere arrangøren.",
+      returnTo,
+    );
   }
 
   const { error } = await supabase.auth.admin.deleteUser(profileId);
