@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1000" role="img" aria-label="Rolig skov i dybe SoulEvents farver">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#687460"/>
+      <stop offset="0.5" stop-color="#455a43"/>
+      <stop offset="1" stop-color="#25342d"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#f3e7c7" stop-opacity="0"/>
+      <stop offset="0.52" stop-color="#f3e7c7" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#f3e7c7" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1800" height="1000" fill="url(#bg)"/>
+  <path d="M1090 0 L1340 1000 L1160 1000 L960 0 Z" fill="url(#beam)" opacity="0.72"/>
+  <g opacity="0.58" fill="#1d2b25">
+    <path d="M70 1000 L190 1000 L153 0 L108 0 Z"/>
+    <path d="M385 1000 L498 1000 L462 0 L420 0 Z"/>
+    <path d="M720 1000 L840 1000 L792 0 L750 0 Z"/>
+    <path d="M1410 1000 L1532 1000 L1492 0 L1448 0 Z"/>
+    <path d="M1660 1000 L1770 1000 L1735 0 L1695 0 Z"/>
+  </g>
+  <path d="M0 760 C280 710 470 780 765 708 C1060 635 1300 700 1800 604 L1800 1000 L0 1000 Z" fill="#263b31" opacity="0.84"/>
+  <path d="M0 876 C270 820 470 855 760 810 C1080 760 1370 795 1800 720 L1800 1000 L0 1000 Z" fill="#1f302a" opacity="0.92"/>
+  <rect width="1800" height="1000" fill="#2f2437" opacity="0.1"/>
+</svg>

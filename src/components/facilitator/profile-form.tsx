@@ -43,6 +43,14 @@ import {
 import { imageUploadAccept, prepareImageFileForUpload } from "@/lib/images/client-image-upload";
 import { OnboardingShell as SharedOnboardingShell } from "@/components/onboarding/onboarding-shell";
 import type { BrandLogoSources } from "@/lib/brand-logo";
+import {
+  defaultFacilitatorHeroKey,
+  facilitatorHeroOptions,
+  isMoodHeroKey,
+  normalizeFacilitatorHeroKey,
+  resolveFacilitatorHero,
+  type FacilitatorHeroKey,
+} from "@/lib/facilitators/hero-collection";
 import { facilitatorWorkAreas, sortFacilitatorWorkAreas } from "@/lib/facilitators/work-areas";
 
 type Region = {
@@ -59,8 +67,10 @@ type Category = {
 };
 
 type FacilitatorProfile = {
+  id?: string | null;
   status?: string | null;
   company_name: string | null;
+  facilitator_hero_key?: string | null;
   profile_image_path: string | null;
   short_description: string | null;
   long_description: string | null;
@@ -696,6 +706,7 @@ function InlineBrandLogo({ className, src }: { className: string; src: string })
 
 export function ProfileForm({
   adminTargetFacilitatorId,
+  adminReturnTo,
   autosaveEnabled = true,
   backHref = "/facilitator",
   backLabel = "Tilbage",
@@ -740,6 +751,11 @@ export function ProfileForm({
       path: galleryImages[index]?.image_path ?? "",
       previewUrl: galleryImages[index]?.image_path ? publicImageUrl(galleryImages[index].image_path) : "",
     })),
+  );
+  const initialHeroKey = normalizeFacilitatorHeroKey(facilitatorProfile.facilitator_hero_key);
+  const initialHeroHasMoodImage = galleryImages.some((image) => Boolean(image?.image_path));
+  const [selectedHeroKey, setSelectedHeroKey] = useState<FacilitatorHeroKey>(
+    initialHeroKey ?? (initialHeroHasMoodImage ? "mood_1" : defaultFacilitatorHeroKey),
   );
   const [moodImageStatuses, setMoodImageStatuses] = useState<SlotStatus[]>(
     Array.from({ length: 3 }, () => ({ message: "", status: "idle" })),
@@ -811,8 +827,9 @@ export function ProfileForm({
 
   async function saveCurrentStep() {
     const shouldPersistAdminCategories = presentationMode === "admin" && currentStep.id === "experiences";
+    const shouldPersistAdminImages = presentationMode === "admin" && currentStep.id === "profile-image";
 
-    if ((!autosaveEnabled || presentationMode === "admin") && !shouldPersistAdminCategories) {
+    if ((!autosaveEnabled || presentationMode === "admin") && !shouldPersistAdminCategories && !shouldPersistAdminImages) {
       return { message: "Gemt", ok: true };
     }
 
@@ -840,6 +857,14 @@ export function ProfileForm({
         setProfileImageFile(null);
         setProfileImageUrl(publicImageUrl(result.path));
       }
+
+      const result = await autosaveFacilitatorProfileAction({
+        adminTargetFacilitatorId: adminTargetFacilitatorId ?? null,
+        section: "images",
+        values: { facilitator_hero_key: selectedHeroKey },
+      });
+
+      if (!result.ok) return result;
     }
 
     if (currentStep.id === "experiences") {
@@ -1079,6 +1104,152 @@ export function ProfileForm({
     />
   );
 
+  const heroPreview = resolveFacilitatorHero({
+    heroKey: selectedHeroKey,
+    moodImages: moodImages.map((image, index) => ({
+      imagePath: image.path,
+      sortOrder: index + 1,
+      url: image.previewUrl,
+    })),
+    preferCustomWhenUnset: false,
+  });
+  const reviewCategories = categories
+    .filter((category) => selectedExperiences.includes(category.id))
+    .map((category) => ({ name: category.name }));
+  const reviewPlace = facilitatorProfile.is_online_facilitator
+    ? "Online arrangør"
+    : [facilitatorProfile.city, facilitatorProfile.country].filter(Boolean).join(", ") || null;
+  const fullProfileHref = facilitatorProfile.id
+    ? "/facilitators/" +
+      facilitatorProfile.id +
+      (adminReturnTo
+        ? "?admin_return=" + encodeURIComponent(adminReturnTo)
+        : presentationMode === "admin"
+          ? "?admin_return=" + encodeURIComponent(backHref)
+          : "?facilitator_return=/facilitator")
+    : null;
+  type HeroPickerOption = {
+    altText: string;
+    description: string;
+    disabled?: boolean;
+    imagePath: string;
+    key: FacilitatorHeroKey;
+    label: string;
+    objectPositionDesktop: string;
+    objectPositionMobile: string;
+  };
+  const souleventsHeroOptions: HeroPickerOption[] = [
+    ...facilitatorHeroOptions,
+  ];
+  const moodHeroOptions: HeroPickerOption[] = moodImages.reduce<HeroPickerOption[]>((options, image, index) => {
+      const key = `mood_${index + 1}` as FacilitatorHeroKey;
+      const hasImage = Boolean(image.previewUrl);
+
+      if (!hasImage && selectedHeroKey !== key) return options;
+
+      options.push({
+        altText: `Stemningsbillede ${index + 1}`,
+        description: hasImage ? "Brug dette billede som banner." : "Ikke uploadet endnu",
+        disabled: !hasImage,
+        imagePath: hasImage ? image.previewUrl : facilitatorHeroOptions[0].imagePath,
+        key,
+        label: `Stemningsbillede ${index + 1}`,
+        objectPositionDesktop: "center center",
+        objectPositionMobile: "center center",
+      });
+
+      return options;
+    }, []);
+
+  function renderHeroOption(option: HeroPickerOption) {
+    const selected = selectedHeroKey === option.key;
+
+    return (
+      <button
+        aria-disabled={option.disabled}
+        aria-pressed={selected}
+        className={
+          "grid min-h-[118px] grid-cols-[96px_1fr] overflow-hidden rounded-[20px] border text-left shadow-soft transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 " +
+          (selected ? "border-sage-700/45 bg-sage-50" : "border-midnight/10 bg-white hover:border-sage-700/30") +
+          (option.disabled ? " cursor-not-allowed opacity-72" : " hover:-translate-y-0.5")
+        }
+        key={option.key}
+        onClick={() => {
+          if (!option.disabled) {
+            setSelectedHeroKey(option.key);
+          }
+        }}
+        type="button"
+      >
+        <span className="relative h-full w-full">
+          <Image alt="" className="object-cover" fill sizes="96px" src={option.imagePath} unoptimized />
+        </span>
+        <span className="grid content-center gap-1 p-3">
+          <span className="flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-midnight">{option.label}</span>
+            <Circle className={selected ? "size-4 shrink-0 fill-sage-700/15 text-sage-700" : "size-4 shrink-0 text-sage-700/45"} aria-hidden="true" />
+          </span>
+          <span className="text-xs leading-5 text-ink/55">{option.description}</span>
+        </span>
+      </button>
+    );
+  }
+
+  const heroPicker = (
+    <section className="grid gap-4">
+      <div>
+        <p className="text-sm font-semibold text-midnight">Vælg banner til din offentlige profil</p>
+        <p className="mt-1 text-sm leading-6 text-ink/55">
+          Vælg et SoulEvents-naturbanner eller et af dine egne stemningsbilleder. Naturbannerne er tilpasset profilens brede format.
+        </p>
+      </div>
+
+      <div className="overflow-hidden rounded-[24px] bg-midnight shadow-soft">
+        <div className="relative aspect-[16/7] min-h-[180px]">
+          <Image
+            alt={heroPreview.altText}
+            className="object-cover"
+            fill
+            sizes="(min-width: 768px) 640px, 100vw"
+            src={heroPreview.url}
+            unoptimized
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(44,51,35,0.78)_0%,rgba(69,56,82,0.38)_54%,rgba(69,56,82,0.08)_100%)]" />
+          <div className="relative z-10 flex h-full max-w-sm flex-col justify-end p-5 text-white sm:p-6">
+            <span className="text-xs font-bold uppercase tracking-[0.22em] text-white/78">Sådan vises banneret på din profil</span>
+            <p className="mt-2 font-serif text-3xl font-semibold leading-tight">{heroPreview.label}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">SoulEvents naturbannere</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {souleventsHeroOptions.map(renderHeroOption)}
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Dine stemningsbilleder</p>
+        {moodHeroOptions.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {moodHeroOptions.map(renderHeroOption)}
+          </div>
+        ) : (
+          <p className="rounded-[18px] bg-white/70 px-4 py-3 text-sm leading-6 text-ink/55">
+            Upload stemningsbilleder ovenfor, hvis du vil bruge et af dine egne billeder som banner.
+          </p>
+        )}
+      </div>
+
+      {isMoodHeroKey(selectedHeroKey) && !moodImages[Number(selectedHeroKey.replace("mood_", "")) - 1]?.previewUrl ? (
+        <p className="rounded-[18px] bg-[#FFF7DE] px-4 py-3 text-sm font-semibold leading-6 text-[#715C21]">
+          Det valgte stemningsbillede findes ikke længere. Vælg et nyt banner, før du gemmer.
+        </p>
+      ) : null}
+    </section>
+  );
+
   const moodImageTiles = (
     <>
       {moodImages.map((image, index) => (
@@ -1144,6 +1315,8 @@ export function ProfileForm({
           {moodImageTiles}
         </div>
       </section>
+
+      {heroPicker}
     </div>
   );
 
@@ -1397,51 +1570,112 @@ export function ProfileForm({
       {currentStep.id === "review" && (
         <div className="rounded-[34px] border border-midnight/5 bg-[#F4F0E9] p-4 shadow-soft sm:p-6">
           <div className="grid gap-5">
-            <ReviewJump label="Rediger navn" onClick={() => editFromReview("person")} className="p-2 -m-2">
-              <div className="grid gap-3">
-                <h3 className="break-words text-4xl font-semibold leading-tight text-midnight sm:text-5xl">{publicProfileName || "Profilnavn mangler"}</h3>
-              </div>
-            </ReviewJump>
-
-            <ReviewJump label="Rediger arbejdsområder" onClick={() => editFromReview("experiences")} className="p-2 -m-2">
-              <div className="grid gap-3">
-                {hasWorkArea ? (
-                  <div className="grid gap-3">
-                    <div className="flex flex-wrap gap-2">
-                      {categories
-                        .filter((category) => selectedExperiences.includes(category.id))
-                        .map((category) => (
-                          <span className="rounded-full border border-sage-700/15 bg-sage-50 px-3 py-1.5 text-sm font-semibold text-sage-700" key={category.id}>
-                            {category.name}
-                          </span>
-                        ))}
-                    </div>
-                    {specialtyChips.map((specialty) => (
-                      <div className="h-auto max-w-full whitespace-normal break-words rounded-[18px] border border-[#D8CBE4] bg-[#F1EAF5] px-4 py-3 text-[15px] font-medium leading-6 text-midnight [overflow-wrap:anywhere]" key={specialty}>
-                        {specialty}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-[22px] bg-[#FFF7DE] p-4 text-sm font-semibold leading-6 text-[#715C21]">
-                    Du mangler at vælge mindst ét arbejdsområde.
-                  </div>
-                )}
-                {hasWorkArea && specialtyChips.length === 0 ? (
-                  <p className="text-sm leading-6 text-ink/55">Du kan tilføje et konkret speciale, hvis du vil gøre profilen mere præcis.</p>
-                ) : null}
+            <section className="grid gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Dit valgte profilbanner</p>
+                  <p className="mt-1 text-sm leading-6 text-ink/60">
+                    Banneret bruges øverst på din offentlige profil. Hele profilvisningen åbnes separat.
+                  </p>
                 </div>
-            </ReviewJump>
+                <button
+                  className="inline-flex h-10 w-fit items-center rounded-full bg-white px-4 text-sm font-semibold text-midnight shadow-soft transition hover:bg-sage-50"
+                  onClick={() => editFromReview("profile-image")}
+                  type="button"
+                >
+                  Rediger banner
+                </button>
+              </div>
 
-            <ReviewJump label="Rediger profilbillede" onClick={() => editFromReview("profile-image")}>
-              <div className="aspect-square w-full overflow-hidden rounded-[30px] bg-sage-50 text-sage-700 shadow-soft">
+              <div className="overflow-hidden rounded-[28px] bg-midnight shadow-soft">
+                <div className="relative aspect-[16/7] max-h-[220px] min-h-[160px] sm:min-h-[190px] lg:max-h-[240px]">
+                  <Image
+                    alt={heroPreview.altText}
+                    className="object-cover"
+                    fill
+                    sizes="(min-width: 1024px) 560px, 100vw"
+                    src={heroPreview.url}
+                    style={{ objectPosition: heroPreview.objectPositionDesktop ?? "center center" }}
+                    unoptimized
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-semibold text-ink/60">Valgt banner: {heroPreview.label}</p>
+                {fullProfileHref ? (
+                  <Link
+                    className="inline-flex h-10 w-fit items-center gap-2 rounded-full border border-sage-700/20 bg-white px-4 text-sm font-semibold text-sage-700 shadow-soft transition hover:border-sage-700/40 hover:bg-sage-50"
+                    href={fullProfileHref}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Se fuld profilvisning
+                    <ExternalLink className="size-4" aria-hidden="true" />
+                  </Link>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="grid gap-3 rounded-[26px] bg-white/70 p-4 sm:grid-cols-[112px_minmax(0,1fr)] sm:p-5">
+              <button
+                className="group aspect-square overflow-hidden rounded-[24px] bg-sage-50 text-sage-700 transition hover:ring-2 hover:ring-sage-700/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
+                onClick={() => editFromReview("profile-image")}
+                type="button"
+              >
+                <span className="sr-only">Rediger profilbillede</span>
                 {profileImageUrl ? (
-                  <img alt="" className="h-full w-full object-cover" src={profileImageUrl} />
+                  <img alt="" className="h-full w-full object-cover transition group-hover:scale-[1.02]" src={profileImageUrl} />
                 ) : (
                   <span className="grid h-full place-items-center">
-                    <Camera className="size-12" aria-hidden="true" />
+                    <Camera className="size-8" aria-hidden="true" />
                   </span>
                 )}
+              </button>
+              <button
+                className="min-w-0 rounded-[20px] p-2 text-left transition hover:bg-white/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
+                onClick={() => editFromReview("person")}
+                type="button"
+              >
+                <span className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Profilnavn</span>
+                <span className="mt-2 block break-words font-serif text-3xl font-semibold leading-tight text-midnight">
+                  {publicProfileName || "Profilnavn mangler"}
+                </span>
+                {reviewPlace ? <span className="mt-2 block text-sm font-semibold text-ink/55">{reviewPlace}</span> : null}
+              </button>
+            </section>
+
+            <ReviewJump label="Rediger arbejdsområder og speciale" onClick={() => editFromReview("experiences")} className="p-2 -m-2">
+              <div className="grid gap-4 rounded-[26px] bg-white/70 p-4 sm:p-5">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Arbejdsområder</p>
+                  {reviewCategories.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {reviewCategories.map((category) => (
+                        <span className="rounded-full bg-[#EDF3EA] px-3 py-1.5 text-xs font-semibold text-[#4F6849]" key={category.name}>
+                          {category.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 rounded-[18px] bg-[#FFF7DE] px-4 py-3 text-sm font-semibold leading-6 text-[#715C21]">
+                      Vælg mindst ét arbejdsområde.
+                    </p>
+                  )}
+                </div>
+                {specialtyChips.length > 0 ? (
+                  <div className="grid gap-2">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Beskrivelse af speciale</p>
+                    {specialtyChips.map((specialty) => (
+                      <p
+                        className="rounded-[18px] bg-[#F1EAF5] px-4 py-3 text-sm font-semibold leading-6 text-[#2F2437] [overflow-wrap:anywhere]"
+                        key={specialty}
+                      >
+                        {specialty}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </ReviewJump>
 

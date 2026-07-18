@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1000" role="img" aria-label="Morgendis over stille SoulEvents landskab">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#d8d8cf"/>
+      <stop offset="0.48" stop-color="#e9e3d7"/>
+      <stop offset="1" stop-color="#b7bba6"/>
+    </linearGradient>
+    <linearGradient id="mist" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#f8f3ea" stop-opacity="0.06"/>
+      <stop offset="0.5" stop-color="#f8f3ea" stop-opacity="0.62"/>
+      <stop offset="1" stop-color="#f8f3ea" stop-opacity="0.08"/>
+    </linearGradient>
+  </defs>
+  <rect width="1800" height="1000" fill="url(#sky)"/>
+  <circle cx="1330" cy="255" r="130" fill="#f1d7a6" opacity="0.52"/>
+  <path d="M0 645 C230 555 420 600 640 520 C860 440 1030 460 1230 400 C1440 338 1620 372 1800 315 L1800 1000 L0 1000 Z" fill="#758169" opacity="0.62"/>
+  <path d="M0 730 C285 620 500 660 735 588 C980 512 1150 545 1380 474 C1550 420 1700 440 1800 405 L1800 1000 L0 1000 Z" fill="#4e5f49" opacity="0.58"/>
+  <path d="M0 804 C280 730 500 720 780 675 C1040 633 1260 650 1510 585 C1650 550 1740 548 1800 535 L1800 1000 L0 1000 Z" fill="#2f4637" opacity="0.58"/>
+  <rect y="430" width="1800" height="190" fill="url(#mist)"/>
+  <rect y="575" width="1800" height="180" fill="url(#mist)" opacity="0.55"/>
+  <rect width="1800" height="1000" fill="#2f2437" opacity="0.08"/>
+</svg>

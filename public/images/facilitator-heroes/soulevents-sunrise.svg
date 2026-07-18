@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1000" role="img" aria-label="Solopgang over roligt nordisk landskab">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#c9c6d5"/>
+      <stop offset="0.42" stop-color="#f1c99f"/>
+      <stop offset="0.72" stop-color="#eadfca"/>
+      <stop offset="1" stop-color="#879875"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="52%" cy="38%" r="28%">
+      <stop offset="0" stop-color="#fff0bf" stop-opacity="0.9"/>
+      <stop offset="0.42" stop-color="#e7a876" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#e7a876" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1800" height="1000" fill="url(#sky)"/>
+  <rect width="1800" height="1000" fill="url(#sun)"/>
+  <path d="M0 635 C210 575 430 575 620 520 C840 456 1020 490 1220 430 C1425 367 1625 360 1800 310 L1800 1000 L0 1000 Z" fill="#6b7258" opacity="0.74"/>
+  <path d="M0 745 C230 682 420 692 690 630 C930 575 1120 605 1390 535 C1550 492 1690 492 1800 455 L1800 1000 L0 1000 Z" fill="#47573f" opacity="0.72"/>
+  <path d="M0 835 C220 760 470 768 760 716 C1020 670 1240 690 1500 640 C1655 610 1730 612 1800 590 L1800 1000 L0 1000 Z" fill="#2f3f34" opacity="0.7"/>
+  <rect y="520" width="1800" height="150" fill="#fff5dd" opacity="0.18"/>
+  <rect width="1800" height="1000" fill="#2f2437" opacity="0.08"/>
+</svg>

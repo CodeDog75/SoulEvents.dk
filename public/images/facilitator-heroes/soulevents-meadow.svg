@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1000" role="img" aria-label="Nordisk eng med blide grønne toner">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#dfe4d9"/>
+      <stop offset="0.54" stop-color="#f0e7d3"/>
+      <stop offset="1" stop-color="#9daf89"/>
+    </linearGradient>
+  </defs>
+  <rect width="1800" height="1000" fill="url(#sky)"/>
+  <path d="M0 620 C220 565 470 640 730 570 C1020 492 1320 560 1800 480 L1800 1000 L0 1000 Z" fill="#9baa7a" opacity="0.8"/>
+  <path d="M0 740 C280 690 500 760 820 705 C1130 650 1410 718 1800 655 L1800 1000 L0 1000 Z" fill="#738961" opacity="0.7"/>
+  <path d="M0 855 C280 800 570 830 890 795 C1190 762 1450 800 1800 748 L1800 1000 L0 1000 Z" fill="#526a4e" opacity="0.72"/>
+  <g fill="none" stroke="#f4eddb" stroke-linecap="round" opacity="0.5">
+    <path d="M220 820 C250 760 270 700 310 650" stroke-width="5"/>
+    <path d="M580 870 C620 785 640 730 690 675" stroke-width="4"/>
+    <path d="M1270 825 C1308 750 1338 690 1380 640" stroke-width="5"/>
+    <path d="M1500 880 C1540 790 1570 730 1620 660" stroke-width="4"/>
+  </g>
+  <g fill="#f0d5e5" opacity="0.7">
+    <circle cx="316" cy="644" r="11"/>
+    <circle cx="692" cy="672" r="10"/>
+    <circle cx="1383" cy="637" r="11"/>
+    <circle cx="1622" cy="657" r="10"/>
+  </g>
+  <rect width="1800" height="1000" fill="#2f2437" opacity="0.07"/>
+</svg>

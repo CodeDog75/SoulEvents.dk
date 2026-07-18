@@ -1,6 +1,7 @@
 import { fetchOpenGraphRows, getHomepageOpenGraphImageUrl } from "@/lib/open-graph-data";
-import { storagePublicUrl, stripHtml } from "@/lib/open-graph-core";
+import { absoluteUrl, storagePublicUrl, stripHtml } from "@/lib/open-graph-core";
 import { renderOpenGraphImage } from "@/lib/open-graph-render";
+import { resolveFacilitatorHero } from "@/lib/facilitators/hero-collection";
 
 export const alt = "Arrangør på SoulEvents.dk";
 export const contentType = "image/png";
@@ -12,6 +13,7 @@ export const size = {
 
 type FacilitatorOpenGraphRow = {
   company_name: string | null;
+  facilitator_hero_key: string | null;
   facilitator_images?: Array<{ image_path: string | null; sort_order: number | null }> | null;
   long_description: string | null;
   profile_image_path: string | null;
@@ -23,14 +25,10 @@ type OpenGraphImageProps = {
   params: Promise<{ id: string }>;
 };
 
-function firstGalleryImagePath(images: FacilitatorOpenGraphRow["facilitator_images"]) {
-  return [...(images ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).find((image) => image.image_path)?.image_path ?? null;
-}
-
 export default async function FacilitatorOpenGraphImage({ params }: OpenGraphImageProps) {
   const { id } = await params;
   const rows = await fetchOpenGraphRows<FacilitatorOpenGraphRow>(
-    "facilitator_profiles?select=company_name,profile_image_path,short_description,long_description,profiles!facilitator_profiles_profile_id_fkey(full_name),facilitator_images(image_path,sort_order)&id=eq." +
+    "facilitator_profiles?select=company_name,facilitator_hero_key,profile_image_path,short_description,long_description,profiles!facilitator_profiles_profile_id_fkey(full_name),facilitator_images(image_path,sort_order)&id=eq." +
       encodeURIComponent(id) +
       "&status=eq.approved&is_paused=eq.false&is_disabled=eq.false&limit=1",
   );
@@ -45,8 +43,17 @@ export default async function FacilitatorOpenGraphImage({ params }: OpenGraphIma
   }
 
   const name = facilitator.company_name || facilitator.profiles?.full_name || "Arrangør";
-  const imagePath = facilitator.profile_image_path || firstGalleryImagePath(facilitator.facilitator_images);
-  const imageUrl = storagePublicUrl(imagePath) ?? (await getHomepageOpenGraphImageUrl());
+  const hero = resolveFacilitatorHero({
+    heroKey: facilitator.facilitator_hero_key,
+    moodImages: (facilitator.facilitator_images ?? []).map((image) => ({
+      imagePath: image.image_path,
+      sortOrder: image.sort_order,
+    })),
+    preferCustomWhenUnset: true,
+    resolveImagePath: (imagePath) => storagePublicUrl(imagePath),
+  });
+  const heroImageUrl = hero.source === "collection" ? absoluteUrl(hero.url) : hero.url;
+  const imageUrl = storagePublicUrl(facilitator.profile_image_path) ?? heroImageUrl ?? (await getHomepageOpenGraphImageUrl());
   const description = stripHtml(facilitator.short_description || facilitator.long_description) || "Find arrangørprofil på SoulEvents.dk.";
 
   return renderOpenGraphImage({

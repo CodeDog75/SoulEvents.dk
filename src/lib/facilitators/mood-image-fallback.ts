@@ -1,4 +1,4 @@
-export const defaultFacilitatorMoodImageUrl = "/facilitator/onboarding-nature.png";
+export const defaultFacilitatorMoodImageUrl = "/images/facilitator-heroes/soulevents-mist.svg";
 
 export type FacilitatorMoodImageSource = {
   altText?: string | null;

@@ -6,6 +6,7 @@ import { requireProfile } from "@/lib/auth/roles";
 import { resolveNameParts } from "@/lib/auth/names";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { profileApprovalUrl, sendFacilitatorProfileReadyEmail } from "@/lib/email/facilitator-profile-ready";
+import { isMoodHeroKey, moodHeroKeyToSortOrder, normalizeFacilitatorHeroKey } from "@/lib/facilitators/hero-collection";
 import { normalizeFacilitatorMoodImagePaths, normalizeFacilitatorMoodImageSlots } from "@/lib/facilitators/mood-image-slots";
 import { getFacilitatorProfileReadiness, getFacilitatorSubmissionReadiness } from "@/lib/facilitators/profile-readiness";
 import { facilitatorWorkAreaSlugs } from "@/lib/facilitators/work-areas";
@@ -465,7 +466,7 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
     return { message: "Du har ikke adgang til at redigere denne arrangørprofil.", ok: false };
   }
 
-  const profileLookup = supabase.from("facilitator_profiles").select("id, profile_id");
+  const profileLookup = supabase.from("facilitator_profiles").select("id, profile_id, facilitator_images(image_path, sort_order)");
   const { data: existingProfile, error: existingProfileError } = adminTargetFacilitatorId
     ? await profileLookup.eq("id", adminTargetFacilitatorId).single()
     : await profileLookup.eq("profile_id", profile.id).single();
@@ -585,6 +586,32 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
     updates.offers_services = offersServices;
     updates.service_description = offersServices ? serviceDescription : null;
     updates.show_in_local_service_results = offersServices && showInLocalServiceResults;
+  }
+
+  if (section === "images") {
+    const heroKeyInput = valueForAutosave(input.values.facilitator_hero_key);
+    const heroKey = normalizeFacilitatorHeroKey(heroKeyInput || null);
+
+    if (!heroKey) {
+      return { message: "Vælg et gyldigt hero-billede.", ok: false };
+    }
+
+    const moodSortOrder = moodHeroKeyToSortOrder(heroKey);
+    const hasSelectedMoodImage = Boolean(
+      moodSortOrder &&
+        existingProfile.facilitator_images?.some(
+          (image: { image_path: string | null; sort_order: number | null }) => image.sort_order === moodSortOrder && image.image_path,
+        ),
+    );
+
+    if (isMoodHeroKey(heroKey) && !hasSelectedMoodImage) {
+      return {
+        message: "Upload først det valgte stemningsbillede, før du bruger det som banner.",
+        ok: false,
+      };
+    }
+
+    updates.facilitator_hero_key = heroKey;
   }
 
   let autosaveCategoryDebug: ReturnType<typeof categoryDebugContext> | null = null;
@@ -1275,6 +1302,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   const shortDescription = getString(formData, "short_description");
   const longDescription = getString(formData, "long_description");
   let profileImagePath = getOptionalString(formData, "profile_image_path");
+  const facilitatorHeroKeyInput = getOptionalString(formData, "facilitator_hero_key");
   const publicEmail = getOptionalString(formData, "public_email");
   const publicPhone = getOptionalString(formData, "public_phone");
   const websiteUrl = getOptionalString(formData, "website_url");
@@ -1392,6 +1420,15 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       adminProfileRedirect("Billedstier må højst være 300 tegn.", adminReturnTo, "images");
     }
     profileRedirect("Billedstier må højst være 300 tegn.", redirectOrigin, "images");
+  }
+
+  const facilitatorHeroKey = normalizeFacilitatorHeroKey(facilitatorHeroKeyInput || null);
+
+  if (savesSection(section, "images") && facilitatorHeroKeyInput && !facilitatorHeroKey) {
+    if (isAdminEdit) {
+      adminProfileRedirect("Vælg et gyldigt hero-billede.", adminReturnTo, "images");
+    }
+    profileRedirect("Vælg et gyldigt hero-billede.", redirectOrigin, "images");
   }
 
   if (savesSection(section, "contact") && !companyName) {
@@ -1532,6 +1569,23 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     }
 
     facilitatorUpdates.profile_image_path = profileImagePath || null;
+
+    if (facilitatorHeroKey) {
+      const moodSortOrder = moodHeroKeyToSortOrder(facilitatorHeroKey);
+      const hasSelectedMoodImage = Boolean(
+        moodSortOrder &&
+          (galleryPaths[moodSortOrder - 1] || existingGalleryPaths[moodSortOrder - 1]),
+      );
+
+      if (isMoodHeroKey(facilitatorHeroKey) && !hasSelectedMoodImage) {
+        if (isAdminEdit) {
+          adminProfileRedirect("Upload først det valgte stemningsbillede, før du bruger det som banner.", adminReturnTo, "images");
+        }
+        profileRedirect("Upload først det valgte stemningsbillede, før du bruger det som banner.", redirectOrigin, "images");
+      }
+
+      facilitatorUpdates.facilitator_hero_key = facilitatorHeroKey;
+    }
   }
 
   if (savesSection(section, "services")) {

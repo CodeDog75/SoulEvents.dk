@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1000" role="img" aria-label="Bål og varme i roligt aftenlandskab">
+  <defs>
+    <linearGradient id="night" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#383047"/>
+      <stop offset="0.58" stop-color="#2e3b34"/>
+      <stop offset="1" stop-color="#1f2925"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="57%" cy="70%" r="32%">
+      <stop offset="0" stop-color="#efb06e" stop-opacity="0.92"/>
+      <stop offset="0.45" stop-color="#c97858" stop-opacity="0.36"/>
+      <stop offset="1" stop-color="#c97858" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1800" height="1000" fill="url(#night)"/>
+  <rect width="1800" height="1000" fill="url(#glow)"/>
+  <path d="M0 720 C250 635 460 694 720 630 C1000 560 1250 628 1800 535 L1800 1000 L0 1000 Z" fill="#24372f" opacity="0.78"/>
+  <path d="M0 842 C270 760 540 820 850 760 C1130 708 1440 760 1800 690 L1800 1000 L0 1000 Z" fill="#1c2925" opacity="0.9"/>
+  <g transform="translate(970 690)">
+    <ellipse cx="0" cy="155" rx="260" ry="44" fill="#151d1b" opacity="0.5"/>
+    <path d="M-56 135 L90 60" stroke="#2b1b16" stroke-width="22" stroke-linecap="round"/>
+    <path d="M82 138 L-72 58" stroke="#2b1b16" stroke-width="22" stroke-linecap="round"/>
+    <path d="M0 0 C54 62 58 122 3 182 C-44 122 -42 56 0 0Z" fill="#f0a75d"/>
+    <path d="M-20 56 C20 92 22 132 -8 172 C-42 130 -42 90 -20 56Z" fill="#f7d08b"/>
+    <path d="M35 68 C74 106 70 145 36 174 C22 130 14 96 35 68Z" fill="#d96e52"/>
+  </g>
+  <rect width="1800" height="1000" fill="#2f2437" opacity="0.08"/>
+</svg>
