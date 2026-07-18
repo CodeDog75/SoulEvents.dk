@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import Image from "next/image";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -19,12 +20,12 @@ import {
   Star,
   Tags,
   UserCog,
+  UserRound,
   UsersRound,
 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";
-import { RequestFacilitatorChangesDialog } from "@/components/admin/reject-facilitator-dialog";
+import { FacilitatorStatusBadge } from "@/components/admin/facilitator-status-badge";
 import { SignOutButton } from "@/components/auth/sign-out-button";
-import { updateFacilitatorStatusAction } from "@/app/admin/facilitators/actions";
 import { requireRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -41,6 +42,92 @@ function formatNumber(value: number | null | undefined) {
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "Tidspunkt mangler";
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "Dato mangler";
+  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium" }).format(new Date(value));
+}
+
+function waitTimeText(value: string | null | undefined) {
+  if (!value) return "Ventetid ukendt";
+  const createdAt = new Date(value);
+  const now = new Date();
+  const days = Math.max(0, Math.floor((now.getTime() - createdAt.getTime()) / (24 * 60 * 60 * 1000)));
+  if (days === 0) return "Oprettet i dag";
+  if (days === 1) return "Har ventet 1 dag";
+  return "Har ventet " + days + " dage";
+}
+
+function textExcerpt(value: string | null | undefined) {
+  const text = (value ?? "").trim().replace(/\s+/g, " ");
+  if (!text) return "Ingen profiltekst endnu.";
+  return text.length > 120 ? text.slice(0, 117).trimEnd() + "..." : text;
+}
+
+function facilitatorCenterHref(facilitator: { id: string; status?: string | null }) {
+  const params = new URLSearchParams({
+    highlight: facilitator.id,
+    q: facilitator.id,
+    status: facilitator.status === "changes_requested" ? "changes_requested" : "pending",
+  });
+
+  return "/admin/users?" + params.toString();
+}
+
+function DashboardFacilitatorCard({
+  facilitator,
+  profile,
+  profileImageUrl,
+}: {
+  facilitator: any;
+  profile: any;
+  profileImageUrl: string | null;
+}) {
+  const displayName = facilitator.company_name || profile?.full_name || "Uden navn";
+  const location = [facilitator.postal_code, facilitator.city].filter(Boolean).join(" ") || "Lokation mangler";
+  const centerHref = facilitatorCenterHref(facilitator);
+
+  return (
+    <article className="rounded-[22px] border border-midnight/10 bg-[#fbfaf7] p-3 shadow-soft transition hover:border-sage-700/30">
+      <div className="grid gap-3 sm:grid-cols-[5.5rem_minmax(0,1fr)]">
+        <div className="relative size-[5.5rem] overflow-hidden rounded-[16px] border border-midnight/10 bg-[#F4F0EA]">
+          {profileImageUrl ? (
+            <Image alt="" className="object-cover" fill sizes="88px" src={profileImageUrl} />
+          ) : (
+            <div className="grid size-full place-items-center text-sage-700">
+              <UserRound className="size-8" aria-hidden="true" />
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <FacilitatorStatusBadge facilitator={facilitator} />
+            {facilitator.host_reference_id ? (
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/60 shadow-soft">{facilitator.host_reference_id}</span>
+            ) : null}
+          </div>
+
+          <h3 className="mt-3 break-words text-base font-semibold leading-tight text-midnight">{displayName}</h3>
+          <p className="mt-1 truncate text-xs font-semibold text-ink/52">{location}</p>
+          <p className="mt-1 text-xs font-semibold text-ink/52" title={formatDate(facilitator.created_at)}>
+            {waitTimeText(facilitator.created_at)}
+          </p>
+          <p className="mt-3 line-clamp-2 text-sm leading-5 text-ink/68">
+            {textExcerpt(facilitator.short_description || facilitator.long_description)}
+          </p>
+        </div>
+      </div>
+
+      <Link
+        className="mt-4 inline-flex min-h-10 w-full items-center justify-center whitespace-nowrap rounded-full bg-midnight px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-900"
+        href={centerHref}
+      >
+        Åbn i Arrangørcenter
+      </Link>
+    </article>
+  );
 }
 
 export default async function AdminPage({ searchParams }: AdminPageProps) {
@@ -73,7 +160,14 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "pending_review"),
     supabase.from("bookings").select("id", { count: "exact", head: true }).gte("created_at", thirtyDaysAgo.toISOString()),
     supabase.from("facilitator_event_reminders").select("id", { count: "exact", head: true }).eq("status", "active"),
-    supabase.from("facilitator_profiles").select("id, host_reference_id, status, company_name, created_at, profiles!facilitator_profiles_profile_id_fkey(full_name, email)").order("created_at", { ascending: false }).limit(5),
+    supabase
+      .from("facilitator_profiles")
+      .select("id, host_reference_id, status, is_paused, is_disabled, company_name, profile_image_path, city, postal_code, short_description, long_description, created_at, profiles!facilitator_profiles_profile_id_fkey(full_name)")
+      .in("status", ["pending", "changes_requested"])
+      .eq("is_paused", false)
+      .eq("is_disabled", false)
+      .order("created_at", { ascending: false })
+      .limit(6),
     supabase.from("events").select("id, title, status, starts_at, created_at, updated_at, facilitator_profiles(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))").order("created_at", { ascending: false }).limit(5),
     supabase.from("bookings").select("id, participant_name, created_at, events(title)").order("created_at", { ascending: false }).limit(5),
     supabase
@@ -107,10 +201,13 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { href: "/admin/ads", title: "Reklamer / partnerindhold", text: "Styr diskrete reklamer på forsiden og hovedkategorisider.", icon: Megaphone },
     { href: "/admin/featured-facilitators", title: "Fremhævede arrangører", text: "Vælg hvem der skal vises særskilt på forsiden.", icon: Star },
     { href: "/admin/settings", title: "Platformindstillinger", text: "Styr grænser for kladder og aktive events per arrangør.", icon: SlidersHorizontal },
-    { href: "/admin/users", title: "Arrangører og admin", text: "Find arrangører og styr adminadgang.", icon: UserCog },
+    { href: "/admin/users", title: "Arrangørcenter", text: "Find arrangører, events og styr adminadgang.", icon: UserCog },
     { href: "/admin/legal", title: "Juridiske dokumenter", text: "Opdater betingelser, privatliv og retningslinjer.", icon: Scale },
     { href: "/admin/reports", title: "Rapporter og eksport", text: "Excel-eksport til statistik, status og dokumentation.", icon: FileText },
   ];
+  const facilitatorReviewCount = (pendingFacilitators ?? 0) + (changesRequestedFacilitators ?? 0);
+  const dashboardFacilitators = (recentFacilitators ?? []).slice(0, 5);
+  const hasMoreDashboardFacilitators = (recentFacilitators ?? []).length > 5;
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -144,7 +241,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
             <form action="/admin/users" className="grid gap-2">
               <label className="text-sm font-semibold text-midnight" htmlFor="admin-organizer-search">
-                Søg arrangør eller admin
+                Søg arrangør eller event
               </label>
               <div className="flex min-w-0 gap-2">
                 <div className="relative min-w-0 flex-1">
@@ -153,7 +250,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
                     id="admin-organizer-search"
                     name="q"
-                    placeholder="Søg navn, kaldenavn, firma, e-mail, by eller medlemsnummer"
+                    placeholder="Søg arrangørnavn, e-mail, by, medlemsnummer, eventtitel eller event-id"
                   />
                 </div>
                 <button className="h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">
@@ -207,8 +304,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="#admin-new-facilitators">
               <p className="font-semibold text-midnight">Nye arrangører</p>
-              <p className="mt-1 text-sm text-ink/64">Profiler der afventer godkendelse.</p>
-              <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">{formatNumber(pendingFacilitators)}</span>
+              <p className="mt-1 text-sm text-ink/64">Profiler der afventer behandling.</p>
+              <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">{formatNumber(facilitatorReviewCount)}</span>
             </Link>
             <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="/admin/events?status=pending_review">
               <p className="font-semibold text-midnight">Events til godkendelse</p>
@@ -245,56 +342,45 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
         <div className="mt-6 grid gap-4 lg:grid-cols-3">
           <section id="admin-new-facilitators" className="scroll-mt-24 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-            <h2 className="font-semibold text-midnight">Nye arrangører</h2>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-midnight">Nye arrangører</h2>
+                <p className="mt-1 text-sm text-ink/64">Profiler, der afventer din behandling.</p>
+              </div>
+              <Link className="text-sm font-semibold text-sage-700 transition hover:text-terracotta" href="/admin/users?sort=priority">
+                Åbn Arrangørcenter
+              </Link>
+            </div>
             <div className="mt-4 grid gap-3">
-              {(recentFacilitators ?? []).map((facilitator: any) => {
+              {dashboardFacilitators.length === 0 ? (
+                <div className="rounded-[18px] border border-midnight/10 bg-[#fbfaf7] p-4 text-sm leading-6 text-ink/64">
+                  <p className="font-semibold text-midnight">Ingen nye profiler afventer behandling</p>
+                  <p className="mt-1">Du er ajour med arrangørgodkendelserne.</p>
+                </div>
+              ) : null}
+              {dashboardFacilitators.map((facilitator: any) => {
                 const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
-                const facilitatorName = facilitator.company_name || profile?.full_name || "Uden navn";
+                const profileImageUrl = facilitator.profile_image_path
+                  ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
+                  : null;
+
                 return (
-                  <div className="rounded-md bg-sage-50 p-3" key={facilitator.id}>
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <p className="font-semibold text-midnight">{facilitatorName}</p>
-                      {facilitator.host_reference_id && (
-                        <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-sage-700">
-                          {facilitator.host_reference_id}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-ink/64">
-                      {new Intl.DateTimeFormat("da-DK").format(new Date(facilitator.created_at))} · {facilitator.status}
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Link
-                        className="inline-flex min-h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-3 text-xs font-semibold text-ink/70 transition hover:border-sage-700 hover:text-sage-700"
-                        href={"/facilitators/" + facilitator.id + "?admin_return=/admin%23admin-new-facilitators"}
-                      >
-                        Se profil
-                      </Link>
-                      <Link
-                        className="inline-flex min-h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-3 text-xs font-semibold text-ink/70 transition hover:border-sage-700 hover:text-sage-700"
-                        href={"/admin/facilitators/" + facilitator.id + "/edit"}
-                      >
-                        Rediger
-                      </Link>
-                      {facilitator.status === "pending" && (
-                        <>
-                          <RequestFacilitatorChangesDialog facilitatorId={facilitator.id} facilitatorName={facilitatorName} />
-                          <form action={updateFacilitatorStatusAction}>
-                            <input name="facilitator_id" type="hidden" value={facilitator.id} />
-                            <input name="status" type="hidden" value="approved" />
-                            <button
-                              className="inline-flex min-h-9 items-center justify-center rounded-full bg-sage-700 px-3 text-xs font-semibold text-white shadow-soft transition hover:bg-sage-800"
-                              type="submit"
-                            >
-                              Godkend
-                            </button>
-                          </form>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  <DashboardFacilitatorCard
+                    facilitator={facilitator}
+                    key={facilitator.id}
+                    profile={profile}
+                    profileImageUrl={profileImageUrl}
+                  />
                 );
               })}
+              {hasMoreDashboardFacilitators ? (
+                <Link
+                  className="inline-flex min-h-10 items-center justify-center rounded-full border border-midnight/10 bg-white px-4 text-sm font-semibold text-sage-700 transition hover:border-sage-700"
+                  href="/admin/users?sort=priority"
+                >
+                  Se alle profiler, der kræver handling
+                </Link>
+              ) : null}
             </div>
           </section>
 

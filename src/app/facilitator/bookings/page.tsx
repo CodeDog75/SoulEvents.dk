@@ -24,18 +24,21 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
     .eq("profile_id", profile.id)
     .single();
 
-  const nowIso = new Date().toISOString();
+  const now = new Date();
   const { data: eventOptions } = facilitatorProfile
     ? await supabase
         .from("events")
         .select("id, title, starts_at, ends_at, status, capacity, bookings(id, status, seats)")
         .eq("facilitator_id", facilitatorProfile.id)
         .in("status", ["active", "sold_out"])
-        .gte("ends_at", nowIso)
         .order("starts_at", { ascending: true })
     : { data: [] };
 
-  const selectedEvent = (eventOptions ?? []).find((eventOption) => eventOption.id === event) ?? null;
+  const currentEventOptions = (eventOptions ?? []).filter((eventOption) => {
+    const eventEndsAt = eventOption.ends_at ?? eventOption.starts_at;
+    return eventEndsAt ? new Date(eventEndsAt) >= now : false;
+  });
+  const selectedEvent = currentEventOptions.find((eventOption) => eventOption.id === event) ?? null;
 
   const { data: bookings } = selectedEvent && facilitatorProfile
     ? await supabase
@@ -75,7 +78,7 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
         <AuthMessage message={message} />
         <BookingList
           bookings={(bookings ?? []) as never}
-          eventOptions={(eventOptions ?? []) as never}
+          eventOptions={currentEventOptions as never}
           selectedEventId={selectedEvent?.id ?? null}
         />
       </section>

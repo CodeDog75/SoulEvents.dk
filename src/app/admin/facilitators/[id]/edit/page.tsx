@@ -10,6 +10,7 @@ import {
 import { AuthMessage } from "@/components/auth/auth-message";
 import { ProfileForm } from "@/components/facilitator/profile-form";
 import { requireRole } from "@/lib/auth/roles";
+import { normalizeFacilitatorMoodImageSlots } from "@/lib/facilitators/mood-image-slots";
 import { parseProfileChangeRequest } from "@/lib/facilitators/profile-change-request";
 import { facilitatorWorkAreaSlugs } from "@/lib/facilitators/work-areas";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -98,7 +99,9 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
 
   const profile = first(facilitator.profiles) as { email: string; full_name: string; id: string; phone: string | null } | null;
   const selectedCategoryIds = facilitator.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [];
-  const galleryImages = [...(facilitator.facilitator_images ?? [])].sort((a: any, b: any) => a.sort_order - b.sort_order);
+  const galleryImages = normalizeFacilitatorMoodImageSlots(
+    facilitator.facilitator_images as Array<{ alt_text: string | null; image_path: string; sort_order: number }> | null | undefined,
+  );
   const profileForForm = {
     email: profile?.email ?? "",
     full_name: profile?.full_name ?? "",

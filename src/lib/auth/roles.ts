@@ -1,9 +1,5 @@
 import { redirect } from "next/navigation";
-import {
-  disabledFacilitatorLoginMessage,
-  ensureAppProfileForAuthUser,
-  type AppProfile,
-} from "@/lib/auth/post-auth";
+import { ensureAppProfileForAuthUser, type AppProfile } from "@/lib/auth/post-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { AppRole } from "@/types/database";
@@ -44,7 +40,11 @@ export async function getCurrentProfile() {
   }
 }
 
-export async function requireProfile() {
+type RequireProfileOptions = {
+  allowDisabledFacilitator?: boolean;
+};
+
+export async function requireProfile(options: RequireProfileOptions = {}) {
   const profile = await getCurrentProfile();
 
   if (!profile) {
@@ -59,10 +59,8 @@ export async function requireProfile() {
       .eq("profile_id", profile.id)
       .maybeSingle();
 
-    if (facilitator?.is_disabled) {
-      const supabase = await createClient();
-      await supabase.auth.signOut();
-      redirect("/auth/login?message=" + encodeURIComponent(disabledFacilitatorLoginMessage));
+    if (facilitator?.is_disabled && !options.allowDisabledFacilitator) {
+      redirect("/facilitator/deactivated");
     }
   }
 

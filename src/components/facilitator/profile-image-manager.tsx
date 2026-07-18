@@ -2,11 +2,13 @@
 
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ImagePlus, Pencil, Repeat2, Trash2, Upload } from "lucide-react";
 import { type ChangeEvent, type PointerEvent, type ReactNode, type Ref, type TouchEvent, useEffect, useRef, useState } from "react";
+import { normalizeFacilitatorMoodImageSlots } from "@/lib/facilitators/mood-image-slots";
 import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
 
 type GalleryImage = {
   image_path: string;
   alt_text: string | null;
+  sort_order?: number | null;
 };
 
 type ProfileImageManagerProps = {
@@ -255,6 +257,7 @@ function SmallActionButton({
 }
 
 export function ProfileImageManager({ galleryImages, profileImagePath }: ProfileImageManagerProps) {
+  const galleryImageSlots = normalizeFacilitatorMoodImageSlots(galleryImages);
   const profileInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const cropDragRef = useRef<{
@@ -280,7 +283,7 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
       file: null,
       fileName: "",
       message: "",
-      path: galleryImages[index]?.image_path ?? "",
+      path: galleryImageSlots[index]?.image_path ?? "",
       previewUrl: "",
     })),
   );
@@ -549,7 +552,7 @@ export function ProfileImageManager({ galleryImages, profileImagePath }: Profile
       {gallery.map((slot, index) => {
         const hasImage = Boolean(slot.path || slot.previewUrl);
         return (
-          <div className="grid content-start gap-3 rounded-[22px] bg-sage-50 p-3" key={index}>
+          <div className="grid content-start gap-3 rounded-[22px] bg-sage-50 p-3" key={`gallery-slot-${index + 1}`}>
             <div className="min-h-10">
               <p className="text-sm font-semibold text-ink/80">
                 Stemningsbillede {index + 1} <span className="font-normal text-ink/50">Valgfrit</span>

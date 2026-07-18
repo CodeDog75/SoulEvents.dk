@@ -13,7 +13,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 type AdminMessagesPageProps = {
-  searchParams: Promise<{ box?: string; facilitator?: string; message?: string; q?: string; return_to?: string }>;
+  searchParams: Promise<{ body?: string; box?: string; facilitator?: string; message?: string; q?: string; return_to?: string; subject?: string }>;
 };
 
 type Mailbox = "inbox" | "sent" | "archive";
@@ -81,11 +81,13 @@ function matchesSearch(item: any, queryText: string) {
 }
 
 export default async function AdminMessagesPage({ searchParams }: AdminMessagesPageProps) {
-  const [{ box, facilitator, message, q, return_to: returnTo }] = await Promise.all([searchParams, requireRole("admin")]);
+  const [{ body, box, facilitator, message, q, return_to: returnTo, subject }] = await Promise.all([searchParams, requireRole("admin")]);
   const selectedBox = normalizeMailbox(box);
   const selectedFacilitatorId = facilitator ?? "";
   const queryText = (q ?? "").trim().toLowerCase();
   const safeReturnTo = returnTo?.startsWith("/admin/users") ? returnTo : "";
+  const prefilledBody = (body ?? "").slice(0, 500);
+  const prefilledSubject = (subject ?? "").slice(0, 120);
   const supabase = createAdminClient();
 
   const { data: messageRows, error: messagesError } = await supabase
@@ -177,7 +179,7 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
 
               <form action={sendAdminMessageToFacilitatorAction} className="grid gap-3 rounded-[18px] border border-[#E5D4F7] bg-[#FAF7F2] p-3">
                 <input name="facilitator_id" type="hidden" value={selectedFacilitatorId} />
-                <input name="return_to" type="hidden" value="/admin/messages?box=sent" />
+                <input name="return_to" type="hidden" value={safeReturnTo || "/admin/messages?box=sent"} />
                 <label className="grid gap-2 text-xs font-semibold text-ink/68">
                   Emne
                   <input
@@ -185,7 +187,7 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
                     maxLength={120}
                     name="subject"
                     required
-                    defaultValue="Besked fra SoulEvents administration"
+                    defaultValue={prefilledSubject || "Besked fra SoulEvents administration"}
                   />
                 </label>
                 <label className="grid gap-2 text-xs font-semibold text-ink/68">
@@ -196,6 +198,7 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
                     name="message"
                     placeholder="Skriv en kort besked til arrangøren."
                     required
+                    defaultValue={prefilledBody}
                   />
                 </label>
                 <div className="flex justify-end">

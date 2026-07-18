@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
+import { sendAdminMessageNotificationEmail } from "@/lib/email/admin-message-notification";
 import { facilitatorProfileEditUrl, sendFacilitatorProfileChangesRequestedEmail } from "@/lib/email/facilitator-profile-changes-requested";
+import { sendFacilitatorProfileDeactivatedEmail } from "@/lib/email/facilitator-profile-deactivated";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { FacilitatorStatus } from "@/types/database";
@@ -24,11 +26,96 @@ const profileChangeFieldLabels = {
 
 type FacilitatorProfileContact = {
   email?: string | null;
+  first_name?: string | null;
   full_name?: string | null;
 };
 
+type FacilitatorMessageRecipient = {
+  id: string;
+  is_disabled?: boolean | null;
+  profile_id: string | null;
+  status?: FacilitatorStatus | null;
+};
+
+type AdminSupabaseClient = ReturnType<typeof createAdminClient>;
+
+async function getFacilitatorMessageRecipient(supabase: AdminSupabaseClient, facilitatorId: string) {
+  const { data: facilitator, error: facilitatorError } = await supabase
+    .from("facilitator_profiles")
+    .select("id, is_disabled, profile_id, status")
+    .eq("id", facilitatorId)
+    .maybeSingle<FacilitatorMessageRecipient>();
+
+  if (facilitatorError) {
+    console.error("Admin message facilitator lookup failed", {
+      errorCode: facilitatorError.code ?? null,
+      errorMessage: facilitatorError.message,
+    });
+  }
+
+  if (!facilitator?.profile_id) {
+    return { facilitator: null, profile: null };
+  }
+
+  let profile: FacilitatorProfileContact | null = null;
+  const profileResult = await supabase
+    .from("profiles")
+    .select("email, first_name, full_name")
+    .eq("id", facilitator.profile_id)
+    .maybeSingle();
+
+  if (profileResult.error) {
+    const fallbackResult = await supabase
+      .from("profiles")
+      .select("email, full_name")
+      .eq("id", facilitator.profile_id)
+      .maybeSingle();
+
+    if (fallbackResult.error) {
+      console.error("Admin message profile lookup failed", {
+        errorCode: fallbackResult.error.code ?? null,
+        errorMessage: fallbackResult.error.message,
+      });
+    }
+
+    profile = fallbackResult.data ?? null;
+  } else {
+    profile = profileResult.data ?? null;
+  }
+
+  return { facilitator, profile };
+}
+
 function adminRedirect(message: string): never {
   redirect(`/admin?message=${encodeURIComponent(message)}`);
+}
+
+function safeAdminReturnPath(returnTo: string | null | undefined, fallback = "/admin") {
+  if (!returnTo || !returnTo.startsWith("/") || returnTo.startsWith("//")) {
+    return fallback;
+  }
+
+  try {
+    const url = new URL(returnTo, "https://soulevents.local");
+    if (url.origin !== "https://soulevents.local") {
+      return fallback;
+    }
+
+    if (url.pathname !== "/admin" && url.pathname !== "/admin/users") {
+      return fallback;
+    }
+
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return fallback;
+  }
+}
+
+function adminReturnRedirect(message: string, returnTo: string | null | undefined = "/admin"): never {
+  const safeReturnTo = safeAdminReturnPath(returnTo);
+  const url = new URL(safeReturnTo, "https://soulevents.local");
+  url.searchParams.set("message", message);
+  redirect(url.pathname + (url.search ? url.search : "") + url.hash);
 }
 
 function adminMessageRedirect(message: string): never {
@@ -36,7 +123,7 @@ function adminMessageRedirect(message: string): never {
 }
 
 function adminMessageReturnRedirect(message: string, returnTo = "/admin/messages"): never {
-  const safeReturnTo = returnTo.startsWith("/admin/messages") ? returnTo : "/admin/messages";
+  const safeReturnTo = returnTo.startsWith("/admin/messages") || returnTo.startsWith("/admin/users") ? returnTo : "/admin/messages";
   const separator = safeReturnTo.includes("?") ? "&" : "?";
   redirect(`${safeReturnTo}${separator}message=${encodeURIComponent(message)}`);
 }
@@ -58,14 +145,17 @@ export async function sendAdminMessageToFacilitatorAction(formData: FormData) {
   }
 
   const supabase = createAdminClient();
-  const { data: facilitator } = await supabase
-    .from("facilitator_profiles")
-    .select("id, profile_id")
-    .eq("id", facilitatorId)
-    .single();
+  const { facilitator, profile } = await getFacilitatorMessageRecipient(supabase, facilitatorId);
 
   if (!facilitator?.profile_id) {
     adminMessageReturnRedirect("Arrangøren kunne ikke findes.", returnTo);
+  }
+
+  if (facilitator.is_disabled) {
+    adminMessageReturnRedirect(
+      "Arrangøren er deaktiveret og kan ikke åbne interne beskeder. Kontakt arrangøren direkte via e-mail.",
+      returnTo,
+    );
   }
 
   const { error } = await supabase.from("facilitator_admin_messages").insert({
@@ -79,6 +169,25 @@ export async function sendAdminMessageToFacilitatorAction(formData: FormData) {
 
   if (error) {
     adminMessageReturnRedirect("Beskeden kunne ikke sendes. Kør eventuelt den nyeste Supabase-migration og prøv igen.", returnTo);
+  }
+
+  const { count: unreadCount } = await supabase
+    .from("facilitator_admin_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("facilitator_id", facilitator.id)
+    .eq("type", "admin_reply")
+    .eq("status", "unread");
+  const notificationSent = await sendAdminMessageNotificationEmail({
+    facilitatorId: facilitator.id,
+    firstName: profile?.first_name || profile?.full_name?.split(/\s+/)[0] || null,
+    recipientEmail: profile?.email ?? null,
+    unreadCount: unreadCount ?? 1,
+  });
+  if (!notificationSent) {
+    console.error("Admin message notification failed after message insert", {
+      facilitatorId: facilitator.id,
+      type: "admin_message_notification",
+    });
   }
 
   revalidatePath("/admin");
@@ -100,14 +209,16 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
   }
 
   const supabase = createAdminClient();
-  const { data: facilitator } = await supabase
-    .from("facilitator_profiles")
-    .select("id, profile_id")
-    .eq("id", facilitatorId)
-    .single();
+  const { facilitator, profile } = await getFacilitatorMessageRecipient(supabase, facilitatorId);
 
   if (!facilitator?.profile_id) {
     adminMessageRedirect("Arrangøren kunne ikke findes.");
+  }
+
+  if (facilitator.is_disabled) {
+    adminMessageRedirect(
+      "Arrangøren er deaktiveret og kan ikke åbne interne beskeder. Kontakt arrangøren direkte via e-mail.",
+    );
   }
 
   const { error } = await supabase.from("facilitator_admin_messages").insert({
@@ -121,6 +232,25 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
 
   if (error) {
     adminMessageRedirect("Svaret kunne ikke sendes. Kør eventuelt den nyeste Supabase-migration og prøv igen.");
+  }
+
+  const { count: unreadCount } = await supabase
+    .from("facilitator_admin_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("facilitator_id", facilitator.id)
+    .eq("type", "admin_reply")
+    .eq("status", "unread");
+  const notificationSent = await sendAdminMessageNotificationEmail({
+    facilitatorId: facilitator.id,
+    firstName: profile?.first_name || profile?.full_name?.split(/\s+/)[0] || null,
+    recipientEmail: profile?.email ?? null,
+    unreadCount: unreadCount ?? 1,
+  });
+  if (!notificationSent) {
+    console.error("Admin message notification failed after reply insert", {
+      facilitatorId: facilitator.id,
+      type: "admin_message_notification",
+    });
   }
 
   await supabase
@@ -163,14 +293,14 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
 
   const facilitatorId = getString(formData, "facilitator_id");
   const status = getString(formData, "status") as FacilitatorStatus;
+  const returnTo = getOptionalString(formData, "return_to") || "/admin";
 
   if (!facilitatorId || !allowedStatuses.includes(status)) {
-    adminRedirect("Ugyldig arrangørhandling.");
+    adminReturnRedirect("Ugyldig arrangørhandling.", returnTo);
   }
 
-  
   if (status === "pending") {
-    adminRedirect("En godkendt eller deaktiveret arrangør kan ikke sættes tilbage til afventer. Brug deaktiver, hvis profilen ikke skal være synlig.");
+    adminReturnRedirect("En godkendt eller deaktiveret arrangør kan ikke sættes tilbage til afventer. Brug deaktiver, hvis profilen ikke skal være synlig.", returnTo);
   }
 
   const supabase = createAdminClient();
@@ -185,10 +315,11 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
     .eq("id", facilitatorId);
 
   if (error) {
-    adminRedirect("Arrangørstatus kunne ikke opdateres.");
+    adminReturnRedirect("Arrangørstatus kunne ikke opdateres.", returnTo);
   }
 
   revalidatePath("/admin");
+  revalidatePath("/admin/users");
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/profile");
 
@@ -207,13 +338,14 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
     changes_requested: "markeret som kræver ændringer",
   };
 
-  adminRedirect(`Arrangør er ${labels[status]}.`);
+  adminReturnRedirect(`Arrangør er ${labels[status]}.`, returnTo);
 }
 
 export async function requestFacilitatorProfileChangesAction(formData: FormData) {
   const adminProfile = await requireRole("admin");
 
   const facilitatorId = getString(formData, "facilitator_id");
+  const returnTo = getOptionalString(formData, "return_to") || "/admin";
   const changeFields = getAllStrings(formData, "change_fields").filter(
     (value): value is keyof typeof profileChangeFieldLabels => value in profileChangeFieldLabels,
   );
@@ -221,7 +353,7 @@ export async function requestFacilitatorProfileChangesAction(formData: FormData)
   const requestedFieldLabels = changeFields.map((field) => profileChangeFieldLabels[field]);
 
   if (!facilitatorId || changeFields.length === 0 || !comment || comment.length > 1000) {
-    adminRedirect("Vælg mindst ét område og skriv en kort kommentar til arrangøren.");
+    adminReturnRedirect("Vælg mindst ét område og skriv en kort kommentar til arrangøren.", returnTo);
   }
 
   const supabase = createAdminClient();
@@ -232,11 +364,11 @@ export async function requestFacilitatorProfileChangesAction(formData: FormData)
     .maybeSingle();
 
   if (facilitatorError || !facilitator) {
-    adminRedirect("Arrangøren kunne ikke findes.");
+    adminReturnRedirect("Arrangøren kunne ikke findes.", returnTo);
   }
 
   if (facilitator.status !== "pending") {
-    adminRedirect("Kun arrangører, der afventer godkendelse, kan markeres som kræver ændringer her.");
+    adminReturnRedirect("Kun arrangører, der afventer godkendelse, kan markeres som kræver ændringer her.", returnTo);
   }
 
   const relatedProfile = facilitator.profiles as FacilitatorProfileContact | FacilitatorProfileContact[] | null;
@@ -250,7 +382,7 @@ export async function requestFacilitatorProfileChangesAction(formData: FormData)
     .eq("id", facilitator.id);
 
   if (statusError) {
-    adminRedirect("Profilen kunne ikke markeres som kræver ændringer. Kontrollér at migration 071 er kørt.");
+    adminReturnRedirect("Profilen kunne ikke markeres som kræver ændringer. Kontrollér at migration 071 er kørt.", returnTo);
   }
 
   await supabase.from("admin_audit_log").insert({
@@ -280,7 +412,7 @@ export async function requestFacilitatorProfileChangesAction(formData: FormData)
   revalidatePath("/facilitators/" + facilitator.id);
   revalidatePath("/admin/facilitators/" + facilitator.id + "/edit");
 
-  adminRedirect(mailSent ? "Der er sendt en anmodning om ændringer til arrangøren." : "Profilen er markeret som kræver ændringer, men e-mailen kunne ikke sendes.");
+  adminReturnRedirect(mailSent ? "Der er sendt en anmodning om ændringer til arrangøren." : "Profilen er markeret som kræver ændringer, men e-mailen kunne ikke sendes.", returnTo);
 }
 
 export async function disableFacilitatorAction(formData: FormData) {
@@ -294,6 +426,11 @@ export async function disableFacilitatorAction(formData: FormData) {
   }
 
   const supabase = createAdminClient();
+  const { data: facilitator } = await supabase
+    .from("facilitator_profiles")
+    .select("id, company_name, display_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name)")
+    .eq("id", facilitatorId)
+    .maybeSingle();
   const { error } = await supabase
     .from("facilitator_profiles")
     .update({
@@ -314,6 +451,20 @@ export async function disableFacilitatorAction(formData: FormData) {
     facilitator_id: facilitatorId,
     new_value: reason ?? "disabled",
   });
+
+  const relatedProfile = facilitator?.profiles as FacilitatorProfileContact | FacilitatorProfileContact[] | null;
+  const profile = Array.isArray(relatedProfile) ? relatedProfile[0] : relatedProfile;
+  const notificationSent = await sendFacilitatorProfileDeactivatedEmail({
+    facilitatorEmail: profile?.email ?? null,
+    facilitatorName: facilitator?.display_name || facilitator?.company_name || profile?.full_name || "arrangør",
+  });
+
+  if (!notificationSent) {
+    console.error("Facilitator deactivation email failed after admin edit disable", {
+      facilitatorId,
+      type: "facilitator_profile_deactivated",
+    });
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/users");

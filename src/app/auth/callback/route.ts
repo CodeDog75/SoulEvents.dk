@@ -286,8 +286,10 @@ export async function GET(request: NextRequest) {
       }
 
       if (postAuthResult.type === "disabled") {
-        await supabase.auth.signOut();
-        return redirectAndClearOAuthCookie(loginErrorRedirect(requestUrl, postAuthResult.message), hasOAuthCookie);
+        return redirectAndClearOAuthCookie(
+          NextResponse.redirect(new URL(postAuthResult.path, requestUrl), 303),
+          hasOAuthCookie,
+        );
       }
 
       return redirectAndClearOAuthCookie(
@@ -315,8 +317,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (postAuthResult.type === "disabled") {
-      await supabase.auth.signOut();
-      return loginErrorRedirect(requestUrl, postAuthResult.message);
+      return NextResponse.redirect(new URL(postAuthResult.path, requestUrl), 303);
     }
 
     return emailConfirmationRedirectResponse(requestUrl, postAuthResult);
@@ -343,8 +344,10 @@ export async function GET(request: NextRequest) {
         }
 
         if (postAuthResult.type === "disabled") {
-          await supabase.auth.signOut();
-          return redirectAndClearOAuthCookie(loginErrorRedirect(requestUrl, postAuthResult.message), hasOAuthCookie);
+          return redirectAndClearOAuthCookie(
+            NextResponse.redirect(new URL(postAuthResult.path, requestUrl), 303),
+            hasOAuthCookie,
+          );
         }
 
         return redirectAndClearOAuthCookie(

@@ -6,6 +6,7 @@ import { requireProfile } from "@/lib/auth/roles";
 import { resolveNameParts } from "@/lib/auth/names";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { profileApprovalUrl, sendFacilitatorProfileReadyEmail } from "@/lib/email/facilitator-profile-ready";
+import { normalizeFacilitatorMoodImagePaths, normalizeFacilitatorMoodImageSlots } from "@/lib/facilitators/mood-image-slots";
 import { getFacilitatorProfileReadiness, getFacilitatorSubmissionReadiness } from "@/lib/facilitators/profile-readiness";
 import { facilitatorWorkAreaSlugs } from "@/lib/facilitators/work-areas";
 import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes, recordLegalAcceptances } from "@/lib/legal/documents";
@@ -125,12 +126,14 @@ type EditableProfileSection = (typeof editableProfileSections)[number];
 type ProfileSection = EditableProfileSection | "all";
 
 type ProfileAutosaveInput = {
+  adminTargetFacilitatorId?: string | null;
   section: EditableProfileSection;
   values: Record<string, boolean | string | string[] | null>;
 };
 
 const profileImageMaxFileSize = 10 * 1024 * 1024;
 const moodImageActionMaxFileSize = 15 * 1024 * 1024;
+const specialtyMaxLength = 150;
 
 function isEditableProfileSection(value: string | null | undefined): value is EditableProfileSection {
   return editableProfileSections.includes(value as EditableProfileSection);
@@ -256,14 +259,6 @@ function adminProfileRedirect(message: string, returnTo: string | null | undefin
 
   const separator = safeReturnTo.includes("?") ? "&" : "?";
   redirect(`${safeReturnTo}${separator}${params.toString()}`);
-}
-
-function normalizeImageRows(paths: string[], alts: string[]) {
-  return paths.slice(0, 3).map((imagePath, index) => ({
-    image_path: imagePath,
-    alt_text: alts[index] || null,
-    sort_order: index + 1,
-  }));
 }
 
 function extensionForUpload(file: File, contentType = file.type) {
@@ -460,22 +455,27 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
   const profile = await requireProfile();
   const supabase = createAdminClient();
   const section = isEditableProfileSection(input.section) ? input.section : null;
+  const adminTargetFacilitatorId = input.adminTargetFacilitatorId?.trim() || null;
 
   if (!section) {
     return { message: "Profilafsnittet kunne ikke genkendes.", ok: false };
   }
 
-  const { data: existingProfile, error: existingProfileError } = await supabase
-    .from("facilitator_profiles")
-    .select("id")
-    .eq("profile_id", profile.id)
-    .single();
+  if (adminTargetFacilitatorId && profile.role !== "admin") {
+    return { message: "Du har ikke adgang til at redigere denne arrangørprofil.", ok: false };
+  }
+
+  const profileLookup = supabase.from("facilitator_profiles").select("id, profile_id");
+  const { data: existingProfile, error: existingProfileError } = adminTargetFacilitatorId
+    ? await profileLookup.eq("id", adminTargetFacilitatorId).single()
+    : await profileLookup.eq("profile_id", profile.id).single();
 
   if (existingProfileError || !existingProfile) {
     return { message: "Arrangørprofilen kunne ikke hentes.", ok: false };
   }
 
   const facilitatorId = existingProfile.id as string;
+  const targetProfileId = (existingProfile.profile_id as string | null) ?? profile.id;
   const updates: Record<string, boolean | number | string | null> = {};
 
   if (section === "contact") {
@@ -593,8 +593,8 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
     const categoryIds = [...new Set(arrayForAutosave(input.values.category_ids))];
     const specialties = valueForAutosave(input.values.specialties);
 
-    if (specialties.length > 160) {
-      return { message: "Specialet må højst være 160 tegn.", ok: false };
+    if (specialties.length > specialtyMaxLength) {
+      return { message: "Specialet må højst være 150 tegn.", ok: false };
     }
 
     if (categoryIds.length === 0) {
@@ -608,7 +608,7 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
         categoryIds,
         error: allowedCategoryResult.error,
         facilitatorId,
-        profileId: profile.id,
+        profileId: targetProfileId,
         stage: "load_allowed_categories",
       });
       return { message: "Arbejdsområderne kunne ikke kontrolleres.", ok: false };
@@ -623,7 +623,7 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
         error: { message: "Invalid facilitator work area ids", details: invalidCategoryIds.join(",") },
         facilitatorId,
         ...autosaveCategoryDebug,
-        profileId: profile.id,
+        profileId: targetProfileId,
         stage: "validate_allowed_categories",
       });
       return { message: "Vælg et gyldigt arbejdsområde fra listen.", ok: false };
@@ -645,7 +645,7 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
           error: categoryError,
           facilitatorId,
           ...autosaveCategoryDebug,
-          profileId: profile.id,
+          profileId: targetProfileId,
           stage: "upsert_facilitator_categories",
         });
         return { message: "Arbejdsområderne kunne ikke gemmes.", ok: false };
@@ -664,7 +664,7 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
           error: deleteCategoryError,
           facilitatorId,
           ...autosaveCategoryDebug,
-          profileId: profile.id,
+          profileId: targetProfileId,
           stage: "delete_removed_facilitator_categories",
         });
         return { message: "Arbejdsområderne kunne ikke gemmes.", ok: false };
@@ -679,7 +679,7 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
           error: deleteCategoryError,
           facilitatorId,
           ...autosaveCategoryDebug,
-          profileId: profile.id,
+          profileId: targetProfileId,
           stage: "delete_all_facilitator_categories",
         });
         return { message: "Arbejdsområderne kunne ikke gemmes.", ok: false };
@@ -690,7 +690,10 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
   }
 
   if (Object.keys(updates).length > 0) {
-    const { error: facilitatorError } = await supabase.from("facilitator_profiles").update(updates).eq("profile_id", profile.id);
+    const updateQuery = supabase.from("facilitator_profiles").update(updates);
+    const { error: facilitatorError } = adminTargetFacilitatorId
+      ? await updateQuery.eq("id", facilitatorId)
+      : await updateQuery.eq("profile_id", profile.id);
 
     if (facilitatorError) {
       if (section === "categories") {
@@ -700,7 +703,7 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
           error: facilitatorError,
           facilitatorId,
           ...(autosaveCategoryDebug ?? {}),
-          profileId: profile.id,
+          profileId: targetProfileId,
           stage: "update_facilitator_profile",
         });
       }
@@ -834,6 +837,10 @@ function safeIdSuffix(value: string | null | undefined) {
   return value ? `...${value.slice(-8)}` : null;
 }
 
+function safePathSuffix(value: string | null | undefined) {
+  return value ? `...${value.slice(-32)}` : null;
+}
+
 function logMoodImageError(
   message: string,
   context: Record<string, boolean | number | string | null | undefined>,
@@ -884,6 +891,7 @@ async function uploadImageForAction(
 export async function saveFacilitatorMoodImageAction(formData: FormData) {
   const profile = await requireProfile();
   const supabase = createAdminClient();
+  const adminTargetFacilitatorId = getOptionalString(formData, "admin_target_facilitator_id");
   const slotIndex = Number(formData.get("slot_index"));
   const shouldRemove = formData.get("remove") === "yes";
   const imageFile = formData.get("image_file");
@@ -899,6 +907,7 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
         };
   const baseLogContext = {
     action: "saveFacilitatorMoodImageAction",
+    adminTargetFacilitatorId: safeIdSuffix(adminTargetFacilitatorId),
     profileId: safeIdSuffix(profile.id),
     shouldRemove,
     slotIndex: Number.isFinite(slotIndex) ? slotIndex : null,
@@ -910,11 +919,22 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
     return imageActionError("Billedpladsen kunne ikke genkendes. Prøv igen.");
   }
 
-  const { data: facilitatorProfile, error: profileError } = await supabase
+  if (adminTargetFacilitatorId && profile.role !== "admin") {
+    logMoodImageError("Admin mood image target rejected for non-admin", baseLogContext);
+    return imageActionError("Du har ikke adgang til at redigere denne arrangør.");
+  }
+
+  let facilitatorProfileQuery = supabase
     .from("facilitator_profiles")
     .select("id, profile_id")
-    .eq("profile_id", profile.id)
-    .single();
+    .limit(1);
+
+  facilitatorProfileQuery = adminTargetFacilitatorId
+    ? facilitatorProfileQuery.eq("id", adminTargetFacilitatorId)
+    : facilitatorProfileQuery.eq("profile_id", profile.id);
+
+  const { data: facilitatorProfiles, error: profileError } = await facilitatorProfileQuery;
+  const facilitatorProfile = facilitatorProfiles?.[0] ?? null;
 
   if (profileError || !facilitatorProfile) {
     logMoodImageError("Facilitator profile lookup failed", baseLogContext, profileError);
@@ -926,8 +946,22 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
   const logContext = {
     ...baseLogContext,
     facilitatorId: safeIdSuffix(facilitatorProfile.id),
+    targetProfileId: safeIdSuffix(facilitatorProfile.profile_id),
     sortOrder,
   };
+
+  const { data: beforeRows, error: beforeRowsError } = await supabase
+    .from("facilitator_images")
+    .select("image_path, sort_order")
+    .eq("facilitator_id", facilitatorProfile.id)
+    .order("sort_order");
+
+  if (beforeRowsError) {
+    logMoodImageError("Mood image rows initial reload failed", logContext, beforeRowsError);
+    return imageActionError("Billedgalleriet kunne ikke hentes.");
+  }
+
+  const beforePaths = normalizeFacilitatorMoodImagePaths(beforeRows as Array<{ image_path: string; sort_order: number }> | null | undefined);
 
   if (shouldRemove) {
     const { error: deleteSlotError } = await supabase
@@ -944,7 +978,7 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
     const upload = await uploadImageForAction(
       supabase,
       imageFile,
-      `hosts/${profile.id}/gallery/${slotIndex + 1}`,
+      `hosts/${facilitatorProfile.profile_id ?? profile.id}/gallery/${slotIndex + 1}`,
     );
 
     if (upload.error || !upload.path) {
@@ -954,12 +988,12 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
 
     uploadedPath = upload.path;
 
-    const { data: existingSlot, error: existingSlotError } = await supabase
+    const { data: existingSlotRows, error: existingSlotError } = await supabase
       .from("facilitator_images")
-      .select("id, image_path")
+      .select("id, image_path, sort_order, created_at")
       .eq("facilitator_id", facilitatorProfile.id)
       .eq("sort_order", sortOrder)
-      .maybeSingle();
+      .order("created_at", { ascending: true });
 
     if (existingSlotError) {
       await supabase.storage.from("media").remove([uploadedPath]);
@@ -967,6 +1001,8 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
       return imageActionError("Billedgalleriet kunne ikke gemmes.");
     }
 
+    const existingSlot = existingSlotRows?.[0] ?? null;
+    const duplicateSlotIds = (existingSlotRows ?? []).slice(1).map((row: { id: string }) => row.id);
     const { error: saveImageError } = existingSlot
       ? await supabase
           .from("facilitator_images")
@@ -991,6 +1027,17 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
       return imageActionError("Billedgalleriet kunne ikke gemmes.");
     }
 
+    if (duplicateSlotIds.length > 0) {
+      const { error: duplicateDeleteError } = await supabase
+        .from("facilitator_images")
+        .delete()
+        .in("id", duplicateSlotIds);
+
+      if (duplicateDeleteError) {
+        logMoodImageError("Duplicate mood image slot cleanup failed", { ...logContext, duplicateSlotCount: duplicateSlotIds.length, uploadedPath: safePathSuffix(uploadedPath) }, duplicateDeleteError);
+      }
+    }
+
     if (existingSlot?.image_path && existingSlot.image_path !== uploadedPath) {
       const { error: removeOldFileError } = await supabase.storage.from("media").remove([existingSlot.image_path]);
 
@@ -1011,13 +1058,19 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
     return imageActionError("Billedgalleriet blev gemt, men kunne ikke hentes igen. Genindlæs siden.");
   }
 
+  const paths = normalizeFacilitatorMoodImagePaths(updatedRows as Array<{ image_path: string; sort_order: number }> | null | undefined);
+  console.info("[facilitator-profile:mood-image] slot save completed", imageLogContext({
+    ...logContext,
+    afterPaths: paths.map(safePathSuffix).join(" | "),
+    beforePaths: beforePaths.map(safePathSuffix).join(" | "),
+    paths: paths.map(safePathSuffix).join(" | "),
+    uploadedPath: safePathSuffix(uploadedPath),
+  }));
   revalidatePath("/facilitator/profile");
-  return imageActionSuccess(
-    Array.from({ length: 3 }, (_, index) => {
-      const row = updatedRows?.find((image: { sort_order: number }) => image.sort_order === index + 1);
-      return row?.image_path ?? "";
-    }),
-  );
+  if (adminTargetFacilitatorId) {
+    revalidatePath(`/admin/facilitators/${adminTargetFacilitatorId}/edit`);
+  }
+  return imageActionSuccess(paths);
 }
 
 export async function saveFacilitatorProfileImageAction(formData: FormData) {
@@ -1249,7 +1302,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   let existingProfileQuery = supabase
     .from("facilitator_profiles")
     .select(
-      "id, profile_id, address_line, city, company_name, country, facebook_url, instagram_url, is_online_facilitator, long_description, offers_services, postal_code, profile_image_path, public_email, public_phone, region_id, service_description, short_description, show_in_local_service_results, status, tiktok_url, website_url, youtube_url, facilitator_categories(category_id), facilitator_tags(tag_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)",
+      "id, profile_id, address_line, city, company_name, country, facebook_url, instagram_url, is_online_facilitator, long_description, offers_services, postal_code, profile_image_path, public_email, public_phone, region_id, service_description, short_description, show_in_local_service_results, status, tiktok_url, website_url, youtube_url, facilitator_categories(category_id), facilitator_images(id, image_path, sort_order), facilitator_tags(tag_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)",
     );
 
   existingProfileQuery = isAdminEdit
@@ -1279,6 +1332,15 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     : profile;
   const existingCategoryIds =
     existingProfile.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [];
+  const existingGalleryRows =
+    existingProfile.facilitator_images?.map((row: { id: string; image_path: string; sort_order: number }) => row) ?? [];
+  const existingGallerySlots = normalizeFacilitatorMoodImageSlots(existingGalleryRows);
+  const existingGalleryBySortOrder = new Map(
+    existingGallerySlots
+      .filter((row): row is { id: string; image_path: string; sort_order: number } => Boolean(row))
+      .map((row) => [row.sort_order, row]),
+  );
+  const existingGalleryPaths = existingGallerySlots.map((row) => row?.image_path ?? "");
   const wasReady = isProfileReady({
     categoryIds: existingCategoryIds,
     city: existingProfile.city ?? null,
@@ -1312,7 +1374,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     [savesSection(section, "social"), instagramUrl, 300, "Instagram-link", "social"],
     [savesSection(section, "social"), youtubeUrl, 300, "YouTube-link", "social"],
     [savesSection(section, "social"), tiktokUrl, 300, "TikTok-link", "social"],
-    [savesSection(section, "categories"), specialties, 160, "Speciale", "categories"],
+    [savesSection(section, "categories"), specialties, specialtyMaxLength, "Speciale", "categories"],
     [savesSection(section, "services"), serviceDescription, 500, "Kort beskrivelse af ydelser", "services"],
   ];
 
@@ -1557,15 +1619,6 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   }
 
   if (savesSection(section, "images")) {
-    const { error: deleteImageError } = await supabase.from("facilitator_images").delete().eq("facilitator_id", facilitatorId);
-
-    if (deleteImageError) {
-      if (isAdminEdit) {
-        adminProfileRedirect("Billedgalleriet kunne ikke gemmes.", adminReturnTo, "images");
-      }
-      profileRedirect("Billedgalleriet kunne ikke gemmes.", redirectOrigin, "images");
-    }
-
     const galleryUploads = await Promise.all(
       [0, 1, 2].map((index) =>
         uploadImage(
@@ -1580,24 +1633,55 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       ),
     );
 
-    const finalGalleryPaths = [0, 1, 2]
-      .map((index) => galleryUploads[index] || galleryPaths[index] || "")
-      .filter((imagePath): imagePath is string => Boolean(imagePath));
-    const galleryRows = normalizeImageRows(finalGalleryPaths, []);
+    const finalGalleryPaths = Array.from({ length: 3 }, (_, index) => {
+      if (galleryUploads[index]) return galleryUploads[index] as string;
+      if (index < galleryPaths.length) return galleryPaths[index] || "";
+      return existingGalleryPaths[index] || "";
+    });
 
-    if (galleryRows.length > 0) {
-      const { error: imageError } = await supabase.from("facilitator_images").insert(
-        galleryRows.map((row) => ({
-          facilitator_id: facilitatorId,
-          ...row,
-        })),
-      );
+    for (const [index, imagePath] of finalGalleryPaths.entries()) {
+      const sortOrder = index + 1;
+      const existingImage = existingGalleryBySortOrder.get(sortOrder);
+      const { error: imageError } = imagePath
+        ? existingImage
+          ? await supabase
+              .from("facilitator_images")
+              .update({
+                alt_text: null,
+                image_path: imagePath,
+                sort_order: sortOrder,
+              })
+              .eq("id", existingImage.id)
+          : await supabase.from("facilitator_images").insert({
+              alt_text: null,
+              facilitator_id: facilitatorId,
+              image_path: imagePath,
+              sort_order: sortOrder,
+            })
+        : existingImage
+          ? await supabase.from("facilitator_images").delete().eq("id", existingImage.id)
+          : { error: null };
 
       if (imageError) {
+        const uploadedPathForSlot = galleryUploads[index];
+        if (uploadedPathForSlot) {
+          await supabase.storage.from("media").remove([uploadedPathForSlot]);
+        }
         if (isAdminEdit) {
           adminProfileRedirect("Billedgalleriet kunne ikke gemmes.", adminReturnTo, "images");
         }
         profileRedirect("Billedgalleriet kunne ikke gemmes.", redirectOrigin, "images");
+      }
+    }
+
+    const obsoleteGalleryPaths = existingGalleryPaths.filter((imagePath) => imagePath && !finalGalleryPaths.includes(imagePath));
+    if (obsoleteGalleryPaths.length > 0) {
+      const { error: cleanupError } = await supabase.storage.from("media").remove(obsoleteGalleryPaths);
+      if (cleanupError) {
+        console.warn("[facilitator-profile:gallery-images] Old gallery image cleanup failed", {
+          errorMessage: cleanupError.message,
+          facilitatorId: safeIdSuffix(facilitatorId),
+        });
       }
     }
   }

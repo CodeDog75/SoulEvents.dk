@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  AlertCircle,
   Check,
   Download,
   Eye,
@@ -19,6 +18,11 @@ import {
   updateFacilitatorOverviewAction,
   updateUserRoleAction,
 } from "@/app/admin/users/actions";
+import { updateFacilitatorStatusAction } from "@/app/admin/facilitators/actions";
+import { AdminActionMenu, AdminActionMenuScope } from "@/components/admin/action-menu";
+import { DisableFacilitatorDialog } from "@/components/admin/disable-facilitator-dialog";
+import { FacilitatorAdminCard, getFacilitatorAdminTask } from "@/components/admin/facilitator-admin-card";
+import { RequestFacilitatorChangesDialog } from "@/components/admin/reject-facilitator-dialog";
 import type { AppRole, FacilitatorStatus } from "@/types/database";
 
 type FacilitatorOverviewRow = {
@@ -44,15 +48,19 @@ type FacilitatorOverviewRow = {
   is_experienced_host?: boolean | null;
   is_featured?: boolean | null;
   latest_event_at?: string | null;
+  last_sign_in_at?: string | null;
+  days_since_last_login?: number | null;
   long_description?: string | null;
   pending_bookings: number;
   phone: string | null;
   postal_code?: string | null;
   profile_id: string;
+  profile_image_url?: string | null;
   public_email?: string | null;
   public_phone?: string | null;
   role: AppRole;
   short_description?: string | null;
+  specialties?: string | null;
   status: FacilitatorStatus;
   total_bookings: number;
   website_url?: string | null;
@@ -63,6 +71,8 @@ type UserRoleTableProps = {
   currentProfileId: string;
   exportHref: string;
   facilitators: FacilitatorOverviewRow[];
+  highlightedFacilitatorId?: string | null;
+  pausedFacilitatorId?: string | null;
   returnHref: string;
 };
 
@@ -71,25 +81,62 @@ const roleLabels: Record<AppRole, string> = {
   facilitator: "Arrangør",
 };
 
-function facilitatorStatusLabel(facilitator: FacilitatorOverviewRow) {
-  if (facilitator.is_disabled) return "Deaktiveret";
-  if (facilitator.is_paused) return "Sat på pause";
-  if (facilitator.status === "approved") return "Aktiv";
-  if (facilitator.status === "changes_requested") return "Kræver ændringer";
-  return "Afventer";
-}
-
-function facilitatorStatusClass(facilitator: FacilitatorOverviewRow) {
-  if (facilitator.is_disabled) return "bg-midnight/10 text-midnight";
-  if (facilitator.is_paused) return "bg-[#F4F0F7] text-[#6E5A86]";
-  if (facilitator.status === "approved") return "bg-sage-50 text-sage-700";
-  if (facilitator.status === "changes_requested") return "bg-[#FFF7E8] text-[#8A6A2E]";
-  return "bg-terracotta/10 text-terracotta";
-}
-
 function formatDate(value: string | null | undefined) {
   if (!value) return "Ikke registreret";
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium" }).format(new Date(value));
+}
+
+function relativeLoginLabel(days: number | null | undefined) {
+  if (days === null || days === undefined) return "";
+  if (days === 0) return "i dag";
+  if (days === 1) return "i går";
+  return `for ${days} dage siden`;
+}
+
+function loginActivityText(facilitator: FacilitatorOverviewRow) {
+  if (facilitator.last_sign_in_at === undefined) {
+    return "Loginaktivitet ikke registreret";
+  }
+
+  if (facilitator.last_sign_in_at) {
+    return `Senest logget ind: ${formatDate(facilitator.last_sign_in_at)} · ${relativeLoginLabel(facilitator.days_since_last_login)}`;
+  }
+
+  return "Aldrig logget ind";
+}
+
+function splitSpecialties(input: string | null | undefined) {
+  return (input ?? "")
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function pauseMessageTemplate(name: string) {
+  return `Hej ${name}
+
+Vi har midlertidigt sat din arrangørprofil på pause, da der er nogle forhold, som skal rettes, før profilen igen kan vises på SoulEvents.
+
+Det vil vi bede dig om at rette:
+
+(Administrator udfylder dette afsnit.)
+
+Når ændringerne er lavet, er du velkommen til at skrive tilbage. Vi gennemgår profilen hurtigst muligt og genåbner den, hvis alt er på plads.
+
+Venlig hilsen
+SoulEvents`;
+}
+
+function pauseMessageHref(facilitator: FacilitatorOverviewRow, returnHref: string) {
+  const name = facilitator.company_name || facilitator.full_name || "arrangør";
+  const params = new URLSearchParams({
+    body: pauseMessageTemplate(name),
+    facilitator: facilitator.id,
+    return_to: returnHref,
+    subject: "Din arrangørprofil er sat på pause",
+  });
+
+  return "/admin/messages?" + params.toString();
 }
 
 function RoleButton({ profileId, returnHref, role, label }: { profileId: string; returnHref: string; role: AppRole; label: string }) {
@@ -198,6 +245,19 @@ function PauseButton({ facilitator, returnHref }: { facilitator: FacilitatorOver
   );
 }
 
+function ApproveFacilitatorForm({ facilitatorId, returnHref }: { facilitatorId: string; returnHref: string }) {
+  return (
+    <form action={updateFacilitatorStatusAction}>
+      <input name="facilitator_id" type="hidden" value={facilitatorId} />
+      <input name="return_to" type="hidden" value={returnHref} />
+      <input name="status" type="hidden" value="approved" />
+      <button className="inline-flex h-9 items-center justify-center whitespace-nowrap rounded-full bg-sage-700 px-3 text-sm font-semibold text-white transition hover:bg-sage-800" type="submit">
+        Godkend
+      </button>
+    </form>
+  );
+}
+
 function FeaturedPriorityForm({ facilitator, returnHref }: { facilitator: FacilitatorOverviewRow; returnHref: string }) {
   return (
     <form action={updateFacilitatorOverviewAction} className="flex items-center gap-2">
@@ -254,7 +314,9 @@ function DeleteFacilitatorForm({ facilitator, returnHref }: { facilitator: Facil
   );
 }
 
-export function UserRoleTable({ currentProfileId, exportHref, facilitators, returnHref }: UserRoleTableProps) {
+export function UserRoleTable({ currentProfileId, exportHref, facilitators, highlightedFacilitatorId, pausedFacilitatorId, returnHref }: UserRoleTableProps) {
+  const menuResetKey = returnHref + "|" + facilitators.map((facilitator) => facilitator.id).join(",");
+
   return (
     <section className="overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
       <div className="border-b border-midnight/10 px-5 py-4">
@@ -276,126 +338,164 @@ export function UserRoleTable({ currentProfileId, exportHref, facilitators, retu
       {facilitators.length === 0 ? (
         <div className="p-8 text-center">
           <UserRound className="mx-auto size-8 text-sage-700" aria-hidden="true" />
-          <h3 className="mt-4 text-lg font-semibold text-midnight">Ingen arrangører matcher søgningen</h3>
-          <p className="mt-2 text-sm text-ink/64">Prøv et andet navn, medlemsnummer, tag, by eller status.</p>
+          <h3 className="mt-4 text-lg font-semibold text-midnight">Ingen arrangører matcher de valgte filtre</h3>
+          <p className="mt-2 text-sm text-ink/64">Prøv et andet navn, medlemsnummer, tag, by, status eller loginfilter.</p>
         </div>
       ) : (
-        <div className="divide-y divide-midnight/10">
-          {facilitators.map((facilitator) => {
+        <AdminActionMenuScope key={menuResetKey}>
+          <div className="grid gap-3 bg-[#fbfaf7] p-3 sm:p-4">
+            {facilitators.map((facilitator) => {
             const displayName = facilitator.company_name || facilitator.full_name || "Uden navn";
-            const location = [facilitator.postal_code, facilitator.city].filter(Boolean).join(" ");
+            const showPauseMessagePrompt = pausedFacilitatorId === facilitator.id;
+            const contactLine = [
+              displayName !== facilitator.full_name ? "Kontaktperson: " + facilitator.full_name : null,
+              facilitator.email,
+              facilitator.phone,
+              facilitator.public_phone ? "offentlig: " + facilitator.public_phone : null,
+            ].filter(Boolean).join(" · ");
+            const metadataBadges = (
+              <>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${facilitator.role === "admin" ? "bg-sage-50 text-sage-700" : "bg-midnight/5 text-ink/64"}`}>
+                  {roleLabels[facilitator.role]}
+                </span>
+                {facilitator.profile_id === currentProfileId ? <span className="rounded-full bg-terracotta/10 px-3 py-1 text-xs font-semibold text-terracotta">Dig</span> : null}
+                {facilitator.is_featured ? <span className="rounded-full bg-[#F4F0F7] px-3 py-1 text-xs font-semibold text-[#6E5A86]">Fremhævet</span> : null}
+                {facilitator.auto_approve_events ? <span className="rounded-full bg-[#F3F7F0] px-3 py-1 text-xs font-semibold text-[#4F6F48]">Auto-godkendelse</span> : null}
+                {facilitator.is_active_host ? <span className="rounded-full bg-[#F3F7F0] px-3 py-1 text-xs font-semibold text-[#4F6F48]">Aktiv Arrangør</span> : null}
+                {facilitator.is_experienced_host ? <span className="rounded-full bg-[#F4F0F7] px-3 py-1 text-xs font-semibold text-[#6E5A86]">Erfaren Arrangør</span> : null}
+              </>
+            );
+            const isPendingReview = facilitator.status === "pending" && !facilitator.is_disabled && !facilitator.is_paused;
+            const actions = (
+              <>
+                <Link className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={"/facilitators/" + facilitator.id + "?admin_return=" + encodeURIComponent(returnHref)}>
+                  <Eye className="size-4" aria-hidden="true" />
+                  Se profil
+                </Link>
+                <Link className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={"/admin/facilitators/" + facilitator.id + "/edit?return_to=" + encodeURIComponent(returnHref)}>
+                  <Pencil className="size-4" aria-hidden="true" />
+                  Rediger
+                </Link>
+                <AdminActionMenu id={facilitator.id}>
+                    <div>
+                      <p className="px-1 text-xs font-bold uppercase tracking-wide text-ink/45">Kommunikation</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Link className="inline-flex h-9 items-center gap-2 rounded-full border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={"/admin/messages?facilitator=" + facilitator.id + "&return_to=" + encodeURIComponent(returnHref)}>
+                          <Mail className="size-4" aria-hidden="true" />
+                          Send besked
+                        </Link>
+                        {facilitator.is_paused ? (
+                          <Link className="inline-flex h-9 items-center gap-2 rounded-full border border-sage-200 bg-sage-50 px-3 text-sm font-semibold text-sage-700 transition hover:border-sage-700" href={pauseMessageHref(facilitator, returnHref)}>
+                            <Mail className="size-4" aria-hidden="true" />
+                            Pausebesked
+                          </Link>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="px-1 text-xs font-bold uppercase tracking-wide text-ink/45">Status</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {isPendingReview ? (
+                          <>
+                            <ApproveFacilitatorForm facilitatorId={facilitator.id} returnHref={returnHref} />
+                            <RequestFacilitatorChangesDialog facilitatorId={facilitator.id} facilitatorName={displayName} returnHref={returnHref} />
+                          </>
+                        ) : null}
+                        {facilitator.is_disabled ? <StatusButton facilitator={facilitator} returnHref={returnHref} /> : null}
+                        {facilitator.is_paused && !facilitator.is_disabled ? <PauseButton facilitator={facilitator} returnHref={returnHref} /> : null}
+                        {!isPendingReview && !facilitator.is_paused && !facilitator.is_disabled ? (
+                          <>
+                            <PauseButton facilitator={facilitator} returnHref={returnHref} />
+                            <StatusButton facilitator={facilitator} returnHref={returnHref} />
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="px-1 text-xs font-bold uppercase tracking-wide text-ink/45">Synlighed</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <FacilitatorToggle checked={facilitator.is_featured} facilitatorId={facilitator.id} label="Fremhæv" name="is_featured" returnHref={returnHref} />
+                        <FacilitatorToggle checked={facilitator.auto_approve_events} facilitatorId={facilitator.id} label="Auto-godkend" name="auto_approve_events" returnHref={returnHref} />
+                        <FacilitatorToggle checked={facilitator.is_active_host} facilitatorId={facilitator.id} label="Aktiv badge" name="is_active_host" returnHref={returnHref} />
+                        <FacilitatorToggle checked={facilitator.is_experienced_host} facilitatorId={facilitator.id} label="Erfaren badge" name="is_experienced_host" returnHref={returnHref} />
+                        <FeaturedPriorityForm facilitator={facilitator} returnHref={returnHref} />
+                      </div>
+                    </div>
+                    <div className="border-t border-midnight/10 pt-3">
+                      <p className="px-1 text-xs font-bold uppercase tracking-wide text-ink/45">Administration</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {facilitator.role !== "admin" && <RoleButton label="Gør til admin" profileId={facilitator.profile_id} returnHref={returnHref} role="admin" />}
+                        {facilitator.role !== "facilitator" && <RoleButton label="Fjern admin" profileId={facilitator.profile_id} returnHref={returnHref} role="facilitator" />}
+                        {isPendingReview ? (
+                          <DisableFacilitatorDialog facilitatorId={facilitator.id} facilitatorName={displayName} returnHref={returnHref} />
+                        ) : null}
+                      </div>
+                      <div className="mt-3">
+                        <DeleteFacilitatorForm facilitator={facilitator} returnHref={returnHref} />
+                      </div>
+                    </div>
+                </AdminActionMenu>
+              </>
+            );
+            const footer = (
+              <>
+                {showPauseMessagePrompt ? (
+                  <div className="rounded-[18px] border border-sage-200 bg-sage-50 p-4 text-sm text-ink/72">
+                    <p className="font-semibold text-midnight">Profilen er sat på pause.</p>
+                    <p className="mt-1 leading-6">Send gerne en kort besked, så arrangøren ved, hvad der skal rettes.</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Link
+                        className="inline-flex h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-4 text-sm font-semibold text-ink/65 transition hover:border-sage-700 hover:text-sage-700"
+                        href={returnHref}
+                      >
+                        Færdig
+                      </Link>
+                      <Link
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-sage-700 px-4 text-sm font-semibold text-white transition hover:bg-sage-800"
+                        href={pauseMessageHref(facilitator, returnHref)}
+                      >
+                        <Mail className="size-4" aria-hidden="true" />
+                        Send besked til arrangør
+                      </Link>
+                    </div>
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2 text-xs font-semibold text-ink/68">
+                  <span className="rounded-full bg-midnight/5 px-2.5 py-1">Seneste event: {formatDate(facilitator.latest_event_at)}</span>
+                </div>
+              </>
+            );
 
             return (
-              <article className="grid gap-5 p-5 xl:grid-cols-[1fr_340px]" key={facilitator.id}>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={"rounded-md px-4 py-2 text-sm font-bold " + facilitatorStatusClass(facilitator)}>
-                      {facilitatorStatusLabel(facilitator)}
-                    </span>
-                    <span className={`rounded-md px-4 py-2 text-sm font-bold ${facilitator.role === "admin" ? "bg-sage-50 text-sage-700" : "bg-midnight/10 text-midnight"}`}>
-                      {roleLabels[facilitator.role]}
-                    </span>
-                    {facilitator.profile_id === currentProfileId && <span className="rounded-md bg-terracotta/10 px-4 py-2 text-sm font-bold text-terracotta">Dig</span>}
-                    {facilitator.host_reference_id && <span className="rounded-md bg-white px-4 py-2 text-sm font-bold text-sage-700">{facilitator.host_reference_id}</span>}
-                    {facilitator.is_featured && <span className="rounded-md bg-[#F4F0F7] px-4 py-2 text-sm font-bold text-[#6E5A86]">Fremhævet</span>}
-                    {facilitator.auto_approve_events && <span className="rounded-md bg-[#F3F7F0] px-4 py-2 text-sm font-bold text-[#4F6F48]">Auto-godkendelse</span>}
-                    {facilitator.is_active_host && <span className="rounded-md bg-[#F3F7F0] px-4 py-2 text-sm font-bold text-[#4F6F48]">Aktiv Arrangør</span>}
-                    {facilitator.is_experienced_host && <span className="rounded-md bg-[#F4F0F7] px-4 py-2 text-sm font-bold text-[#6E5A86]">Erfaren Arrangør</span>}
-                  </div>
-
-                  <h3 className="mt-3 text-xl font-semibold text-midnight">{displayName}</h3>
-                  {displayName !== facilitator.full_name ? <p className="mt-1 text-sm font-semibold text-ink/64">Kontaktperson: {facilitator.full_name}</p> : null}
-                  <p className="mt-1 text-sm text-ink/64">
-                    {facilitator.email}
-                    {facilitator.phone ? " · " + facilitator.phone : ""}
-                    {facilitator.public_phone ? " · offentlig: " + facilitator.public_phone : ""}
-                  </p>
-                  <p className="mt-1 text-sm text-ink/64">
-                    {[facilitator.address_line, location].filter(Boolean).join(", ") || "Lokation mangler"}
-                    {" · Oprettet " + formatDate(facilitator.created_at)}
-                  </p>
-                  <p className="mt-3 max-w-3xl text-sm leading-6 text-ink/72">
-                    {facilitator.short_description || facilitator.long_description || "Ingen profiltekst endnu."}
-                  </p>
-
-                  <div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                    {[
-                      ["Aktive events", facilitator.active_events],
-                      ["Events i alt", facilitator.event_count],
-                      ["Afholdte", facilitator.completed_events],
-                      ["Kladder", facilitator.draft_events],
-                      ["Tilmeldinger", facilitator.total_bookings],
-                      ["Afventer", facilitator.pending_bookings],
-                    ].map(([label, value]) => (
-                      <div
-                        className={
-                          "rounded-md px-3 py-2 text-sm " +
-                          (label === "Afventer" && Number(value) > 0 ? "bg-terracotta/10 text-terracotta" : "bg-sage-50 text-ink/70")
-                        }
-                        key={String(label)}
-                      >
-                        <p className="text-lg font-semibold">{value}</p>
-                        <p className="text-xs">{label}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-ink/68">
-                    {[...(facilitator.facilitator_categories ?? []), ...(facilitator.facilitator_tags ?? [])].map((label) => (
-                      <span className="rounded-md bg-sand px-2.5 py-1" key={label}>
-                        {label}
-                      </span>
-                    ))}
-                    {facilitator.pending_bookings > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-terracotta/10 px-2.5 py-1 text-terracotta">
-                        <AlertCircle className="size-3" aria-hidden="true" />
-                        Kræver handling
-                      </span>
-                    )}
-                    <span className="rounded-md bg-midnight/5 px-2.5 py-1">Seneste event: {formatDate(facilitator.latest_event_at)}</span>
-                  </div>
-                </div>
-
-                <div className="grid content-start gap-3">
-                  <div className="flex flex-wrap gap-2 xl:justify-end">
-                    <Link className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={"/facilitators/" + facilitator.id + "?admin_return=" + encodeURIComponent(returnHref)}>
-                      <Eye className="size-4" aria-hidden="true" />
-                      Vis profil
-                    </Link>
-                    <Link className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={"/admin/facilitators/" + facilitator.id + "/edit?return_to=" + encodeURIComponent(returnHref)}>
-                      <Pencil className="size-4" aria-hidden="true" />
-                      Rediger
-                    </Link>
-                    <Link className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={"/admin/messages?facilitator=" + facilitator.id + "&return_to=" + encodeURIComponent(returnHref)}>
-                      <Mail className="size-4" aria-hidden="true" />
-                      Besked
-                    </Link>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 xl:justify-end">
-                    <PauseButton facilitator={facilitator} returnHref={returnHref} />
-                    <StatusButton facilitator={facilitator} returnHref={returnHref} />
-                    {facilitator.role !== "admin" && <RoleButton label="Gør til admin" profileId={facilitator.profile_id} returnHref={returnHref} role="admin" />}
-                    {facilitator.role !== "facilitator" && <RoleButton label="Fjern admin" profileId={facilitator.profile_id} returnHref={returnHref} role="facilitator" />}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 xl:justify-end">
-                    <FacilitatorToggle checked={facilitator.is_featured} facilitatorId={facilitator.id} label="Fremhæv" name="is_featured" returnHref={returnHref} />
-                    <FacilitatorToggle checked={facilitator.auto_approve_events} facilitatorId={facilitator.id} label="Auto-godkend" name="auto_approve_events" returnHref={returnHref} />
-                    <FacilitatorToggle checked={facilitator.is_active_host} facilitatorId={facilitator.id} label="Aktiv badge" name="is_active_host" returnHref={returnHref} />
-                    <FacilitatorToggle checked={facilitator.is_experienced_host} facilitatorId={facilitator.id} label="Erfaren badge" name="is_experienced_host" returnHref={returnHref} />
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 xl:justify-end">
-                    <FeaturedPriorityForm facilitator={facilitator} returnHref={returnHref} />
-                  </div>
-
-                  <DeleteFacilitatorForm facilitator={facilitator} returnHref={returnHref} />
-                </div>
-              </article>
+              <FacilitatorAdminCard
+                actions={actions}
+                badges={metadataBadges}
+                chips={[...(facilitator.facilitator_categories ?? []), ...(facilitator.facilitator_tags ?? [])]}
+                contactLine={contactLine}
+                description={facilitator.short_description || facilitator.long_description || "Ingen profiltekst endnu."}
+                facilitator={facilitator}
+                footer={footer}
+                isHighlighted={highlightedFacilitatorId === facilitator.id}
+                key={facilitator.id}
+                loginActivityLine={loginActivityText(facilitator)}
+                metaLine={"Oprettet " + formatDate(facilitator.created_at)}
+                metrics={[
+                  { label: "Aktive events", value: facilitator.active_events },
+                  { label: "Events i alt", value: facilitator.event_count },
+                  { label: "Afholdte", value: facilitator.completed_events },
+                  { label: "Kladder", value: facilitator.draft_events },
+                  { label: "Tilmeldinger", value: facilitator.total_bookings },
+                  { label: "Afventer", tone: facilitator.pending_bookings > 0 ? "attention" : "neutral", value: facilitator.pending_bookings },
+                ]}
+                specialties={splitSpecialties(facilitator.specialties)}
+                task={getFacilitatorAdminTask({
+                  facilitator,
+                })}
+              />
             );
-          })}
-        </div>
+            })}
+          </div>
+        </AdminActionMenuScope>
       )}
     </section>
   );

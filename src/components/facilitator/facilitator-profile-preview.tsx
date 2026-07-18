@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, CircleUserRound, MapPin, X } from "lucide-react";
 import { useState } from "react";
 import { OrganizerBadges, OrganizerImageBadge, type OrganizerBadgeType } from "@/components/badges/organizer-badges";
+import { withFacilitatorMoodImageFallback } from "@/lib/facilitators/mood-image-fallback";
 
 type PreviewCategory = {
   colorHex?: string;
@@ -12,6 +13,12 @@ type PreviewCategory = {
 };
 
 type MoodImage = {
+  altText?: string | null;
+  imagePath: string;
+  url: string;
+};
+
+type VisibleMoodImage = {
   altText?: string | null;
   imagePath: string;
   url: string;
@@ -29,6 +36,7 @@ type FacilitatorProfilePreviewProps = {
   profileName: string;
   serviceDescription?: string | null;
   shortDescription?: string | null;
+  showStandardMoodImageNotice?: boolean;
   title?: string;
 };
 
@@ -46,15 +54,26 @@ export function FacilitatorProfilePreview({
   profileName,
   serviceDescription,
   shortDescription,
+  showStandardMoodImageNotice = false,
   title,
 }: FacilitatorProfilePreviewProps) {
   const [expanded, setExpanded] = useState(false);
-  const [activeImage, setActiveImage] = useState<MoodImage | null>(null);
+  const [activeImage, setActiveImage] = useState<VisibleMoodImage | null>(null);
   const hasLongDescription = Boolean(shortDescription && shortDescription.length > previewTextLimit);
   const visibleDescription =
     shortDescription && hasLongDescription && !expanded
       ? `${shortDescription.slice(0, previewTextLimit).trim()}...`
       : shortDescription;
+  const moodImageFallback = withFacilitatorMoodImageFallback(moodImages, {
+    fallbackAltText: `Stemningsbillede for ${profileName}`,
+  });
+  const visibleMoodImages = moodImageFallback.images
+    .map((image, index) => ({
+      altText: image.altText,
+      imagePath: ("imagePath" in image ? image.imagePath : null) ?? image.url ?? `standard-stemningsbillede-${index + 1}`,
+      url: image.url ?? "",
+    }))
+    .filter((image) => image.url);
 
   return (
     <aside className="w-full rounded-card border border-sage-700/15 bg-sage-50 p-5 shadow-soft">
@@ -133,11 +152,11 @@ export function FacilitatorProfilePreview({
         ) : null}
       </div>
 
-      {moodImages.length > 0 ? (
+      {visibleMoodImages.length > 0 ? (
         <div className="mt-5 grid gap-3">
           <p className="text-sm font-semibold text-midnight">Stemningsbilleder</p>
           <div className="grid gap-3 sm:grid-cols-3">
-            {moodImages.map((image, index) => (
+            {visibleMoodImages.map((image, index) => (
               <button
                 className="block overflow-hidden rounded-md border border-white bg-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
                 key={image.imagePath}
@@ -152,6 +171,11 @@ export function FacilitatorProfilePreview({
               </button>
             ))}
           </div>
+          {moodImageFallback.isUsingFallback && showStandardMoodImageNotice ? (
+            <p className="rounded-[18px] border border-[#D8CBE4] bg-[#F1EAF5] px-3 py-2 text-xs font-semibold leading-5 text-[#6E5285]">
+              Du bruger i øjeblikket SoulEvents&apos; standardbillede. Upload dine egne stemningsbilleder for at gøre din profil mere personlig.
+            </p>
+          ) : null}
         </div>
       ) : null}
 

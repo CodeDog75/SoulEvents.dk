@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Check, ExternalLink, Eye, Pencil, Slash, UserRoundCheck } from "lucide-react";
 import { disableFacilitatorAction, reactivateFacilitatorAction, updateFacilitatorStatusAction } from "@/app/admin/facilitators/actions";
+import { FacilitatorStatusBadge } from "@/components/admin/facilitator-status-badge";
 import { RequestFacilitatorChangesDialog } from "@/components/admin/reject-facilitator-dialog";
 import type { FacilitatorStatus } from "@/types/database";
 
@@ -36,22 +37,6 @@ type FacilitatorRow = {
 type FacilitatorApprovalTableProps = {
   facilitators: FacilitatorRow[];
 };
-
-function statusLabel(facilitator: FacilitatorRow) {
-  if (facilitator.is_disabled) return "Deaktiveret";
-  if (facilitator.is_paused) return "Sat på pause";
-  if (facilitator.status === "approved") return "Aktiv";
-  if (facilitator.status === "changes_requested") return "Kræver ændringer";
-  return "Afventer";
-}
-
-function statusClass(facilitator: FacilitatorRow) {
-  if (facilitator.is_disabled) return "bg-midnight/10 text-midnight";
-  if (facilitator.is_paused) return "bg-[#F4F0F7] text-[#6E5A86]";
-  if (facilitator.status === "approved") return "bg-sage-50 text-sage-700";
-  if (facilitator.status === "changes_requested") return "bg-[#FFF7E8] text-[#8A6A2E]";
-  return "bg-terracotta/10 text-terracotta";
-}
 
 function StatusButton({
   facilitatorId,
@@ -106,11 +91,7 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
             <article className="grid gap-5 p-5 lg:grid-cols-[1fr_auto]" key={facilitator.id}>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={`rounded-md px-2.5 py-1 text-xs font-semibold ${statusClass(facilitator)}`}
-                  >
-                    {statusLabel(facilitator)}
-                  </span>
+                  <FacilitatorStatusBadge facilitator={facilitator} />
                   <span className="text-xs text-ink/52">
                     Oprettet {new Intl.DateTimeFormat("da-DK").format(new Date(facilitator.created_at))}
                   </span>

@@ -11,6 +11,7 @@ import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitat
 import { subscribeToFacilitatorReminderAction } from "./actions";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
+import { resolveFacilitatorMoodImage, withFacilitatorMoodImageFallback } from "@/lib/facilitators/mood-image-fallback";
 import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
 import { createPageMetadata, publicMediaUrl, stripHtml } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
@@ -180,8 +181,14 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
   const name = nameOf(facilitator);
   const galleryImages = [...(((facilitator as any).facilitator_images ?? []) as Array<{ image_path: string | null; sort_order: number | null }>)]
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-  const imagePath = facilitator.profile_image_path || galleryImages.find((image) => image.image_path)?.image_path || null;
-  const imageUrl = imagePath ? publicMediaUrl(supabase, imagePath) : null;
+  const moodImage = resolveFacilitatorMoodImage(
+    galleryImages.map((image) => ({ imagePath: image.image_path, sortOrder: image.sort_order })),
+    {
+      fallbackAltText: "Roligt SoulEvents naturbillede",
+      resolveImagePath: (imagePath) => publicMediaUrl(supabase, imagePath),
+    },
+  );
+  const imageUrl = facilitator.profile_image_path ? publicMediaUrl(supabase, facilitator.profile_image_path) : moodImage.url;
   const description = stripHtml(facilitator.short_description || facilitator.long_description) || "Find arrangørprofil på SoulEvents.dk.";
 
   return createPageMetadata({
@@ -277,11 +284,15 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   const gallery =
     [...(facilitatorData.facilitator_images ?? [])]
       .sort((a: any, b: any) => a.sort_order - b.sort_order)
+      .filter((image: any) => image.image_path)
       .slice(0, 10)
       .map((image: any) => ({
         ...image,
         url: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,
       })) ?? [];
+  const galleryWithFallback = withFacilitatorMoodImageFallback(gallery, {
+    fallbackAltText: `Stemningsbillede for ${name}`,
+  });
   const categories =
     facilitatorData.facilitator_categories
       ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
@@ -337,19 +348,21 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
               </div>
 
               <div>
-                <div className="flex flex-wrap gap-2">
-                  {facilitatorData.is_online_facilitator && (
-                    <span className="rounded-full border border-olive/10 bg-white px-2.5 py-1 text-xs font-medium text-ink/55">💻 Online arrangør</span>
-                  )}
-                  {categories.map((category: any) => (
-                    <span className="rounded-full px-3 py-1 text-xs font-semibold text-white" key={category.name} style={{ backgroundColor: category.color_hex }}>
-                      {category.name}
-                    </span>
-                  ))}
+                <div className="grid gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    {facilitatorData.is_online_facilitator && (
+                      <span className="rounded-full border border-olive/10 bg-white px-2.5 py-1 text-xs font-medium text-ink/55">💻 Online arrangør</span>
+                    )}
+                    {categories.map((category: any) => (
+                      <span className="rounded-full px-3 py-1 text-xs font-semibold text-white" key={category.name} style={{ backgroundColor: category.color_hex }}>
+                        {category.name}
+                      </span>
+                    ))}
+                  </div>
                   {specialties.map((specialty) => (
-                    <span className="rounded-full border border-midnight/15 bg-white px-3 py-1 text-xs font-semibold text-midnight" key={specialty}>
+                    <div className="h-auto max-w-full whitespace-normal break-words rounded-[18px] border border-[#D8CBE4] bg-[#F1EAF5] px-4 py-3 text-[15px] font-medium leading-6 text-midnight [overflow-wrap:anywhere]" key={specialty}>
                       {specialty}
-                    </span>
+                    </div>
                   ))}
                 </div>
                 <h1 className="mt-4 text-5xl font-medium leading-tight text-olive">{name}</h1>
@@ -380,19 +393,22 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
             </section>
           ) : null}
 
-          {gallery.length > 0 && (
-            <section className="rounded-card bg-white p-8 shadow-soft">
+          <section className="rounded-card bg-white p-8 shadow-soft">
               <h2 className="text-4xl font-medium text-olive">Galleri</h2>
+              {galleryWithFallback.isUsingFallback && (adminReturnLink || isOwnProfilePreview) ? (
+                <p className="mt-4 rounded-card border border-[#D8CBE4] bg-[#F1EAF5] px-4 py-3 text-sm leading-6 text-midnight">
+                  Du bruger i øjeblikket SoulEvents&apos; standardbillede. Upload dine egne stemningsbilleder for at gøre din profil mere personlig.
+                </p>
+              ) : null}
               <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
-                {gallery.map((image: any) => (
-                  <div className="aspect-square overflow-hidden rounded-card bg-sage-50" key={image.image_path}>
+                {galleryWithFallback.images.map((image: any) => (
+                  <div className="aspect-square overflow-hidden rounded-card bg-sage-50" key={image.image_path ?? image.url}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img alt={image.alt_text || name} className="h-full w-full object-cover" src={image.url} />
+                    <img alt={image.alt_text || image.altText || name} className="h-full w-full object-cover" src={image.url} />
                   </div>
                 ))}
               </div>
             </section>
-          )}
 
           <section className="rounded-card bg-white p-8 shadow-soft">
             <h2 className="text-4xl font-medium text-olive">Kommende events</h2>

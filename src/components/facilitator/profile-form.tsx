@@ -86,7 +86,7 @@ type FacilitatorProfile = {
 type GalleryImage = {
   image_path: string;
   alt_text: string | null;
-};
+} | null;
 
 type ProfileFormProps = {
   adminReturnTo?: string | null;
@@ -243,6 +243,7 @@ const steps: Array<{
 
 const onboardingStepIds: PrototypeStep[] = ["person", "profile-image", "experiences", "story", "links", "services", "review", "approval", "complete"];
 const editingStepIds: PrototypeStep[] = ["review", "person", "profile-image", "experiences", "story", "links", "services"];
+const specialtyMaxLength = 150;
 
 function value(input: string | null | undefined) {
   return input ?? "";
@@ -694,6 +695,7 @@ function InlineBrandLogo({ className, src }: { className: string; src: string })
 }
 
 export function ProfileForm({
+  adminTargetFacilitatorId,
   autosaveEnabled = true,
   backHref = "/facilitator",
   backLabel = "Tilbage",
@@ -808,7 +810,9 @@ export function ProfileForm({
   };
 
   async function saveCurrentStep() {
-    if (!autosaveEnabled || presentationMode === "admin") {
+    const shouldPersistAdminCategories = presentationMode === "admin" && currentStep.id === "experiences";
+
+    if ((!autosaveEnabled || presentationMode === "admin") && !shouldPersistAdminCategories) {
       return { message: "Gemt", ok: true };
     }
 
@@ -839,7 +843,12 @@ export function ProfileForm({
     }
 
     if (currentStep.id === "experiences") {
+      if (shouldPersistAdminCategories && !adminTargetFacilitatorId) {
+        return { message: "Arrangørprofilen kunne ikke genkendes.", ok: false };
+      }
+
       const result = await autosaveFacilitatorProfileAction({
+        adminTargetFacilitatorId: shouldPersistAdminCategories ? (adminTargetFacilitatorId ?? null) : null,
         section: "categories",
         values: { category_ids: selectedExperiences, specialties },
       });
@@ -1015,6 +1024,9 @@ export function ProfileForm({
         const formData = new FormData();
         formData.set("slot_index", String(index));
         formData.set("image_file", file);
+        if (adminTargetFacilitatorId) {
+          formData.set("admin_target_facilitator_id", adminTargetFacilitatorId);
+        }
         const result = await saveFacilitatorMoodImageAction(formData);
 
         if (result.status === "success") {
@@ -1037,6 +1049,9 @@ export function ProfileForm({
         const formData = new FormData();
         formData.set("slot_index", String(index));
         formData.set("remove", "yes");
+        if (adminTargetFacilitatorId) {
+          formData.set("admin_target_facilitator_id", adminTargetFacilitatorId);
+        }
         const result = await saveFacilitatorMoodImageAction(formData);
 
         if (result.status === "success") {
@@ -1067,7 +1082,7 @@ export function ProfileForm({
   const moodImageTiles = (
     <>
       {moodImages.map((image, index) => (
-        <div className="grid gap-2" key={index}>
+        <div className="grid gap-2" key={`mood-slot-${index + 1}`}>
           <div className="relative">
             <UploadTile
               className="lg:max-w-[180px] xl:max-w-[200px]"
@@ -1136,7 +1151,7 @@ export function ProfileForm({
     <OnboardingShell
       backHref={shellBackHref}
       backLabel={backLabel}
-      canContinue={(currentStep.id !== "approval" || acceptedTerms) && (currentStep.id !== "profile-image" || Boolean(profileImageUrl))}
+      canContinue={(currentStep.id !== "approval" || (acceptedTerms && missingRequired.length === 0)) && (currentStep.id !== "profile-image" || Boolean(profileImageUrl))}
       currentIndex={stepIndex}
       ctaLabel={
         presentationMode === "onboarding"
@@ -1261,16 +1276,19 @@ export function ProfileForm({
               Beskriv dit speciale
             </p>
             <p className="mt-2 text-xs leading-5 text-ink/55">
-              Skriv det, du mere konkret arbejder med. Det kan for eksempel være Traumeterapeut, Kraniosakral terapeut eller Gongmester.
+              Uddyb kort dit speciale, og skriv gerne siden hvornår du har arbejdet med området. Eksempel: &quot;Traumeterapeut med speciale i børn – siden 2018&quot;. Maks. 150 tegn.
             </p>
             <div className="mt-3">
               <ClearableInput
                 className="bg-white text-base"
-                maxLength={160}
+                maxLength={specialtyMaxLength}
                 onChange={setSpecialties}
                 placeholder="Skriv dit speciale"
                 value={specialties}
               />
+              <p className="mt-2 text-right text-xs font-semibold text-ink/50">
+                {specialties.length} / {specialtyMaxLength} tegn
+              </p>
             </div>
           </div>
         </div>
@@ -1388,18 +1406,20 @@ export function ProfileForm({
             <ReviewJump label="Rediger arbejdsområder" onClick={() => editFromReview("experiences")} className="p-2 -m-2">
               <div className="grid gap-3">
                 {hasWorkArea ? (
-                  <div className="flex flex-wrap gap-2">
-                    {categories
-                      .filter((category) => selectedExperiences.includes(category.id))
-                      .map((category) => (
-                        <span className="rounded-full border border-sage-700/15 bg-sage-50 px-3 py-1.5 text-sm font-semibold text-sage-700" key={category.id}>
-                          {category.name}
-                        </span>
-                      ))}
+                  <div className="grid gap-3">
+                    <div className="flex flex-wrap gap-2">
+                      {categories
+                        .filter((category) => selectedExperiences.includes(category.id))
+                        .map((category) => (
+                          <span className="rounded-full border border-sage-700/15 bg-sage-50 px-3 py-1.5 text-sm font-semibold text-sage-700" key={category.id}>
+                            {category.name}
+                          </span>
+                        ))}
+                    </div>
                     {specialtyChips.map((specialty) => (
-                      <span className="rounded-full border border-midnight/15 bg-white px-3 py-1.5 text-sm font-semibold text-midnight" key={specialty}>
+                      <div className="h-auto max-w-full whitespace-normal break-words rounded-[18px] border border-[#D8CBE4] bg-[#F1EAF5] px-4 py-3 text-[15px] font-medium leading-6 text-midnight [overflow-wrap:anywhere]" key={specialty}>
                         {specialty}
-                      </span>
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -1430,7 +1450,7 @@ export function ProfileForm({
                 {moodImages.map((image, index) => (
                   <div
                     className="aspect-square overflow-hidden rounded-[18px] bg-white/45 text-sage-700/45"
-                    key={index}
+                    key={`review-mood-slot-${index + 1}`}
                   >
                     {image.previewUrl ? (
                       <img alt="" className="h-full w-full object-cover" src={image.previewUrl} />
@@ -1454,14 +1474,24 @@ export function ProfileForm({
               )}
             </ReviewJump>
 
-            {offersIndividualServices ? (
+            {offersIndividualServices || presentationMode !== "onboarding" ? (
               <ReviewJump label="Rediger individuelle ydelser" onClick={() => editFromReview("services")} className="p-2 -m-2">
                 <div className="grid gap-3">
                   <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Individuelle ydelser</p>
                   {hasIndividualServicesDescription ? (
                     <p className="whitespace-pre-line text-base leading-7 text-ink/72">{serviceDescription}</p>
-                  ) : (
+                  ) : offersIndividualServices ? (
                     <p className="text-sm leading-6 text-ink/55">Du har valgt, at du tilbyder individuelle ydelser. Tilføj gerne en kort beskrivelse.</p>
+                  ) : (
+                    <div className="rounded-[22px] bg-[#FBF5E9] p-4">
+                      <p className="text-sm font-semibold leading-6 text-midnight">Du har endnu ikke tilføjet individuelle ydelser</p>
+                      <p className="mt-1 text-sm leading-6 text-ink/60">
+                        Tilføj de ydelser, som deltagere kan kontakte dig om uden for dine events.
+                      </p>
+                      <span className="mt-3 inline-flex h-10 w-fit items-center rounded-full bg-sage-700 px-4 text-sm font-semibold text-white shadow-soft">
+                        Tilføj ydelse
+                      </span>
+                    </div>
                   )}
                 </div>
               </ReviewJump>

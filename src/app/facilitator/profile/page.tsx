@@ -8,6 +8,7 @@ import { SecurityPasswordForm } from "@/components/facilitator/security-password
 import { requireProfile } from "@/lib/auth/roles";
 import { resolveNameParts } from "@/lib/auth/names";
 import { getBrandLogoSources, type LogoSettingClient } from "@/lib/brand-logo";
+import { normalizeFacilitatorMoodImageSlots } from "@/lib/facilitators/mood-image-slots";
 import { getFacilitatorOnboardingState } from "@/lib/facilitators/onboarding-state";
 import { parseProfileChangeRequest } from "@/lib/facilitators/profile-change-request";
 import { facilitatorWorkAreaSlugs } from "@/lib/facilitators/work-areas";
@@ -60,10 +61,9 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
 
   const selectedCategoryIds =
     categoryRows?.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [];
-  const galleryImages =
-    categoryRows?.facilitator_images?.sort(
-      (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
-    ) ?? [];
+  const galleryImages = normalizeFacilitatorMoodImageSlots(
+    categoryRows?.facilitator_images as Array<{ alt_text: string | null; image_path: string; sort_order: number }> | null | undefined,
+  );
   if (!facilitatorProfile) {
     return (
       <main className="min-h-screen bg-[#fbfaf7] px-4 py-10">
@@ -108,7 +108,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     categoryIds: selectedCategoryIds,
     companyName: facilitatorProfile.company_name,
     fullName: profile.full_name,
-    hasMoodImage: galleryImages.length > 0,
+    hasMoodImage: galleryImages.some((image) => Boolean(image?.image_path)),
     hasProfileImage: Boolean(facilitatorProfile.profile_image_path),
     isDisabled: facilitatorProfile.is_disabled,
     longDescription: facilitatorProfile.long_description,

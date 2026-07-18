@@ -971,7 +971,7 @@ function LocalServiceProviderSection({ providers }: { providers: LocalServicePro
             {provider.serviceLabels.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {provider.serviceLabels.map((label) => (
-                  <span className="rounded-full bg-[#EDE4F7] px-3 py-1 text-xs font-semibold text-[#7A4EAB]" key={label}>
+                  <span className="h-auto max-w-full whitespace-normal break-words rounded-full bg-[#EDE4F7] px-3 py-1 text-xs font-semibold text-[#7A4EAB] [overflow-wrap:anywhere]" key={label}>
                     {label}
                   </span>
                 ))}

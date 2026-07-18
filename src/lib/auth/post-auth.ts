@@ -194,7 +194,7 @@ export async function getPostAuthRedirect(context: PostAuthContext): Promise<Pos
   if (ensuredProfile.facilitatorProfile?.is_disabled) {
     return {
       message: disabledFacilitatorLoginMessage,
-      path: "/auth/login",
+      path: "/facilitator/deactivated",
       profile: ensuredProfile.profile,
       type: "disabled",
     };

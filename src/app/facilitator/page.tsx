@@ -22,13 +22,21 @@ import {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { activateFacilitatorProfileAction, requestFacilitatorProfileClosureAction, sendFacilitatorAdminMessageAction, sendFacilitatorProfileToReviewAction } from "@/app/facilitator/actions";
+import {
+  activateFacilitatorProfileAction,
+  markFacilitatorAdminMessagesReadAction,
+  requestFacilitatorProfileClosureAction,
+  sendFacilitatorAdminMessageAction,
+  sendFacilitatorProfileToReviewAction,
+} from "@/app/facilitator/actions";
 import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction, publishDraftEventAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
+import { DashboardGreeting } from "@/components/facilitator/dashboard-greeting";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireRole } from "@/lib/auth/roles";
 import { draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
+import { resolveFacilitatorMoodImage, withFacilitatorMoodImageFallback } from "@/lib/facilitators/mood-image-fallback";
 import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
 import { parseProfileChangeRequest, type ProfileChangeRequest } from "@/lib/facilitators/profile-change-request";
 import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
@@ -41,6 +49,7 @@ export const revalidate = 0;
 type FacilitatorPageProps = {
   searchParams: Promise<{
     message?: string;
+    messages?: string;
   }>;
 };
 
@@ -56,6 +65,7 @@ type MoodImage = {
 
 type DashboardMoodImage = {
   altText?: string | null;
+  isFallback?: boolean;
   url: string;
 };
 
@@ -280,7 +290,7 @@ function DashboardHeader({
       <div className="flex min-h-[382px] max-w-[580px] flex-col justify-between sm:min-h-[416px] lg:min-h-[480px]">
         <div>
           <h1 className="max-w-[560px] font-serif text-4xl font-semibold leading-tight drop-shadow-[0_2px_18px_rgba(0,0,0,0.22)] sm:text-5xl">
-            Godmorgen {name || "og velkommen"} 🌿
+            <DashboardGreeting name={name} />
           </h1>
           <p className="mt-4 max-w-[520px] text-base leading-7 text-white/88 drop-shadow-[0_1px_12px_rgba(0,0,0,0.18)] sm:text-lg">
             {profileReadiness.isComplete
@@ -322,12 +332,14 @@ function DashboardHeader({
 
 function CompactProfileCard({
   fullProfileHref,
+  isUsingFallbackMoodImage,
   profileImageUrl,
   profileName,
   workAreas,
   moodImages,
 }: {
   fullProfileHref?: string | null;
+  isUsingFallbackMoodImage?: boolean;
   moodImages: DashboardMoodImage[];
   profileImageUrl?: string | null;
   profileName: string;
@@ -374,6 +386,11 @@ function CompactProfileCard({
                 </div>
               ))}
             </div>
+            {isUsingFallbackMoodImage ? (
+              <p className="mt-3 rounded-[18px] border border-[#D8CBE4] bg-[#F1EAF5] px-3 py-2 text-xs font-semibold leading-5 text-[#6E5285]">
+                Du bruger i øjeblikket SoulEvents&apos; standardbillede. Upload dine egne stemningsbilleder for at gøre din profil mere personlig.
+              </p>
+            ) : null}
           </div>
         ) : null}
         <div className={moodImages.length > 0 ? "mt-5 grid gap-2" : "grid gap-2"}>
@@ -399,7 +416,7 @@ function CompactProfileCard({
   );
 }
 
-function BookingAttentionCard({ pendingCount }: { pendingCount: number }) {
+function BookingAttentionCard({ pendingCount, pendingHref }: { pendingCount: number; pendingHref: string }) {
   const hasPending = pendingCount > 0;
 
   return (
@@ -422,15 +439,17 @@ function BookingAttentionCard({ pendingCount }: { pendingCount: number }) {
           <div>
             <h2 className="text-xl font-semibold text-[#2F2437]">Tilmeldinger</h2>
             <p className="mt-1 text-sm font-semibold leading-6 text-[#6E6475]">
-              {hasPending ? `${pendingCount} ${pendingCount === 1 ? "afventer" : "afventer"} bekræftelse` : "Ingen tilmeldinger kræver handling"}
+              {hasPending
+                ? `${pendingCount} ${pendingCount === 1 ? "deltager afventer dit svar" : "deltagere afventer dit svar"}`
+                : "Ingen tilmeldinger kræver handling"}
             </p>
           </div>
         </div>
         <Link
           className="inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285]"
-          href="/facilitator/bookings"
+          href={pendingHref}
         >
-          Se tilmeldinger
+          {hasPending ? "Behandl tilmeldinger" : "Se tilmeldinger"}
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       </div>
@@ -778,35 +797,50 @@ function AdminMessageCta({ unreadCount }: { unreadCount: number }) {
   }
 
   return (
-    <a
-      className="flex items-center justify-between gap-4 rounded-[24px] border border-[#D8CBE4] bg-white p-5 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lg"
-      href="#beskeder-admin"
-    >
-      <span className="flex min-w-0 items-center gap-4">
-        <span className="relative grid size-12 shrink-0 place-items-center rounded-full bg-[#F4F0F7] text-[#7A5D91]">
-          <Bell className="size-5" aria-hidden="true" />
-          <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-[#B56F8A] text-[11px] font-bold text-white">
-            {unreadCount}
+    <form action={markFacilitatorAdminMessagesReadAction}>
+      <button
+        className="flex w-full items-center justify-between gap-4 rounded-[28px] border border-[#D8CBE4] bg-[#F4F0F7] p-5 text-left shadow-soft transition hover:-translate-y-0.5 hover:shadow-lg"
+        type="submit"
+      >
+        <span className="flex min-w-0 items-center gap-4">
+          <span className="relative grid size-12 shrink-0 place-items-center rounded-full bg-white text-[#7A5D91]">
+            <Bell className="size-5" aria-hidden="true" />
+            <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-[#B56F8A] text-[11px] font-bold text-white">
+              {unreadCount}
+            </span>
+          </span>
+          <span className="min-w-0">
+            <span className="block font-semibold text-[#2F2437]">
+              {unreadCount === 1 ? "Ny besked fra SoulEvents" : "Nye beskeder fra SoulEvents"}
+            </span>
+            <span className="mt-1 block text-sm leading-5 text-[#6E6475]">
+              {unreadCount === 1 ? "Du har en ulæst besked, som venter på dig." : `Du har ${unreadCount} ulæste beskeder.`}
+            </span>
+            <span className="mt-3 inline-flex text-sm font-semibold text-[#7A5D91]">
+              {unreadCount === 1 ? "Læs beskeden" : "Læs beskeder"}
+            </span>
           </span>
         </span>
-        <span className="min-w-0">
-          <span className="block font-semibold text-[#2F2437]">
-            {unreadCount === 1 ? "Ny besked fra SoulEvents administration" : "Nye beskeder fra SoulEvents administration"}
-          </span>
-          <span className="mt-1 block text-sm leading-5 text-[#6E6475]">
-            Åbn dialogen og marker beskeden som læst.
-          </span>
-        </span>
-      </span>
-      <ArrowRight className="size-5 shrink-0 text-[#A08BB4]" aria-hidden="true" />
-    </a>
+        <ArrowRight className="size-5 shrink-0 text-[#A08BB4]" aria-hidden="true" />
+      </button>
+    </form>
   );
 }
 
-function SettingsPanel({ adminMessages, isPaused, unreadMessageCount }: { adminMessages: any[]; isPaused: boolean; unreadMessageCount: number }) {
+function SettingsPanel({
+  adminMessages,
+  isOpen,
+  isPaused,
+  unreadMessageCount,
+}: {
+  adminMessages: any[];
+  isOpen: boolean;
+  isPaused: boolean;
+  unreadMessageCount: number;
+}) {
 
   return (
-    <details className="rounded-[32px] border border-[#E5DDEA] bg-white shadow-[0_18px_45px_rgba(47,36,55,0.08)]" id="beskeder-admin">
+    <details className="rounded-[32px] border border-[#E5DDEA] bg-white shadow-[0_18px_45px_rgba(47,36,55,0.08)]" id="beskeder-admin" open={isOpen}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-[#2F2437] transition hover:text-[#7A5D91] sm:px-6">
         <span className="inline-flex items-center gap-2">
           <Settings className="size-4 text-[#7A5D91]" aria-hidden="true" />
@@ -889,7 +923,12 @@ function SettingsPanel({ adminMessages, isPaused, unreadMessageCount }: { adminM
             {adminMessages.map((item) => (
               <article className="rounded-[16px] bg-white p-4 text-sm" key={item.id}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-semibold text-[#2F2437]">{item.subject}</p>
+                  <div>
+                    {item.type === "admin_reply" ? (
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#7A5D91]">SoulEvents Team</p>
+                    ) : null}
+                    <p className="mt-1 font-semibold text-[#2F2437]">{item.subject}</p>
+                  </div>
                   <span className="rounded-full bg-[#FAF7F2] px-3 py-1 text-xs font-semibold text-[#6E6475]">
                     <MessageStatusLabel status={item.status} type={item.type} />
                   </span>
@@ -908,7 +947,7 @@ function SettingsPanel({ adminMessages, isPaused, unreadMessageCount }: { adminM
 }
 
 export default async function FacilitatorPage({ searchParams }: FacilitatorPageProps) {
-  const [{ message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const [{ message, messages }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
   const supabase = createAdminClient();
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
@@ -936,12 +975,23 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
         altText: image.alt_text,
         url: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,
       })) ?? [];
-  const heroImageUrl = moodImages[0]?.url ?? null;
+  const moodImageFallback = withFacilitatorMoodImageFallback(moodImages, {
+    fallbackAltText: "Roligt SoulEvents naturbillede",
+  });
+  const visibleMoodImages = moodImageFallback.images.map((image) => ({
+    altText: image.altText,
+    isFallback: moodImageFallback.isUsingFallback,
+    url: image.url ?? resolveFacilitatorMoodImage([], { fallbackAltText: "Roligt SoulEvents naturbillede" }).url,
+  }));
+  const heroImageUrl = resolveFacilitatorMoodImage(moodImages, {
+    fallbackAltText: "Roligt SoulEvents naturbillede",
+  }).url;
   const now = new Date();
   const [
     { data: events },
     { data: adminMessages },
-    { count: pendingBookingCount },
+    { count: unreadAdminMessageCount },
+    { data: pendingBookingRows },
     { data: coOrganizerInvitations },
     { data: latestChangeRequest },
   ] =
@@ -954,17 +1004,22 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .order("starts_at", { ascending: false }),
           supabase
             .from("facilitator_admin_messages")
-            .select("id, subject, message, type, status, created_at")
+            .select("id, subject, message, type, status, created_at, facilitator_read_at")
             .eq("facilitator_id", facilitatorProfile.id)
             .order("created_at", { ascending: false })
             .limit(3),
           supabase
+            .from("facilitator_admin_messages")
+            .select("id", { count: "exact", head: true })
+            .eq("facilitator_id", facilitatorProfile.id)
+            .eq("type", "admin_reply")
+            .eq("status", "unread"),
+          supabase
             .from("bookings")
-            .select("id, events!inner(facilitator_id)", { count: "exact", head: true })
+            .select("id, event_id, events!inner(id, facilitator_id, starts_at, ends_at, status)")
             .eq("events.facilitator_id", facilitatorProfile.id)
             .eq("status", "pending")
-            .in("events.status", ["active", "sold_out"])
-            .gte("events.ends_at", now.toISOString()),
+            .in("events.status", ["active", "sold_out"]),
           supabase
             .from("event_co_organizers")
             .select("id, status, response_token, events(id, title, starts_at, status, facilitator_profiles!events_facilitator_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)))")
@@ -980,9 +1035,21 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .limit(1)
             .maybeSingle(),
         ])
-      : [{ data: [] }, { data: [] }, { count: 0 }, { data: [] }, { data: null }];
+      : [{ data: [] }, { data: [] }, { count: 0 }, { data: [] }, { data: [] }, { data: null }];
 
   const eventRows = (events ?? []) as any[];
+  const currentPendingBookingRows = ((pendingBookingRows ?? []) as Array<{
+    event_id?: string | null;
+    events?: { ends_at?: string | null; starts_at?: string | null } | Array<{ ends_at?: string | null; starts_at?: string | null }> | null;
+  }>).filter((booking) => {
+    const event = Array.isArray(booking.events) ? booking.events[0] : booking.events;
+    const eventEndsAt = event?.ends_at ?? event?.starts_at;
+    return eventEndsAt ? new Date(eventEndsAt) >= now : false;
+  });
+  const pendingBookingCount = currentPendingBookingRows.length;
+  const pendingBookingsHref = currentPendingBookingRows[0]?.event_id
+    ? "/facilitator/bookings?event=" + currentPendingBookingRows[0].event_id
+    : "/facilitator/bookings";
   const limitStatus = facilitatorProfile
     ? await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id)
     : { activeCount: 0, draftCount: 0, maxActiveEvents: 10, maxDraftEvents: 5 };
@@ -990,7 +1057,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const coOrganizerRows = (coOrganizerInvitations ?? []) as any[];
   const pendingCoOrganizerInvitations = coOrganizerRows.filter((row) => row.status === "pending");
   const acceptedCoOrganizerInvitations = coOrganizerRows.filter((row) => row.status === "accepted");
-  const unreadMessageCount = 0;
+  const unreadMessageCount = unreadAdminMessageCount ?? 0;
   const activeEvents = eventRows.filter((event) => ["active", "sold_out", "pending_review"].includes(event.status) && !isPastEvent(event, now));
   const completedEvents = eventRows.filter((event) => isPastEvent(event, now));
   const visibleCompletedEvents = completedEvents.filter((event) => !isOlderThanMonths(eventEndDate(event), now, 12));
@@ -1033,13 +1100,26 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           <Link className="inline-flex items-center gap-2 text-sm font-semibold text-[#6E6475] transition hover:text-[#7A5D91]" href="/">
             SoulEvents.dk
           </Link>
-          <SignOutButton />
+          <div className="flex items-center gap-3">
+            {unreadMessageCount > 0 ? (
+              <form action={markFacilitatorAdminMessagesReadAction}>
+                <button className="inline-flex h-10 items-center gap-2 rounded-full border border-[#D8CBE4] bg-white px-3 text-sm font-semibold text-[#2F2437] transition hover:border-[#7A5D91]" type="submit">
+                  <Mail className="size-4 text-[#7A5D91]" aria-hidden="true" />
+                  Beskeder
+                  <span className="grid size-5 place-items-center rounded-full bg-[#B56F8A] text-[11px] font-bold text-white">{unreadMessageCount}</span>
+                </button>
+              </form>
+            ) : null}
+            <SignOutButton />
+          </div>
         </div>
       </header>
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8">
         <div className="min-w-0 space-y-6">
           <AuthMessage message={message} />
+
+          <AdminMessageCta unreadCount={unreadMessageCount} />
 
           <DashboardHeader
             heroImageUrl={heroImageUrl}
@@ -1052,9 +1132,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             <ProfileChangesRequestedCard canSubmit={profileReadiness.isComplete} request={profileChangeRequest} />
           ) : null}
 
-          {profileReadiness.isComplete ? <BookingAttentionCard pendingCount={pendingBookingCount ?? 0} /> : null}
-
-          <AdminMessageCta unreadCount={unreadMessageCount} />
+          {profileReadiness.isComplete ? <BookingAttentionCard pendingCount={pendingBookingCount ?? 0} pendingHref={pendingBookingsHref} /> : null}
 
           {pendingCoOrganizerInvitations.length > 0 ? (
             <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
@@ -1185,7 +1263,8 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
         <aside className="w-full space-y-4 lg:self-start">
           <CompactProfileCard
             fullProfileHref={fullProfileHref}
-            moodImages={moodImages}
+            isUsingFallbackMoodImage={moodImageFallback.isUsingFallback}
+            moodImages={visibleMoodImages}
             profileImageUrl={profileImageUrl}
             profileName={profileName}
             workAreas={categoryNames.map((category) => ({
@@ -1208,7 +1287,12 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
         </aside>
 
         <section className="lg:col-span-2">
-          <SettingsPanel adminMessages={messageRows} isPaused={Boolean(facilitatorProfile?.is_paused)} unreadMessageCount={0} />
+          <SettingsPanel
+            adminMessages={messageRows}
+            isOpen={unreadMessageCount > 0 || messages === "open"}
+            isPaused={Boolean(facilitatorProfile?.is_paused)}
+            unreadMessageCount={unreadMessageCount}
+          />
         </section>
       </section>
     </main>

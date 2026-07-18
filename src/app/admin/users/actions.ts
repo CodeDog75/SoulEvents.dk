@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
-import { getString } from "@/lib/forms/form-data";
+import { sendFacilitatorProfileDeactivatedEmail } from "@/lib/email/facilitator-profile-deactivated";
+import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { AppRole, FacilitatorStatus } from "@/types/database";
 
@@ -11,6 +12,19 @@ function usersRedirect(message: string, returnTo = "/admin/users"): never {
   const safeReturnTo = returnTo.startsWith("/admin/users") ? returnTo : "/admin/users";
   const separator = safeReturnTo.includes("?") ? "&" : "?";
   redirect(`${safeReturnTo}${separator}message=${encodeURIComponent(message)}`);
+}
+
+function usersRedirectWithParams(message: string, returnTo: string, params: Record<string, string>): never {
+  const safeReturnTo = returnTo.startsWith("/admin/users") ? returnTo : "/admin/users";
+  const [path, query] = safeReturnTo.split("?");
+  const searchParams = new URLSearchParams(query ?? "");
+  searchParams.set("message", message);
+
+  for (const [key, value] of Object.entries(params)) {
+    searchParams.set(key, value);
+  }
+
+  redirect(`${path}?${searchParams.toString()}`);
 }
 
 const overviewBooleanFields = ["auto_approve_events", "is_active_host", "is_experienced_host", "is_featured"] as const;
@@ -133,9 +147,16 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
   const field = getString(formData, "field");
   const value = getString(formData, "value");
   const returnTo = getString(formData, "return_to") || "/admin/users";
+  const disabledReason = getOptionalString(formData, "disabled_reason");
+  const disabledReasonDetail = getOptionalString(formData, "disabled_reason_detail");
+  const disabledAdminMessage = getOptionalString(formData, "disabled_admin_message")?.trim() ?? "";
 
   if (!facilitatorId || !field) {
     usersRedirect("Arrangørhandlingen kunne ikke udføres.", returnTo);
+  }
+
+  if (disabledAdminMessage.length > 500) {
+    usersRedirect("Beskeden til arrangøren må højst være 500 tegn.", returnTo);
   }
 
   const update: Record<string, boolean | number | string | null> = {};
@@ -145,8 +166,15 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
   } else if (field === "is_disabled") {
     update.is_disabled = value === "true";
     if (value === "true") {
+      const reason = [disabledReason, disabledReasonDetail].filter(Boolean).join(": ");
+
+      if (!reason) {
+        usersRedirect("Vælg eller skriv en årsag, før arrangøren deaktiveres.", returnTo);
+      }
+
       update.disabled_at = new Date().toISOString();
       update.disabled_by = adminProfile.id;
+      update.disabled_reason = reason;
     } else {
       update.disabled_at = null;
       update.disabled_by = null;
@@ -181,6 +209,16 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
   }
 
   const supabase = createAdminClient();
+  const facilitatorForDeactivation =
+    field === "is_disabled" && value === "true"
+      ? await supabase
+          .from("facilitator_profiles")
+          .select(
+            "id, company_name, display_name, profiles!facilitator_profiles_profile_id_fkey(email, first_name, full_name)",
+          )
+          .eq("id", facilitatorId)
+          .maybeSingle()
+      : null;
   const { error } = await supabase.from("facilitator_profiles").update(update).eq("id", facilitatorId);
 
   if (error) {
@@ -202,6 +240,54 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
   revalidatePath("/admin/featured-facilitators");
   revalidatePath("/facilitators");
   revalidatePath("/facilitators/" + facilitatorId);
+
+  if (field === "is_disabled") {
+    await supabase.from("admin_audit_log").insert({
+      actor_profile_id: adminProfile.id,
+      action: value === "true" ? "facilitator_disabled_from_overview" : "facilitator_reactivated_from_overview",
+      facilitator_id: facilitatorId,
+      new_value:
+        value === "true"
+          ? JSON.stringify({
+              adminMessage: disabledAdminMessage || null,
+              reason: [disabledReason, disabledReasonDetail].filter(Boolean).join(": "),
+            })
+          : "enabled",
+    });
+  }
+
+  if (field === "is_disabled" && value === "true") {
+    const profile = Array.isArray(facilitatorForDeactivation?.data?.profiles)
+      ? facilitatorForDeactivation?.data?.profiles[0]
+      : facilitatorForDeactivation?.data?.profiles;
+    const facilitatorName =
+      facilitatorForDeactivation?.data?.display_name ||
+      facilitatorForDeactivation?.data?.company_name ||
+      profile?.first_name ||
+      profile?.full_name ||
+      "arrangør";
+    const notificationSent = await sendFacilitatorProfileDeactivatedEmail({
+      adminMessage: disabledAdminMessage,
+      facilitatorEmail: profile?.email ?? null,
+      facilitatorName,
+    });
+
+    if (!notificationSent) {
+      console.error("Facilitator deactivation email failed after status update", {
+        facilitatorId,
+        type: "facilitator_profile_deactivated",
+      });
+    }
+  }
+
+  if (field === "is_paused" && value === "true") {
+    usersRedirectWithParams("Arrangøren er sat på pause.", returnTo, { paused_facilitator: facilitatorId });
+  }
+
+  if (field === "is_disabled") {
+    usersRedirect(value === "true" ? "Arrangøren er deaktiveret." : "Arrangøren er genaktiveret.", returnTo);
+  }
+
   usersRedirect(field === "is_paused" ? (value === "true" ? "Arrangøren er sat på pause." : "Arrangørprofilen er genåbnet.") : "Arrangøren er opdateret.", returnTo);
 }
 

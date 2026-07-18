@@ -149,8 +149,7 @@ export async function signInAction(formData: FormData) {
   }
 
   if (postAuthResult.type === "disabled") {
-    await supabase.auth.signOut();
-    authRedirect(postAuthResult.path, postAuthResult.message);
+    redirect(postAuthResult.path);
   }
 
   revalidatePath("/", "layout");

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
-import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
+import { getFacilitatorSubmissionReadiness } from "@/lib/facilitators/profile-readiness";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function getText(formData: FormData, key: string) {
@@ -20,7 +20,7 @@ async function getFacilitatorForCurrentUser() {
   const admin = createAdminClient();
   const { data: facilitator } = await admin
     .from("facilitator_profiles")
-    .select("id, company_name, profile_image_path, short_description, long_description, status, is_disabled, is_paused, facilitator_categories(category_id)")
+    .select("id, company_name, profile_image_path, short_description, long_description, status, is_disabled, is_paused, facilitator_categories(category_id), facilitator_images(image_path)")
     .eq("profile_id", profile.id)
     .single();
 
@@ -134,14 +134,16 @@ export async function sendFacilitatorProfileToReviewAction() {
     go("Din profil kan ikke sendes til ny godkendelse lige nu.");
   }
 
-  const readiness = getFacilitatorProfileReadiness({
+  const readiness = getFacilitatorSubmissionReadiness({
     categoryIds: facilitator.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [],
     companyName: facilitator.company_name,
     fullName: profile.full_name,
+    hasMoodImage: Boolean(facilitator.facilitator_images?.length),
+    hasProfileImage: Boolean(facilitator.profile_image_path),
     shortDescription: facilitator.long_description || facilitator.short_description,
   });
 
-  if (!readiness.isComplete || !facilitator.profile_image_path) {
+  if (!readiness.isComplete) {
     go("Ret de manglende profiloplysninger, før du sender profilen til ny godkendelse.");
   }
 
@@ -171,8 +173,18 @@ export async function sendFacilitatorProfileToReviewAction() {
 }
 
 export async function markFacilitatorAdminMessagesReadAction() {
-  await requireRole("facilitator");
+  const { admin, facilitator } = await getFacilitatorForCurrentUser();
+
+  await admin
+    .from("facilitator_admin_messages")
+    .update({
+      facilitator_read_at: new Date().toISOString(),
+      status: "read",
+    })
+    .eq("facilitator_id", facilitator.id)
+    .eq("type", "admin_reply")
+    .eq("status", "unread");
 
   revalidatePath("/facilitator");
-  go("Beskederne er markeret som læst.");
+  redirect("/facilitator?messages=open&message=" + encodeURIComponent("Beskederne er markeret som læst.") + "#beskeder-admin");
 }

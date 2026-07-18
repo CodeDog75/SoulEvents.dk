@@ -16,9 +16,10 @@ const fieldOptions = [
 type RequestFacilitatorChangesDialogProps = {
   facilitatorId: string;
   facilitatorName: string;
+  returnHref?: string;
 };
 
-export function RequestFacilitatorChangesDialog({ facilitatorId, facilitatorName }: RequestFacilitatorChangesDialogProps) {
+export function RequestFacilitatorChangesDialog({ facilitatorId, facilitatorName, returnHref }: RequestFacilitatorChangesDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const titleId = useId();
@@ -33,7 +34,7 @@ export function RequestFacilitatorChangesDialog({ facilitatorId, facilitatorName
   return (
     <>
       <button
-        className="inline-flex min-h-9 items-center justify-center rounded-full border border-[#E9CED6] bg-white px-3 text-xs font-semibold text-[#8B5B68] transition hover:bg-[#FFF1F5]"
+        className="inline-flex min-h-9 items-center justify-center whitespace-nowrap rounded-full border border-[#E9CED6] bg-white px-3 text-xs font-semibold text-[#8B5B68] transition hover:bg-[#FFF1F5]"
         onClick={() => dialogRef.current?.showModal()}
         type="button"
       >
@@ -47,6 +48,7 @@ export function RequestFacilitatorChangesDialog({ facilitatorId, facilitatorName
       >
         <form action={requestFacilitatorProfileChangesAction} className="p-6">
           <input name="facilitator_id" type="hidden" value={facilitatorId} />
+          {returnHref ? <input name="return_to" type="hidden" value={returnHref} /> : null}
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#8B5B68]">Kræver ændringer</p>
             <h2 className="mt-2 text-2xl font-semibold leading-tight" id={titleId}>

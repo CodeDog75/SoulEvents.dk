@@ -12,7 +12,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 type AdminAdsPageProps = {
-  searchParams: Promise<{ message?: string }>;
+  searchParams: Promise<{ message?: string; sort?: string; status?: string }>;
 };
 
 type MainCategory = { id: string; name: string };
@@ -44,6 +44,45 @@ type Ad = {
   ad_main_categories?: Array<{ main_category_id: string }>;
 };
 
+type CampaignStatus = "active" | "deactivated" | "expired" | "expiring_soon" | "planned";
+type CampaignStatusFilter = "all" | CampaignStatus;
+type CampaignSort = "expires_asc" | "expires_desc" | "priority" | "starts_asc" | "status";
+
+const dayMs = 24 * 60 * 60 * 1000;
+
+const campaignStatusLabels: Record<CampaignStatus, string> = {
+  active: "Aktiv",
+  deactivated: "Deaktiveret",
+  expired: "Udløbet",
+  expiring_soon: "Udløber snart",
+  planned: "Planlagt",
+};
+
+const campaignStatusClasses: Record<CampaignStatus, string> = {
+  active: "bg-[#DDEED6] text-[#275B2D] ring-[#4F7A45]/35",
+  deactivated: "bg-[#2F2A32]/10 text-[#3A333D] ring-[#2F2A32]/20",
+  expired: "bg-stone-100 text-stone-600 ring-stone-300",
+  expiring_soon: "bg-[#FFE2BD] text-[#7A3F11] ring-[#D06B1E]/35",
+  planned: "bg-[#EDE4F7] text-[#6D4D86] ring-[#8B6FAA]/30",
+};
+
+const campaignStatusFilters: Array<{ label: string; value: CampaignStatusFilter }> = [
+  { label: "Alle", value: "all" },
+  { label: "Aktive", value: "active" },
+  { label: "Planlagte", value: "planned" },
+  { label: "Udløber snart", value: "expiring_soon" },
+  { label: "Udløbne", value: "expired" },
+  { label: "Deaktiverede", value: "deactivated" },
+];
+
+const campaignSortOptions: Array<{ label: string; value: CampaignSort }> = [
+  { label: "Nærmeste udløbsdato", value: "expires_asc" },
+  { label: "Seneste udløbsdato", value: "expires_desc" },
+  { label: "Startdato", value: "starts_asc" },
+  { label: "Status", value: "status" },
+  { label: "Prioritet", value: "priority" },
+];
+
 function dateInputValue(value: string | null) {
   if (!value) return "";
   return value.slice(0, 10);
@@ -54,16 +93,115 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("da-DK", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
 }
 
-function campaignStatus(ad: Ad) {
-  if (!ad.is_active) return { label: "Deaktiveret", className: "bg-stone-100 text-stone-600" };
-  const now = new Date();
-  if (ad.starts_at && new Date(ad.starts_at) > now) return { label: "Planlagt", className: "bg-[#EDE4F7] text-[#7A4EAB]" };
-  if (ad.ends_at && new Date(ad.ends_at) < now) return { label: "Udløbet", className: "bg-rose-50 text-rose-700" };
-  return { label: "Aktiv", className: "bg-sage-50 text-sage-700" };
+function normalizeCampaignStatusFilter(value?: string): CampaignStatusFilter {
+  return campaignStatusFilters.some((item) => item.value === value) ? (value as CampaignStatusFilter) : "all";
+}
+
+function normalizeCampaignSort(value?: string): CampaignSort {
+  return campaignSortOptions.some((item) => item.value === value) ? (value as CampaignSort) : "priority";
+}
+
+function startOfDate(value: Date) {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function daysUntil(value: string | null, now: Date) {
+  if (!value) return null;
+  return Math.ceil((startOfDate(new Date(value)).getTime() - startOfDate(now).getTime()) / dayMs);
+}
+
+function inclusiveCampaignDays(startsAt: string | null, endsAt: string | null) {
+  if (!startsAt || !endsAt) return null;
+  const start = startOfDate(new Date(startsAt)).getTime();
+  const end = startOfDate(new Date(endsAt)).getTime();
+  if (end < start) return null;
+  return Math.floor((end - start) / dayMs) + 1;
+}
+
+function campaignStatus(ad: Ad, now = new Date()): { className: string; label: string; value: CampaignStatus } {
+  if (!ad.is_active) return { label: campaignStatusLabels.deactivated, className: campaignStatusClasses.deactivated, value: "deactivated" };
+  if (ad.starts_at && new Date(ad.starts_at) > now) return { label: campaignStatusLabels.planned, className: campaignStatusClasses.planned, value: "planned" };
+  const remainingDays = daysUntil(ad.ends_at, now);
+  if (remainingDays !== null && remainingDays < 0) return { label: campaignStatusLabels.expired, className: campaignStatusClasses.expired, value: "expired" };
+  if (remainingDays !== null && remainingDays <= 14) return { label: campaignStatusLabels.expiring_soon, className: campaignStatusClasses.expiring_soon, value: "expiring_soon" };
+  return { label: campaignStatusLabels.active, className: campaignStatusClasses.active, value: "active" };
+}
+
+function campaignPeriodText(ad: Ad) {
+  const startText = ad.starts_at ? formatDate(ad.starts_at) : "Starter straks";
+  const endText = ad.ends_at ? formatDate(ad.ends_at) : "Ingen udløbsdato";
+  return startText + " – " + endText;
+}
+
+function campaignTimingText(ad: Ad, now = new Date()) {
+  const remainingDays = daysUntil(ad.ends_at, now);
+  if (remainingDays === null) return "Ingen udløbsdato";
+  if (remainingDays < 0) return "Udløbet";
+  if (remainingDays === 0) return "Udløber i dag";
+  if (remainingDays <= 30) return "Udløber om " + remainingDays + " dage";
+  return remainingDays + " dage tilbage";
+}
+
+function campaignDurationText(ad: Ad) {
+  const duration = inclusiveCampaignDays(ad.starts_at, ad.ends_at);
+  if (!duration) return "Varighed mangler";
+  return "Varighed: " + duration + " " + (duration === 1 ? "dag" : "dage");
+}
+
+function adPlacements(ad: Ad, categoryNamesById: Map<string, string>) {
+  const placements: string[] = [];
+
+  if (ad.show_on_homepage) {
+    placements.push("Forside · " + (ad.homepage_placement === "middle" ? "Midten" : "Nederst"));
+  }
+
+  if (ad.show_on_category_pages) {
+    const categoryNames = (ad.ad_main_categories ?? [])
+      .map((row) => categoryNamesById.get(row.main_category_id))
+      .filter(Boolean) as string[];
+
+    if (categoryNames.length > 0) {
+      categoryNames.forEach((name) => placements.push("Kategori · " + name));
+    } else {
+      placements.push("Kategorier");
+    }
+  }
+
+  if (ad.show_in_newsletter) {
+    placements.push("Nyhedsbrev");
+  }
+
+  return placements.length > 0 ? placements : ["Ingen offentlig placering"];
+}
+
+function expectedAvailability(ads: Ad[], categoryNamesById: Map<string, string>, now: Date) {
+  const placementMap = new Map<string, { count: number; nextEndsAt: string | null }>();
+
+  for (const ad of ads) {
+    const status = campaignStatus(ad, now).value;
+    if (!["active", "expiring_soon", "planned"].includes(status)) continue;
+
+    for (const placement of adPlacements(ad, categoryNamesById)) {
+      if (placement === "Ingen offentlig placering") continue;
+      const current = placementMap.get(placement) ?? { count: 0, nextEndsAt: null };
+      current.count += 1;
+      if (ad.ends_at && (!current.nextEndsAt || new Date(ad.ends_at) < new Date(current.nextEndsAt))) {
+        current.nextEndsAt = ad.ends_at;
+      }
+      placementMap.set(placement, current);
+    }
+  }
+
+  return Array.from(placementMap.entries())
+    .map(([placement, value]) => ({ placement, ...value }))
+    .sort((a, b) => a.placement.localeCompare(b.placement, "da"));
 }
 
 function isCurrentlyActiveAd(ad: Ad) {
-  return campaignStatus(ad).label === "Aktiv";
+  const status = campaignStatus(ad).value;
+  return status === "active" || status === "expiring_soon";
 }
 
 function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCategory[]; title: string }) {
@@ -81,7 +219,10 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
             {ad && <p className="mt-1 text-sm text-ink/60">Internt reference-ID: <span className="font-semibold text-[#7A4EAB]">{ad.ad_reference_id || "afventer"}</span></p>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {status && <span className={"inline-flex h-8 items-center rounded-full px-3 text-xs font-bold uppercase tracking-wide shadow-soft " + status.className}>Status: {status.label}</span>}
+            {status && <span className={"inline-flex h-8 items-center rounded-full px-3 text-xs font-bold uppercase tracking-wide shadow-soft ring-1 " + status.className}>Status: {status.label}</span>}
+            {ad && <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/60 shadow-soft">{campaignPeriodText(ad)}</span>}
+            {ad && <span className={campaignStatus(ad).value === "expiring_soon" ? "rounded-full bg-[#FFE2BD] px-3 py-1 text-xs font-bold text-[#7A3F11] shadow-soft" : "rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/60 shadow-soft"}>{campaignTimingText(ad)}</span>}
+            {ad && <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/60 shadow-soft">{campaignDurationText(ad)}</span>}
             {ad && <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/60 shadow-soft">Ref. {ad.ad_reference_id || "afventer"}</span>}
             {ad && <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink/60 shadow-soft">Klik: {ad.clicks_count ?? 0}</span>}
             {ad?.show_on_homepage && <span className="rounded-full bg-[#EDE4F7] px-3 py-1 text-xs font-semibold text-[#7A4EAB] shadow-soft">Vises: Forside</span>}
@@ -277,8 +418,11 @@ function AdForm({ ad, mainCategories, title }: { ad?: Ad; mainCategories: MainCa
 }
 
 export default async function AdminAdsPage({ searchParams }: AdminAdsPageProps) {
-  const [{ message }] = await Promise.all([searchParams, requireRole("admin")]);
+  const [{ message, sort, status }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = createAdminClient();
+  const selectedStatus = normalizeCampaignStatusFilter(status);
+  const selectedSort = normalizeCampaignSort(sort);
+  const now = new Date();
   let mainCategories: MainCategory[] = [];
   let ads: Ad[] = [];
   let loadError = "";
@@ -296,16 +440,33 @@ export default async function AdminAdsPage({ searchParams }: AdminAdsPageProps) 
     loadError = error instanceof Error ? error.message : "Reklamer kunne ikke hentes.";
   }
 
-  const adsWithImages = ads
+  const categoryNamesById = new Map(mainCategories.map((category) => [category.id, category.name]));
+  const allAdsWithImages = ads
     .map((ad) => ({ ...ad, image_url: publicMediaUrl(ad.image_path), mobile_image_url: publicMediaUrl(ad.mobile_image_path) }))
     .sort((a, b) => {
       const activeDifference = Number(isCurrentlyActiveAd(b)) - Number(isCurrentlyActiveAd(a));
       if (activeDifference !== 0) return activeDifference;
       return (a.priority ?? 100) - (b.priority ?? 100);
     });
-  const activeCount = adsWithImages.filter(isCurrentlyActiveAd).length;
-  const newsletterCount = adsWithImages.filter((ad) => ad.show_in_newsletter).length;
-  const totalClicks = adsWithImages.reduce((sum, ad) => sum + (ad.clicks_count ?? 0), 0);
+  const adsWithImages = allAdsWithImages
+    .filter((ad) => selectedStatus === "all" || campaignStatus(ad, now).value === selectedStatus)
+    .sort((a, b) => {
+      if (selectedSort === "expires_asc") return new Date(a.ends_at ?? "9999-12-31").getTime() - new Date(b.ends_at ?? "9999-12-31").getTime();
+      if (selectedSort === "expires_desc") return new Date(b.ends_at ?? "0001-01-01").getTime() - new Date(a.ends_at ?? "0001-01-01").getTime();
+      if (selectedSort === "starts_asc") return new Date(a.starts_at ?? "0001-01-01").getTime() - new Date(b.starts_at ?? "0001-01-01").getTime();
+      if (selectedSort === "status") return campaignStatusLabels[campaignStatus(a, now).value].localeCompare(campaignStatusLabels[campaignStatus(b, now).value], "da");
+      return (a.priority ?? 100) - (b.priority ?? 100);
+    });
+  const activeCount = allAdsWithImages.filter((ad) => campaignStatus(ad, now).value === "active" || campaignStatus(ad, now).value === "expiring_soon").length;
+  const plannedCount = allAdsWithImages.filter((ad) => campaignStatus(ad, now).value === "planned").length;
+  const expiringWithinThirtyCount = allAdsWithImages.filter((ad) => {
+    const remainingDays = daysUntil(ad.ends_at, now);
+    const statusValue = campaignStatus(ad, now).value;
+    return ["active", "expiring_soon", "planned"].includes(statusValue) && remainingDays !== null && remainingDays >= 0 && remainingDays <= 30;
+  }).length;
+  const expiredCount = allAdsWithImages.filter((ad) => campaignStatus(ad, now).value === "expired").length;
+  const totalClicks = allAdsWithImages.reduce((sum, ad) => sum + (ad.clicks_count ?? 0), 0);
+  const availability = expectedAvailability(allAdsWithImages, categoryNamesById, now);
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -314,10 +475,98 @@ export default async function AdminAdsPage({ searchParams }: AdminAdsPageProps) 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
         <AuthMessage message={message} />
         {loadError && <AuthMessage message={"Reklamer kunne ikke hentes: " + loadError} />}
-        <section className="rounded-card border border-midnight/10 bg-white p-5 shadow-soft sm:p-6"><div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center"><div><p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Partnerindhold</p><h2 className="mt-2 text-2xl font-semibold text-midnight">Diskrete reklamer på forsiden og hovedkategorisider</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-ink/68">Brug denne side til samarbejdspartnere, webshops, festivaler, koncerter eller relevante kampagner. Reklamer vises roligt som karusel og på forsiden og/eller de hovedkategorier, du vælger.</p></div><div className="grid grid-cols-4 gap-2 text-center text-sm"><div className="rounded-md bg-[#FAF6EF] px-4 py-3"><p className="text-2xl font-semibold text-midnight">{adsWithImages.length}</p><p className="text-xs text-ink/60">I alt</p></div><div className="rounded-md bg-sage-50 px-4 py-3"><p className="text-2xl font-semibold text-sage-700">{activeCount}</p><p className="text-xs text-ink/60">Aktive</p></div><div className="rounded-md bg-[#EDE4F7] px-4 py-3"><p className="text-2xl font-semibold text-[#7A4EAB]">{newsletterCount}</p><p className="text-xs text-ink/60">Mail</p></div><div className="rounded-md bg-white px-4 py-3"><p className="text-2xl font-semibold text-midnight">{totalClicks}</p><p className="text-xs text-ink/60">Klik</p></div></div></div></section>
+        <section className="rounded-card border border-midnight/10 bg-white p-5 shadow-soft sm:p-6">
+          <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Partnerindhold</p>
+              <h2 className="mt-2 text-2xl font-semibold text-midnight">Diskrete reklamer på forsiden og hovedkategorisider</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/68">
+                Brug denne side til samarbejdspartnere, webshops, festivaler, koncerter eller relevante kampagner. Reklamer vises roligt som karusel og på forsiden og/eller de hovedkategorier, du vælger.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-5">
+              <div className="rounded-md bg-sage-50 px-4 py-3">
+                <p className="text-2xl font-semibold text-sage-700">{activeCount}</p>
+                <p className="text-xs text-ink/60">Aktive</p>
+              </div>
+              <div className="rounded-md bg-[#EDE4F7] px-4 py-3">
+                <p className="text-2xl font-semibold text-[#7A4EAB]">{plannedCount}</p>
+                <p className="text-xs text-ink/60">Planlagte</p>
+              </div>
+              <div className="rounded-md bg-[#FFF1DB] px-4 py-3">
+                <p className="text-2xl font-semibold text-[#7A3F11]">{expiringWithinThirtyCount}</p>
+                <p className="text-xs text-ink/60">Udløber 30 dage</p>
+              </div>
+              <div className="rounded-md bg-stone-100 px-4 py-3">
+                <p className="text-2xl font-semibold text-stone-600">{expiredCount}</p>
+                <p className="text-xs text-ink/60">Udløbne</p>
+              </div>
+              <div className="rounded-md bg-white px-4 py-3">
+                <p className="text-2xl font-semibold text-midnight">{totalClicks}</p>
+                <p className="text-xs text-ink/60">Klik</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft sm:p-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Næste forventede ledighed</p>
+            <p className="mt-2 text-sm leading-6 text-ink/64">
+              Der findes ikke en fast kapacitetsregel pr. annonceplacering i systemet endnu. Derfor vises aktive og planlagte reklamer pr. placering samt nærmeste kendte udløbsdato.
+            </p>
+            <div className="mt-4 grid gap-2 md:grid-cols-2">
+              {availability.length > 0 ? (
+                availability.slice(0, 6).map((item) => (
+                  <div className="rounded-[18px] border border-midnight/10 bg-[#FAF6EF] p-3 text-sm" key={item.placement}>
+                    <p className="font-semibold text-midnight">{item.placement}</p>
+                    <p className="mt-1 text-ink/64">
+                      {item.count} {item.count === 1 ? "reklame" : "reklamer"} optager placeringen
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-[#7A4EAB]">
+                      {item.nextEndsAt ? "Næste forventede ledighed: " + formatDate(item.nextEndsAt) : "Ingen kendt udløbsdato"}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-[18px] border border-midnight/10 bg-[#FAF6EF] p-3 text-sm text-ink/64">Ingen aktive eller planlagte placeringer lige nu.</div>
+              )}
+            </div>
+          </div>
+          <form action="/admin/ads" className="grid gap-3 rounded-[18px] border border-midnight/10 bg-[#fbfaf7] p-4 sm:grid-cols-2 lg:min-w-[360px] lg:grid-cols-1">
+            <label className="grid gap-2 text-sm font-semibold text-midnight">
+              Status
+              <select className="h-11 rounded-md border border-midnight/15 bg-white px-3 text-sm outline-none transition focus:border-sage-700" defaultValue={selectedStatus} name="status">
+                {campaignStatusFilters.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-2 text-sm font-semibold text-midnight">
+              Sortering
+              <select className="h-11 rounded-md border border-midnight/15 bg-white px-3 text-sm outline-none transition focus:border-sage-700" defaultValue={selectedSort} name="sort">
+                {campaignSortOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white sm:col-span-2 lg:col-span-1" type="submit">
+              Anvend
+            </button>
+          </form>
+        </section>
 
         <AdForm mainCategories={mainCategories} title="Opret ny reklame" />
-        <div className="grid gap-5">{adsWithImages.map((ad) => <AdForm ad={ad} mainCategories={mainCategories} title={ad.title} key={ad.id} />)}</div>
+        <div className="grid gap-5">
+          {adsWithImages.length === 0 ? (
+            <div className="rounded-card border border-midnight/10 bg-white p-6 text-sm text-ink/64 shadow-soft">Ingen reklamer matcher det valgte filter.</div>
+          ) : null}
+          {adsWithImages.map((ad) => <AdForm ad={ad} mainCategories={mainCategories} title={ad.title} key={ad.id} />)}
+        </div>
       </section>
     </main>
   );
