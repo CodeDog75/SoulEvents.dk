@@ -7,6 +7,7 @@ export const RATE_LIMIT_MESSAGE = "Du har foretaget for mange forsøg. Prøv ige
 
 export type RateLimitAction =
   | "auth:email-start"
+  | "auth:email-change"
   | "auth:password-change"
   | "auth:password-login"
   | "auth:password-reset"
@@ -35,6 +36,11 @@ const RATE_LIMITS: Record<RateLimitAction, RateLimitConfig> = {
     limit: 30,
     windowSeconds: 10 * 60,
     blockSeconds: 10 * 60,
+  },
+  "auth:email-change": {
+    limit: 4,
+    windowSeconds: 30 * 60,
+    blockSeconds: 30 * 60,
   },
   "auth:password-login": {
     limit: 8,

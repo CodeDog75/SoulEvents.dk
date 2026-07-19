@@ -14,6 +14,7 @@ export type BookingStatus =
 export type CoOrganizerStatus = "pending" | "accepted" | "declined" | "cancelled" | "withdrawn";
 export type InvoiceStatus = "draft" | "approved" | "sent" | "paid" | "cancelled";
 export type EmailStatus = "queued" | "sent" | "failed";
+export type EmailChangeRequestStatus = "pending" | "completed" | "cancelled" | "expired";
 export type LegalDocumentType = "terms" | "privacy" | "guidelines" | "organizer_terms" | "cookies";
 
 type Row<T> = T;
@@ -37,6 +38,28 @@ export type Database = {
         }>;
         Insert: Insert<Database["public"]["Tables"]["profiles"]["Row"]>;
         Update: Update<Database["public"]["Tables"]["profiles"]["Row"]>;
+        Relationships: [];
+      };
+      email_change_requests: {
+        Row: Row<{
+          id: string;
+          profile_id: string;
+          facilitator_id: string | null;
+          requested_by_profile_id: string | null;
+          requested_by_role: AppRole;
+          old_email: string;
+          new_email: string;
+          admin_reason: string | null;
+          status: EmailChangeRequestStatus;
+          requested_at: string;
+          expires_at: string;
+          confirmed_at: string | null;
+          cancelled_at: string | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["email_change_requests"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["email_change_requests"]["Row"]>;
         Relationships: [];
       };
       regions: {

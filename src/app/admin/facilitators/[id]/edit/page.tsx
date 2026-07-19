@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
-import { ArrowLeft, CircleAlert, KeyRound, PauseCircle, RotateCcw, UserCog } from "lucide-react";
+import { ArrowLeft, CircleAlert, KeyRound, Mail, PauseCircle, RotateCcw, UserCog, XCircle } from "lucide-react";
 import {
+  cancelAdminFacilitatorEmailChangeAction,
   disableFacilitatorAction,
   reactivateFacilitatorAction,
+  requestAdminFacilitatorEmailChangeAction,
   updateFacilitatorAdminSettingsAction,
   updateFacilitatorTemporaryPasswordAction,
 } from "@/app/admin/facilitators/actions";
@@ -58,6 +60,8 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
     { data: regions },
     { data: categories },
     { data: moderationHistory },
+    { data: pendingEmailChange },
+    { data: latestEmailChange },
   ] = await Promise.all([
     supabase
       .from("facilitator_profiles")
@@ -75,6 +79,21 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
       .in("action", ["facilitator_changes_requested", "facilitator_resubmitted_for_review", "facilitator_status_changed"])
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("email_change_requests")
+      .select("id, new_email, expires_at, requested_at, requested_by_role, admin_reason, profiles!email_change_requests_requested_by_profile_id_fkey(full_name, email)")
+      .eq("facilitator_id", id)
+      .eq("status", "pending")
+      .order("requested_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("email_change_requests")
+      .select("id, new_email, status, confirmed_at, cancelled_at, expires_at, requested_at")
+      .eq("facilitator_id", id)
+      .order("requested_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   if (facilitatorError) {
@@ -108,6 +127,24 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
     full_name: profile?.full_name ?? "",
     phone: profile?.phone ?? null,
   };
+  const latestEmailStatus =
+    latestEmailChange && !pendingEmailChange
+      ? latestEmailChange.status === "completed"
+        ? "Seneste mailændring er gennemført."
+        : latestEmailChange.status === "expired"
+          ? "Seneste mailændring er udløbet."
+          : latestEmailChange.status === "cancelled"
+            ? "Seneste mailændring er annulleret."
+            : null
+      : null;
+  const pendingEmailRequester = pendingEmailChange
+    ? first((pendingEmailChange as any).profiles) as { email?: string | null; full_name?: string | null } | null
+    : null;
+  const pendingEmailRequesterLabel = pendingEmailChange
+    ? pendingEmailChange.requested_by_role === "admin"
+      ? `Admin: ${pendingEmailRequester?.full_name || pendingEmailRequester?.email || "SoulEvents"}`
+      : "Arrangøren selv"
+    : null;
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -220,6 +257,68 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
                 </button>
               </div>
             </form>
+
+            <div className="rounded-md border border-[#D8CBE4] bg-white p-4">
+              <div className="flex items-start gap-2">
+                <Mail className="mt-1 size-5 text-[#7A5D91]" aria-hidden="true" />
+                <div>
+                  <p className="font-semibold text-midnight">Login og kontaktmail</p>
+                  <p className="mt-1 break-all text-sm leading-6 text-ink/64">{profile?.email ?? "Mailadresse mangler"}</p>
+                </div>
+              </div>
+              {pendingEmailChange ? (
+                <div className="mt-4 rounded-md border border-[#D8CBE4] bg-[#F7F2FB] p-3 text-sm leading-6 text-ink/72">
+                  <p className="font-semibold text-midnight">Afventer bekræftelse: {pendingEmailChange.new_email}</p>
+                  <p className="mt-1">
+                    Anmodet af {pendingEmailRequesterLabel} den{" "}
+                    {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(pendingEmailChange.requested_at))}.
+                  </p>
+                  <p className="mt-1">
+                    Udløber {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(pendingEmailChange.expires_at))}.
+                  </p>
+                  {pendingEmailChange.admin_reason ? <p className="mt-2">Begrundelse: {pendingEmailChange.admin_reason}</p> : null}
+                  <form action={cancelAdminFacilitatorEmailChangeAction} className="mt-3">
+                    <input name="facilitator_id" type="hidden" value={id} />
+                    <input name="profile_id" type="hidden" value={profile?.id ?? ""} />
+                    <button className="inline-flex h-10 items-center gap-2 rounded-md border border-[#D8CBE4] bg-white px-4 text-sm font-semibold text-[#7A5D91]" type="submit">
+                      <XCircle className="size-4" aria-hidden="true" />
+                      Annullér mailændring
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <>
+                  {latestEmailStatus ? (
+                    <p className="mt-4 rounded-md border border-sage-700/15 bg-sage-50 p-3 text-sm font-semibold text-sage-700">
+                      {latestEmailStatus}
+                    </p>
+                  ) : null}
+                  <form action={requestAdminFacilitatorEmailChangeAction} className="mt-4 grid gap-3">
+                    <input name="facilitator_id" type="hidden" value={id} />
+                    <input name="profile_id" type="hidden" value={profile?.id ?? ""} />
+                    <p className="rounded-md border border-terracotta/20 bg-[#FFF8F6] p-3 text-sm leading-6 text-terracotta">
+                      Admin må ikke redigere loginmailen direkte. Den nye adresse skal verificeres, før Supabase Auth og profiles.email opdateres.
+                    </p>
+                    <input className="h-11 rounded-md border border-midnight/15 px-3" name="new_email" placeholder="Ny mailadresse" required type="email" />
+                    <input className="h-11 rounded-md border border-midnight/15 px-3" name="confirm_new_email" placeholder="Gentag ny mailadresse" required type="email" />
+                    <textarea
+                      className="min-h-20 rounded-md border border-midnight/15 p-3 text-sm"
+                      maxLength={500}
+                      name="email_change_reason"
+                      placeholder="Begrundelse for supportændringen"
+                      required
+                    />
+                    <label className="flex items-start gap-2 rounded-md border border-[#D8CBE4] bg-[#F7F2FB] p-3 text-sm leading-6 text-ink/70">
+                      <input className="mt-1 size-4 accent-[#7A5D91]" name="confirm_email_change" type="checkbox" value="yes" />
+                      Jeg bekræfter, at loginmailen kun ændres via verificeret supportflow.
+                    </label>
+                    <button className="inline-flex h-10 w-fit items-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">
+                      Start mailændring
+                    </button>
+                  </form>
+                </>
+              )}
+            </div>
           </div>
 
           <form action={updateFacilitatorAdminSettingsAction} className="mt-5 rounded-md border border-midnight/10 bg-sage-50 p-4">

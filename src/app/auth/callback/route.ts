@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { syncConfirmedEmailChange } from "@/lib/auth/email-change";
 import { getAppUrl } from "@/lib/app-url";
 import { getPostAuthRedirect, type PostAuthResult } from "@/lib/auth/post-auth";
 import { env } from "@/lib/env";
@@ -268,6 +269,15 @@ export async function GET(request: NextRequest) {
       }
 
       return confirmationRedirect(requestUrl, "Login kunne ikke gennemføres. Prøv igen.");
+    }
+
+    if (flow === "email-change") {
+      const result = await syncConfirmedEmailChange(user);
+      const searchParams = new URLSearchParams({
+        message: result.message,
+      });
+
+      return NextResponse.redirect(new URL(`/facilitator?${searchParams.toString()}`, getAppUrl(requestUrl.origin)));
     }
 
     if (isOAuthFlow || isOAuthUser(user)) {

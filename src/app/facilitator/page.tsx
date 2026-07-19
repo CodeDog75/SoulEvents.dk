@@ -32,8 +32,8 @@ import {
 import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction, publishDraftEventAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { DashboardGreeting } from "@/components/facilitator/dashboard-greeting";
+import { LoginSecuritySection } from "@/components/facilitator/login-security-section";
 import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
-import { SecurityPasswordForm } from "@/components/facilitator/security-password-form";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireRole } from "@/lib/auth/roles";
 import { draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
@@ -794,17 +794,21 @@ function AdminMessageCta({ unreadCount }: { unreadCount: number }) {
 
 function SettingsPanel({
   adminMessages,
+  currentEmail,
   isOpen,
   isPaused,
   oauthProvider,
   passwordLoginAvailable,
+  pendingEmailChange,
   unreadMessageCount,
 }: {
   adminMessages: any[];
+  currentEmail: string;
   isOpen: boolean;
   isPaused: boolean;
   oauthProvider?: string | null;
   passwordLoginAvailable: boolean;
+  pendingEmailChange?: { expires_at: string; new_email: string } | null;
   unreadMessageCount: number;
 }) {
 
@@ -819,7 +823,12 @@ function SettingsPanel({
       </summary>
       <div className="grid gap-4 border-t border-[#E5DDEA] p-5 lg:grid-cols-2">
         <div className="lg:col-span-2">
-          <SecurityPasswordForm oauthProvider={oauthProvider} passwordLoginAvailable={passwordLoginAvailable} />
+          <LoginSecuritySection
+            currentEmail={currentEmail}
+            oauthProvider={oauthProvider}
+            passwordLoginAvailable={passwordLoginAvailable}
+            pendingEmailChange={pendingEmailChange}
+          />
         </div>
 
         <form action={sendFacilitatorAdminMessageAction} className="rounded-[20px] border border-[#E5DDEA] bg-[#FAF7F2] p-5">
@@ -978,6 +987,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     { data: pendingBookingRows },
     { data: coOrganizerInvitations },
     { data: latestChangeRequest },
+    { data: pendingEmailChange },
   ] =
     facilitatorProfile
       ? await Promise.all([
@@ -1018,8 +1028,16 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
+          supabase
+            .from("email_change_requests")
+            .select("new_email, expires_at")
+            .eq("profile_id", profile.id)
+            .eq("status", "pending")
+            .order("requested_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         ])
-      : [{ data: [] }, { data: [] }, { count: 0 }, { data: [] }, { data: [] }, { data: null }];
+      : [{ data: [] }, { data: [] }, { count: 0 }, { data: [] }, { data: [] }, { data: null }, { data: null }];
 
   const eventRows = (events ?? []) as any[];
   const currentPendingBookingRows = ((pendingBookingRows ?? []) as Array<{
@@ -1262,10 +1280,12 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
 
           <SettingsPanel
             adminMessages={messageRows}
+            currentEmail={profile.email}
             isOpen={unreadMessageCount > 0 || messages === "open"}
             isPaused={Boolean(facilitatorProfile?.is_paused)}
             oauthProvider={primaryOauthProvider}
             passwordLoginAvailable={passwordLoginAvailable}
+            pendingEmailChange={pendingEmailChange}
             unreadMessageCount={unreadMessageCount}
           />
         </div>

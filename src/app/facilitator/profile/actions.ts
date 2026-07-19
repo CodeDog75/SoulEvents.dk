@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getAppUrl } from "@/lib/app-url";
 import { requireProfile } from "@/lib/auth/roles";
 import { resolveNameParts } from "@/lib/auth/names";
+import { sendEmailChangeSecurityNotice } from "@/lib/email/email-change";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { profileApprovalUrl, sendFacilitatorProfileReadyEmail } from "@/lib/email/facilitator-profile-ready";
 import { isMoodHeroKey, moodHeroKeyToSortOrder, normalizeFacilitatorHeroKey } from "@/lib/facilitators/hero-collection";
@@ -22,6 +24,16 @@ export type ChangePasswordFormState = {
     confirmPassword?: string;
     currentPassword?: string;
     newPassword?: string;
+  };
+  message?: string;
+  status: "error" | "idle" | "success";
+};
+
+export type ChangeEmailFormState = {
+  fieldErrors?: {
+    confirmEmail?: string;
+    currentPassword?: string;
+    newEmail?: string;
   };
   message?: string;
   status: "error" | "idle" | "success";
@@ -347,6 +359,84 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Ukendt fejl";
 }
 
+function normalizeEmail(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+async function findFacilitatorByProfileId(supabase: ReturnType<typeof createAdminClient>, profileId: string) {
+  const { data } = await supabase
+    .from("facilitator_profiles")
+    .select("id, company_name")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+
+  return data;
+}
+
+async function emailIsUsedByAnotherProfile(supabase: ReturnType<typeof createAdminClient>, email: string, profileId: string) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .ilike("email", email)
+    .neq("id", profileId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(data);
+}
+
+async function emailIsPendingForAnotherProfile(supabase: ReturnType<typeof createAdminClient>, email: string, profileId: string) {
+  const { data, error } = await supabase
+    .from("email_change_requests")
+    .select("id")
+    .ilike("new_email", email)
+    .neq("profile_id", profileId)
+    .eq("status", "pending")
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(data);
+}
+
+async function emailIsUsedByAnotherAuthUser(supabase: ReturnType<typeof createAdminClient>, email: string, profileId: string) {
+  const perPage = 1000;
+  let page = 1;
+
+  while (true) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+
+    if (error) {
+      console.warn("[email-change] Auth duplicate lookup failed", {
+        message: error.message,
+        profileRef: logProfileReference(profileId),
+      });
+      return false;
+    }
+
+    if (data.users.some((user) => user.id !== profileId && normalizeEmail(user.email) === email)) {
+      return true;
+    }
+
+    if (data.users.length < perPage) {
+      return false;
+    }
+
+    page += 1;
+  }
+}
+
 export async function changeFacilitatorPasswordAction(
   _previousState: ChangePasswordFormState,
   formData: FormData,
@@ -407,6 +497,212 @@ export async function changeFacilitatorPasswordAction(
   }
 
   return { message: "Din adgangskode er ændret.", status: "success" };
+}
+
+export async function requestFacilitatorEmailChangeAction(
+  _previousState: ChangeEmailFormState,
+  formData: FormData,
+): Promise<ChangeEmailFormState> {
+  const profile = await requireProfile();
+  const currentPassword = getString(formData, "current_password");
+  const newEmail = normalizeEmail(getString(formData, "new_email"));
+  const confirmEmail = normalizeEmail(getString(formData, "confirm_new_email"));
+  const currentEmail = normalizeEmail(profile.email);
+  const fieldErrors: NonNullable<ChangeEmailFormState["fieldErrors"]> = {};
+
+  if (!currentPassword) {
+    fieldErrors.currentPassword = "Indtast din nuværende adgangskode.";
+  }
+
+  if (!isValidEmail(newEmail)) {
+    fieldErrors.newEmail = "Indtast en gyldig mailadresse.";
+  }
+
+  if (newEmail !== confirmEmail) {
+    fieldErrors.confirmEmail = "De to mailadresser er ikke ens.";
+  }
+
+  if (newEmail && newEmail === currentEmail) {
+    fieldErrors.newEmail = "Den nye mailadresse er den samme som den nuværende.";
+  }
+
+  if (Object.keys(fieldErrors).length > 0) {
+    return { fieldErrors, status: "error" };
+  }
+
+  try {
+    await assertRateLimit("auth:email-change");
+  } catch (error) {
+    if (isRateLimitExceededError(error)) {
+      return { message: RATE_LIMIT_MESSAGE, status: "error" };
+    }
+
+    return { message: "Mailændringen kunne ikke startes. Prøv igen.", status: "error" };
+  }
+
+  const supabase = createAdminClient();
+  const pendingResult = await supabase
+    .from("email_change_requests")
+    .select("id, new_email, expires_at")
+    .eq("profile_id", profile.id)
+    .eq("status", "pending")
+    .order("requested_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (pendingResult.error) {
+    return { message: "Aktuelle mailændringer kunne ikke kontrolleres.", status: "error" };
+  }
+
+  if (pendingResult.data && new Date(pendingResult.data.expires_at).getTime() >= Date.now()) {
+    return {
+      message: "Der findes allerede en mailændring, som afventer bekræftelse. Annullér den først, hvis du vil vælge en anden adresse.",
+      status: "error",
+    };
+  }
+
+  if (pendingResult.data) {
+    await supabase.from("email_change_requests").update({ status: "expired" }).eq("id", pendingResult.data.id);
+  }
+
+  try {
+    const isDuplicate =
+      (await emailIsUsedByAnotherProfile(supabase, newEmail, profile.id)) ||
+      (await emailIsPendingForAnotherProfile(supabase, newEmail, profile.id)) ||
+      (await emailIsUsedByAnotherAuthUser(supabase, newEmail, profile.id));
+
+    if (isDuplicate) {
+      return { fieldErrors: { newEmail: "Mailadressen bruges allerede af en anden konto." }, status: "error" };
+    }
+  } catch (error) {
+    console.error("[email-change] Duplicate lookup failed", {
+      message: errorMessage(error),
+      profileRef: logProfileReference(profile.id),
+    });
+    return { message: "Mailadressen kunne ikke kontrolleres sikkert. Prøv igen.", status: "error" };
+  }
+
+  const userSupabase = await createClient();
+  const { data: signInData, error: signInError } = await userSupabase.auth.signInWithPassword({
+    email: profile.email,
+    password: currentPassword,
+  });
+
+  if (signInError || signInData.user?.id !== profile.id) {
+    return {
+      fieldErrors: { currentPassword: "Den nuværende adgangskode er forkert." },
+      status: "error",
+    };
+  }
+
+  const facilitator = await findFacilitatorByProfileId(supabase, profile.id);
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const { data: requestRow, error: requestError } = await supabase
+    .from("email_change_requests")
+    .insert({
+      expires_at: expiresAt,
+      facilitator_id: facilitator?.id ?? null,
+      new_email: newEmail,
+      old_email: profile.email,
+      profile_id: profile.id,
+      requested_by_profile_id: profile.id,
+      requested_by_role: "facilitator",
+    })
+    .select("id")
+    .single();
+
+  if (requestError || !requestRow) {
+    return { message: "Mailændringen kunne ikke registreres. Prøv igen.", status: "error" };
+  }
+
+  const { error: updateError } = await userSupabase.auth.updateUser(
+    { email: newEmail },
+    { emailRedirectTo: `${getAppUrl()}/auth/callback?flow=email-change` },
+  );
+
+  if (updateError) {
+    await supabase.from("email_change_requests").update({ status: "cancelled" }).eq("id", requestRow.id);
+    return { message: "Supabase kunne ikke sende bekræftelsen til den nye mailadresse.", status: "error" };
+  }
+
+  await sendEmailChangeSecurityNotice({
+    newEmail,
+    oldEmail: profile.email,
+    recipientName: profile.full_name,
+    requestedBy: "facilitator",
+  });
+
+  await supabase.from("admin_audit_log").insert({
+    action: "profile_email_change_requested",
+    actor_profile_id: profile.id,
+    facilitator_id: facilitator?.id ?? null,
+    new_value: "email_change_pending",
+    old_value: "email_change_current",
+    reason: "Arrangør anmodede om ændring af login- og kontaktmail.",
+  });
+
+  revalidatePath("/facilitator");
+  return {
+    message: "Vi har sendt en bekræftelse til den nye mailadresse. Din gamle mailadresse er aktiv, indtil ændringen er bekræftet.",
+    status: "success",
+  };
+}
+
+export async function cancelFacilitatorEmailChangeAction(
+  _previousState: ChangeEmailFormState,
+  _formData: FormData,
+): Promise<ChangeEmailFormState> {
+  const profile = await requireProfile();
+  const supabase = createAdminClient();
+  const { data: pendingRequest, error } = await supabase
+    .from("email_change_requests")
+    .select("id, facilitator_id")
+    .eq("profile_id", profile.id)
+    .eq("status", "pending")
+    .order("requested_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    return { message: "Mailændringen kunne ikke hentes.", status: "error" };
+  }
+
+  if (!pendingRequest) {
+    return { message: "Der er ingen aktiv mailændring at annullere.", status: "success" };
+  }
+
+  const { error: updateError } = await supabase
+    .from("email_change_requests")
+    .update({ cancelled_at: new Date().toISOString(), status: "cancelled" })
+    .eq("id", pendingRequest.id);
+
+  if (updateError) {
+    return { message: "Mailændringen kunne ikke annulleres.", status: "error" };
+  }
+
+  const { error: authResetError } = await supabase.auth.admin.updateUserById(profile.id, {
+    email: profile.email,
+    email_confirm: true,
+  });
+
+  if (authResetError) {
+    console.warn("[email-change] Pending auth email could not be reset after cancellation", {
+      message: authResetError.message,
+      profileRef: logProfileReference(profile.id),
+    });
+  }
+
+  await supabase.from("admin_audit_log").insert({
+    action: "profile_email_change_cancelled",
+    actor_profile_id: profile.id,
+    facilitator_id: pendingRequest.facilitator_id,
+    new_value: "email_change_cancelled",
+    old_value: "email_change_pending",
+    reason: "Arrangør annullerede mailændring.",
+  });
+
+  revalidatePath("/facilitator");
+  return { message: "Mailændringen er annulleret. Din nuværende mailadresse er stadig aktiv.", status: "success" };
 }
 
 async function notifyAdminsIfReady(input: {
