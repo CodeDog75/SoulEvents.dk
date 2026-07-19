@@ -29,7 +29,6 @@ type FacilitatorTerm = CommissionValues & {
 type FormValues = {
   commissionRatePercent: string;
   currency: string;
-  minimumCommissionKr: string;
   reason: string;
   thresholdKr: string;
   tierOneLimitKr: string;
@@ -56,7 +55,6 @@ function valuesFromCommission(values: CommissionValues): FormValues {
   return {
     commissionRatePercent: percent(values.commissionRateBps),
     currency: values.currency,
-    minimumCommissionKr: kroner(values.minimumCommissionCents),
     reason: "",
     thresholdKr: kroner(values.thresholdCents),
     tierOneLimitKr: kroner(values.tierOneLimitCents),
@@ -200,17 +198,7 @@ export function FacilitatorCommissionTermsForm({
           value={formValues.tierThreeRatePercent}
         />
       </label>
-      <label className="grid gap-2 text-sm font-semibold text-ink/72">
-        Minimumskommission
-        <input
-          className={fieldClass()}
-          min={0}
-          name="minimum_commission_kr"
-          onChange={(event) => updateField("minimumCommissionKr", event.target.value)}
-          type="number"
-          value={formValues.minimumCommissionKr}
-        />
-      </label>
+      <input name="minimum_commission_kr" type="hidden" value="0" />
       <input name="currency" type="hidden" value={formValues.currency || selectedValues.currency} />
       <label className="grid gap-2 text-sm font-semibold text-ink/72">
         Intern begrundelse

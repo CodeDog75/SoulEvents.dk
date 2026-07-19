@@ -158,7 +158,7 @@ function revenueBracketPlanLabel(setting: CommissionSettingRow | null | undefine
   const tierTwoRate = settingTierTwoRate(setting);
   const tierThreeRate = settingTierThreeRate(setting);
 
-  return `Under ${kroner(freeThreshold)}: 0 % · ${kroner(freeThreshold)}-${kronerBefore(tierOneLimit)}: ${percentFromBps(tierOneRate)} · ${kroner(tierOneLimit)}-${kronerBefore(tierTwoLimit)}: ${percentFromBps(tierTwoRate)} · ${kroner(tierTwoLimit)} og derover: ${percentFromBps(tierThreeRate)}`;
+  return `0-${kronerBefore(freeThreshold)}: 0 % · ${kroner(freeThreshold)}-${kronerBefore(tierOneLimit)}: ${percentFromBps(tierOneRate)} · ${kroner(tierOneLimit)}-${kronerBefore(tierTwoLimit)}: ${percentFromBps(tierTwoRate)} · ${kroner(tierTwoLimit).replace(" kr.", " kr.+")}: ${percentFromBps(tierThreeRate)}`;
 }
 
 function fieldClass() {
@@ -405,7 +405,7 @@ export default async function AdminCommissionPage({ searchParams }: AdminCommiss
             <Card>
               <div className="flex items-center gap-3">
                 <Settings className="size-5 text-[#2F4A3A]" aria-hidden="true" />
-                <h2 className="text-lg font-semibold text-midnight">Ny standard for omsætningstrappen</h2>
+                <h2 className="text-lg font-semibold text-midnight">Kommission efter eventets omsætning</h2>
               </div>
               <p className="mt-2 text-sm leading-6 text-ink/64">
                 Kommissionen bestemmes af det enkelte events samlede realiserede omsætning. Når omsætningstrinnet er fundet, beregnes satsen af hele
@@ -439,8 +439,7 @@ export default async function AdminCommissionPage({ searchParams }: AdminCommiss
                       )}
                     </div>
                     <p className="mt-1 text-sm text-ink/62">
-                      Minimum {kroner(setting.minimum_commission_cents)} · {setting.currency} · gælder fra {dateLabel(setting.effective_from)} · oprettet{" "}
-                      {dateLabel(setting.created_at)}
+                      {setting.currency} · gælder fra {dateLabel(setting.effective_from)} · oprettet {dateLabel(setting.created_at)}
                     </p>
                     {setting.reason ? <p className="mt-2 text-sm text-ink/72">{setting.reason}</p> : null}
                   </article>

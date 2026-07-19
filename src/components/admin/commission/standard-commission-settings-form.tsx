@@ -19,7 +19,6 @@ type StandardCommissionSettingsFormProps = {
 type FormValues = {
   currency: string;
   effectiveFrom: string;
-  minimumCommissionKr: string;
   reason: string;
   thresholdKr: string;
   tierOneLimitKr: string;
@@ -70,7 +69,6 @@ export function StandardCommissionSettingsForm({ currentValues }: StandardCommis
   const [formValues, setFormValues] = useState<FormValues>({
     currency: currentValues.currency,
     effectiveFrom: "",
-    minimumCommissionKr: toKr(currentValues.minimumCommissionCents),
     reason: "",
     thresholdKr: toKr(currentValues.thresholdCents),
     tierOneLimitKr: toKr(currentValues.tierOneLimitCents),
@@ -110,11 +108,16 @@ export function StandardCommissionSettingsForm({ currentValues }: StandardCommis
         : exampleTier === "two"
           ? `${kroner(tierOneLimitCents)}-${kronerBefore(tierTwoLimitCents)}`
           : `${kroner(tierTwoLimitCents)} og derover`;
-
-  return (
-    <form action={createCommissionSettingAction} className="mt-5 grid gap-4">
-      <label className="grid gap-2 text-sm font-semibold text-ink/72">
-        Omsætning under denne grænse
+  const revenueSteps = [
+    {
+      from: <input className={fieldClass()} disabled value="0 kr." />,
+      key: "free",
+      rate: <input className={fieldClass()} disabled value="0" />,
+      title: "Trin 1",
+      to: <input className={fieldClass()} disabled value={kronerBefore(thresholdCents)} />,
+    },
+    {
+      from: (
         <input
           className={fieldClass()}
           min={0}
@@ -123,22 +126,9 @@ export function StandardCommissionSettingsForm({ currentValues }: StandardCommis
           type="number"
           value={formValues.thresholdKr}
         />
-        <span className="text-xs font-normal text-ink/55">Events med lavere samlet omsætning er kommissionsfri.</span>
-      </label>
-      <label className="grid gap-2 text-sm font-semibold text-ink/72">
-        Omsætning fra denne grænse
-        <input
-          className={fieldClass()}
-          min={0}
-          name="tier_one_limit_kr"
-          onChange={(event) => updateField("tierOneLimitKr", event.target.value)}
-          type="number"
-          value={formValues.tierOneLimitKr}
-        />
-        <span className="text-xs font-normal text-ink/55">Fra denne omsætning anvendes den midterste sats nedenfor.</span>
-      </label>
-      <label className="grid gap-2 text-sm font-semibold text-ink/72">
-        Sats fra første grænse
+      ),
+      key: "tier-1",
+      rate: (
         <input
           className={fieldClass()}
           inputMode="decimal"
@@ -147,22 +137,23 @@ export function StandardCommissionSettingsForm({ currentValues }: StandardCommis
           type="text"
           value={formValues.tierOneRatePercent}
         />
-        <span className="text-xs font-normal text-ink/55">Satsen beregnes af hele eventets omsætning.</span>
-      </label>
-      <label className="grid gap-2 text-sm font-semibold text-ink/72">
-        Omsætning fra næste grænse
+      ),
+      title: "Trin 2",
+      to: <input className={fieldClass()} disabled value={kronerBefore(tierOneLimitCents)} />,
+    },
+    {
+      from: (
         <input
           className={fieldClass()}
           min={0}
-          name="tier_two_limit_kr"
-          onChange={(event) => updateField("tierTwoLimitKr", event.target.value)}
+          name="tier_one_limit_kr"
+          onChange={(event) => updateField("tierOneLimitKr", event.target.value)}
           type="number"
-          value={formValues.tierTwoLimitKr}
+          value={formValues.tierOneLimitKr}
         />
-        <span className="text-xs font-normal text-ink/55">Fra denne omsætning anvendes den laveste høje omsætningssats.</span>
-      </label>
-      <label className="grid gap-2 text-sm font-semibold text-ink/72">
-        Sats fra næste grænse
+      ),
+      key: "tier-2",
+      rate: (
         <input
           className={fieldClass()}
           inputMode="decimal"
@@ -171,10 +162,23 @@ export function StandardCommissionSettingsForm({ currentValues }: StandardCommis
           type="text"
           value={formValues.tierTwoRatePercent}
         />
-        <span className="text-xs font-normal text-ink/55">Satsen beregnes af hele eventets omsætning.</span>
-      </label>
-      <label className="grid gap-2 text-sm font-semibold text-ink/72">
-        Sats fra højeste grænse
+      ),
+      title: "Trin 3",
+      to: <input className={fieldClass()} disabled value={kronerBefore(tierTwoLimitCents)} />,
+    },
+    {
+      from: (
+        <input
+          className={fieldClass()}
+          min={0}
+          name="tier_two_limit_kr"
+          onChange={(event) => updateField("tierTwoLimitKr", event.target.value)}
+          type="number"
+          value={formValues.tierTwoLimitKr}
+        />
+      ),
+      key: "tier-3",
+      rate: (
         <input
           className={fieldClass()}
           inputMode="decimal"
@@ -183,19 +187,36 @@ export function StandardCommissionSettingsForm({ currentValues }: StandardCommis
           type="text"
           value={formValues.tierThreeRatePercent}
         />
-        <span className="text-xs font-normal text-ink/55">Gælder fra den højeste omsætningsgrænse og opefter.</span>
-      </label>
-      <label className="grid gap-2 text-sm font-semibold text-ink/72">
-        Minimumskommission
-        <input
-          className={fieldClass()}
-          min={0}
-          name="minimum_commission_kr"
-          onChange={(event) => updateField("minimumCommissionKr", event.target.value)}
-          type="number"
-          value={formValues.minimumCommissionKr}
-        />
-      </label>
+      ),
+      title: "Trin 4",
+      to: <input className={fieldClass()} disabled value="Ingen øvre grænse" />,
+    },
+  ];
+
+  return (
+    <form action={createCommissionSettingAction} className="mt-5 grid gap-4">
+      <input name="minimum_commission_kr" type="hidden" value="0" />
+      <div className="grid gap-3">
+        {revenueSteps.map((step) => (
+          <section className="rounded-md border border-midnight/10 bg-[#FBFAF7] p-4" key={step.key}>
+            <h3 className="text-sm font-bold uppercase tracking-wide text-[#7A5D91]">{step.title}</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <label className="grid gap-2 text-sm font-semibold text-ink/72">
+                Fra
+                {step.from}
+              </label>
+              <label className="grid gap-2 text-sm font-semibold text-ink/72">
+                Til
+                {step.to}
+              </label>
+              <label className="grid gap-2 text-sm font-semibold text-ink/72">
+                Kommissionssats
+                {step.rate}
+              </label>
+            </div>
+          </section>
+        ))}
+      </div>
       <label className="grid gap-2 text-sm font-semibold text-ink/72">
         Valuta
         <input
