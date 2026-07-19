@@ -65,6 +65,37 @@ function getCanonicalAppUrl() {
   return (env.appUrl || "https://www.soulevents.dk").trim().replace(/\/$/, "");
 }
 
+function maskEmailForLog(email: string) {
+  const [localPart, domain] = email.split("@");
+  if (!localPart || !domain) return "invalid-email";
+
+  const visiblePrefix = localPart.slice(0, Math.min(2, localPart.length));
+  return `${visiblePrefix}${localPart.length > 2 ? "***" : "*"}@${domain}`;
+}
+
+function authErrorDetails(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const details = error as {
+    code?: string;
+    message?: string;
+    name?: string;
+    requestId?: string;
+    request_id?: string;
+    status?: number;
+  };
+
+  return {
+    code: details.code ?? null,
+    message: details.message ?? null,
+    name: details.name ?? null,
+    requestId: details.requestId ?? details.request_id ?? null,
+    status: details.status ?? null,
+  };
+}
+
 async function getAuthUserByEmail(email: string) {
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.listUsers({
@@ -77,6 +108,27 @@ async function getAuthUserByEmail(email: string) {
   }
 
   return data.users.find((user) => user.email?.toLowerCase() === email.toLowerCase()) ?? null;
+}
+
+async function getDetailedAuthUserByEmail(email: string) {
+  const authUser = await getAuthUserByEmail(email);
+
+  if (!authUser) {
+    return null;
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.auth.admin.getUserById(authUser.id);
+
+  if (error) {
+    console.warn("[auth:password-reset] detailed auth user lookup failed", {
+      email: maskEmailForLog(email),
+      error: authErrorDetails(error),
+    });
+    return authUser;
+  }
+
+  return data.user ?? authUser;
 }
 
 export async function continueWithEmailAction(formData: FormData) {
@@ -213,6 +265,9 @@ export async function resendConfirmationAction(formData: FormData) {
 
 export async function requestPasswordResetAction(formData: FormData) {
   const email = getString(formData, "email").toLowerCase();
+  const maskedEmail = maskEmailForLog(email);
+  const neutralPasswordResetMessage =
+    "Hvis der findes en konto til mailadressen, sender vi et link til at oprette eller nulstille din adgangskode.";
 
   if (!email) {
     authRedirect("/auth/forgot-password", "Skriv din e-mailadresse.");
@@ -222,8 +277,12 @@ export async function requestPasswordResetAction(formData: FormData) {
     await assertPasswordResetRateLimit(email);
   } catch (error) {
     if (isRateLimitExceededError(error)) {
+      console.info("[auth:password-reset] rate limit blocked reset request", {
+        email: maskedEmail,
+        resetPasswordForEmailCalled: false,
+      });
       authRedirectWithParams("/auth/forgot-password", {
-        message: RATE_LIMIT_MESSAGE,
+        message: neutralPasswordResetMessage,
         status: "429",
       });
     }
@@ -232,21 +291,43 @@ export async function requestPasswordResetAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const authUser = await getDetailedAuthUserByEmail(email);
+  const providers = authUser?.identities?.map((identity) => identity.provider).filter(Boolean) ?? [];
+  const hasEmailIdentity = providers.includes("email");
   const appUrl = getCanonicalAppUrl();
   const redirectTo = `${appUrl}/auth/callback?next=/auth/update-password`;
+  const redirectUrl = new URL(redirectTo);
+
+  console.info("[auth:password-reset] reset requested", {
+    authUserFound: Boolean(authUser),
+    email: maskedEmail,
+    hasEmailIdentity,
+    providers,
+    redirectOrigin: redirectUrl.origin,
+    redirectPath: `${redirectUrl.pathname}${redirectUrl.search}`,
+    resetPasswordForEmailCalled: false,
+  });
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo,
   });
 
+  console.info("[auth:password-reset] reset provider result", {
+    authUserFound: Boolean(authUser),
+    email: maskedEmail,
+    hasEmailIdentity,
+    providers,
+    redirectOrigin: redirectUrl.origin,
+    redirectPath: `${redirectUrl.pathname}${redirectUrl.search}`,
+    resetPasswordForEmailCalled: true,
+    supabaseError: authErrorDetails(error),
+  });
+
   if (error) {
-    authRedirect("/auth/forgot-password", "Link til ny adgangskode kunne ikke sendes: " + error.message);
+    authRedirect("/auth/forgot-password", neutralPasswordResetMessage);
   }
 
-  authRedirect(
-    "/auth/forgot-password",
-    "Hvis e-mailen findes i systemet, har vi sendt et link til ny adgangskode. Tjek også spam/reklame.",
-  );
+  authRedirect("/auth/forgot-password", neutralPasswordResetMessage);
 }
 
 export async function updatePasswordAction(formData: FormData) {

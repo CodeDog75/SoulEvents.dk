@@ -23,7 +23,7 @@ export default async function ForgotPasswordPage({ searchParams }: ForgotPasswor
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-midnight">Glemt adgangskode?</h1>
           <p className="text-sm leading-6 text-ink/65">
-            Skriv din e-mail, så sender vi et link, hvor du kan vælge en ny adgangskode.
+            Hvis der findes en konto til mailadressen, sender vi et link til at oprette eller nulstille din adgangskode.
           </p>
         </div>
 

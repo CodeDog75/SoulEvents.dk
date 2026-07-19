@@ -155,6 +155,73 @@ function splitSpecialties(input: string | null | undefined) {
     .filter(Boolean);
 }
 
+type AuthProviderIdentity = {
+  created_at?: string | null;
+  last_sign_in_at?: string | null;
+  provider?: string | null;
+  updated_at?: string | null;
+};
+
+const knownOauthProviders = new Set(["facebook", "google"]);
+
+function isKnownOauthProvider(provider: string | null | undefined) {
+  return Boolean(provider && knownOauthProviders.has(provider));
+}
+
+function timeDistance(first: string | null | undefined, second: string | null | undefined) {
+  if (!first || !second) return Number.POSITIVE_INFINITY;
+  const firstTime = new Date(first).getTime();
+  const secondTime = new Date(second).getTime();
+  if (!Number.isFinite(firstTime) || !Number.isFinite(secondTime)) return Number.POSITIVE_INFINITY;
+  return Math.abs(firstTime - secondTime);
+}
+
+function resolveCurrentOauthProvider(input: {
+  appProvider?: string | null;
+  appProviders?: string[] | null;
+  identities?: AuthProviderIdentity[] | null;
+  lastSignInAt?: string | null;
+}) {
+  const oauthIdentities = (input.identities ?? []).filter((identity) => isKnownOauthProvider(identity.provider));
+  const uniqueOauthProviders = Array.from(new Set(oauthIdentities.map((identity) => identity.provider).filter(Boolean)));
+
+  if (uniqueOauthProviders.length === 1) {
+    return uniqueOauthProviders[0] ?? null;
+  }
+
+  if (uniqueOauthProviders.length > 1) {
+    const rankedIdentities = oauthIdentities
+      .map((identity) => ({
+        provider: identity.provider,
+        distance: Math.min(
+          timeDistance(identity.updated_at, input.lastSignInAt),
+          timeDistance(identity.last_sign_in_at, input.lastSignInAt),
+          timeDistance(identity.created_at, input.lastSignInAt),
+        ),
+      }))
+      .filter((identity): identity is { distance: number; provider: string } => Boolean(identity.provider) && Number.isFinite(identity.distance))
+      .sort((firstIdentity, secondIdentity) => firstIdentity.distance - secondIdentity.distance);
+    const [bestMatch, nextMatch] = rankedIdentities;
+
+    if (bestMatch && bestMatch.distance <= 5 * 60 * 1000 && bestMatch.distance !== nextMatch?.distance) {
+      return bestMatch.provider;
+    }
+
+    return null;
+  }
+
+  if (isKnownOauthProvider(input.appProvider)) {
+    return input.appProvider ?? null;
+  }
+
+  const appOauthProviders = (input.appProviders ?? []).filter(isKnownOauthProvider);
+  if (appOauthProviders.length === 1) {
+    return appOauthProviders[0] ?? null;
+  }
+
+  return null;
+}
+
 function getProfileReadiness({
   categoryCount,
   facilitatorProfile,
@@ -982,7 +1049,12 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const { data: authUserData, error: authUserError } = await supabase.auth.admin.getUserById(profile.id);
   const authProviders = authUserData.user?.identities?.map((identity) => identity.provider).filter(Boolean) ?? [];
   const passwordLoginAvailable = !authUserError && (authProviders.length === 0 || authProviders.includes("email"));
-  const primaryOauthProvider = authProviders.find((provider) => provider === "google" || provider === "facebook") ?? authProviders[0] ?? null;
+  const primaryOauthProvider = resolveCurrentOauthProvider({
+    appProvider: authUserData.user?.app_metadata?.provider,
+    appProviders: authUserData.user?.app_metadata?.providers,
+    identities: authUserData.user?.identities,
+    lastSignInAt: authUserData.user?.last_sign_in_at,
+  });
   const now = new Date();
   const [
     { data: events },

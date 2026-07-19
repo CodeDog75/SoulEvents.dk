@@ -367,6 +367,45 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function authErrorDetails(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const details = error as {
+    code?: string;
+    message?: string;
+    name?: string;
+    requestId?: string;
+    request_id?: string;
+    status?: number;
+  };
+
+  return {
+    code: details.code ?? null,
+    message: details.message ?? null,
+    name: details.name ?? null,
+    requestId: details.requestId ?? details.request_id ?? null,
+    status: details.status ?? null,
+  };
+}
+
+function authProvidersForUser(user: { identities?: Array<{ provider?: string }> } | null | undefined) {
+  return user?.identities?.map((identity) => identity.provider).filter((provider): provider is string => Boolean(provider)) ?? [];
+}
+
+function hasEmailPasswordIdentity(user: { identities?: Array<{ provider?: string }> } | null | undefined) {
+  return authProvidersForUser(user).includes("email");
+}
+
+function hasRecentSignIn(lastSignInAt: string | null | undefined) {
+  if (!lastSignInAt) {
+    return false;
+  }
+
+  return Date.now() - new Date(lastSignInAt).getTime() <= 30 * 60 * 1000;
+}
+
 async function findFacilitatorByProfileId(supabase: ReturnType<typeof createAdminClient>, profileId: string) {
   const { data } = await supabase
     .from("facilitator_profiles")
@@ -497,6 +536,99 @@ export async function changeFacilitatorPasswordAction(
   }
 
   return { message: "Din adgangskode er ændret.", status: "success" };
+}
+
+export async function createFacilitatorPasswordAction(
+  _previousState: ChangePasswordFormState,
+  formData: FormData,
+): Promise<ChangePasswordFormState> {
+  const profile = await requireProfile();
+  const newPassword = getString(formData, "new_password");
+  const confirmPassword = getString(formData, "confirm_password");
+  const fieldErrors: NonNullable<ChangePasswordFormState["fieldErrors"]> = {};
+
+  if (newPassword.length < 10) {
+    fieldErrors.newPassword = "Adgangskoden skal være mindst 10 tegn.";
+  }
+
+  if (newPassword !== confirmPassword) {
+    fieldErrors.confirmPassword = "De to adgangskoder er ikke ens.";
+  }
+
+  if (Object.keys(fieldErrors).length > 0) {
+    return { fieldErrors, status: "error" };
+  }
+
+  try {
+    await assertRateLimit("auth:password-change");
+  } catch (error) {
+    if (isRateLimitExceededError(error)) {
+      return { message: RATE_LIMIT_MESSAGE, status: "error" };
+    }
+
+    return { message: "Adgangskoden kunne ikke oprettes. Prøv igen.", status: "error" };
+  }
+
+  const admin = createAdminClient();
+  const { data: authUserData, error: authUserError } = await admin.auth.admin.getUserById(profile.id);
+  const providers = authProvidersForUser(authUserData.user);
+
+  if (authUserError || !authUserData.user) {
+    console.error("[facilitator-password:create] Auth user could not be loaded", {
+      error: authErrorDetails(authUserError),
+      profileRef: logProfileReference(profile.id),
+    });
+    return { message: "Adgangskoden kunne ikke oprettes. Prøv igen.", status: "error" };
+  }
+
+  if (hasEmailPasswordIdentity(authUserData.user)) {
+    return { message: "Kontoen har allerede adgangskode. Brug Skift adgangskode i stedet.", status: "error" };
+  }
+
+  if (!hasRecentSignIn(authUserData.user.last_sign_in_at)) {
+    return {
+      message: "Log ud og ind igen med din eksterne loginmetode, og opret derefter adgangskoden med det samme.",
+      status: "error",
+    };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: sessionError,
+  } = await supabase.auth.getUser();
+
+  if (sessionError || user?.id !== profile.id) {
+    console.error("[facilitator-password:create] Session user mismatch", {
+      error: authErrorDetails(sessionError),
+      profileRef: logProfileReference(profile.id),
+    });
+    return { message: "Adgangskoden kunne ikke oprettes. Log ind igen og prøv derefter.", status: "error" };
+  }
+
+  const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+
+  if (updateError) {
+    console.error("[facilitator-password:create] Password could not be created", {
+      error: authErrorDetails(updateError),
+      profileRef: logProfileReference(profile.id),
+      providers,
+    });
+    return { message: "Adgangskoden kunne ikke oprettes. Prøv igen.", status: "error" };
+  }
+
+  const facilitator = await findFacilitatorByProfileId(admin, profile.id);
+  await admin.from("admin_audit_log").insert({
+    action: "profile_password_created",
+    actor_profile_id: profile.id,
+    facilitator_id: facilitator?.id ?? null,
+    new_value: "password_login_enabled",
+    old_value: providers.join(",") || "oauth_only",
+    reason: "Facilitator created email/password login for existing OAuth account.",
+  });
+
+  revalidatePath("/facilitator");
+  return { message: "Personlig adgangskode er oprettet. Du kan nu logge ind med både e-mail og ekstern loginmetode.", status: "success" };
 }
 
 export async function requestFacilitatorEmailChangeAction(
