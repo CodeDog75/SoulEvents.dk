@@ -5,7 +5,9 @@ export const brandLogoSettingKey = "brand_logo_path";
 export const desktopBrandLogoSettingKey = brandLogoSettingKey;
 export const mobileBrandLogoSettingKey = "brand_logo_mobile_path";
 export const faviconSettingKey = "favicon_path";
+// Current static fallback assets. Mail logo includes a version query because email clients cache images aggressively.
 export const fallbackBrandLogoPath = "/brand/soulevents-logo.png";
+export const fallbackEmailBrandLogoPath = "/brand/soulevents-email-logo.png?v=2";
 export const mediaBucketName = "media";
 
 export type LogoSettingClient = {
@@ -106,13 +108,7 @@ export async function getBrandLogoSources(supabase: LogoSettingClient): Promise<
 }
 
 export async function getEmailBrandLogoUrl() {
-  try {
-    const supabase = createAdminClient() as unknown as LogoSettingClient;
-    const value = await getBrandLogoSettingValue(supabase);
-    return resolveBrandLogoUrl(value, { absolute: true });
-  } catch {
-    return resolveBrandLogoUrl(null, { absolute: true });
-  }
+  return resolveBrandLogoUrl(fallbackEmailBrandLogoPath, { absolute: true });
 }
 
 export async function getSiteFaviconUrl() {

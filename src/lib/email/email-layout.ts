@@ -21,9 +21,8 @@ export async function renderEmailLayout(input: EmailLayoutInput) {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; max-width: 640px; margin: 0 auto;">
                 <tbody>
                   <tr>
-                    <td style="padding: 0 0 16px; text-align: center;">
-                      <img src="${escapeHtml(logoUrl)}" alt="SoulEvents.dk" width="48" height="48" style="display: inline-block; width: 48px; height: 48px; border: 0; object-fit: contain;" />
-                      <div style="margin-top: 10px; color: #7A4EAB; font-size: 15px; font-weight: 700; letter-spacing: 0.02em;">SoulEvents.dk</div>
+                    <td style="padding: 0 0 14px; text-align: center;">
+                      <img src="${escapeHtml(logoUrl)}" alt="SoulEvents" width="220" height="66" style="display: block; width: 210px; max-width: 100%; height: auto; margin: 0 auto; border: 0; outline: none; text-decoration: none;" />
                     </td>
                   </tr>
                   <tr>
