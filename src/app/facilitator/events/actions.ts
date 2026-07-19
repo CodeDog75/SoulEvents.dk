@@ -712,30 +712,7 @@ export async function createEventAction(formData: FormData) {
   }
 
   if (!facilitatorProfile) {
-    const { data: repairedProfile, error: repairError } = await supabase
-      .from("facilitator_profiles")
-      .insert({ profile_id: profile.id, status: "pending" })
-      .select(facilitatorProfileEventSelect)
-      .single();
-
-    if (repairError || !repairedProfile) {
-      const { data: refetchedProfile } = await supabase
-        .from("facilitator_profiles")
-        .select(facilitatorProfileEventSelect)
-        .eq("profile_id", profile.id)
-        .maybeSingle();
-
-      if (!refetchedProfile) {
-        eventsRedirect(
-          "Arrangørprofilen kunne ikke gøres klar. Prøv at logge ud og ind igen." +
-            (repairError?.message ? " Teknisk besked: " + repairError.message : "")
-        );
-      }
-
-      facilitatorProfile = refetchedProfile;
-    } else {
-      facilitatorProfile = repairedProfile;
-    }
+    redirect("/auth/oauth-profile");
   }
 
   const onboardingState = await getFacilitatorOnboardingStateForProfile(supabase, {

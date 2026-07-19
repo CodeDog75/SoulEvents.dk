@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft, ArrowRight, CheckCircle2, CircleUserRound } from "lucide-react";
 import { sendFacilitatorProfileToReviewAction } from "@/app/facilitator/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
@@ -64,16 +65,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     categoryRows?.facilitator_images as Array<{ alt_text: string | null; image_path: string; sort_order: number }> | null | undefined,
   );
   if (!facilitatorProfile) {
-    return (
-      <main className="min-h-screen bg-[#fbfaf7] px-4 py-10">
-        <section className="mx-auto max-w-3xl rounded-md border border-midnight/10 bg-white p-6 shadow-soft">
-          <h1 className="text-xl font-semibold text-midnight">Arrangørprofil mangler</h1>
-          <p className="mt-2 text-sm leading-6 text-ink/65">
-            Der blev ikke fundet en arrangørprofil til din konto. Prøv at oprette profilen igen.
-          </p>
-        </section>
-      </main>
-    );
+    redirect("/auth/oauth-profile");
   }
 
   const { data: latestChangeRequest } = await admin

@@ -49,6 +49,10 @@ export default async function FacilitatorWelcomePage() {
     .eq("profile_id", profile.id)
     .maybeSingle();
 
+  if (!facilitatorProfile) {
+    redirect("/auth/oauth-profile");
+  }
+
   if (facilitatorProfile && isProfileComplete(facilitatorProfile)) {
     redirect("/facilitator");
   }

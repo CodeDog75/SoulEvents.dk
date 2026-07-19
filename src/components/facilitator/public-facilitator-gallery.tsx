@@ -26,6 +26,7 @@ function GalleryTitle() {
 
 export function PublicFacilitatorGallery({ images }: PublicFacilitatorGalleryProps) {
   const visibleImages = images.slice(0, 3);
+  const desktopSlots = Array.from({ length: 3 }, (_, index) => visibleImages[index] ?? null);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activeImage = activeIndex === null ? null : visibleImages[activeIndex] ?? null;
 
@@ -81,20 +82,28 @@ export function PublicFacilitatorGallery({ images }: PublicFacilitatorGalleryPro
       </div>
 
       <div className="mt-6 hidden gap-3 md:grid md:grid-cols-3">
-        {visibleImages.map((image, index) => (
-          <button
-            aria-label={`Åbn stemningsbillede ${index + 1}`}
-            className="group overflow-hidden rounded-xl border-2 border-[#E5DDEA] bg-[#F4F0F7] shadow-[0_12px_30px_rgba(47,36,55,0.08)]"
-            key={image.imagePath ?? image.url}
-            onClick={() => setActiveIndex(index)}
-            type="button"
-          >
-            <img
-              alt={image.altText || `Stemningsbillede ${index + 1}`}
-              className="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-[1.02]"
-              src={image.url}
+        {desktopSlots.map((image, index) => (
+          image ? (
+            <button
+              aria-label={`Åbn stemningsbillede ${index + 1}`}
+              className="group overflow-hidden rounded-xl border-2 border-[#E5DDEA] bg-[#F4F0F7] shadow-[0_12px_30px_rgba(47,36,55,0.08)]"
+              key={image.imagePath ?? image.url}
+              onClick={() => setActiveIndex(index)}
+              type="button"
+            >
+              <img
+                alt={image.altText || `Stemningsbillede ${index + 1}`}
+                className="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-[1.02]"
+                src={image.url}
+              />
+            </button>
+          ) : (
+            <div
+              aria-hidden="true"
+              className="aspect-[4/3] rounded-xl border-2 border-transparent"
+              key={`empty-gallery-slot-${index + 1}`}
             />
-          </button>
+          )
         ))}
       </div>
 

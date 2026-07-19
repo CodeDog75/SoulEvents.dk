@@ -38,6 +38,7 @@ export function ProfileIdentityHeader({
   specialties,
   variant = "full",
 }: ProfileIdentityHeaderProps) {
+  const specialtyText = specialties.map((specialty) => specialty.trim()).filter(Boolean).join("\n\n");
   const compactHeader = (
     <div className="overflow-hidden rounded-[26px] bg-[#FAF7F2] shadow-[0_20px_54px_rgba(47,36,55,0.12)]">
       <div className="relative h-[170px] overflow-hidden bg-[#2F2437] sm:h-[190px]">
@@ -81,14 +82,12 @@ export function ProfileIdentityHeader({
             ))}
           </div>
         ) : null}
-        {specialties.length > 0 ? (
-          <div className="mt-5 grid gap-2">
-            {specialties.map((specialty) => (
-              <div key={specialty}>
-                <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-[#7A5D91]">Mit speciale</span>
-                <p className="mt-1 break-words text-base font-semibold leading-6 text-[#5E5662] [overflow-wrap:anywhere]">{specialty}</p>
-              </div>
-            ))}
+        {specialtyText ? (
+          <div className="mt-5">
+            <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-[#7A5D91]">Mit speciale</span>
+            <p className="mt-1 whitespace-pre-line break-words text-base font-semibold leading-6 text-[#5E5662] [overflow-wrap:anywhere]">
+              {specialtyText}
+            </p>
           </div>
         ) : null}
         {actions ? <div className="mt-6">{actions}</div> : null}
@@ -154,14 +153,12 @@ export function ProfileIdentityHeader({
                 </div>
               ) : null}
 
-              {specialties.length > 0 ? (
-                <div className="mt-6 grid max-w-2xl gap-2">
-                  {specialties.map((specialty) => (
-                    <div key={specialty}>
-                      <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-[#7A5D91]">Mit speciale</span>
-                      <p className="mt-1 break-words text-lg font-semibold leading-7 text-[#5E5662] [overflow-wrap:anywhere]">{specialty}</p>
-                    </div>
-                  ))}
+              {specialtyText ? (
+                <div className="mt-6 max-w-2xl">
+                  <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-[#7A5D91]">Mit speciale</span>
+                  <p className="mt-1 whitespace-pre-line break-words text-lg font-semibold leading-7 text-[#5E5662] [overflow-wrap:anywhere]">
+                    {specialtyText}
+                  </p>
                 </div>
               ) : null}
 

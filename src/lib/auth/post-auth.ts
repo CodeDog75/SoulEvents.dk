@@ -49,13 +49,24 @@ export type EnsuredAuthProfile = {
   profile: AppProfile;
 };
 
+type EnsureAppProfileOptions = {
+  createFacilitatorIfMissing?: boolean;
+  createProfileIfMissing?: boolean;
+};
+
 export type PostAuthContext = {
+  createFacilitatorIfMissing?: boolean;
+  createProfileIfMissing?: boolean;
   email?: string | null;
   intendedPath?: string | null;
   user: AuthUserLike;
 };
 
 export type PostAuthResult =
+  | {
+      path: string;
+      type: "missing_profile";
+    }
   | {
       path: string;
       profile: AppProfile;
@@ -81,7 +92,12 @@ function roleForUser(user: AuthUserLike): AppRole {
   return user.user_metadata?.role === "admin" ? "admin" : "facilitator";
 }
 
-export async function ensureAppProfileForAuthUser(user: AuthUserLike): Promise<EnsuredAuthProfile> {
+export async function ensureAppProfileForAuthUser(
+  user: AuthUserLike,
+  options: EnsureAppProfileOptions = {},
+): Promise<EnsuredAuthProfile> {
+  const createProfileIfMissing = options.createProfileIfMissing !== false;
+  const createFacilitatorIfMissing = options.createFacilitatorIfMissing === true;
   const admin = createAdminClient();
   const { data: profileById, error: profileByIdError } = await admin
     .from("profiles")
@@ -113,6 +129,21 @@ export async function ensureAppProfileForAuthUser(user: AuthUserLike): Promise<E
   const role = appProfile?.role ?? roleForUser(user);
 
   if (!appProfile) {
+    if (!createProfileIfMissing) {
+      return {
+        facilitatorProfile: null,
+        isNewProfile: true,
+        needsProfileCompletion: true,
+        profile: {
+          email: user.email || "",
+          full_name: userNameParts(user).fullName,
+          id: user.id,
+          phone: null,
+          role,
+        },
+      };
+    }
+
     const nameParts = userNameParts(user);
     const { data: insertedProfile, error: profileError } = await admin
       .from("profiles")
@@ -148,6 +179,15 @@ export async function ensureAppProfileForAuthUser(user: AuthUserLike): Promise<E
     }
 
     if (!existingFacilitatorProfile) {
+      if (!createFacilitatorIfMissing) {
+        return {
+          facilitatorProfile: null,
+          isNewProfile,
+          needsProfileCompletion: true,
+          profile: appProfile,
+        };
+      }
+
       const { data: insertedFacilitatorProfile, error: facilitatorError } = await admin
         .from("facilitator_profiles")
         .insert({
@@ -181,7 +221,17 @@ export async function getPostAuthRedirect(context: PostAuthContext): Promise<Pos
   const ensuredProfile = await ensureAppProfileForAuthUser({
     ...context.user,
     email: context.email ?? context.user.email,
+  }, {
+    createFacilitatorIfMissing: context.createFacilitatorIfMissing,
+    createProfileIfMissing: context.createProfileIfMissing,
   });
+
+  if (!ensuredProfile.facilitatorProfile && ensuredProfile.profile.role === "facilitator") {
+    return {
+      path: "/auth/oauth-profile",
+      type: "missing_profile",
+    };
+  }
 
   if (ensuredProfile.profile.role === "admin") {
     return {

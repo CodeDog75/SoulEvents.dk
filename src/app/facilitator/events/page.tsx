@@ -113,6 +113,10 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
     supabase.from("tags").select("id, name").eq("is_active", true).order("sort_order"),
   ]);
 
+  if (!facilitatorProfile) {
+    redirect("/auth/oauth-profile");
+  }
+
   const onboardingState = await getFacilitatorOnboardingStateForProfile(supabase, {
     fullName: profile.full_name,
     profileId: profile.id,
