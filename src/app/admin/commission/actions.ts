@@ -117,7 +117,7 @@ export async function createCommissionSettingAction(formData: FormData) {
       "settings",
       error.code === "PGRST205"
         ? "Kommissionstabellen mangler i databasen. Kør migration 077 og prøv igen."
-        : error.code === "42703"
+        : error.code === "42703" || error.code === "PGRST204"
           ? "Omsætningstrappen mangler i databasen. Kør migration 080 og prøv igen."
         : "Kommissionsindstillingerne kunne ikke gemmes.",
     );
@@ -408,7 +408,7 @@ export async function createFacilitatorCommissionTermsAction(formData: FormData)
       "facilitators",
       error.code === "PGRST205"
         ? "Tabellen til arrangørvilkår mangler i databasen. Kør migration 077 og prøv igen."
-        : error.code === "42703"
+        : error.code === "42703" || error.code === "PGRST204"
           ? "Omsætningstrappen for arrangørvilkår mangler i databasen. Kør migration 080 og prøv igen."
         : "Arrangørvilkårene kunne ikke gemmes.",
     );

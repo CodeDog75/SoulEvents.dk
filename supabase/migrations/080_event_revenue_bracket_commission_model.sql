@@ -1,13 +1,20 @@
 alter table public.commission_settings
+  add column if not exists tier_one_limit_cents int not null default 2000000,
   add column if not exists tier_two_limit_cents int not null default 3000000,
+  add column if not exists tier_two_rate_bps int not null default 500,
   add column if not exists tier_three_rate_bps int not null default 400;
 
 alter table public.facilitator_commission_terms
+  add column if not exists tier_one_limit_cents int,
   add column if not exists tier_two_limit_cents int,
+  add column if not exists tier_two_rate_bps int,
   add column if not exists tier_three_rate_bps int;
 
 alter table public.event_financial_records
+  add column if not exists tier_one_limit_cents int not null default 2000000,
   add column if not exists tier_two_limit_cents int not null default 3000000,
+  add column if not exists tier_two_rate_bps int not null default 500,
+  add column if not exists tier_two_revenue_cents int not null default 0,
   add column if not exists tier_three_rate_bps int not null default 400,
   add column if not exists tier_three_revenue_cents int not null default 0;
 
