@@ -117,6 +117,7 @@ type EventRow = {
 type BookingRow = {
   facilitator_id: string | null;
   id: string;
+  participant_email?: string | null;
   events?: { ends_at?: string | null; starts_at?: string | null } | Array<{ ends_at?: string | null; starts_at?: string | null }> | null;
   status: string | null;
 };
@@ -147,6 +148,7 @@ type EnrichedFacilitatorRow = {
   city?: string | null;
   can_delete: boolean;
   delete_blockers: string[];
+  delete_preserves_user_identity: boolean;
   company_name?: string | null;
   completed_events: number;
   created_at: string;
@@ -169,6 +171,7 @@ type EnrichedFacilitatorRow = {
   days_since_last_login?: number | null;
   long_description?: string | null;
   pending_bookings: number;
+  participant_booking_count: number;
   phone: string | null;
   postal_code?: string | null;
   profile_id: string;
@@ -770,10 +773,9 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     { data: bookings },
     { data: reports },
     { data: invoices },
+    { data: financialRecords },
+    { data: coOrganizerRows },
     { data: notificationLogs },
-    { data: adminMessages },
-    { data: auditLogs },
-    { data: legalAcceptances },
     { data: categoryRows },
     { data: tagRows },
     { data: featuredRows },
@@ -787,13 +789,12 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       .select("id, facilitator_id, status, starts_at, created_at"),
     supabase
       .from("bookings")
-      .select("id, facilitator_id, status, events(starts_at, ends_at)"),
+      .select("id, facilitator_id, participant_email, status, events(starts_at, ends_at)"),
     supabase.from("monthly_reports").select("id, facilitator_id"),
     supabase.from("invoice_drafts").select("id, facilitator_id"),
+    supabase.from("event_financial_records").select("id, primary_facilitator_id"),
+    supabase.from("event_co_organizers").select("id, primary_organizer_profile_id, co_organizer_profile_id"),
     supabase.from("event_update_notification_logs").select("id, facilitator_id"),
-    supabase.from("facilitator_admin_messages").select("id, facilitator_id, profile_id"),
-    supabase.from("admin_audit_log").select("id, facilitator_id"),
-    supabase.from("legal_document_acceptances").select("id, profile_id"),
     supabase
       .from("facilitator_categories")
       .select("facilitator_id, categories(name)"),
@@ -836,21 +837,22 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
   }
 
   const bookingStatsByFacilitator = new Map<string, { pendingBookings: number; totalBookings: number }>();
+  const participantBookingCountsByEmail = new Map<string, number>();
   for (const booking of ((bookings ?? []) as BookingRow[])) {
-    if (!booking.facilitator_id) continue;
-    const stats = bookingStatsByFacilitator.get(booking.facilitator_id) ?? { pendingBookings: 0, totalBookings: 0 };
-    if (booking.status !== "cancelled") stats.totalBookings += 1;
-    const event = Array.isArray(booking.events) ? booking.events[0] : booking.events;
-    const eventEndsAt = event?.ends_at ?? event?.starts_at;
-    if (booking.status === "pending" && eventEndsAt && new Date(eventEndsAt) >= now) stats.pendingBookings += 1;
-    bookingStatsByFacilitator.set(booking.facilitator_id, stats);
+    if (booking.facilitator_id) {
+      const stats = bookingStatsByFacilitator.get(booking.facilitator_id) ?? { pendingBookings: 0, totalBookings: 0 };
+      if (booking.status !== "cancelled") stats.totalBookings += 1;
+      const event = Array.isArray(booking.events) ? booking.events[0] : booking.events;
+      const eventEndsAt = event?.ends_at ?? event?.starts_at;
+      if (booking.status === "pending" && eventEndsAt && new Date(eventEndsAt) >= now) stats.pendingBookings += 1;
+      bookingStatsByFacilitator.set(booking.facilitator_id, stats);
+    }
+    const participantEmail = booking.participant_email?.trim().toLowerCase();
+    if (participantEmail) {
+      participantBookingCountsByEmail.set(participantEmail, (participantBookingCountsByEmail.get(participantEmail) ?? 0) + 1);
+    }
   }
 
-  const relationCountByFacilitator = new Map<string, number>();
-  const bumpRelationCount = (facilitatorId?: string | null) => {
-    if (!facilitatorId) return;
-    relationCountByFacilitator.set(facilitatorId, (relationCountByFacilitator.get(facilitatorId) ?? 0) + 1);
-  };
   const countByFacilitator = (rows: Array<{ facilitator_id?: string | null }> | null | undefined) => {
     const counts = new Map<string, number>();
     for (const row of rows ?? []) {
@@ -860,26 +862,21 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     return counts;
   };
 
-  for (const report of (reports ?? []) as Array<{ facilitator_id?: string | null }>) bumpRelationCount(report.facilitator_id);
-  for (const invoice of (invoices ?? []) as Array<{ facilitator_id?: string | null }>) bumpRelationCount(invoice.facilitator_id);
-  for (const log of (notificationLogs ?? []) as Array<{ facilitator_id?: string | null }>) bumpRelationCount(log.facilitator_id);
-  for (const log of (auditLogs ?? []) as Array<{ facilitator_id?: string | null }>) bumpRelationCount(log.facilitator_id);
   const reportCountsByFacilitator = countByFacilitator(reports as Array<{ facilitator_id?: string | null }> | null);
   const invoiceCountsByFacilitator = countByFacilitator(invoices as Array<{ facilitator_id?: string | null }> | null);
+  const financialRecordCountsByFacilitator = new Map<string, number>();
+  for (const record of (financialRecords ?? []) as Array<{ primary_facilitator_id?: string | null }>) {
+    if (record.primary_facilitator_id) {
+      financialRecordCountsByFacilitator.set(record.primary_facilitator_id, (financialRecordCountsByFacilitator.get(record.primary_facilitator_id) ?? 0) + 1);
+    }
+  }
+  const coOrganizerCountsByFacilitator = new Map<string, number>();
+  for (const relation of (coOrganizerRows ?? []) as Array<{ co_organizer_profile_id?: string | null; primary_organizer_profile_id?: string | null }>) {
+    for (const id of [relation.primary_organizer_profile_id, relation.co_organizer_profile_id]) {
+      if (id) coOrganizerCountsByFacilitator.set(id, (coOrganizerCountsByFacilitator.get(id) ?? 0) + 1);
+    }
+  }
   const notificationLogCountsByFacilitator = countByFacilitator(notificationLogs as Array<{ facilitator_id?: string | null }> | null);
-  const auditLogCountsByFacilitator = countByFacilitator(auditLogs as Array<{ facilitator_id?: string | null }> | null);
-
-  const messageCountsByFacilitator = new Map<string, number>();
-  const messageCountsByProfile = new Map<string, number>();
-  for (const message of (adminMessages ?? []) as Array<{ facilitator_id?: string | null; profile_id?: string | null }>) {
-    if (message.facilitator_id) messageCountsByFacilitator.set(message.facilitator_id, (messageCountsByFacilitator.get(message.facilitator_id) ?? 0) + 1);
-    if (message.profile_id) messageCountsByProfile.set(message.profile_id, (messageCountsByProfile.get(message.profile_id) ?? 0) + 1);
-  }
-
-  const legalAcceptancesByProfile = new Map<string, number>();
-  for (const acceptance of (legalAcceptances ?? []) as Array<{ profile_id?: string | null }>) {
-    if (acceptance.profile_id) legalAcceptancesByProfile.set(acceptance.profile_id, (legalAcceptancesByProfile.get(acceptance.profile_id) ?? 0) + 1);
-  }
 
   const categoriesByFacilitator = new Map<string, string[]>();
   for (const row of ((categoryRows ?? []) as CategoryRelationRow[])) {
@@ -908,29 +905,30 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     };
     const bookingStats = bookingStatsByFacilitator.get(facilitator.id) ?? { pendingBookings: 0, totalBookings: 0 };
     const nonDraftEvents = eventStats.eventCount - eventStats.draftEvents;
-    const reportCount = relationCountByFacilitator.get(facilitator.id) ?? 0;
-    const messageCount = (messageCountsByFacilitator.get(facilitator.id) ?? 0) + (messageCountsByProfile.get(facilitator.profile_id) ?? 0);
-    const legalAcceptanceCount = legalAcceptancesByProfile.get(facilitator.profile_id) ?? 0;
     const monthlyReportCount = reportCountsByFacilitator.get(facilitator.id) ?? 0;
     const invoiceCount = invoiceCountsByFacilitator.get(facilitator.id) ?? 0;
+    const financialRecordCount = financialRecordCountsByFacilitator.get(facilitator.id) ?? 0;
+    const coOrganizerCount = coOrganizerCountsByFacilitator.get(facilitator.id) ?? 0;
+    const participantBookingCount = user?.email ? (participantBookingCountsByEmail.get(user.email.trim().toLowerCase()) ?? 0) : 0;
     const notificationLogCount = notificationLogCountsByFacilitator.get(facilitator.id) ?? 0;
-    const auditLogCount = auditLogCountsByFacilitator.get(facilitator.id) ?? 0;
+    const deletePreservesUserIdentity = (user?.role ?? "facilitator") !== "facilitator" || participantBookingCount > 0;
     const deleteBlockers = [
       nonDraftEvents > 0 ? `${nonDraftEvents} ${nonDraftEvents === 1 ? "event" : "events"}` : null,
       bookingStats.totalBookings > 0 ? `${bookingStats.totalBookings} ${bookingStats.totalBookings === 1 ? "tilmelding" : "tilmeldinger"}` : null,
       monthlyReportCount > 0 ? `${monthlyReportCount} ${monthlyReportCount === 1 ? "månedsrapport" : "månedsrapporter"}` : null,
       invoiceCount > 0 ? `${invoiceCount} ${invoiceCount === 1 ? "fakturakladde" : "fakturakladder"}` : null,
+      financialRecordCount > 0 ? `${financialRecordCount} ${financialRecordCount === 1 ? "økonomisk snapshot" : "økonomiske snapshots"}` : null,
+      coOrganizerCount > 0 ? `${coOrganizerCount} ${coOrganizerCount === 1 ? "medarrangørrelation" : "medarrangørrelationer"}` : null,
       notificationLogCount > 0 ? `${notificationLogCount} ${notificationLogCount === 1 ? "eventbesked-log" : "eventbesked-logs"}` : null,
-      auditLogCount > 0 ? `${auditLogCount} ${auditLogCount === 1 ? "auditspor" : "auditspor"}` : null,
-      messageCount > 0 ? `${messageCount} ${messageCount === 1 ? "besked" : "beskeder"}` : null,
-      legalAcceptanceCount > 0 ? `${legalAcceptanceCount} ${legalAcceptanceCount === 1 ? "juridisk accept" : "juridiske accepter"}` : null,
     ].filter((item): item is string => Boolean(item));
     const historyCount =
       nonDraftEvents +
       bookingStats.totalBookings +
-      reportCount +
-      messageCount +
-      legalAcceptanceCount;
+      monthlyReportCount +
+      invoiceCount +
+      financialRecordCount +
+      coOrganizerCount +
+      notificationLogCount;
     const categories = categoriesByFacilitator.get(facilitator.id) ?? [];
     const tags = tagsByFacilitator.get(facilitator.id) ?? [];
     const lastSignInAt = authActivityLookup.isComplete
@@ -947,6 +945,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       completed_events: eventStats.completedEvents,
       created_at: facilitator.created_at,
       delete_blockers: deleteBlockers,
+      delete_preserves_user_identity: deletePreservesUserIdentity,
       draft_events: eventStats.draftEvents,
       email: user?.email ?? "",
       event_count: eventStats.eventCount,
@@ -966,6 +965,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       days_since_last_login: daysSince(lastSignInAt, now),
       long_description: facilitator.long_description,
       pending_bookings: bookingStats.pendingBookings,
+      participant_booking_count: participantBookingCount,
       phone: user?.phone ?? null,
       postal_code: facilitator.postal_code,
       profile_id: facilitator.profile_id,

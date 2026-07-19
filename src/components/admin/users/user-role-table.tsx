@@ -68,6 +68,8 @@ type FacilitatorOverviewRow = {
   website_url?: string | null;
   can_delete: boolean;
   delete_blockers?: string[];
+  delete_preserves_user_identity: boolean;
+  participant_booking_count: number;
 };
 
 type UserRoleTableProps = {
@@ -282,13 +284,13 @@ function FeaturedPriorityForm({ facilitator, returnHref }: { facilitator: Facili
 }
 
 function DeleteFacilitatorForm({ facilitator, returnHref }: { facilitator: FacilitatorOverviewRow; returnHref: string }) {
-  const confirmation = "SLET " + (facilitator.host_reference_id || facilitator.email);
+  const confirmation = "SLET";
 
   if (!facilitator.can_delete) {
     return (
       <div className="rounded-md border border-midnight/10 bg-sage-50 p-3 text-sm leading-6 text-ink/70">
         <p className="font-bold text-midnight">Arrangøren kan ikke slettes permanent</p>
-        <p>Der findes aktivitet eller historik, som skal bevares. Du kan stadig deaktivere arrangøren og straks fjerne adgang og offentlig synlighed.</p>
+        <p>Profilen kan ikke slettes permanent, fordi følgende historik skal bevares. Du kan stadig deaktivere arrangøren og straks fjerne adgang og offentlig synlighed.</p>
         {facilitator.delete_blockers?.length ? (
           <p className="mt-1 text-xs text-ink/58">Blokeres af: {facilitator.delete_blockers.join(", ")}.</p>
         ) : null}
@@ -298,22 +300,38 @@ function DeleteFacilitatorForm({ facilitator, returnHref }: { facilitator: Facil
 
   return (
     <details className="rounded-md border border-terracotta/25 bg-[#FFF8F6] p-3">
-      <summary className="cursor-pointer text-sm font-semibold text-terracotta">Slet arrangør</summary>
+      <summary className="cursor-pointer text-sm font-semibold text-terracotta">Slet arrangør permanent</summary>
       <form action={deleteFacilitatorFromOverviewAction} className="mt-3 grid gap-2">
         <input name="facilitator_id" type="hidden" value={facilitator.id} />
         <input name="profile_id" type="hidden" value={facilitator.profile_id} />
         <input name="return_to" type="hidden" value={returnHref} />
         <p className="text-xs leading-5 text-ink/64">
-          Sletning er kun mulig for ubrugte profiler uden aktivitet eller historik. Skriv <strong>{confirmation}</strong> for at bekræfte.
+          {facilitator.delete_preserves_user_identity
+            ? "Arrangørprofilen har ingen egen event-, tilmeldings- eller økonomisk historik og kan slettes. Brugerens konto, profil og deltagerhistorik bevares."
+            : "Profilen har ingen events, tilmeldinger eller økonomisk historik og kan slettes permanent. Profil, ubrugte kladder, billeder, juridiske accepter og interne beskeder fjernes."}{" "}
+          Handlingen kan ikke fortrydes. Skriv <strong>{confirmation}</strong> for at bekræfte.
         </p>
+        {facilitator.participant_booking_count > 0 ? (
+          <p className="rounded-md border border-sage-700/15 bg-sage-50 px-3 py-2 text-xs leading-5 text-sage-700">
+            Arrangørprofilen kan slettes, men brugerens deltagerkonto og tilmeldingshistorik bevares.
+          </p>
+        ) : null}
+        <textarea
+          className="min-h-20 rounded-md border border-terracotta/30 px-3 py-2 text-sm outline-none focus:border-terracotta"
+          maxLength={500}
+          name="delete_reason"
+          placeholder="Kort årsag til permanent sletning"
+          required
+        />
         <input
           className="h-9 rounded-md border border-terracotta/30 px-3 text-sm outline-none focus:border-terracotta"
           name="confirmation"
           placeholder={confirmation}
+          required
         />
         <button className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-terracotta px-3 text-sm font-semibold text-white" type="submit">
           <Trash2 className="size-4" aria-hidden="true" />
-          Slet sikkert
+          Slet arrangør permanent
         </button>
       </form>
     </details>

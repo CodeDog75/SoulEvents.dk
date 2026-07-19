@@ -338,25 +338,30 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
 }
 
 export async function deleteFacilitatorFromOverviewAction(formData: FormData) {
-  await requireRole("admin");
+  const adminProfile = await requireRole("admin");
 
   const facilitatorId = getString(formData, "facilitator_id");
   const profileId = getString(formData, "profile_id");
   const confirmation = getString(formData, "confirmation");
+  const reason = getString(formData, "delete_reason");
   const returnTo = getString(formData, "return_to") || "/admin/users";
 
   if (!facilitatorId || !profileId) {
     usersRedirect("Arrangøren kunne ikke findes.", returnTo);
   }
 
+  if (!reason.trim()) {
+    usersRedirect("Skriv en kort årsag til den permanente sletning.", returnTo);
+  }
+
   const supabase = createAdminClient();
   const { data: facilitator } = await supabase
     .from("facilitator_profiles")
-    .select("id, profile_id, host_reference_id, company_name, profiles!facilitator_profiles_profile_id_fkey(email)")
+    .select("id, profile_id, host_reference_id, company_name, profile_image_path, profiles!facilitator_profiles_profile_id_fkey(email, full_name, role)")
     .eq("id", facilitatorId)
     .maybeSingle();
   const profile = Array.isArray(facilitator?.profiles) ? facilitator?.profiles[0] : facilitator?.profiles;
-  const expectedConfirmation = "SLET " + (facilitator?.host_reference_id || profile?.email || "");
+  const expectedConfirmation = "SLET";
 
   if (!facilitator || facilitator.profile_id !== profileId || confirmation !== expectedConfirmation) {
     usersRedirect("Sletning blev ikke bekræftet korrekt.", returnTo);
@@ -365,31 +370,37 @@ export async function deleteFacilitatorFromOverviewAction(formData: FormData) {
   const [
     { count: nonDraftEvents },
     { count: bookings },
+    { count: participantBookings },
     { count: reports },
     { count: invoices },
+    { count: financialRecords },
+    { count: primaryCoOrganizerRelations },
+    { count: secondaryCoOrganizerRelations },
     { count: notificationLogs },
-    { count: adminMessages },
-    { count: auditLogs },
-    { count: legalAcceptances },
   ] = await Promise.all([
     supabase.from("events").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId).neq("status", "draft"),
     supabase.from("bookings").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId),
+    profile?.email
+      ? supabase.from("bookings").select("id", { count: "exact", head: true }).eq("participant_email", profile.email)
+      : Promise.resolve({ count: 0 }),
     supabase.from("monthly_reports").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId),
     supabase.from("invoice_drafts").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId),
+    supabase.from("event_financial_records").select("id", { count: "exact", head: true }).eq("primary_facilitator_id", facilitatorId),
+    supabase.from("event_co_organizers").select("id", { count: "exact", head: true }).eq("primary_organizer_profile_id", facilitatorId),
+    supabase.from("event_co_organizers").select("id", { count: "exact", head: true }).eq("co_organizer_profile_id", facilitatorId),
     supabase.from("event_update_notification_logs").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId),
-    supabase.from("facilitator_admin_messages").select("id", { count: "exact", head: true }).or(`facilitator_id.eq.${facilitatorId},profile_id.eq.${profileId}`),
-    supabase.from("admin_audit_log").select("id", { count: "exact", head: true }).eq("facilitator_id", facilitatorId),
-    supabase.from("legal_document_acceptances").select("id", { count: "exact", head: true }).eq("profile_id", profileId),
   ]);
+  const coOrganizerRelations = (primaryCoOrganizerRelations ?? 0) + (secondaryCoOrganizerRelations ?? 0);
+  const participantBookingCount = participantBookings ?? 0;
+  const preservesUserIdentity = profile?.role !== "facilitator" || participantBookingCount > 0;
   const deleteBlockers = [
     (nonDraftEvents ?? 0) > 0 ? `${nonDraftEvents} ${nonDraftEvents === 1 ? "event" : "events"}` : null,
     (bookings ?? 0) > 0 ? `${bookings} ${bookings === 1 ? "tilmelding" : "tilmeldinger"}` : null,
     (reports ?? 0) > 0 ? `${reports} ${reports === 1 ? "månedsrapport" : "månedsrapporter"}` : null,
     (invoices ?? 0) > 0 ? `${invoices} ${invoices === 1 ? "fakturakladde" : "fakturakladder"}` : null,
+    (financialRecords ?? 0) > 0 ? `${financialRecords} ${financialRecords === 1 ? "økonomisk snapshot" : "økonomiske snapshots"}` : null,
+    coOrganizerRelations > 0 ? `${coOrganizerRelations} ${coOrganizerRelations === 1 ? "medarrangørrelation" : "medarrangørrelationer"}` : null,
     (notificationLogs ?? 0) > 0 ? `${notificationLogs} ${notificationLogs === 1 ? "eventbesked-log" : "eventbesked-logs"}` : null,
-    (adminMessages ?? 0) > 0 ? `${adminMessages} ${adminMessages === 1 ? "besked" : "beskeder"}` : null,
-    (auditLogs ?? 0) > 0 ? `${auditLogs} auditspor` : null,
-    (legalAcceptances ?? 0) > 0 ? `${legalAcceptances} ${legalAcceptances === 1 ? "juridisk accept" : "juridiske accepter"}` : null,
   ].filter(Boolean);
 
   if (
@@ -397,10 +408,9 @@ export async function deleteFacilitatorFromOverviewAction(formData: FormData) {
     (bookings ?? 0) > 0 ||
     (reports ?? 0) > 0 ||
     (invoices ?? 0) > 0 ||
-    (notificationLogs ?? 0) > 0 ||
-    (adminMessages ?? 0) > 0 ||
-    (auditLogs ?? 0) > 0 ||
-    (legalAcceptances ?? 0) > 0
+    (financialRecords ?? 0) > 0 ||
+    coOrganizerRelations > 0 ||
+    (notificationLogs ?? 0) > 0
   ) {
     usersRedirect(
       "Arrangøren kan ikke slettes permanent, fordi der findes historik, som skal bevares: " +
@@ -410,14 +420,81 @@ export async function deleteFacilitatorFromOverviewAction(formData: FormData) {
     );
   }
 
-  const { error } = await supabase.auth.admin.deleteUser(profileId);
+  const [{ data: facilitatorImages }, { data: draftEvents }] = await Promise.all([
+    supabase.from("facilitator_images").select("image_path").eq("facilitator_id", facilitatorId),
+    supabase.from("events").select("id, cover_image_path, event_images(image_path)").eq("facilitator_id", facilitatorId).eq("status", "draft"),
+  ]);
+  const storagePaths = [
+    facilitator.profile_image_path,
+    ...((facilitatorImages ?? []) as Array<{ image_path?: string | null }>).map((image) => image.image_path),
+    ...((draftEvents ?? []) as Array<{ cover_image_path?: string | null; event_images?: Array<{ image_path?: string | null }> | { image_path?: string | null } | null }>)
+      .flatMap((event) => [
+        event.cover_image_path,
+        ...(Array.isArray(event.event_images) ? event.event_images : event.event_images ? [event.event_images] : []).map((image) => image.image_path),
+      ]),
+  ].filter((path): path is string => Boolean(path));
+
+  await supabase.from("facilitator_admin_messages").delete().or(`facilitator_id.eq.${facilitatorId},profile_id.eq.${profileId}`);
+  if (!preservesUserIdentity) {
+    await supabase.from("legal_document_acceptances").delete().eq("profile_id", profileId);
+  }
+
+  await supabase.from("admin_audit_log").insert({
+    actor_profile_id: adminProfile.id,
+    action: "facilitator_permanently_deleted",
+    facilitator_id: facilitatorId,
+    old_value: JSON.stringify({
+      companyName: facilitator.company_name || null,
+      displayName: facilitator.company_name || profile?.full_name || profile?.email || null,
+      hostReferenceId: facilitator.host_reference_id || null,
+      profileId,
+    }),
+    new_value: JSON.stringify({
+      deletedStorageFiles: storagePaths.length,
+      deletedDataCategories: [
+        "facilitator_profile",
+        "profile_assets",
+        "draft_events",
+        "internal_messages",
+        ...(!preservesUserIdentity ? ["legal_acceptances", "profile", "auth_user"] : []),
+      ],
+      preservedParticipantBookings: participantBookingCount,
+      preservedProfileId: preservesUserIdentity ? profileId : null,
+      profileRole: profile?.role ?? null,
+    }),
+    reason: reason.trim().slice(0, 500),
+  });
+
+  const deleteResult =
+    preservesUserIdentity
+      ? await supabase.from("facilitator_profiles").delete().eq("id", facilitatorId)
+      : await supabase.auth.admin.deleteUser(profileId);
+  const { error } = deleteResult;
 
   if (error) {
     usersRedirect("Arrangøren kunne ikke slettes.", returnTo);
   }
 
+  if (storagePaths.length > 0) {
+    const { error: storageError } = await supabase.storage.from("media").remove(Array.from(new Set(storagePaths)));
+    if (storageError) {
+      console.error("Permanent facilitator delete storage cleanup failed after database delete", {
+        facilitatorId,
+        message: storageError.message,
+        pathCount: storagePaths.length,
+      });
+      usersRedirect("Arrangørprofilen blev slettet, men nogle filer kunne ikke ryddes automatisk.", returnTo, { clearSearch: true });
+    }
+  }
+
   revalidatePath("/admin");
   revalidatePath("/admin/users");
   revalidatePath("/facilitators");
-  usersRedirect("Arrangøren er slettet.", returnTo, { clearSearch: true });
+  usersRedirect(
+    preservesUserIdentity
+      ? "Arrangørprofilen er slettet. Brugerens konto og tilmeldingshistorik er bevaret."
+      : "Arrangøren er slettet.",
+    returnTo,
+    { clearSearch: true },
+  );
 }
