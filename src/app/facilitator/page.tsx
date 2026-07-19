@@ -662,7 +662,7 @@ function EventCard({
           <div className="flex flex-wrap gap-2">
             <Link
               className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]"
-              href={publicEventPath(event.slug || event.id)}
+              href={publicEventPath(event.slug || event.id) + "?return_to=/facilitator/events"}
             >
               Se detaljer
             </Link>
@@ -715,7 +715,7 @@ function EventCard({
               Tilmeldinger
             </Link>
             {isActive ? (
-              <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={publicEventPath(event.slug || event.id)}>
+              <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={publicEventPath(event.slug || event.id) + "?return_to=/facilitator/events"}>
                 Se event
               </Link>
             ) : null}

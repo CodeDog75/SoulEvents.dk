@@ -23,7 +23,7 @@ type EventDetailPageProps = {
     id?: string;
     slug?: string;
   }>;
-  searchParams: Promise<{ admin_return?: string; booking?: string; message?: string }>;
+  searchParams: Promise<{ admin_return?: string; booking?: string; message?: string; return_to?: string }>;
 };
 
 function first<T>(value: T | T[] | null | undefined) {
@@ -45,6 +45,13 @@ function withSearch(path: string, searchParams: Record<string, string | undefine
   }
   const query = params.toString();
   return query ? path + "?" + query : path;
+}
+
+function safeFacilitatorReturnPath(path: string | undefined) {
+  if (!path) return null;
+  return path === "/facilitator/events" || path.startsWith("/facilitator/events?") || path.startsWith("/facilitator/events#")
+    ? path
+    : null;
 }
 
 function splitSpecialties(input: string | null | undefined) {
@@ -242,7 +249,7 @@ function ensureUrl(url: string) {
 }
 
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
-  const [resolvedParams, { admin_return: adminReturn, booking, message }] = await Promise.all([params, searchParams]);
+  const [resolvedParams, { admin_return: adminReturn, booking, message, return_to: returnTo }] = await Promise.all([params, searchParams]);
   const identifier = eventIdentifier(resolvedParams);
   const isLegacyRoute = Boolean(resolvedParams.id);
   const messageVariant = booking === "sent" ? "success" : "notice";
@@ -261,6 +268,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       long_description,
       starts_at,
       ends_at,
+      published_at,
       address_line,
       postal_code,
       city,
@@ -336,6 +344,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         long_description,
         starts_at,
         ends_at,
+        published_at,
         address_line,
         postal_code,
         city,
@@ -405,7 +414,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   }
 
   if (isLegacyRoute && event.slug) {
-    permanentRedirect(withSearch(publicEventPath(event.slug), { admin_return: adminReturn, booking, message }));
+    permanentRedirect(withSearch(publicEventPath(event.slug), { admin_return: adminReturn, booking, message, return_to: returnTo }));
   }
 
   const availableSeats = await getAvailableEventSeats(createAdminClient(), event.id, event.capacity);
@@ -415,6 +424,8 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const isPublishedEvent = ["active", "sold_out"].includes(event.status);
   const isSoldOut = event.status === "sold_out" || availableSeats <= 0;
   const isExpiredEvent = new Date(event.ends_at ?? event.starts_at) < new Date();
+  const isPreviouslyPublished = Boolean(event.published_at) || ["active", "sold_out", "completed", "cancelled", "archived"].includes(event.status);
+  const isHeldEvent = isPreviouslyPublished && (event.status === "completed" || isExpiredEvent);
   const isPublicEvent = isPublishedEvent && !isExpiredEvent && facilitatorProfile?.status === "approved" && !facilitatorProfile.is_paused && !facilitatorProfile.is_disabled;
   const canPreviewEvent = viewer?.role === "admin" || viewer?.id === facilitatorProfile?.profile_id;
   if (!isPublicEvent && !canPreviewEvent) {
@@ -441,7 +452,8 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
   );
   const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør";
-  const isBookable = isPublicEvent && !isSoldOut;
+  const isBookable = isPublicEvent && !isSoldOut && !isHeldEvent;
+  const facilitatorReturn = safeFacilitatorReturnPath(returnTo);
   const facilitatorImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
@@ -535,13 +547,24 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                   Tilbage til admin
                 </Link>
               ) : null}
-              <Link
-                className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
-                href="/"
-              >
-                <ArrowLeft className="size-4" aria-hidden="true" />
-                Tilbage til forsiden
-              </Link>
+              {facilitatorReturn ? (
+                <Link
+                  className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
+                  href={facilitatorReturn}
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  Tilbage til mine events
+                </Link>
+              ) : null}
+              {!facilitatorReturn ? (
+                <Link
+                  className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
+                  href="/"
+                >
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  Tilbage til forsiden
+                </Link>
+              ) : null}
             </nav>
           </div>
         </div>
@@ -549,7 +572,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
 
       <section className="mx-auto grid max-w-[1400px] gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1fr_400px]">
         <div className="grid gap-6">
-          {!isPublicEvent && (
+          {!isPublicEvent && !isHeldEvent && (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-5 shadow-soft">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Forhåndsvisning</p>
               <h2 className="mt-1 text-2xl font-semibold text-midnight">Dette event er endnu ikke offentligt</h2>
@@ -558,6 +581,16 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               </p>
             </section>
           )}
+          {isHeldEvent ? (
+            <section className="rounded-card border border-[#E8DEC9] bg-[#FBF5E8] p-5 shadow-soft">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#756758]">Afholdt event</p>
+              <h2 className="mt-1 text-2xl font-semibold text-midnight">Eventet er afholdt</h2>
+              <p className="mt-2 text-sm leading-6 text-ink/70">
+                Dette event blev afholdt den{" "}
+                {new Intl.DateTimeFormat("da-DK", { dateStyle: "long" }).format(new Date(event.starts_at))}.
+              </p>
+            </section>
+          ) : null}
 
           <section className="overflow-hidden rounded-card bg-white shadow-soft">
             <div
@@ -801,7 +834,12 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             startsAt={event.starts_at}
           />
 
-          {isSoldOut ? (
+          {isHeldEvent ? (
+            <section className="rounded-card border border-[#E8DEC9] bg-[#FBF5E8] p-6 shadow-soft">
+              <h2 className="text-3xl font-medium text-olive">Eventet er afholdt</h2>
+              <p className="mt-3 text-sm leading-6 text-ink/70">Tilmelding er lukket, fordi eventet allerede er afholdt.</p>
+            </section>
+          ) : isSoldOut ? (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
               <h2 className="text-3xl font-medium text-olive">Udsolgt</h2>
             </section>
