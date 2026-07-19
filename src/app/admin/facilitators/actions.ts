@@ -772,16 +772,18 @@ export async function requestAdminFacilitatorEmailChangeAction(formData: FormDat
     adminFacilitatorEditRedirect(facilitatorId, "Mailændringen kunne ikke registreres.");
   }
 
+  const emailChangeRedirectTo = `${getAppUrl()}/auth/callback?flow=email-change`;
   const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
     email: currentEmail,
     newEmail,
     options: {
-      redirectTo: `${getAppUrl()}/auth/callback?flow=email-change`,
+      redirectTo: emailChangeRedirectTo,
     },
     type: "email_change_new",
   });
 
-  const actionUrl = linkData.properties?.action_link ?? null;
+  const tokenHash = linkData.properties?.hashed_token ?? null;
+  const actionUrl = tokenHash ? `${emailChangeRedirectTo}&token_hash=${encodeURIComponent(tokenHash)}&type=email_change` : null;
   if (linkError || !actionUrl) {
     await supabase.from("email_change_requests").update({ status: "cancelled" }).eq("id", requestRow.id);
     adminFacilitatorEditRedirect(facilitatorId, "Supabase kunne ikke oprette bekræftelseslinket til den nye mailadresse.");

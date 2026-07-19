@@ -21,6 +21,6 @@ Skabeloner:
 
 Vigtigt:
 
-- Behold `{{ .ConfirmationURL }}` i links. Det er Supabase' sikre standardflow.
+- Brug `{{ .ConfirmationURL }}` i standardlinks. Change Email skal dog bruge `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email_change`, så appens server-callback kan verificere tokenet og synkronisere `profiles.email`.
 - Behold `{{ .NewEmail }}` i Change Email-skabelonen.
-- Logoet hentes fra `{{ .SiteURL }}/brand/soulevents-logo.png`, så Supabase Site URL skal pege på den rigtige offentlige adresse i produktion.
+- Logoet hentes fra `{{ .SiteURL }}/brand/soulevents-email-logo.png`, så Supabase Site URL skal pege på den rigtige offentlige adresse i produktion.

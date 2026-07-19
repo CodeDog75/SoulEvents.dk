@@ -41,7 +41,7 @@ function passwordResetRedirect(requestUrl: URL, message?: string) {
   return NextResponse.redirect(new URL(path, getAppUrl(requestUrl.origin)));
 }
 
-function createPasswordResetClient(request: NextRequest) {
+function createTokenVerificationClient(request: NextRequest) {
   if (!env.supabaseUrl || !env.supabaseAnonKey) {
     throw new Error("Supabase server credentials are missing.");
   }
@@ -78,6 +78,13 @@ function createPasswordResetClient(request: NextRequest) {
       return response;
     },
   };
+}
+
+function emailChangeRedirect(requestUrl: URL, message: string, status: "error" | "success" = "error") {
+  const searchParams = new URLSearchParams({ message, status });
+  const path = status === "success" ? "/facilitator" : "/auth/login";
+
+  return NextResponse.redirect(new URL(`${path}?${searchParams.toString()}`, getAppUrl(requestUrl.origin)));
 }
 
 function loginErrorRedirect(requestUrl: URL, message: string) {
@@ -192,8 +199,77 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  if (flow === "email-change") {
+    if (!tokenHash) {
+      return emailChangeRedirect(
+        requestUrl,
+        "Bekræftelseslinket til mailændringen mangler en sikker token. Start ændringen igen fra Login og sikkerhed.",
+      );
+    }
+
+    if (type !== "email_change") {
+      return emailChangeRedirect(
+        requestUrl,
+        "Bekræftelseslinket til mailændringen har en ugyldig type. Start ændringen igen fra Login og sikkerhed.",
+      );
+    }
+
+    const emailChangeClient = createTokenVerificationClient(request);
+    const { error: verifyError } = await emailChangeClient.supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: "email_change",
+    });
+
+    if (verifyError) {
+      console.error("Email change token verification failed", {
+        message: verifyError.message,
+      });
+
+      const {
+        data: { user: existingUser },
+      } = await emailChangeClient.supabase.auth.getUser();
+
+      if (existingUser) {
+        const { data: completedRequest } = await emailChangeClient.supabase
+          .from("email_change_requests")
+          .select("id")
+          .eq("profile_id", existingUser.id)
+          .eq("status", "completed")
+          .ilike("new_email", existingUser.email?.trim().toLowerCase() ?? "")
+          .order("confirmed_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (completedRequest) {
+          return emailChangeClient.applyCookies(
+            emailChangeRedirect(requestUrl, "Mailadressen er allerede blevet bekræftet.", "success"),
+          );
+        }
+      }
+
+      return emailChangeRedirect(
+        requestUrl,
+        "Bekræftelseslinket er ugyldigt eller udløbet. Start ændringen af mailadresse igen fra Login og sikkerhed.",
+      );
+    }
+
+    const {
+      data: { user },
+    } = await emailChangeClient.supabase.auth.getUser();
+
+    if (!user) {
+      return emailChangeClient.applyCookies(
+        emailChangeRedirect(requestUrl, "Mailændringen blev bekræftet, men sessionen kunne ikke hentes. Log ind og prøv igen."),
+      );
+    }
+
+    const result = await syncConfirmedEmailChange(user);
+
+    return emailChangeClient.applyCookies(emailChangeRedirect(requestUrl, result.message, result.status));
+  }
+
   if (isPasswordResetFlow && tokenHash && type === "recovery") {
-    const passwordResetClient = createPasswordResetClient(request);
+    const passwordResetClient = createTokenVerificationClient(request);
     const { error: verifyError } = await passwordResetClient.supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type: "recovery",
@@ -211,7 +287,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (code) {
-    const passwordResetClient = isPasswordResetFlow ? createPasswordResetClient(request) : null;
+    const passwordResetClient = isPasswordResetFlow ? createTokenVerificationClient(request) : null;
     const supabase = passwordResetClient?.supabase ?? (await createClient());
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
