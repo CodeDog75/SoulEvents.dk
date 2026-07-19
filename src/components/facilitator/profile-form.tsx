@@ -233,7 +233,7 @@ const steps: Array<{
   {
     eyebrow: "Ydelser",
     id: "services",
-    text: "Kun hvis du også arbejder med 1:1-forløb. Hvis du kun afholder events, vælger du bare nej.",
+    text: "Så kan du blive vist på SoulEvents under “Ydelser”, så deltagere også kan finde og kontakte dig uden for dine events.",
     title: "Tilbyder du også individuelle ydelser?",
   },
   {
@@ -1609,7 +1609,7 @@ export function ProfileForm({
       {currentStep.id === "services" && (
         <div className="grid gap-5">
           <p className="text-base leading-7 text-ink/65">
-            Fx healing, terapi, coaching, massage, clairvoyance eller andre 1:1-forløb.
+            Så kan du blive vist på SoulEvents under “Ydelser”, så deltagere også kan finde og kontakte dig uden for dine events.
           </p>
 
           <div className="grid gap-3" role="radiogroup" aria-label="Individuelle ydelser">
@@ -1808,16 +1808,18 @@ export function ProfileForm({
                 className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
               >
                 <div className="grid gap-3">
-                  <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Individuelle ydelser</p>
+                  <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Tilbyder du også individuelle ydelser?</p>
                   {hasIndividualServicesDescription ? (
                     <p className="whitespace-pre-line text-base leading-7 text-ink/72">{serviceDescription}</p>
                   ) : offersIndividualServices ? (
-                    <p className="text-sm leading-6 text-ink/55">Du har valgt, at du tilbyder individuelle ydelser. Tilføj gerne en kort beskrivelse.</p>
+                    <p className="text-sm leading-6 text-ink/55">
+                      Så kan du blive vist på SoulEvents under “Ydelser”, så deltagere også kan finde og kontakte dig uden for dine events.
+                    </p>
                   ) : (
                     <div className="rounded-[22px] bg-[#FBF5E9] p-4">
-                      <p className="text-sm font-semibold leading-6 text-midnight">Du har endnu ikke tilføjet individuelle ydelser</p>
+                      <p className="text-sm font-semibold leading-6 text-midnight">Tilbyder du også individuelle ydelser?</p>
                       <p className="mt-1 text-sm leading-6 text-ink/60">
-                        Tilføj de ydelser, som deltagere kan kontakte dig om uden for dine events.
+                        Så kan du blive vist på SoulEvents under “Ydelser”, så deltagere også kan finde og kontakte dig uden for dine events.
                       </p>
                       <span className="mt-3 inline-flex h-10 w-fit items-center rounded-full bg-sage-700 px-4 text-sm font-semibold text-white shadow-soft">
                         Tilføj ydelse
