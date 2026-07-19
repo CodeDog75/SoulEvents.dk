@@ -133,6 +133,15 @@ function isOAuthUser(user: {
 }
 
 function postAuthRedirectResponse(requestUrl: URL, result: PostAuthResult) {
+  if (result.type === "missing_profile") {
+    console.info("Auth callback redirecting without facilitator profile", {
+      path: result.path,
+      type: result.type,
+    });
+
+    return NextResponse.redirect(new URL(result.path, getAppUrl(requestUrl.origin)));
+  }
+
   console.info("Auth callback redirecting after profile preparation", {
     path: result.path,
     role: result.profile.role,
@@ -143,6 +152,10 @@ function postAuthRedirectResponse(requestUrl: URL, result: PostAuthResult) {
 }
 
 function emailConfirmationRedirectResponse(requestUrl: URL, result: PostAuthResult) {
+  if (result.type === "missing_profile") {
+    return postAuthRedirectResponse(requestUrl, result);
+  }
+
   if (result.profile.role !== "facilitator") {
     return postAuthRedirectResponse(requestUrl, result);
   }
