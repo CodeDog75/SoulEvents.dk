@@ -445,11 +445,19 @@ export async function disableFacilitatorAction(formData: FormData) {
   }
 
   const supabase = createAdminClient();
-  const { data: facilitator } = await supabase
+  const { data: facilitator, error: facilitatorLookupError } = await supabase
     .from("facilitator_profiles")
-    .select("id, status, is_disabled, company_name, display_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name)")
+    .select("id, status, is_disabled, company_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name)")
     .eq("id", facilitatorId)
     .maybeSingle();
+  if (facilitatorLookupError) {
+    console.error("Facilitator deactivation recipient lookup failed", {
+      errorCode: facilitatorLookupError.code ?? null,
+      errorMessage: facilitatorLookupError.message,
+      facilitatorId,
+      type: "facilitator_profile_deactivated",
+    });
+  }
   const previousStatus = facilitator?.status ?? null;
   const previousDisabledState = facilitator?.is_disabled ?? null;
   const { error } = await supabase
@@ -471,7 +479,7 @@ export async function disableFacilitatorAction(formData: FormData) {
   const notificationSent = await sendFacilitatorProfileDeactivatedEmail({
     adminMessage,
     facilitatorEmail: profile?.email ?? null,
-    facilitatorName: facilitator?.display_name || facilitator?.company_name || profile?.full_name || "arrangør",
+    facilitatorName: facilitator?.company_name || profile?.full_name || "arrangør",
     reason: reason ?? null,
     variant: previousStatus === "approved" ? "active_deactivated" : "pending_not_approved",
   });

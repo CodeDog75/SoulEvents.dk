@@ -228,11 +228,19 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
       ? await supabase
           .from("facilitator_profiles")
           .select(
-            "id, status, is_disabled, company_name, display_name, profiles!facilitator_profiles_profile_id_fkey(email, first_name, full_name)",
+            "id, status, is_disabled, company_name, profiles!facilitator_profiles_profile_id_fkey(email, first_name, full_name)",
           )
           .eq("id", facilitatorId)
           .maybeSingle()
       : null;
+  if (facilitatorForDeactivation?.error) {
+    console.error("Facilitator deactivation recipient lookup failed", {
+      errorCode: facilitatorForDeactivation.error.code ?? null,
+      errorMessage: facilitatorForDeactivation.error.message,
+      facilitatorId,
+      type: "facilitator_profile_deactivated",
+    });
+  }
   const { error } = await supabase.from("facilitator_profiles").update(update).eq("id", facilitatorId);
 
   if (error) {
@@ -262,7 +270,6 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
       ? facilitatorForDeactivation?.data?.profiles[0]
       : facilitatorForDeactivation?.data?.profiles;
     const facilitatorName =
-      facilitatorForDeactivation?.data?.display_name ||
       facilitatorForDeactivation?.data?.company_name ||
       profile?.first_name ||
       profile?.full_name ||
