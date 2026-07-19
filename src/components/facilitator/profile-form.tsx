@@ -394,6 +394,54 @@ function ClearableInput({
   );
 }
 
+function ClearableTextarea({
+  className = "",
+  maxLength,
+  onChange,
+  placeholder,
+  value,
+}: {
+  className?: string;
+  maxLength?: number;
+  onChange: (value: string) => void;
+  placeholder: string;
+  value: string;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [value]);
+
+  return (
+    <div className="relative">
+      <textarea
+        className={inputClass("resize-none overflow-hidden py-4 pr-12 leading-7 " + className)}
+        maxLength={maxLength}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        ref={textareaRef}
+        rows={1}
+        value={value}
+      />
+      {value ? (
+        <button
+          aria-label="Ryd felt"
+          className="absolute right-3 top-3 grid size-9 place-items-center rounded-full text-ink/38 transition hover:bg-midnight/5 hover:text-midnight"
+          onClick={() => onChange("")}
+          type="button"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function displayLink(input: string) {
   return input.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/$/, "");
 }
@@ -1488,7 +1536,7 @@ export function ProfileForm({
               Uddyb kort dit speciale, og skriv gerne siden hvornår du har arbejdet med området. Eksempel: &quot;Traumeterapeut med speciale i børn – siden 2018&quot;. Maks. 150 tegn.
             </p>
             <div className="mt-3">
-              <ClearableInput
+              <ClearableTextarea
                 className="bg-white text-base"
                 maxLength={specialtyMaxLength}
                 onChange={setSpecialties}
