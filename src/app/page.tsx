@@ -35,8 +35,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const homepageImageUrl = await getHomepageOgImageUrl();
 
   return createPageMetadata({
-    title: "SoulEvents.dk | Events for krop, sind og sjæl",
-    description: "Find yoga, meditation, retreats, healing, ceremonier og andre nærværende oplevelser i Danmark.",
+    title: "SoulEvents.dk | Personlig udvikling, nærvær og fællesskab",
+    description:
+      "Oplev events, workshops, retreats og passionerede arrangører, der skaber rum for fordybelse, fællesskab og nye perspektiver over hele Danmark.",
     imageTitle: "SoulEvents.dk",
     imageSubtitle: "Find nærværende events, ydelser og fællesskaber.",
     imageUrl: homepageImageUrl,
@@ -1491,8 +1492,13 @@ export default async function Home({ searchParams }: HomeProps) {
 
         <div className="relative z-10 mx-auto grid max-w-[1200px] min-w-0 gap-3 px-4 pb-6 pt-1 sm:gap-6 sm:px-8 sm:pb-8 md:pt-0">
           <section className="min-h-[265px] pt-16 md:hidden">
-            <p className="max-w-[20rem] font-serif text-[2.22rem] font-semibold leading-[1.02] text-[#2F2633] drop-shadow-[0_2px_16px_rgba(255,255,255,0.55)]">
-              Oplevelser der nærer krop, sind og sjæl
+            <h1 className="max-w-[21rem] font-serif text-[2.22rem] font-semibold leading-[1.02] text-[#2F2633] drop-shadow-[0_2px_16px_rgba(255,255,255,0.55)]">
+              Din vej til
+              <br />
+              personlig udvikling, nærvær og fællesskab
+            </h1>
+            <p className="mt-8 max-w-[21rem] text-sm font-semibold leading-6 text-[#2F2633]/78 drop-shadow-[0_2px_14px_rgba(255,255,255,0.62)]">
+              Oplev events, workshops og retreats med arrangører, der skaber rum for fordybelse og fællesskab i hele Danmark.
             </p>
           </section>
 
@@ -1508,15 +1514,17 @@ export default async function Home({ searchParams }: HomeProps) {
                 SoulEvents.dk
               </p>
               <h1 className="mt-5 max-w-[720px] text-5xl font-semibold leading-[0.98] text-[#2F2633] lg:text-7xl">
-                Find events for krop, sind og sjæl
+                Din vej til
+                <br />
+                personlig udvikling, nærvær og fællesskab
               </h1>
-              <p className="mt-5 max-w-[620px] text-lg leading-8 text-[#2F2633]/78">
-                Find spirituelle events, fællesskaber og oplevelser over hele Danmark.
+              <p className="mt-7 max-w-[620px] text-lg leading-8 text-[#2F2633]/78">
+                Oplev events, workshops, retreats og passionerede arrangører, der skaber rum for fordybelse, fællesskab og nye perspektiver – over hele Danmark.
               </p>
             </div>
           </section>
 
-          <div className="relative z-20 -mt-16 min-w-0 w-full md:-mt-28" id="find-events">
+          <div className="relative z-20 mt-3 min-w-0 w-full md:-mt-16" id="find-events">
             <HomeEventSearchForm
               categoryEventCounts={categoryEventCounts}
               experienceGroupEventCounts={homepageExperienceGroupCounts}

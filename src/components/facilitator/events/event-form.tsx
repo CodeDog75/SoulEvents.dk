@@ -838,27 +838,18 @@ export function EventForm({
   const isEditingPublishedEvent = draftEventStatus === "active" || draftEventStatus === "sold_out";
   const activeBookingCount = draftEvent?.activeBookingCount ?? 0;
   const isSubmittingEventUpdate = isSavingWithoutEmail || isSavingAndSending;
-  const primarySubmitStatus = isEditingPublishedEvent && draftEventStatus ? draftEventStatus : "pending_review";
+  const primarySubmitStatus = isEditingPublishedEvent && draftEventStatus ? draftEventStatus : "active";
   const userDraftStorageKey = `${eventDraftStoragePrefix}:${facilitator.id}`;
   const draftStorageKey = draftEvent?.id ? `${userDraftStorageKey}:event:${draftEvent.id}` : `${userDraftStorageKey}:new`;
   const statusHelp = useMemo(
     () =>
-      "Når du gør eventet offentligt, bliver det enten sendt til godkendelse eller publiceret med det samme, hvis du har automatisk godkendelse.",
+      "Når du gør eventet offentligt, bliver det synligt med det samme, hvis din arrangørprofil er godkendt og eventet er klar.",
     [],
   );
-  const formattedMaxTicketPrice = facilitator.maxTicketPricePerPerson === null
-    ? null
-    : new Intl.NumberFormat("da-DK").format(facilitator.maxTicketPricePerPerson) + " kr.";
   const existingCoOrganizers = draftEvent?.coOrganizerInvitations ?? [];
   const inactiveExistingCoOrganizers = existingCoOrganizers.filter((coOrganizer) => coOrganizer.profileIsActive === false);
   const activeCoOrganizerCount = existingCoOrganizers.length + selectedCoOrganizers.length;
   const canAddCoOrganizer = activeCoOrganizerCount < 2;
-  const numericPriceValue = Number(priceValue || 0);
-  const ticketPriceLimitExceeded =
-    priceMode === "paid" &&
-    facilitator.maxTicketPricePerPerson !== null &&
-    Number.isFinite(numericPriceValue) &&
-    numericPriceValue > facilitator.maxTicketPricePerPerson;
   const organizerAcceptanceMessage =
     message && (message.toLowerCase().includes("arrangørvilkår") || message.toLowerCase().includes("retningslinjer"))
       ? message
@@ -1466,7 +1457,6 @@ export function EventForm({
       const numericPrice = Number(priceValue || 0);
       if (priceMode !== "free" && priceMode !== "paid") return "missing";
       if (priceMode === "paid" && (!hasValidPrice || numericPrice <= 0)) return "missing";
-      if (ticketPriceLimitExceeded) return "missing";
       return capacityValue > 0 && capacityValue <= 500 ? "complete" : "missing";
     }
 
@@ -1511,9 +1501,7 @@ export function EventForm({
       addMissing({ key: "price-mode", label: "Prisvalg", step: 2, targetId: "event-price-field" });
     }
 
-    if (ticketPriceLimitExceeded) {
-      addMissing({ focusSelector: "[name='price']", key: "price-limit", label: "Billetpris", step: 2, targetId: "event-price-field" });
-    } else if (getStepStatus(2) !== "complete") {
+    if (getStepStatus(2) !== "complete") {
       addMissing({ focusSelector: "[name='capacity']", key: "capacity", label: "Pris og antal deltagere", step: 2, targetId: "event-price-field" });
     }
 
@@ -1987,8 +1975,7 @@ export function EventForm({
   const hasReachedActiveLimit = Boolean(activeLimitMessage);
   const coOrganizerBlocksSubmit = inactiveExistingCoOrganizers.length > 0;
   const activeLimitBlocksSubmit = hasReachedActiveLimit && !isEditingPublishedEvent;
-  const ticketPriceLimitBlocksSubmit = ticketPriceLimitExceeded;
-  const canPublish = missingInvitationItems.length === 0 && !coOrganizerBlocksSubmit && !activeLimitBlocksSubmit && !ticketPriceLimitBlocksSubmit;
+  const canPublish = missingInvitationItems.length === 0 && !coOrganizerBlocksSubmit && !activeLimitBlocksSubmit;
   const legalAcceptanceBlocksSubmit = requiresOrganizerAcceptance && !acceptedOrganizerTerms;
   const canSubmitEvent = canPublish && !legalAcceptanceBlocksSubmit;
 
@@ -2012,8 +1999,6 @@ export function EventForm({
                 ? "Medarrangør skal fjernes"
               : activeLimitBlocksSubmit
                 ? "Grænsen for aktive events er nået"
-                : ticketPriceLimitBlocksSubmit
-                  ? "Billetprisen overstiger din grænse"
                 : legalAcceptanceBlocksSubmit
                   ? "Før eventet kan offentliggøres"
                 : "Din invitation er næsten klar"}
@@ -2028,11 +2013,6 @@ export function EventForm({
             <p className="mt-2">{activeLimitMessage}</p>
           ) : coOrganizerBlocksSubmit ? (
             <p className="mt-2">Fjern medarrangører, der ikke længere har en aktiv godkendt profil, før eventet kan offentliggøres.</p>
-          ) : ticketPriceLimitBlocksSubmit ? (
-            <p className="mt-2">
-              Den angivne billetpris overstiger den nuværende beløbsgrænse. Har dit event behov for en højere billetpris, er du velkommen til
-              at kontakte SoulEvents på hej@soulevents.dk.
-            </p>
           ) : legalAcceptanceBlocksSubmit ? (
             <p className="mt-2">
               Før eventet kan offentliggøres, skal du acceptere de gældende arrangørvilkår og retningslinjer nedenfor.
@@ -2114,7 +2094,7 @@ export function EventForm({
                 : "bg-[#D8CBE4] text-white shadow-none")
             }
             name="status"
-            disabled={coOrganizerBlocksSubmit || activeLimitBlocksSubmit || ticketPriceLimitBlocksSubmit || legalAcceptanceBlocksSubmit || isSubmittingEventUpdate}
+            disabled={coOrganizerBlocksSubmit || activeLimitBlocksSubmit || legalAcceptanceBlocksSubmit || isSubmittingEventUpdate}
             type="submit"
             value={primarySubmitStatus}
           >
@@ -2128,8 +2108,6 @@ export function EventForm({
                 : "Gør event offentlig"
               : activeLimitBlocksSubmit
                 ? "Grænsen er nået"
-                : ticketPriceLimitBlocksSubmit
-                  ? "Billetprisen er for høj"
                 : legalAcceptanceBlocksSubmit
                   ? "Accepter vilkår for at fortsætte"
                 : "Fuldfør eventet for at gøre det offentligt"}
@@ -2208,20 +2186,15 @@ export function EventForm({
         const isDialogParticipantSubmit = submitter?.name === "notify_participants";
         const submittedStatus = isDialogParticipantSubmit ? pendingSubmitStatus || primarySubmitStatus : submitter?.value;
         const latestMissingInvitationItems = getMissingInvitationItems();
-        const latestCanPublish = latestMissingInvitationItems.length === 0 && !activeLimitBlocksSubmit && !ticketPriceLimitBlocksSubmit;
+        const latestCanPublish = latestMissingInvitationItems.length === 0 && !activeLimitBlocksSubmit;
 
         const isPrimarySubmit =
+          submittedStatus === "active" ||
           submittedStatus === "pending_review" ||
           (isEditingPublishedEvent && submittedStatus === primarySubmitStatus);
 
         if (isPrimarySubmit && activeLimitBlocksSubmit) {
           event.preventDefault();
-          return;
-        }
-
-        if (isPrimarySubmit && ticketPriceLimitBlocksSubmit) {
-          event.preventDefault();
-          guideToMissingItem({ focusSelector: "[name='price']", key: "price-limit", label: "Billetpris", step: 2, targetId: "event-price-field" });
           return;
         }
 

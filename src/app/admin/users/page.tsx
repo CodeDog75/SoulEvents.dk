@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Eye, Search, Ticket } from "lucide-react";
+import { ArrowLeft, CalendarDays, Eye, Ticket } from "lucide-react";
 import { getFacilitatorAdminStatus, type FacilitatorAdminStatus } from "@/components/admin/facilitator-status-badge";
+import { AdminUserSearchForm } from "@/components/admin/users/admin-user-search-form";
 import { UserRoleTable } from "@/components/admin/users/user-role-table";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
@@ -1046,6 +1047,11 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     status: selectedStatus,
     type: q ? activeResultType : undefined,
   });
+  const clearedSearchHref = filteredUsersHref({
+    loginActivity: selectedLoginActivity,
+    sort: selectedSort,
+    status: selectedStatus,
+  });
   const facilitatorTabHref = filteredUsersHref({ loginActivity: selectedLoginActivity, q, sort: selectedSort, status: selectedStatus, type: "facilitators" });
   const eventTabHref = filteredUsersHref({ loginActivity: selectedLoginActivity, q, sort: selectedSort, status: selectedStatus, type: "events" });
   const facilitatorPageHref = (page: number) =>
@@ -1075,35 +1081,15 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
         <AuthMessage message={message} />
 
         <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-          <form action="/admin/users" className="grid gap-2">
-            <label className="text-sm font-semibold text-midnight" htmlFor="admin-user-search">
-              Søg efter arrangør eller event
-            </label>
-            {activeResultType === "facilitators" ? (
-              <>
-                <input name="status" type="hidden" value={selectedStatus} />
-                <input name="sort" type="hidden" value={selectedSort} />
-                <input name="login_activity" type="hidden" value={selectedLoginActivity} />
-              </>
-            ) : (
-              <input name="type" type="hidden" value="events" />
-            )}
-            <div className="flex min-w-0 gap-2">
-              <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink/45" aria-hidden="true" />
-                <input
-                  className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
-                  defaultValue={q ?? ""}
-                  id="admin-user-search"
-                  name="q"
-                  placeholder="Søg efter arrangør eller event..."
-                />
-              </div>
-              <button className="h-11 rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">
-                Søg
-              </button>
-            </div>
-          </form>
+          <AdminUserSearchForm
+            activeResultType={activeResultType}
+            clearHref={clearedSearchHref}
+            key={q ?? ""}
+            query={q ?? ""}
+            selectedLoginActivity={selectedLoginActivity}
+            selectedSort={selectedSort}
+            selectedStatus={selectedStatus}
+          />
           {activeResultType === "facilitators" ? (
             <>
               <form action="/admin/users" className="mt-5 grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">

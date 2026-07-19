@@ -72,7 +72,6 @@ function textExcerpt(value: string | null | undefined) {
 function facilitatorCenterHref(facilitator: { id: string; status?: string | null }) {
   const params = new URLSearchParams({
     highlight: facilitator.id,
-    q: facilitator.id,
     status: facilitator.status === "changes_requested" ? "changes_requested" : "pending",
   });
 
@@ -183,7 +182,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "changes_requested"),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "active").gte("starts_at", today.toISOString()),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "active").eq("event_format", "online").gte("starts_at", today.toISOString()),
-    supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "pending_review"),
+    supabase.from("events").select("id", { count: "exact", head: true }).in("status", ["active", "sold_out"]).is("reviewed_at", null),
     supabase.from("bookings").select("id", { count: "exact", head: true }).gte("created_at", thirtyDaysAgo.toISOString()),
     supabase.from("facilitator_event_reminders").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase
@@ -194,7 +193,13 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       .eq("is_disabled", false)
       .order("created_at", { ascending: false })
       .limit(6),
-    supabase.from("events").select("id, slug, title, status, starts_at, created_at, updated_at, facilitator_profiles(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))").order("created_at", { ascending: false }).limit(5),
+    supabase
+      .from("events")
+      .select("id, slug, title, status, starts_at, created_at, updated_at, published_at, facilitator_profiles(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))")
+      .in("status", ["active", "sold_out"])
+      .is("reviewed_at", null)
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .limit(5),
     supabase.from("bookings").select("id, participant_name, created_at, events(title)").order("created_at", { ascending: false }).limit(5),
     supabase
       .from("facilitator_admin_messages")
@@ -211,7 +216,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { label: "Påmindelses-mails", value: formatNumber(reminderSubscribers), icon: Bell },
     { label: "Nye arrangøransøgninger", value: formatNumber(pendingFacilitators), icon: Clock3 },
     { label: "Kræver ændringer", value: formatNumber(changesRequestedFacilitators), icon: AlertCircle },
-    { label: "Events til godkendelse", value: formatNumber(pendingEvents), icon: AlertCircle },
+    { label: "Events til kontrol", value: formatNumber(pendingEvents), icon: AlertCircle },
   ];
 
   const adminSections = [
@@ -231,7 +236,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       theme: adminSectionThemes.events,
       title: "Events",
       items: [
-        { href: "/admin/events", title: "Eventmoderation", text: "Godkend, afvis, skjul og arkiver events.", icon: CalendarDays, theme: adminCardThemes.green },
+        { href: "/admin/events", title: "Eventmoderation", text: "Kontrollér, genpublicér, skjul og arkiver events.", icon: CalendarDays, theme: adminCardThemes.green },
         { href: "/admin/current-experiences", title: "Aktuelle oplevelser", text: "Opret og styr de eventrækker, der vises på forsiden.", icon: Sparkles, theme: adminCardThemes.orange },
         { href: "/admin/category-architecture", title: "Kategorier & tags", text: "Administrer kategorier, tags og tagfarver ét samlet sted.", icon: Tags, theme: adminCardThemes.teal },
       ],
@@ -255,7 +260,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       items: [
         { href: "/admin/settings", title: "Platformindstillinger", text: "Styr grænser for kladder og aktive events per arrangør.", icon: Settings, theme: adminCardThemes.platform },
         { href: "/admin/legal", title: "Juridiske dokumenter", text: "Opdater betingelser, privatliv og retningslinjer.", icon: Scale, theme: adminCardThemes.slate },
-        { href: "/admin/reports", title: "Rapporter og eksport", text: "Excel-eksport til statistik, status og dokumentation.", icon: BarChart3, theme: adminCardThemes.navy },
+        { href: "/admin/commission", title: "Kommission og fakturering", text: "Styr beløbsgrænser, arrangørvilkår, månedsrapporter og fakturagrundlag.", icon: BarChart3, theme: adminCardThemes.navy },
       ],
     },
   ];
@@ -361,9 +366,9 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
               <p className="mt-1 text-sm text-ink/64">Profiler der afventer behandling.</p>
               <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">{formatNumber(facilitatorReviewCount)}</span>
             </Link>
-            <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="/admin/events?status=pending_review">
-              <p className="font-semibold text-midnight">Events til godkendelse</p>
-              <p className="mt-1 text-sm text-ink/64">Events der skal læses og godkendes.</p>
+            <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="/admin/events">
+              <p className="font-semibold text-midnight">Events til kontrol</p>
+              <p className="mt-1 text-sm text-ink/64">Nye publicerede events der skal læses efter.</p>
               <span className="mt-3 inline-flex rounded-full bg-[#FFF6E8] px-3 py-1 text-sm font-semibold text-[#7A5D3A]">{formatNumber(pendingEvents)}</span>
             </Link>
             <Link className="rounded-[18px] border border-[#F0DEC0] bg-white/70 p-4 transition hover:bg-white" href="/admin/messages">
@@ -465,8 +470,22 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           </section>
 
           <section id="admin-new-events" className="scroll-mt-24 rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-            <h2 className="font-semibold text-midnight">Nye events</h2>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-midnight">Nye events</h2>
+                <p className="mt-1 text-sm text-ink/64">{formatNumber(pendingEvents)} events afventer gennemgang.</p>
+              </div>
+              <Link className="text-sm font-semibold text-sage-700 transition hover:text-terracotta" href="/admin/events">
+                Åbn nye events
+              </Link>
+            </div>
             <div className="mt-4 grid gap-3">
+              {(recentEvents ?? []).length === 0 ? (
+                <div className="rounded-md bg-sage-50 p-3 text-sm text-ink/64">
+                  <p className="font-semibold text-midnight">Ingen nye events afventer gennemgang</p>
+                  <p className="mt-1">Du er ajour med eventkontrollen.</p>
+                </div>
+              ) : null}
               {(recentEvents ?? []).map((event: any) => {
                 const facilitator = Array.isArray(event.facilitator_profiles) ? event.facilitator_profiles[0] : event.facilitator_profiles;
                 const eventProfile = Array.isArray(facilitator?.profiles) ? facilitator.profiles[0] : facilitator?.profiles;
@@ -477,7 +496,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                       {facilitator?.company_name || eventProfile?.full_name || "Arrangør"} · {event.status}
                     </p>
                     <p className="mt-1 text-xs font-semibold text-ink/55">
-                      Oprettet {formatDateTime(event.created_at)} · Senest ændret {formatDateTime(event.updated_at)}
+                      Offentliggjort {formatDateTime(event.published_at ?? event.created_at)} · Afholdes {formatDateTime(event.starts_at)}
                     </p>
                     <Link className="mt-2 inline-flex text-sm font-semibold text-sage-700" href={publicEventPath(event.slug || event.id) + "?admin_return=/admin%23admin-new-events"}>
                       Åbn event
@@ -509,7 +528,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         <section id="admin-permissions" className="mb-6 scroll-mt-24 rounded-md border border-[#D8CBE4] bg-[#F7F2FA] p-5 shadow-soft">
           <h2 className="font-semibold text-midnight">Særlige tilladelser</h2>
           <p className="mt-1 text-sm leading-6 text-ink/64">
-            Auto-godkendelse og badges fjernes ved at åbne arrangørens redigering og fjerne markeringen under &quot;Status og synlighed&quot;.
+            Særlige badges og ældre auto-publiceringsmarkeringer fjernes ved at åbne arrangørens redigering og fjerne markeringen under &quot;Status og synlighed&quot;.
           </p>
         </section>
 

@@ -8,14 +8,28 @@ import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { AppRole, FacilitatorStatus } from "@/types/database";
 
-function usersRedirect(message: string, returnTo = "/admin/users"): never {
+function adminUsersReturnPath(returnTo = "/admin/users", options?: { clearSearch?: boolean }) {
   const safeReturnTo = returnTo.startsWith("/admin/users") ? returnTo : "/admin/users";
+  if (!options?.clearSearch) return safeReturnTo;
+
+  const [path, query] = safeReturnTo.split("?");
+  const searchParams = new URLSearchParams(query ?? "");
+  searchParams.delete("q");
+  searchParams.delete("type");
+  searchParams.delete("page");
+  searchParams.delete("event_page");
+  const nextQuery = searchParams.toString();
+  return path + (nextQuery ? "?" + nextQuery : "");
+}
+
+function usersRedirect(message: string, returnTo = "/admin/users", options?: { clearSearch?: boolean }): never {
+  const safeReturnTo = adminUsersReturnPath(returnTo, options);
   const separator = safeReturnTo.includes("?") ? "&" : "?";
   redirect(`${safeReturnTo}${separator}message=${encodeURIComponent(message)}`);
 }
 
-function usersRedirectWithParams(message: string, returnTo: string, params: Record<string, string>): never {
-  const safeReturnTo = returnTo.startsWith("/admin/users") ? returnTo : "/admin/users";
+function usersRedirectWithParams(message: string, returnTo: string, params: Record<string, string>, options?: { clearSearch?: boolean }): never {
+  const safeReturnTo = adminUsersReturnPath(returnTo, options);
   const [path, query] = safeReturnTo.split("?");
   const searchParams = new URLSearchParams(query ?? "");
   searchParams.set("message", message);
@@ -281,14 +295,14 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
   }
 
   if (field === "is_paused" && value === "true") {
-    usersRedirectWithParams("Arrangøren er sat på pause.", returnTo, { paused_facilitator: facilitatorId });
+    usersRedirectWithParams("Arrangøren er sat på pause.", returnTo, { paused_facilitator: facilitatorId }, { clearSearch: true });
   }
 
   if (field === "is_disabled") {
-    usersRedirect(value === "true" ? "Arrangøren er deaktiveret." : "Arrangøren er genaktiveret.", returnTo);
+    usersRedirect(value === "true" ? "Arrangøren er deaktiveret." : "Arrangøren er genaktiveret.", returnTo, { clearSearch: true });
   }
 
-  usersRedirect(field === "is_paused" ? (value === "true" ? "Arrangøren er sat på pause." : "Arrangørprofilen er genåbnet.") : "Arrangøren er opdateret.", returnTo);
+  usersRedirect(field === "is_paused" ? (value === "true" ? "Arrangøren er sat på pause." : "Arrangørprofilen er genåbnet.") : "Arrangøren er opdateret.", returnTo, { clearSearch: true });
 }
 
 export async function deleteFacilitatorFromOverviewAction(formData: FormData) {
@@ -373,5 +387,5 @@ export async function deleteFacilitatorFromOverviewAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/users");
   revalidatePath("/facilitators");
-  usersRedirect("Arrangøren er slettet.", returnTo);
+  usersRedirect("Arrangøren er slettet.", returnTo, { clearSearch: true });
 }

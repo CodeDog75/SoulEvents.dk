@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
+import { billableBookingStatuses } from "@/lib/commission/terms";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createClient } from "@/lib/supabase/server";
 
 function reportsRedirect(message: string): never {
-  redirect(`/admin/reports?message=${encodeURIComponent(message)}`);
+  redirect(`/admin/commission?tab=reports&message=${encodeURIComponent(message)}`);
 }
 
 function monthBounds(month: string) {
@@ -43,16 +44,15 @@ export async function generateMonthlyReportAction(formData: FormData) {
     reportsRedirect("Vælg en arrangør.");
   }
 
-  const { periodStart, periodEnd, from, to } = monthBounds(month);
+  const { periodStart, periodEnd } = monthBounds(month);
   const supabase = await createClient();
 
   const { data: bookings } = await supabase
     .from("bookings")
-    .select("id, seats, booking_value_cents, commission_cents")
+    .select("id, seats, booking_value_cents, commission_cents, reporting_month")
     .eq("facilitator_id", facilitatorId)
-    .in("status", ["confirmed", "completed"])
-    .gte("created_at", from)
-    .lte("created_at", to);
+    .in("status", [...billableBookingStatuses])
+    .eq("reporting_month", periodStart);
 
   const rows = bookings ?? [];
 
@@ -122,6 +122,7 @@ export async function generateMonthlyReportAction(formData: FormData) {
   }
 
   revalidatePath("/admin");
+  revalidatePath("/admin/commission");
   revalidatePath("/admin/reports");
   reportsRedirect("Månedsrapporten er oprettet.");
 }
@@ -148,6 +149,7 @@ export async function approveInvoiceDraftAction(formData: FormData) {
     reportsRedirect("Rapportkladden kunne ikke godkendes.");
   }
 
+  revalidatePath("/admin/commission");
   revalidatePath("/admin/reports");
   reportsRedirect("Rapportkladden er godkendt.");
 }

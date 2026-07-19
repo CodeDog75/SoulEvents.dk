@@ -111,9 +111,23 @@ function safeAdminReturnPath(returnTo: string | null | undefined, fallback = "/a
   }
 }
 
-function adminReturnRedirect(message: string, returnTo: string | null | undefined = "/admin"): never {
+function clearAdminUsersSearchParams(returnPath: string) {
+  const url = new URL(returnPath, "https://soulevents.local");
+  if (url.pathname !== "/admin/users") {
+    return returnPath;
+  }
+
+  url.searchParams.delete("q");
+  url.searchParams.delete("type");
+  url.searchParams.delete("page");
+  url.searchParams.delete("event_page");
+  return url.pathname + (url.search ? url.search : "") + url.hash;
+}
+
+function adminReturnRedirect(message: string, returnTo: string | null | undefined = "/admin", options?: { clearSearch?: boolean }): never {
   const safeReturnTo = safeAdminReturnPath(returnTo);
-  const url = new URL(safeReturnTo, "https://soulevents.local");
+  const nextReturnTo = options?.clearSearch ? clearAdminUsersSearchParams(safeReturnTo) : safeReturnTo;
+  const url = new URL(nextReturnTo, "https://soulevents.local");
   url.searchParams.set("message", message);
   redirect(url.pathname + (url.search ? url.search : "") + url.hash);
 }
@@ -338,7 +352,7 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
     changes_requested: "markeret som kræver ændringer",
   };
 
-  adminReturnRedirect(`Arrangør er ${labels[status]}.`, returnTo);
+  adminReturnRedirect(`Arrangør er ${labels[status]}.`, returnTo, { clearSearch: true });
 }
 
 export async function requestFacilitatorProfileChangesAction(formData: FormData) {
@@ -412,7 +426,7 @@ export async function requestFacilitatorProfileChangesAction(formData: FormData)
   revalidatePath("/facilitators/" + facilitator.id);
   revalidatePath("/admin/facilitators/" + facilitator.id + "/edit");
 
-  adminReturnRedirect(mailSent ? "Der er sendt en anmodning om ændringer til arrangøren." : "Profilen er markeret som kræver ændringer, men e-mailen kunne ikke sendes.", returnTo);
+  adminReturnRedirect(mailSent ? "Der er sendt en anmodning om ændringer til arrangøren." : "Profilen er markeret som kræver ændringer, men e-mailen kunne ikke sendes.", returnTo, { clearSearch: true });
 }
 
 export async function disableFacilitatorAction(formData: FormData) {
@@ -575,27 +589,32 @@ export async function updateFacilitatorAdminSettingsAction(formData: FormData) {
   const featuredSortOrder = Number(getOptionalString(formData, "featured_sort_order") ?? 0);
   const rawMaxTicketPrice = getOptionalString(formData, "max_ticket_price_per_person");
   const hasUnlimitedTicketPrice = formData.get("unlimited_ticket_price") === "on";
+  const hasTicketPriceFields = formData.has("max_ticket_price_per_person") || formData.has("unlimited_ticket_price");
   const parsedMaxTicketPrice = Number(rawMaxTicketPrice);
 
   if (!facilitatorId) {
     adminRedirect("Arrangøren kunne ikke findes.");
   }
 
-  if (!hasUnlimitedTicketPrice && (!rawMaxTicketPrice || !/^\d+$/.test(rawMaxTicketPrice) || !Number.isSafeInteger(parsedMaxTicketPrice) || parsedMaxTicketPrice < 0)) {
+  if (hasTicketPriceFields && !hasUnlimitedTicketPrice && (!rawMaxTicketPrice || !/^\d+$/.test(rawMaxTicketPrice) || !Number.isSafeInteger(parsedMaxTicketPrice) || parsedMaxTicketPrice < 0)) {
     adminFacilitatorEditRedirect(facilitatorId, "Maksimal billetpris skal være et heltal på mindst 0 kr.");
   }
 
   const supabase = createAdminClient();
+  const updatePayload: Record<string, boolean | number | null> = {
+    auto_approve_events: formData.get("auto_approve_events") === "on",
+    featured_sort_order: Number.isFinite(featuredSortOrder) ? featuredSortOrder : 0,
+    is_active_host: formData.get("is_active_host") === "on",
+    is_experienced_host: formData.get("is_experienced_host") === "on",
+    is_featured: formData.get("is_featured") === "on",
+  };
+  if (hasTicketPriceFields) {
+    updatePayload.max_ticket_price_per_person = hasUnlimitedTicketPrice ? null : parsedMaxTicketPrice;
+  }
+
   const { error } = await supabase
     .from("facilitator_profiles")
-    .update({
-      auto_approve_events: formData.get("auto_approve_events") === "on",
-      featured_sort_order: Number.isFinite(featuredSortOrder) ? featuredSortOrder : 0,
-      is_active_host: formData.get("is_active_host") === "on",
-      is_experienced_host: formData.get("is_experienced_host") === "on",
-      is_featured: formData.get("is_featured") === "on",
-      max_ticket_price_per_person: hasUnlimitedTicketPrice ? null : parsedMaxTicketPrice,
-    })
+    .update(updatePayload)
     .eq("id", facilitatorId);
 
   if (error) {
@@ -648,8 +667,8 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   const featuredSortOrder = Number(getOptionalString(formData, "featured_sort_order") ?? 0);
   const hasUnlimitedTicketPrice = formData.get("unlimited_ticket_price") === "on";
   const rawMaxTicketPrice = getOptionalString(formData, "max_ticket_price_per_person");
+  const hasTicketPriceFields = formData.has("max_ticket_price_per_person") || formData.has("unlimited_ticket_price");
   const parsedMaxTicketPrice = Number(rawMaxTicketPrice);
-  const maxTicketPricePerPerson = hasUnlimitedTicketPrice ? null : parsedMaxTicketPrice;
   const categoryIds = getAllStrings(formData, "category_ids");
 
   if (!facilitatorId || !profileId) {
@@ -668,7 +687,7 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
     adminFacilitatorEditRedirect(facilitatorId, "Vist navn skal udfyldes.");
   }
 
-  if (!hasUnlimitedTicketPrice && (!rawMaxTicketPrice || !/^\d+$/.test(rawMaxTicketPrice) || !Number.isSafeInteger(parsedMaxTicketPrice) || parsedMaxTicketPrice < 0)) {
+  if (hasTicketPriceFields && !hasUnlimitedTicketPrice && (!rawMaxTicketPrice || !/^\d+$/.test(rawMaxTicketPrice) || !Number.isSafeInteger(parsedMaxTicketPrice) || parsedMaxTicketPrice < 0)) {
     adminFacilitatorEditRedirect(facilitatorId, "Maksimal billetpris skal være et heltal på mindst 0 kr.");
   }
 
@@ -711,8 +730,10 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
     is_active_host: isActiveHost,
     is_experienced_host: isExperiencedHost,
     featured_sort_order: Number.isFinite(featuredSortOrder) ? featuredSortOrder : 0,
-    max_ticket_price_per_person: maxTicketPricePerPerson,
   };
+  if (hasTicketPriceFields) {
+    facilitatorUpdate.max_ticket_price_per_person = hasUnlimitedTicketPrice ? null : parsedMaxTicketPrice;
+  }
 
   if (canUpdateAutoApprove) {
     facilitatorUpdate.auto_approve_events = autoApproveEvents;

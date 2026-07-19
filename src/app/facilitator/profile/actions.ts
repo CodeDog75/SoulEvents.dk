@@ -250,6 +250,19 @@ function safeAdminReturnPath(value: string | null | undefined, fallback = "/admi
   }
 }
 
+function clearAdminUsersSearchParams(returnPath: string) {
+  const url = new URL(returnPath, "https://soulevents.local");
+  if (url.pathname !== "/admin/users") {
+    return returnPath;
+  }
+
+  url.searchParams.delete("q");
+  url.searchParams.delete("type");
+  url.searchParams.delete("page");
+  url.searchParams.delete("event_page");
+  return url.pathname + (url.search ? url.search : "") + url.hash;
+}
+
 function adminProfileRedirect(message: string, returnTo: string | null | undefined, errorSection?: EditableProfileSection): never {
   const safeReturnTo = safeAdminReturnPath(returnTo);
   const params = new URLSearchParams({ message });
@@ -319,7 +332,7 @@ function profileSuccessRedirect(message: string, ready: boolean, origin?: string
 }
 
 function adminProfileSuccessRedirect(message: string, returnTo: string | null | undefined, savedSection?: ProfileSection): never {
-  const safeReturnTo = safeAdminReturnPath(returnTo);
+  const safeReturnTo = clearAdminUsersSearchParams(safeAdminReturnPath(returnTo));
   const params = new URLSearchParams({ message });
 
   if (savedSection) {

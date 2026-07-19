@@ -7,6 +7,7 @@ import { sendBookingNotification } from "@/lib/email/booking-notification";
 import { sendParticipantBookingReceipt } from "@/lib/email/participant-booking-receipt";
 import { getAppUrl } from "@/lib/app-url";
 import { maxSeatsPerBooking } from "@/lib/bookings/limits";
+import { bookingCommissionSnapshot, getEffectiveCommissionTerms } from "@/lib/commission/terms";
 import { env } from "@/lib/env";
 import { getAvailableEventSeats, syncEventCapacityStatus } from "@/lib/events/capacity";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
@@ -211,6 +212,13 @@ export async function createBookingAction(formData: FormData) {
     : primaryCategoryRow?.categories;
 
   const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør";
+  const commissionTerms = await getEffectiveCommissionTerms(adminSupabase, event.facilitator_id);
+  const commissionSnapshot = bookingCommissionSnapshot({
+    eventEndsAt: event.ends_at,
+    pricePerSeatCents: event.price_cents,
+    seats,
+    terms: commissionTerms,
+  });
   const { data: bookingResult, error } = await adminSupabase
     .from("bookings")
     .insert({
@@ -227,7 +235,14 @@ export async function createBookingAction(formData: FormData) {
       facilitator_name_snapshot: facilitatorName,
       primary_category_snapshot: primaryCategory?.name ?? null,
       price_per_seat_cents: event.price_cents,
-      commission_rate_bps: 0,
+      commission_calculated_at: commissionSnapshot.commission_calculated_at,
+      commission_currency: commissionSnapshot.commission_currency,
+      commission_rate_bps: commissionSnapshot.commission_rate_bps,
+      commission_source: commissionSnapshot.commission_source,
+      commission_terms_snapshot: commissionSnapshot.commission_terms_snapshot,
+      commission_threshold_cents: commissionSnapshot.commission_threshold_cents,
+      reporting_month: commissionSnapshot.reporting_month,
+      reporting_month_locked_at: commissionSnapshot.reporting_month_locked_at,
     })
     .select("id, booking_value_cents")
     .single();

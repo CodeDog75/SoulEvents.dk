@@ -247,12 +247,12 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Kvittering</p>
                 <h2 className="mt-2 font-serif text-3xl font-semibold text-midnight">
-                  {receipt === "published" ? "Dit event er nu offentliggjort 🌿" : "Dit event er sendt til godkendelse 🌿"}
+                  {receipt === "published" ? "Dit event er nu offentliggjort 🌿" : "Dit event er gemt 🌿"}
                 </h2>
                 <p className="mt-3 max-w-2xl text-base leading-7 text-ink/70">
                   {receipt === "published"
                     ? "Dit event er synligt på SoulEvents og kan nu findes af andre deltagere."
-                    : "Tak fordi du deler din oplevelse på SoulEvents. Vi gennemgår dit event hurtigst muligt. Når det er godkendt, bliver det synligt for andre brugere på platformen."}
+                    : "Tak fordi du deler din oplevelse på SoulEvents. Du kan fortsætte med at tilpasse eventet fra din eventoversigt."}
                 </p>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">

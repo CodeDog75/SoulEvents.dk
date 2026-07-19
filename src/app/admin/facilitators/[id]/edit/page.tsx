@@ -228,14 +228,18 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
                 Fremhævet sortering
                 <input className="h-11 rounded-md border border-midnight/15 bg-white px-3" defaultValue={facilitator.featured_sort_order ?? 0} name="featured_sort_order" type="number" />
               </label>
-              <label className="grid gap-2 text-sm font-semibold text-ink/72">
-                Maksimal billetpris pr. deltager
-                <input className="h-11 rounded-md border border-midnight/15 bg-white px-3" defaultValue={facilitator.max_ticket_price_per_person ?? ""} min={0} name="max_ticket_price_per_person" type="number" />
-              </label>
-              <label className="flex items-center gap-3 rounded-md border border-midnight/10 bg-white p-3 text-sm font-semibold text-midnight md:col-span-2">
-                <input className="size-4 accent-sage-700" defaultChecked={facilitator.max_ticket_price_per_person === null} name="unlimited_ticket_price" type="checkbox" />
-                Ingen beløbsgrænse
-              </label>
+              <div className="rounded-md border border-midnight/10 bg-white p-3 text-sm md:col-span-2">
+                <p className="font-semibold text-midnight">Kommissions- og beløbsgrænser</p>
+                <p className="mt-1 leading-6 text-ink/64">
+                  Individuelle arrangørvilkår styres centralt under Kommission og fakturering, så samme grænse ikke kan ændres flere steder.
+                </p>
+                <Link
+                  className="mt-3 inline-flex h-10 items-center rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
+                  href={`/admin/commission?tab=facilitators&facilitator=${encodeURIComponent(id)}`}
+                >
+                  Rediger kommissionsvilkår
+                </Link>
+              </div>
             </div>
             <button className="mt-4 inline-flex h-10 items-center rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">
               Gem adminindstillinger

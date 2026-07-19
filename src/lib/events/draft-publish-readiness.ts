@@ -16,7 +16,6 @@ function hasText(value: unknown, minLength = 1) {
 export function getDraftPublishReadiness({
   event,
   facilitatorStatus,
-  maxTicketPricePerPerson,
 }: {
   event: {
     address_line?: string | null;
@@ -35,7 +34,6 @@ export function getDraftPublishReadiness({
     title?: string | null;
   };
   facilitatorStatus?: string | null;
-  maxTicketPricePerPerson?: number | null;
 }): DraftPublishReadiness {
   const startsAt = event.starts_at ? new Date(event.starts_at) : null;
   const endsAt = event.ends_at ? new Date(event.ends_at) : null;
@@ -57,11 +55,6 @@ export function getDraftPublishReadiness({
     { key: "tags", label: "Tags", valid: tagCount <= 4 },
     { key: "price", label: "Pris", valid: Number.isInteger(priceCents) && priceCents >= 0 },
     { key: "capacity", label: "Deltagerantal", valid: Number.isInteger(event.capacity ?? 0) && (event.capacity ?? 0) > 0 && (event.capacity ?? 0) <= 500 },
-    {
-      key: "ticket_price_limit",
-      label: "Pris indenfor beløbsgrænse",
-      valid: maxTicketPricePerPerson === null || maxTicketPricePerPerson === undefined || priceCents <= maxTicketPricePerPerson * 100,
-    },
     { key: "facilitator_status", label: "Arrangørstatus", valid: facilitatorStatus === "approved" },
   ];
 

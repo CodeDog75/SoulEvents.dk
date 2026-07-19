@@ -25,7 +25,7 @@ type EventListProps = {
 
 const statusLabels: Record<EventStatus, string> = {
   draft: "Kladde",
-  pending_review: "Afventer godkendelse",
+  pending_review: "Afventer intern gennemgang",
   active: "Aktiv",
   rejected: "Afvist",
   sold_out: "Udsolgt",

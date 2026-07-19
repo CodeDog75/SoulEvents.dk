@@ -501,13 +501,11 @@ function EventCard({
   event,
   facilitatorStatus,
   isExpiringSoon = false,
-  maxTicketPricePerPerson,
   variant,
 }: {
   event: any;
   facilitatorStatus?: string | null;
   isExpiringSoon?: boolean;
-  maxTicketPricePerPerson?: number | null;
   variant: DashboardEventVariant;
 }) {
   const bookingCount = event.bookings?.length ?? 0;
@@ -517,7 +515,6 @@ function EventCard({
     ? getDraftPublishReadiness({
         event,
         facilitatorStatus,
-        maxTicketPricePerPerson,
       })
     : null;
   const isActive = event.status === "active" || event.status === "sold_out";
@@ -713,14 +710,12 @@ function EventGrid({
   events,
   facilitatorStatus,
   id,
-  maxTicketPricePerPerson,
   title,
   variant,
 }: {
   events: any[];
   facilitatorStatus?: string | null;
   id?: string;
-  maxTicketPricePerPerson?: number | null;
   title: string;
   variant: DashboardEventVariant;
 }) {
@@ -738,7 +733,6 @@ function EventGrid({
               facilitatorStatus={facilitatorStatus}
               isExpiringSoon={variant === "completed" && isOlderThanMonths(eventEndDate(event), new Date(), 11)}
               key={event.id}
-              maxTicketPricePerPerson={maxTicketPricePerPerson}
               variant={eventVariant}
             />
           );
@@ -1230,7 +1224,6 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                   events={draftEvents}
                   facilitatorStatus={facilitatorProfile?.status}
                   id="kladder"
-                  maxTicketPricePerPerson={facilitatorProfile?.max_ticket_price_per_person}
                   title="Kladder"
                   variant="draft"
                 />
@@ -1238,7 +1231,6 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                   events={activeEvents}
                   facilitatorStatus={facilitatorProfile?.status}
                   id="aktive-events"
-                  maxTicketPricePerPerson={facilitatorProfile?.max_ticket_price_per_person}
                   title="Aktive events"
                   variant="active"
                 />
@@ -1253,7 +1245,6 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                         events={visibleCompletedEvents.slice(0, 12)}
                         facilitatorStatus={facilitatorProfile?.status}
                         id="tidligere-events"
-                        maxTicketPricePerPerson={facilitatorProfile?.max_ticket_price_per_person}
                         title="Tidligere events"
                         variant="completed"
                       />

@@ -28,7 +28,7 @@ const activeCoOrganizerStatuses = ["pending", "accepted"] as const;
 const allowedFormats = ["physical", "online"] as const;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 
-const facilitatorProfileEventSelect = "id, status, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)";
+const facilitatorProfileEventSelect = "id, status, is_paused, is_disabled, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)";
 type AdminClient = ReturnType<typeof createAdminClient>;
 type EventUpdateSnapshot = {
   address_line: string | null;
@@ -44,20 +44,6 @@ type EventUpdateSnapshot = {
   status: EventStatus;
   title: string;
 };
-
-async function getAutoApproveEvents(supabase: AdminClient, facilitatorId: string) {
-  const { data, error } = await supabase
-    .from("facilitator_profiles")
-    .select("auto_approve_events, status")
-    .eq("id", facilitatorId)
-    .maybeSingle();
-
-  if (error) {
-    return false;
-  }
-
-  return data?.status === "approved" && Boolean(data?.auto_approve_events);
-}
 
 function eventsRedirect(message: string): never {
   redirect(`/facilitator/events?message=${encodeURIComponent(message)}`);
@@ -107,19 +93,6 @@ function getPriceCents(formData: FormData) {
 
   return Number(raw) * 100;
 }
-
-function formatTicketPriceLimit(limit: number) {
-  return new Intl.NumberFormat("da-DK").format(limit) + " kr.";
-}
-
-function ticketPriceLimitMessage(limit: number) {
-  return (
-    "Din konto er godkendt til events med en billetpris på op til " +
-    formatTicketPriceLimit(limit) +
-    " pr. deltager. Ønsker du at annoncere dyrere events eller retreats, er du velkommen til at kontakte SoulEvents for en individuel aftale."
-  );
-}
-
 
 function isValidUrl(value: string) {
   if (value.trim() === onlineLinkLaterText) {
@@ -792,12 +765,13 @@ export async function createEventAction(formData: FormData) {
 
   let existingEventStatus: EventStatus | null = null;
   let existingEventSlug: string | null = null;
+  let existingEventPublishedAt: string | null = null;
   let previousEventSnapshot: EventUpdateSnapshot | null = null;
 
   if (existingEventId) {
     const { data: existingEvent } = await supabase
       .from("events")
-      .select("id, slug, status, title, starts_at, ends_at, address_line, postal_code, city, country, price_cents, event_format, online_description, online_url_or_note")
+      .select("id, slug, status, published_at, title, starts_at, ends_at, address_line, postal_code, city, country, price_cents, event_format, online_description, online_url_or_note")
       .eq("id", existingEventId)
       .eq("facilitator_id", facilitatorProfile.id)
       .maybeSingle();
@@ -808,29 +782,29 @@ export async function createEventAction(formData: FormData) {
 
     existingEventStatus = existingEvent.status as EventStatus;
     existingEventSlug = existingEvent.slug ?? null;
+    existingEventPublishedAt = existingEvent.published_at ?? null;
     previousEventSnapshot = existingEvent as EventUpdateSnapshot;
   }
 
-  const autoApproveEvents = await getAutoApproveEvents(supabase, facilitatorProfile.id);
   const preservedPublishedStatus =
     existingEventStatus && ["active", "sold_out"].includes(existingEventStatus) ? existingEventStatus : null;
   const shouldPreservePublishedStatus =
     Boolean(preservedPublishedStatus) && requestedStatus !== "draft";
-  let status: EventStatus = requestedStatus === "pending_review" && autoApproveEvents ? "active" : requestedStatus;
+  let status: EventStatus = requestedStatus === "pending_review" ? "active" : requestedStatus;
 
   if (shouldPreservePublishedStatus && preservedPublishedStatus) {
     status = preservedPublishedStatus;
   }
 
   const isDraft = status === "draft";
-  const wasAutoApproved = !shouldPreservePublishedStatus && requestedStatus === "pending_review" && status === "active";
+  const wasPublishedDirectly = !shouldPreservePublishedStatus && ["active", "pending_review"].includes(requestedStatus) && status === "active";
 
   const facilitatorCategoryIds =
     facilitatorProfile.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [];
 
-  if (!isDraft && facilitatorProfile.status !== "approved") {
+  if (!isDraft && (facilitatorProfile.status !== "approved" || facilitatorProfile.is_paused || facilitatorProfile.is_disabled)) {
     eventsRedirect(
-      "Din arrangørprofil er til gennemgang. Gem eventet som kladde, og offentliggør det når profilen er godkendt.",
+      "Din arrangørprofil skal være aktiv og godkendt, før eventet kan offentliggøres. Gem eventet som kladde indtil da.",
     );
   }
 
@@ -845,7 +819,7 @@ export async function createEventAction(formData: FormData) {
       shortDescription: facilitatorProfile.short_description,
     })
   ) {
-    eventsRedirect("Færdiggør din profil, før du sender eventet til godkendelse.");
+      eventsRedirect("Færdiggør din profil, før du offentliggør eventet.");
   }
 
   if (!allowedStatuses.includes(status)) {
@@ -902,11 +876,6 @@ export async function createEventAction(formData: FormData) {
   const facebookUrl = facilitatorProfile.facebook_url || null;
   const instagramUrl = facilitatorProfile.instagram_url || null;
   const eventFormat = getString(formData, "event_format") || "physical";
-  const maxTicketPricePerPerson =
-    typeof facilitatorProfile.max_ticket_price_per_person === "number"
-      ? facilitatorProfile.max_ticket_price_per_person
-      : null;
-
   const isDanishPhysicalEvent = eventFormat === "physical" && country.trim().toLowerCase() === "danmark";
 
   // Danske fysiske events styres altid af postnummeret, så arrangøren ikke kan vælge et område, der ikke passer til adressen.
@@ -975,10 +944,6 @@ export async function createEventAction(formData: FormData) {
 
   if (!isDraft && capacity <= 0) {
     eventsRedirect("Kapacitet skal være mindst 1.");
-  }
-
-  if (!isDraft && maxTicketPricePerPerson !== null && priceCents > maxTicketPricePerPerson * 100) {
-    eventsRedirect(ticketPriceLimitMessage(maxTicketPricePerPerson));
   }
 
   if (capacity > 500) {
@@ -1086,12 +1051,17 @@ export async function createEventAction(formData: FormData) {
       status,
       title,
     };
+    const publishedAt =
+      status === "active" || status === "sold_out"
+        ? existingEventPublishedAt ?? new Date().toISOString()
+        : null;
     let participantNotificationFailed = false;
     let participantNotificationResult: { failed: number; sent: number; total: number } | null = null;
     const { error: updateError } = await supabase
       .from("events")
       .update({
         status,
+        published_at: publishedAt,
         title,
         short_description: shortDescription,
         long_description: longDescription,
@@ -1237,14 +1207,14 @@ export async function createEventAction(formData: FormData) {
       redirect("/facilitator/events?draft=" + existingEventId + "&step=" + safeStep + "&message=" + encodeURIComponent(message));
     }
 
-    if (wasAutoApproved) {
+    if (wasPublishedDirectly) {
       await supabase.from("admin_audit_log").insert({
         actor_profile_id: profile.id,
         facilitator_id: facilitatorProfile.id,
         event_id: existingEventId,
-        action: "event_auto_approved",
+        action: "event_published_by_facilitator",
         new_value: "active",
-        reason: "auto_approve_events",
+        reason: "direct_publish",
       });
       await notifySubscribersWithoutBlockingPublication(existingEventId);
       redirect("/facilitator/events?receipt=published&event=" + existingEventId);
@@ -1258,6 +1228,7 @@ export async function createEventAction(formData: FormData) {
     .insert({
       facilitator_id: facilitatorProfile.id,
       status,
+      published_at: status === "active" ? new Date().toISOString() : null,
       title,
       slug: await createUniqueEventSlug(supabase, slugBase),
       short_description: shortDescription,
@@ -1354,14 +1325,14 @@ export async function createEventAction(formData: FormData) {
     redirect("/facilitator/events?draft=" + event.id + "&step=" + safeStep + "&message=" + encodeURIComponent("Kladde er gemt."));
   }
 
-  if (wasAutoApproved) {
+  if (wasPublishedDirectly) {
     await supabase.from("admin_audit_log").insert({
       actor_profile_id: profile.id,
       facilitator_id: facilitatorProfile.id,
       event_id: event.id,
-      action: "event_auto_approved",
+      action: "event_published_by_facilitator",
       new_value: "active",
-      reason: "auto_approve_events",
+      reason: "direct_publish",
     });
     await notifySubscribersWithoutBlockingPublication(event.id);
     redirect("/facilitator/events?receipt=published&event=" + event.id);
@@ -1373,16 +1344,17 @@ export async function createEventAction(formData: FormData) {
 export async function updateEventStatusAction(formData: FormData) {
   const profile = await requireRole("facilitator");
   const eventId = getString(formData, "event_id");
-  const status = getString(formData, "status") as EventStatus;
+  const requestedStatus = getString(formData, "status") as EventStatus;
+  const status: EventStatus = requestedStatus === "pending_review" ? "active" : requestedStatus;
 
-  if (!eventId || !allowedStatuses.includes(status)) {
+  if (!eventId || !allowedStatuses.includes(requestedStatus) || !allowedStatuses.includes(status)) {
     eventsRedirect("Ugyldig eventhandling.");
   }
 
   const supabase = createAdminClient();
   const { data: facilitatorProfiles } = await supabase
     .from("facilitator_profiles")
-    .select("id, status, company_name, city, postal_code, short_description, max_ticket_price_per_person, facilitator_categories(category_id)")
+    .select("id, status, is_paused, is_disabled, company_name, city, postal_code, short_description, max_ticket_price_per_person, facilitator_categories(category_id)")
     .eq("profile_id", profile.id);
   const profileReady = (facilitatorProfiles ?? []).some((facilitatorProfile) => {
     const categoryIds =
@@ -1398,12 +1370,14 @@ export async function updateEventStatusAction(formData: FormData) {
     });
   });
 
-  const hasApprovedProfile = (facilitatorProfiles ?? []).some((facilitatorProfile) => facilitatorProfile.status === "approved");
+  const hasApprovedProfile = (facilitatorProfiles ?? []).some(
+    (facilitatorProfile) => facilitatorProfile.status === "approved" && !facilitatorProfile.is_paused && !facilitatorProfile.is_disabled,
+  );
 
   const requiresApprovedProfile = ["active", "pending_review", "sold_out"].includes(status);
 
   if (requiresApprovedProfile && !hasApprovedProfile) {
-    eventsRedirect("Din arrangørprofil skal godkendes, før events kan offentliggøres.");
+    eventsRedirect("Din arrangørprofil skal være aktiv og godkendt, før events kan offentliggøres.");
   }
 
   if (requiresApprovedProfile && !profileReady) {
@@ -1414,22 +1388,14 @@ export async function updateEventStatusAction(formData: FormData) {
     const facilitatorIds = (facilitatorProfiles ?? []).map((facilitatorProfile) => facilitatorProfile.id);
     const { data: event } = await supabase
       .from("events")
-      .select("id, facilitator_id, price_cents")
+      .select("id, facilitator_id, published_at")
       .eq("id", eventId)
       .in("facilitator_id", facilitatorIds)
       .maybeSingle();
     const facilitatorProfile = (facilitatorProfiles ?? []).find((currentProfile) => currentProfile.id === event?.facilitator_id);
-    const maxTicketPricePerPerson =
-      typeof facilitatorProfile?.max_ticket_price_per_person === "number"
-        ? facilitatorProfile.max_ticket_price_per_person
-        : null;
 
     if (!event || !facilitatorProfile) {
       eventsRedirect("Eventet kunne ikke findes.");
-    }
-
-    if (maxTicketPricePerPerson !== null && event.price_cents > maxTicketPricePerPerson * 100) {
-      eventsRedirect(ticketPriceLimitMessage(maxTicketPricePerPerson));
     }
 
     const facilitatorId = facilitatorProfile.id;
@@ -1447,9 +1413,15 @@ export async function updateEventStatusAction(formData: FormData) {
     });
   }
 
+  const updatePayload: { published_at?: string | null; status: EventStatus } = { status };
+  if (status === "active") {
+    const { data: currentEvent } = await supabase.from("events").select("published_at").eq("id", eventId).maybeSingle();
+    updatePayload.published_at = currentEvent?.published_at ?? new Date().toISOString();
+  }
+
   const { error } = await supabase
     .from("events")
-    .update({ status })
+    .update(updatePayload)
     .eq("id", eventId)
     .in(
       "facilitator_id",
@@ -1482,7 +1454,7 @@ export async function publishDraftEventAction(formData: FormData) {
   const supabase = createAdminClient();
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
-    .select("id, status, max_ticket_price_per_person")
+    .select("id, status, is_paused, is_disabled, max_ticket_price_per_person")
     .eq("profile_id", profile.id)
     .maybeSingle();
 
@@ -1505,15 +1477,17 @@ export async function publishDraftEventAction(formData: FormData) {
   const readiness = getDraftPublishReadiness({
     event,
     facilitatorStatus: facilitatorProfile.status,
-    maxTicketPricePerPerson: facilitatorProfile.max_ticket_price_per_person,
   });
 
   if (!readiness.canPublish) {
     facilitatorOverviewRedirect("Kladdeeventet mangler oplysninger før offentliggørelse.");
   }
 
-  const autoApproveEvents = await getAutoApproveEvents(supabase, facilitatorProfile.id);
-  const nextStatus: EventStatus = autoApproveEvents ? "active" : "pending_review";
+  if (facilitatorProfile.is_paused || facilitatorProfile.is_disabled) {
+    facilitatorOverviewRedirect("Din arrangørprofil skal være aktiv, før eventet kan offentliggøres.");
+  }
+
+  const nextStatus: EventStatus = "active";
   const missingAcceptances = await getMissingRequiredLegalAcceptances(supabase, profile.id, organizerAcceptanceTypes);
 
   if (missingAcceptances.length > 0) {
@@ -1523,14 +1497,12 @@ export async function publishDraftEventAction(formData: FormData) {
     });
   }
 
-  if (autoApproveEvents) {
-    const limitStatus = await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id, {
-      excludeEventId: event.id,
-    });
+  const limitStatus = await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id, {
+    excludeEventId: event.id,
+  });
 
-    if (limitStatus.activeCount >= limitStatus.maxActiveEvents) {
-      facilitatorOverviewRedirect(activeLimitMessage(limitStatus.maxActiveEvents));
-    }
+  if (limitStatus.activeCount >= limitStatus.maxActiveEvents) {
+    facilitatorOverviewRedirect(activeLimitMessage(limitStatus.maxActiveEvents));
   }
 
   await validateActiveCoOrganizersForPublication(supabase, {
@@ -1540,7 +1512,7 @@ export async function publishDraftEventAction(formData: FormData) {
 
   const { data: updatedEvent, error } = await supabase
     .from("events")
-    .update({ status: nextStatus })
+    .update({ published_at: new Date().toISOString(), status: nextStatus })
     .eq("id", event.id)
     .eq("facilitator_id", facilitatorProfile.id)
     .eq("status", "draft")
@@ -1551,22 +1523,20 @@ export async function publishDraftEventAction(formData: FormData) {
     facilitatorOverviewRedirect("Eventet kunne ikke offentliggøres.");
   }
 
-  if (autoApproveEvents) {
-    await supabase.from("admin_audit_log").insert({
-      actor_profile_id: profile.id,
-      facilitator_id: facilitatorProfile.id,
-      event_id: event.id,
-      action: "event_auto_approved",
-      new_value: "active",
-      reason: "draft_publish",
-    });
+  await supabase.from("admin_audit_log").insert({
+    actor_profile_id: profile.id,
+    facilitator_id: facilitatorProfile.id,
+    event_id: event.id,
+    action: "event_published_by_facilitator",
+    new_value: "active",
+    reason: "draft_publish",
+  });
 
-    await notifySubscribersWithoutBlockingPublication(event.id);
-  }
+  await notifySubscribersWithoutBlockingPublication(event.id);
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/events");
-  facilitatorOverviewRedirect(autoApproveEvents ? "Eventet er offentliggjort." : "Eventet er sendt til godkendelse.");
+  facilitatorOverviewRedirect("Eventet er offentliggjort.");
 }
 
 
