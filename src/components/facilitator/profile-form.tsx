@@ -43,6 +43,7 @@ import {
 } from "@/app/facilitator/profile/actions";
 import { imageUploadAccept, prepareImageFileForUpload } from "@/lib/images/client-image-upload";
 import { OnboardingShell as SharedOnboardingShell } from "@/components/onboarding/onboarding-shell";
+import { SoulEventsIdTag } from "@/components/facilitator/soulevents-id-tag";
 import type { BrandLogoSources } from "@/lib/brand-logo";
 import {
   defaultFacilitatorHeroKey,
@@ -74,6 +75,7 @@ type FacilitatorProfile = {
   status?: string | null;
   company_name: string | null;
   facilitator_hero_key?: string | null;
+  host_reference_id?: string | null;
   profile_image_path: string | null;
   short_description: string | null;
   long_description: string | null;
@@ -1651,6 +1653,7 @@ export function ProfileForm({
                 <span className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Profilnavn</span>
                 <span className="mt-2 block break-words font-serif text-3xl font-semibold leading-tight text-midnight">{publicProfileName || "Profilnavn mangler"}</span>
                 {reviewPlace ? <span className="mt-2 block text-sm font-semibold text-ink/55">{reviewPlace}</span> : null}
+                <SoulEventsIdTag className="mt-3" hostReferenceId={facilitatorProfile.host_reference_id} />
               </ReviewJump>
             </section>
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { UserRound } from "lucide-react";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
+import { SoulEventsIdTag } from "@/components/facilitator/soulevents-id-tag";
 import { publicFacilitatorPath } from "@/lib/slug";
 
 export type HomeFacilitatorCard = {
@@ -24,7 +25,7 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
       className="group block overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift"
       href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
     >
-      <div className="relative aspect-[4/3] bg-sage-50">
+      <div className="relative aspect-[5/4] bg-sage-50">
         {facilitator.isExperiencedHost ? (
         <OrganizerImageBadge type="experienced" />
       ) : facilitator.isActiveHost ? (
@@ -33,7 +34,7 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
         {facilitator.imageUrl ? (
           <Image
             alt={facilitator.name}
-            className="object-cover"
+            className="object-cover object-top"
             fill
             sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 300px"
             src={facilitator.imageUrl}
@@ -52,6 +53,7 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
         )}
         <h3 className="mt-3 text-2xl font-medium leading-7 text-olive">{facilitator.name}</h3>
         <p className="mt-1 text-sm font-semibold text-sage-700">{facilitator.isOnline ? "Online" : facilitator.city || "Danmark"}</p>
+        <SoulEventsIdTag className="mt-2" hostReferenceId={facilitator.hostReferenceId} />
         <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink/66">
           {facilitator.tagline || "Arrangør på SoulEvents"}
         </p>

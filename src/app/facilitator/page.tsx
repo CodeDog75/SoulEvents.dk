@@ -861,6 +861,7 @@ function AdminMessageCta({ unreadCount }: { unreadCount: number }) {
 
 function SettingsPanel({
   adminMessages,
+  authProviders,
   currentEmail,
   isOpen,
   isPaused,
@@ -870,6 +871,7 @@ function SettingsPanel({
   unreadMessageCount,
 }: {
   adminMessages: any[];
+  authProviders: string[];
   currentEmail: string;
   isOpen: boolean;
   isPaused: boolean;
@@ -891,6 +893,7 @@ function SettingsPanel({
       <div className="grid gap-4 border-t border-[#E5DDEA] p-5 lg:grid-cols-2">
         <div className="lg:col-span-2">
           <LoginSecuritySection
+            authProviders={authProviders}
             currentEmail={currentEmail}
             oauthProvider={oauthProvider}
             passwordLoginAvailable={passwordLoginAvailable}
@@ -1206,6 +1209,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
               name: category.name,
             }))}
             coverImage={heroImage}
+            hostReferenceId={facilitatorProfile.host_reference_id}
             name={profileName}
             place={profilePlace}
             profileImageUrl={profileImageUrl}
@@ -1356,6 +1360,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
 
           <SettingsPanel
             adminMessages={messageRows}
+            authProviders={authProviders}
             currentEmail={profile.email}
             isOpen={unreadMessageCount > 0 || messages === "open"}
             isPaused={Boolean(facilitatorProfile?.is_paused)}

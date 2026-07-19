@@ -71,27 +71,45 @@ function providerName(provider?: "facebook" | "google" | string | null) {
 }
 
 export function SecurityPasswordForm({ oauthProvider, passwordLoginAvailable }: SecurityPasswordFormProps) {
+  const [hasPasswordLogin, setHasPasswordLogin] = useState(passwordLoginAvailable);
+  const [createdPasswordMessage, setCreatedPasswordMessage] = useState<string | null>(null);
   const [changeState, changeFormAction, isChangePending] = useActionState(changeFacilitatorPasswordAction, initialState);
-  const [createState, createFormAction, isCreatePending] = useActionState(createFacilitatorPasswordAction, initialState);
+  const [createState, createFormAction, isCreatePending] = useActionState(async (previousState: ChangePasswordFormState, formData: FormData) => {
+    setCreatedPasswordMessage(null);
+    const result = await createFacilitatorPasswordAction(previousState, formData);
+
+    if (result.status === "success") {
+      setCreatedPasswordMessage(result.message ?? "Din personlige adgangskode er oprettet.");
+      setHasPasswordLogin(true);
+    }
+
+    return result;
+  }, initialState);
   const changeFormRef = useRef<HTMLFormElement>(null);
   const createFormRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
-  const state = passwordLoginAvailable ? changeState : createState;
+  const visibleState: ChangePasswordFormState = createdPasswordMessage
+    ? { message: createdPasswordMessage, status: "success" }
+    : hasPasswordLogin
+      ? changeState
+      : createState;
 
   useEffect(() => {
-    if (state.status === "success") {
+    if (changeState.status === "success" || createState.status === "success") {
       changeFormRef.current?.reset();
       createFormRef.current?.reset();
     }
+  }, [changeState.status, createState.status]);
 
-    if (state.status !== "idle") {
+  useEffect(() => {
+    if (visibleState.status !== "idle") {
       statusRef.current?.focus();
     }
-  }, [state.status]);
+  }, [visibleState.status]);
 
   const provider = providerName(oauthProvider);
   const title = "Skift adgangskode";
-  const description = passwordLoginAvailable
+  const description = hasPasswordLogin
     ? "Opdater adgangskoden til din SoulEvents-konto."
     : `Du logger i øjeblikket ind med ${provider}. Du kan også oprette en personlig adgangskode til SoulEvents.`;
 
@@ -111,25 +129,25 @@ export function SecurityPasswordForm({ oauthProvider, passwordLoginAvailable }: 
       </summary>
 
       <div className="mt-5 grid gap-4">
-        {state.message ? (
+        {visibleState.message ? (
           <p
             className={
               "rounded-md border px-4 py-3 text-sm font-semibold leading-6 outline-none " +
-              (state.status === "success"
+              (visibleState.status === "success"
                 ? "border-sage-700/20 bg-sage-50 text-sage-700"
                 : "border-red-500/25 bg-red-50 text-red-700")
             }
             ref={statusRef}
             tabIndex={-1}
           >
-            {state.message}
+            {visibleState.message}
           </p>
         ) : (
           <p className="sr-only" ref={statusRef} tabIndex={-1} />
         )}
 
-        {passwordLoginAvailable ? (
-          <form action={changeFormAction} className="grid gap-4" ref={changeFormRef}>
+        {hasPasswordLogin ? (
+          <form action={changeFormAction} className="grid gap-4" onSubmit={() => setCreatedPasswordMessage(null)} ref={changeFormRef}>
             <div className="grid gap-4 md:grid-cols-3">
               <PasswordField
                 autoComplete="current-password"

@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Search, Sparkles, UserRound } from "lucide-react";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
+import { SoulEventsIdTag } from "@/components/facilitator/soulevents-id-tag";
 import { publicFacilitatorPath } from "@/lib/slug";
 
 type FacilitatorCard = {
@@ -71,7 +72,7 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
                 href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
                 key={facilitator.id}
               >
-                <div className="relative aspect-[4/3] bg-sage-50">
+                <div className="relative aspect-[5/4] bg-sage-50">
                   {facilitator.isExperiencedHost ? (
                     <OrganizerImageBadge type="experienced" />
                   ) : facilitator.isActiveHost ? (
@@ -80,7 +81,7 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
                   {facilitator.imageUrl ? (
                     <Image
                       alt={facilitator.name}
-                      className="object-cover"
+                      className="object-cover object-top"
                       fill
                       sizes="(min-width: 640px) 300px, 250px"
                       src={facilitator.imageUrl}
@@ -93,6 +94,7 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
                 </div>
                 <div className="p-5">
                   <h3 className="text-2xl font-medium leading-7 text-[#2F2633]">{facilitator.name}</h3>
+                  <SoulEventsIdTag className="mt-2" hostReferenceId={facilitator.hostReferenceId} />
                   <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink/66">
                     {facilitator.tagline || [facilitator.city, "Arrangør på SoulEvents"].filter(Boolean).join(" · ")}
                   </p>

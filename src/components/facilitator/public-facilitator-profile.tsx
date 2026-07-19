@@ -53,6 +53,7 @@ type PublicFacilitatorProfileProps = {
   facilitatorId: string;
   facilitatorSlug?: string | null;
   galleryImages: GalleryImage[];
+  hostReferenceId?: string | null;
   name: string;
   presentationText?: string | null;
   profileImageUrl?: string | null;
@@ -127,6 +128,7 @@ export function PublicFacilitatorProfile({
   facilitatorId,
   facilitatorSlug,
   galleryImages,
+  hostReferenceId,
   name,
   presentationText,
   profileImageUrl,
@@ -161,6 +163,7 @@ export function PublicFacilitatorProfile({
           badges={badges}
           categories={categories}
           coverImage={coverImage}
+          hostReferenceId={hostReferenceId}
           name={name}
           place={place}
           profileImageUrl={profileImageUrl}

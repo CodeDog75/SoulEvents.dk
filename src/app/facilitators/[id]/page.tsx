@@ -128,13 +128,13 @@ function isMissingHeroKeyColumn(error: { code?: string; message?: string } | nul
 }
 
 const facilitatorMetadataSelectWithHero =
-  "id, slug, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, service_description, city, country, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
+  "id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, service_description, city, country, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
 const facilitatorMetadataSelectLegacy =
-  "id, slug, company_name, profile_image_path, short_description, specialties, long_description, service_description, city, country, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
+  "id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, long_description, service_description, city, country, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
 const facilitatorSelectWithHero =
-  "id, profile_id, slug, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
+  "id, profile_id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 const facilitatorSelectLegacy =
-  "id, profile_id, slug, company_name, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
+  "id, profile_id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 
 export async function generateMetadata({ params }: FacilitatorPageProps): Promise<Metadata> {
   const identifier = facilitatorIdentifier(await params);
@@ -451,6 +451,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
         facilitatorId={facilitatorData.id}
         facilitatorSlug={facilitatorData.slug}
         galleryImages={publicGalleryImages}
+        hostReferenceId={facilitatorData.host_reference_id}
         name={name}
         presentationText={presentationText}
         profileImageUrl={imageUrl}

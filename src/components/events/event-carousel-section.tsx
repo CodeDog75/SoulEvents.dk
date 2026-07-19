@@ -265,7 +265,7 @@ function FacilitatorCardVisual({ facilitator }: { facilitator: FacilitatorCarous
       className="group block min-w-[72vw] max-w-[72vw] snap-start overflow-hidden rounded-[24px] bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[280px] sm:max-w-[280px] lg:min-w-[300px] lg:max-w-[300px]"
               href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
     >
-      <div className="relative aspect-[4/3] bg-sage-50">
+      <div className="relative aspect-[6/5] bg-sage-50">
         {facilitator.isExperiencedHost ? (
           <OrganizerImageBadge type="experienced" />
         ) : facilitator.isActiveHost ? (
@@ -274,7 +274,7 @@ function FacilitatorCardVisual({ facilitator }: { facilitator: FacilitatorCarous
         {facilitator.imageUrl ? (
           <Image
             alt={facilitator.name}
-            className="object-cover transition duration-500 group-hover:scale-[1.04]"
+            className="object-cover object-top transition duration-500 group-hover:scale-[1.04]"
             fill
             sizes="(min-width: 1024px) 300px, (min-width: 640px) 280px, 72vw"
             src={facilitator.imageUrl}

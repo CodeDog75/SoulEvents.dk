@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { MapPinned, UserRound } from "lucide-react";
 import { OrganizerImageBadge, type OrganizerBadgeType } from "@/components/badges/organizer-badges";
+import { SoulEventsIdTag } from "@/components/facilitator/soulevents-id-tag";
 
 type Category = {
   colorHex?: string | null;
@@ -20,6 +21,7 @@ type ProfileIdentityHeaderProps = {
     objectPositionMobile?: string;
     url: string;
   };
+  hostReferenceId?: string | null;
   name: string;
   place?: string | null;
   profileImageUrl?: string | null;
@@ -32,6 +34,7 @@ export function ProfileIdentityHeader({
   badges = [],
   categories,
   coverImage,
+  hostReferenceId,
   name,
   place,
   profileImageUrl,
@@ -52,7 +55,7 @@ export function ProfileIdentityHeader({
       </div>
 
       <div className="relative px-5 pb-7 pt-0 sm:px-6">
-        <div className="-mt-[72px] aspect-[4/5] w-[170px] overflow-hidden rounded-[23px] bg-[#F4F0F7] shadow-[0_18px_44px_rgba(20,16,22,0.22)] ring-[4px] ring-[#FAF7F2] sm:w-[190px]">
+        <div className="relative -mt-[72px] aspect-[4/5] w-[170px] overflow-hidden rounded-[23px] bg-[#F4F0F7] shadow-[0_18px_44px_rgba(20,16,22,0.22)] ring-[4px] ring-[#FAF7F2] sm:w-[190px]">
           {badges.includes("experienced") ? (
             <OrganizerImageBadge type="experienced" />
           ) : badges.includes("active") ? (
@@ -67,10 +70,17 @@ export function ProfileIdentityHeader({
           )}
         </div>
         {place ? (
-          <p className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#F1EAF5] px-3 py-1.5 text-sm font-semibold text-[#6E6475]">
-            <MapPinned className="size-4 text-[#7A5D91]" aria-hidden="true" />
-            {place}
-          </p>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <p className="inline-flex items-center gap-2 rounded-full bg-[#F1EAF5] px-3 py-1.5 text-sm font-semibold text-[#6E6475]">
+              <MapPinned className="size-4 text-[#7A5D91]" aria-hidden="true" />
+              {place}
+            </p>
+            <SoulEventsIdTag hostReferenceId={hostReferenceId} />
+          </div>
+        ) : hostReferenceId ? (
+          <div className="mt-6">
+            <SoulEventsIdTag hostReferenceId={hostReferenceId} />
+          </div>
         ) : null}
         <h2 className="mt-4 break-words font-serif text-4xl font-semibold leading-[0.98] text-[#2F2437] sm:text-5xl">{name}</h2>
         {categories.length > 0 ? (
@@ -134,10 +144,15 @@ export function ProfileIdentityHeader({
 
             <div className="min-w-0 pt-9">
               {place ? (
-                <div className="inline-flex w-fit items-center gap-2 rounded-full bg-[#F1EAF5] px-3.5 py-1.5 text-xs font-semibold text-[#6E6475]">
-                  <MapPinned className="size-3.5 text-[#7A5D91]" aria-hidden="true" />
-                  {place}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex w-fit items-center gap-2 rounded-full bg-[#F1EAF5] px-3.5 py-1.5 text-xs font-semibold text-[#6E6475]">
+                    <MapPinned className="size-3.5 text-[#7A5D91]" aria-hidden="true" />
+                    {place}
+                  </div>
+                  <SoulEventsIdTag hostReferenceId={hostReferenceId} />
                 </div>
+              ) : hostReferenceId ? (
+                <SoulEventsIdTag hostReferenceId={hostReferenceId} />
               ) : null}
               <h1 className="mt-5 max-w-5xl break-words font-serif text-6xl font-semibold leading-[0.98] tracking-normal text-[#2F2437] xl:text-7xl">
                 {name}

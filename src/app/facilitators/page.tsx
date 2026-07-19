@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, CalendarDays, Filter, Search, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
+import { SoulEventsIdTag } from "@/components/facilitator/soulevents-id-tag";
 import { createPageMetadata } from "@/lib/open-graph";
 import { publicFacilitatorPath } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
@@ -225,7 +226,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
                 href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
                 key={facilitator.id}
               >
-                <div className={"relative aspect-[4/3] " + (platformOwner ? "bg-[#EDE4F7]" : "bg-sage-50")}>
+                <div className={"relative aspect-[5/4] " + (platformOwner ? "bg-[#EDE4F7]" : "bg-sage-50")}>
                   {facilitator.is_experienced_host ? (
                     <OrganizerImageBadge type="experienced" />
                   ) : facilitator.is_active_host ? (
@@ -233,7 +234,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
                   ) : null}
                   {imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img alt={name} className="h-full w-full object-cover" src={imageUrl} />
+                    <img alt={name} className="h-full w-full object-cover object-top" src={imageUrl} />
                   ) : (
                     <div className="grid h-full place-items-center text-sage-700">
                       <UserRound className="size-16" aria-hidden="true" />
@@ -255,6 +256,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
                   </div>
                   <h2 className="mt-3 text-2xl font-medium leading-7 text-olive">{name}</h2>
                   <p className="mt-1 text-sm text-ink/58">{[facilitator.city, region?.name].filter(Boolean).join(", ")}</p>
+                  <SoulEventsIdTag className="mt-2" hostReferenceId={facilitator.host_reference_id} />
                   <p className="mt-3 line-clamp-3 text-sm leading-6 text-ink/66">{facilitator.short_description || "Arrangørens profiltekst kommer snart."}</p>
                   <p className="mt-4 flex items-center gap-2 text-sm font-semibold text-olive">
                     <CalendarDays className="size-4" aria-hidden="true" />

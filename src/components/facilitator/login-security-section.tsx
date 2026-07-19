@@ -1,10 +1,12 @@
 "use client";
 
 import { ShieldCheck } from "lucide-react";
+import { LinkedLoginMethods } from "@/components/facilitator/linked-login-methods";
 import { SecurityEmailForm } from "@/components/facilitator/security-email-form";
 import { SecurityPasswordForm } from "@/components/facilitator/security-password-form";
 
 type LoginSecuritySectionProps = {
+  authProviders: string[];
   currentEmail: string;
   oauthProvider?: "facebook" | "google" | string | null;
   passwordLoginAvailable: boolean;
@@ -19,6 +21,7 @@ function maskEmail(value: string | null | undefined) {
 }
 
 export function LoginSecuritySection({
+  authProviders,
   currentEmail,
   oauthProvider,
   passwordLoginAvailable,
@@ -53,6 +56,7 @@ export function LoginSecuritySection({
           pendingExpiresAt={pendingEmailChange?.expires_at ?? null}
         />
         <SecurityPasswordForm oauthProvider={oauthProvider} passwordLoginAvailable={passwordLoginAvailable} />
+        <LinkedLoginMethods providers={authProviders} />
       </div>
     </section>
   );

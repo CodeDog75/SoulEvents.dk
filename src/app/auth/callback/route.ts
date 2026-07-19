@@ -4,6 +4,7 @@ import { syncConfirmedEmailChange } from "@/lib/auth/email-change";
 import { getAppUrl } from "@/lib/app-url";
 import { getPostAuthRedirect, type PostAuthResult } from "@/lib/auth/post-auth";
 import { env } from "@/lib/env";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeSupabaseCookieOptions, supabaseCookieOptions } from "@/lib/supabase/auth-cookies";
 
@@ -104,6 +105,10 @@ function oauthErrorMessage(provider: string | null, detail = "Prøv igen, eller 
   return `Login med ${oauthProviderLabel(provider)} kunne ikke gennemføres. ${detail}`;
 }
 
+function linkIdentityMessage(provider: string | null, detail = "Prøv igen fra Login og sikkerhed.") {
+  return `Tilknytning af ${oauthProviderLabel(provider)} kunne ikke gennemføres. ${detail}`;
+}
+
 function isExpiredOrInvalidLink(errorText: string) {
   const normalized = errorText.toLowerCase();
 
@@ -180,10 +185,23 @@ export async function GET(request: NextRequest) {
   const isPasswordResetFlow = next === "/auth/update-password";
   const hasOAuthCookie = Boolean(request.cookies.get(oauthFlowCookie)?.value);
   const isOAuthFlow = flow === "oauth" || hasOAuthCookie;
+  const isIdentityLinkFlow = flow === "link-identity";
 
   if (error) {
     const errorText = `${error} ${errorDescription ?? ""}`;
     console.error("Auth callback returned an error", errorText);
+
+    if (isIdentityLinkFlow) {
+      const searchParams = new URLSearchParams({
+        message: linkIdentityMessage(
+          provider,
+          "Hvis loginmetoden allerede tilhører en anden SoulEvents-konto, kan den ikke tilknyttes her.",
+        ),
+        status: "error",
+      });
+
+      return NextResponse.redirect(new URL(`/facilitator?${searchParams.toString()}`, getAppUrl(requestUrl.origin)));
+    }
 
     if (isOAuthFlow || !isExpiredOrInvalidLink(errorText)) {
       return redirectAndClearOAuthCookie(
@@ -369,11 +387,44 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL(`/facilitator?${searchParams.toString()}`, getAppUrl(requestUrl.origin)));
     }
 
+    if (isIdentityLinkFlow) {
+      const linkedProvider = provider || user.identities?.at(-1)?.provider || "oauth";
+
+      try {
+        const admin = createAdminClient();
+        const { data: facilitator } = await admin
+          .from("facilitator_profiles")
+          .select("id")
+          .eq("profile_id", user.id)
+          .maybeSingle();
+
+        await admin.from("admin_audit_log").insert({
+          action: "profile_login_identity_linked",
+          actor_profile_id: user.id,
+          facilitator_id: facilitator?.id ?? null,
+          new_value: linkedProvider,
+          old_value: "existing_profile",
+          reason: "Facilitator linked an OAuth login method from Login and security.",
+        });
+      } catch (auditError) {
+        console.warn("[auth:link-identity] audit log failed", {
+          message: auditError instanceof Error ? auditError.message : "Unknown audit error",
+        });
+      }
+
+      const searchParams = new URLSearchParams({
+        message: `${oauthProviderLabel(linkedProvider)} er nu tilknyttet din SoulEvents-konto.`,
+        status: "success",
+      });
+
+      return NextResponse.redirect(new URL(`/facilitator?${searchParams.toString()}`, getAppUrl(requestUrl.origin)));
+    }
+
     if (isOAuthFlow || isOAuthUser(user)) {
       let postAuthResult: PostAuthResult;
 
       try {
-        postAuthResult = await getPostAuthRedirect({ user });
+        postAuthResult = await getPostAuthRedirect({ createProfileIfMissing: false, user });
       } catch (profileError) {
         console.error("OAuth profile preparation failed", {
           message: profileError instanceof Error ? profileError.message : "Unknown profile error",
@@ -431,7 +482,7 @@ export async function GET(request: NextRequest) {
         let postAuthResult: PostAuthResult;
 
         try {
-          postAuthResult = await getPostAuthRedirect({ user });
+          postAuthResult = await getPostAuthRedirect({ createProfileIfMissing: false, user });
         } catch (profileError) {
           console.error("OAuth profile preparation failed without callback code", {
             message: profileError instanceof Error ? profileError.message : "Unknown profile error",

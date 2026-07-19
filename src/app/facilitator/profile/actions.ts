@@ -628,7 +628,10 @@ export async function createFacilitatorPasswordAction(
   });
 
   revalidatePath("/facilitator");
-  return { message: "Personlig adgangskode er oprettet. Du kan nu logge ind med både e-mail og ekstern loginmetode.", status: "success" };
+  return {
+    message: "Din personlige adgangskode er oprettet. Du kan nu logge ind med både din eksterne loginmetode og din e-mailadresse.",
+    status: "success",
+  };
 }
 
 export async function requestFacilitatorEmailChangeAction(

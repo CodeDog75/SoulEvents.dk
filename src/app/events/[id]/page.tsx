@@ -7,6 +7,7 @@ import { OrganizerBadges } from "@/components/badges/organizer-badges";
 import { CapacityBadge } from "@/components/events/capacity-badge";
 import { BookingForm } from "@/components/events/detail/booking-form";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
+import { SoulEventsIdTag } from "@/components/facilitator/soulevents-id-tag";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
@@ -76,6 +77,7 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
         status,
         is_paused,
         is_disabled,
+        host_reference_id,
         company_name,
         specialties,
         facilitator_categories(categories(name, slug)),
@@ -111,6 +113,7 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
           status,
           is_paused,
           is_disabled,
+          host_reference_id,
           company_name,
           specialties,
           facilitator_categories(categories(name, slug)),
@@ -281,6 +284,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         status,
         is_paused,
         is_disabled,
+        host_reference_id,
         company_name,
         profile_image_path,
         short_description,
@@ -306,6 +310,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             status,
           is_paused,
           is_disabled,
+          host_reference_id,
           company_name,
           profile_image_path,
           specialties,
@@ -354,6 +359,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           status,
           is_paused,
           is_disabled,
+          host_reference_id,
           company_name,
           profile_image_path,
           short_description,
@@ -379,6 +385,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             status,
             is_paused,
             is_disabled,
+            host_reference_id,
             company_name,
             profile_image_path,
             specialties,
@@ -637,6 +644,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                   <Link className="font-semibold text-sage-700 transition hover:text-rose" href={publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id)}>{facilitatorName}</Link>
                   <OrganizerBadges badges={[facilitatorProfile?.is_experienced_host ? "experienced" : null, facilitatorProfile?.is_active_host ? "active" : null].filter(Boolean) as never} />
                 </div>
+                <SoulEventsIdTag className="mt-2" hostReferenceId={facilitatorProfile?.host_reference_id} />
                 <p className="mt-2 text-sm leading-6 text-ink/66">
                   {facilitatorProfile?.short_description || "Arrangørens profiltekst kommer snart."}
                 </p>
@@ -698,6 +706,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                       )}
                       <span className="min-w-0">
                         <span className="block font-semibold text-midnight">{coOrganizerName}</span>
+                        <SoulEventsIdTag className="mt-2" hostReferenceId={coOrganizer.host_reference_id} />
                         {coOrganizerCategories.length > 0 ? (
                           <span className="mt-2 flex flex-wrap gap-1.5">
                             {coOrganizerCategories.map((category: any) => (
