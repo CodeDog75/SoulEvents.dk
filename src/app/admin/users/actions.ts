@@ -228,7 +228,7 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
       ? await supabase
           .from("facilitator_profiles")
           .select(
-            "id, company_name, display_name, profiles!facilitator_profiles_profile_id_fkey(email, first_name, full_name)",
+            "id, status, is_disabled, company_name, display_name, profiles!facilitator_profiles_profile_id_fkey(email, first_name, full_name)",
           )
           .eq("id", facilitatorId)
           .maybeSingle()
@@ -255,21 +255,8 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
   revalidatePath("/facilitators");
   revalidatePath("/facilitators/" + facilitatorId);
 
-  if (field === "is_disabled") {
-    await supabase.from("admin_audit_log").insert({
-      actor_profile_id: adminProfile.id,
-      action: value === "true" ? "facilitator_disabled_from_overview" : "facilitator_reactivated_from_overview",
-      facilitator_id: facilitatorId,
-      new_value:
-        value === "true"
-          ? JSON.stringify({
-              adminMessage: disabledAdminMessage || null,
-              reason: [disabledReason, disabledReasonDetail].filter(Boolean).join(": "),
-            })
-          : "enabled",
-    });
-  }
-
+  let deactivationEmailSent: boolean | null = null;
+  const deactivationReason = [disabledReason, disabledReasonDetail].filter(Boolean).join(": ");
   if (field === "is_disabled" && value === "true") {
     const profile = Array.isArray(facilitatorForDeactivation?.data?.profiles)
       ? facilitatorForDeactivation?.data?.profiles[0]
@@ -284,14 +271,45 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
       adminMessage: disabledAdminMessage,
       facilitatorEmail: profile?.email ?? null,
       facilitatorName,
+      reason: deactivationReason,
+      variant: facilitatorForDeactivation?.data?.status === "approved" ? "active_deactivated" : "pending_not_approved",
     });
+    deactivationEmailSent = notificationSent;
 
     if (!notificationSent) {
       console.error("Facilitator deactivation email failed after status update", {
         facilitatorId,
+        recipientFound: Boolean(profile?.email),
         type: "facilitator_profile_deactivated",
       });
     }
+  }
+
+  if (field === "is_disabled") {
+    await supabase.from("admin_audit_log").insert({
+      actor_profile_id: adminProfile.id,
+      action: value === "true" ? "facilitator_disabled_from_overview" : "facilitator_reactivated_from_overview",
+      facilitator_id: facilitatorId,
+      old_value:
+        value === "true"
+          ? JSON.stringify({
+              isDisabled: facilitatorForDeactivation?.data?.is_disabled ?? null,
+              status: facilitatorForDeactivation?.data?.status ?? null,
+            })
+          : null,
+      new_value:
+        value === "true"
+          ? JSON.stringify({
+              adminMessage: disabledAdminMessage || null,
+              emailError: deactivationEmailSent === false ? "email_delivery_failed" : null,
+              emailSent: deactivationEmailSent,
+              isDisabled: true,
+              reason: deactivationReason,
+              status: facilitatorForDeactivation?.data?.status ?? null,
+            })
+          : "enabled",
+      reason: value === "true" ? deactivationReason : null,
+    });
   }
 
   if (field === "is_paused" && value === "true") {
@@ -299,7 +317,15 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
   }
 
   if (field === "is_disabled") {
-    usersRedirect(value === "true" ? "Arrangøren er deaktiveret." : "Arrangøren er genaktiveret.", returnTo, { clearSearch: true });
+    usersRedirect(
+      value === "true"
+        ? deactivationEmailSent === false
+          ? "Arrangøren blev deaktiveret, men e-mailen kunne ikke sendes."
+          : "Arrangøren er deaktiveret."
+        : "Arrangøren er genaktiveret.",
+      returnTo,
+      { clearSearch: true },
+    );
   }
 
   usersRedirect(field === "is_paused" ? (value === "true" ? "Arrangøren er sat på pause." : "Arrangørprofilen er genåbnet.") : "Arrangøren er opdateret.", returnTo, { clearSearch: true });

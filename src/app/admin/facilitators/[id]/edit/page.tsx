@@ -168,7 +168,25 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
               <form action={disableFacilitatorAction} className="rounded-md border border-terracotta/25 bg-[#FFF8F6] p-4">
                 <input name="facilitator_id" type="hidden" value={id} />
                 <p className="font-semibold text-terracotta">Deaktiver arrangør</p>
-                <textarea className="mt-3 min-h-20 w-full rounded-md border border-terracotta/25 p-3 text-sm" maxLength={500} name="disabled_reason" placeholder="Intern årsag (valgfri)" />
+                <label className="mt-3 block text-sm font-semibold text-midnight">
+                  Årsag
+                  <select className="mt-2 h-10 w-full rounded-md border border-terracotta/25 bg-white px-3 text-sm" name="disabled_reason" required>
+                    <option value="Matcher ikke SoulEvents' koncept">Matcher ikke SoulEvents&apos; koncept</option>
+                    <option value="Spam eller falsk profil">Spam eller falsk profil</option>
+                    <option value="Dubletprofil">Dubletprofil</option>
+                    <option value="Uacceptabelt indhold">Uacceptabelt indhold</option>
+                    <option value="Andet">Andet</option>
+                  </select>
+                </label>
+                <label className="mt-3 block text-sm font-semibold text-midnight">
+                  Kort besked til arrangøren (valgfrit)
+                  <textarea
+                    className="mt-2 min-h-20 w-full rounded-md border border-terracotta/25 p-3 text-sm"
+                    maxLength={500}
+                    name="disabled_admin_message"
+                    placeholder="Skriv kort og respektfuldt, hvad der ligger til grund for beslutningen."
+                  />
+                </label>
                 <button className="mt-3 inline-flex h-10 items-center gap-2 rounded-md border border-terracotta/30 bg-white px-4 text-sm font-semibold text-terracotta" type="submit">
                   <PauseCircle className="size-4" aria-hidden="true" />
                   Deaktiver arrangør

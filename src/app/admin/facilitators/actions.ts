@@ -434,17 +434,24 @@ export async function disableFacilitatorAction(formData: FormData) {
 
   const facilitatorId = getString(formData, "facilitator_id");
   const reason = getOptionalString(formData, "disabled_reason");
+  const adminMessage = getOptionalString(formData, "disabled_admin_message")?.trim() ?? "";
 
   if (!facilitatorId) {
     adminRedirect("Ugyldig arrangørhandling.");
   }
 
+  if (adminMessage.length > 500) {
+    adminRedirect("Beskeden til arrangøren må højst være 500 tegn.");
+  }
+
   const supabase = createAdminClient();
   const { data: facilitator } = await supabase
     .from("facilitator_profiles")
-    .select("id, company_name, display_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name)")
+    .select("id, status, is_disabled, company_name, display_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name)")
     .eq("id", facilitatorId)
     .maybeSingle();
+  const previousStatus = facilitator?.status ?? null;
+  const previousDisabledState = facilitator?.is_disabled ?? null;
   const { error } = await supabase
     .from("facilitator_profiles")
     .update({
@@ -459,33 +466,49 @@ export async function disableFacilitatorAction(formData: FormData) {
     adminRedirect("Arrangøren kunne ikke deaktiveres.");
   }
 
-  await supabase.from("admin_audit_log").insert({
-    actor_profile_id: adminProfile.id,
-    action: "facilitator_disabled",
-    facilitator_id: facilitatorId,
-    new_value: reason ?? "disabled",
-  });
-
   const relatedProfile = facilitator?.profiles as FacilitatorProfileContact | FacilitatorProfileContact[] | null;
   const profile = Array.isArray(relatedProfile) ? relatedProfile[0] : relatedProfile;
   const notificationSent = await sendFacilitatorProfileDeactivatedEmail({
+    adminMessage,
     facilitatorEmail: profile?.email ?? null,
     facilitatorName: facilitator?.display_name || facilitator?.company_name || profile?.full_name || "arrangør",
+    reason: reason ?? null,
+    variant: previousStatus === "approved" ? "active_deactivated" : "pending_not_approved",
   });
 
   if (!notificationSent) {
     console.error("Facilitator deactivation email failed after admin edit disable", {
       facilitatorId,
+      recipientFound: Boolean(profile?.email),
       type: "facilitator_profile_deactivated",
     });
   }
+
+  await supabase.from("admin_audit_log").insert({
+    actor_profile_id: adminProfile.id,
+    action: "facilitator_disabled",
+    facilitator_id: facilitatorId,
+    old_value: JSON.stringify({
+      isDisabled: previousDisabledState,
+      status: previousStatus,
+    }),
+    new_value: JSON.stringify({
+      adminMessage: adminMessage || null,
+      emailError: notificationSent ? null : "email_delivery_failed",
+      emailSent: notificationSent,
+      isDisabled: true,
+      reason: reason ?? null,
+      status: previousStatus,
+    }),
+    reason: reason ?? null,
+  });
 
   revalidatePath("/admin");
   revalidatePath("/admin/users");
   revalidatePath("/facilitators");
   revalidatePath("/facilitators/" + facilitatorId);
   revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
-  adminRedirect("Arrangør er deaktiveret.");
+  adminRedirect(notificationSent ? "Arrangør er deaktiveret." : "Arrangøren blev deaktiveret, men e-mailen kunne ikke sendes.");
 }
 
 export async function reactivateFacilitatorAction(formData: FormData) {
