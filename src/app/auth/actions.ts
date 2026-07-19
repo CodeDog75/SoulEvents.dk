@@ -370,7 +370,9 @@ export async function signUpFacilitatorAction(formData: FormData) {
   const signupPath =
     authReturnPath === "email-first" && email
       ? `/auth/login?step=signup&email=${encodeURIComponent(email)}`
-      : "/auth/signup";
+      : email
+        ? `/auth/login?step=signup&email=${encodeURIComponent(email)}`
+        : "/auth/login?step=signup";
 
   const phoneDigits = phone.replace(/\D/g, "");
 
@@ -472,7 +474,7 @@ export async function signUpFacilitatorAction(formData: FormData) {
   revalidatePath("/", "layout");
 
   if (successTarget === "signup") {
-    redirect("/auth/signup?created=1");
+    redirect(`/auth/login?confirmation=needed&email=${encodeURIComponent(email)}`);
   }
 
   authRedirect(

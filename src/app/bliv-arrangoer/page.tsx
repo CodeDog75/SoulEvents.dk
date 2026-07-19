@@ -45,6 +45,8 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 function CtaLink({ cta, tone = "primary" }: { cta: BecomeOrganizerCta; tone?: "primary" | "secondary" }) {
   if (!cta.label || !cta.href) return null;
 
+  const href = cta.href === "/auth/signup" ? "/auth/login?role=facilitator" : cta.href;
+
   return (
     <Link
       className={
@@ -52,7 +54,7 @@ function CtaLink({ cta, tone = "primary" }: { cta: BecomeOrganizerCta; tone?: "p
           ? "inline-flex h-12 items-center justify-center gap-2 rounded-button bg-olive px-6 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-sage-700 hover:shadow-lift"
           : "inline-flex h-12 items-center justify-center gap-2 rounded-button border border-midnight/15 bg-white px-6 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
       }
-      href={cta.href}
+      href={href}
     >
       {cta.label}
       {tone === "primary" ? <ArrowRight className="size-4" aria-hidden="true" /> : null}

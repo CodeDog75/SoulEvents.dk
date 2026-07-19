@@ -139,6 +139,6 @@ export async function updateLegalDocumentAction(formData: FormData) {
   revalidatePath("/admin/legal");
   revalidatePath(`/legal/${slug}`);
   revalidatePath("/legal/[slug]", "page");
-  revalidatePath("/auth/signup");
+  revalidatePath("/auth/login");
   legalRedirect(intent === "publish" ? "Ny dokumentversion er udgivet." : "Kladde er gemt.");
 }

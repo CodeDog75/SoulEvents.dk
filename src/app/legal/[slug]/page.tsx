@@ -86,7 +86,7 @@ export default async function LegalDocumentPage({ params }: LegalDocumentPagePro
           </Link>
           <Link
             className="inline-flex h-10 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta"
-            href="/auth/signup"
+            href="/bliv-arrangoer"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
             Tilbage

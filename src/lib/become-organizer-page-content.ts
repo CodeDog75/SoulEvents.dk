@@ -121,7 +121,7 @@ export const defaultBecomeOrganizerPageContent: BecomeOrganizerPageContent = {
       title: "Bliv fundet af mennesker, der søger nærværende oplevelser",
       text:
         "SoulEvents samler spirituelle events, ydelser og arrangører i et roligt univers, hvor deltagere kan finde netop det, de længes efter.",
-      primaryCta: { label: "Opret arrangørprofil", href: "/auth/signup" },
+      primaryCta: { label: "Opret arrangørprofil", href: "/auth/login?role=facilitator" },
       secondaryCta: { label: "Se SoulEvents", href: "/" },
       image: { alt: "Arrangør på SoulEvents", path: null },
     },
@@ -197,7 +197,7 @@ export const defaultBecomeOrganizerPageContent: BecomeOrganizerPageContent = {
       eyebrow: "Klar til at begynde?",
       title: "Opret din arrangørprofil",
       text: "Kom i gang med en profil, der samler dit arbejde og gør det nemmere for de rette deltagere at finde dig.",
-      primaryCta: { label: "Opret arrangørprofil", href: "/auth/signup" },
+      primaryCta: { label: "Opret arrangørprofil", href: "/auth/login?role=facilitator" },
       secondaryCta: { label: "Kontakt SoulEvents", href: "mailto:kontakt@soulevents.dk" },
       image: { alt: "Bliv arrangør på SoulEvents", path: null },
     },

@@ -1492,6 +1492,10 @@ export default async function Home({ searchParams }: HomeProps) {
 
         <div className="relative z-10 mx-auto grid max-w-[1200px] min-w-0 gap-3 px-4 pb-6 pt-1 sm:gap-6 sm:px-8 sm:pb-8 md:pt-0">
           <section className="min-h-[265px] pt-16 md:hidden">
+            <p className="mb-5 inline-flex w-max items-center gap-2 rounded-full bg-white/72 px-3 py-1.5 text-xs font-semibold text-[#2F2633] shadow-soft backdrop-blur">
+              <Sparkles className="size-4 text-[#7A4EAB]" aria-hidden="true" />
+              SoulEvents.dk
+            </p>
             <h1 className="max-w-[21rem] font-serif text-[2.22rem] font-semibold leading-[1.02] text-[#2F2633] drop-shadow-[0_2px_16px_rgba(255,255,255,0.55)]">
               Din vej til
               <br />
@@ -1509,11 +1513,7 @@ export default async function Home({ searchParams }: HomeProps) {
             <div className="absolute inset-0 bg-[linear-gradient(90deg,#FAF6EF_0%,rgba(250,246,239,0.92)_9%,rgba(250,246,239,0.55)_42%,rgba(250,246,239,0.12)_72%,#FAF6EF_100%)]" aria-hidden="true" />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(250,246,239,0.28)_0%,rgba(250,246,239,0.03)_46%,rgba(250,246,239,0.82)_86%,#FAF6EF_100%)]" aria-hidden="true" />
             <div className="relative flex min-h-[540px] max-w-[760px] flex-col justify-center px-9 pb-16 pt-40 lg:min-h-[580px] lg:px-12 xl:min-h-[620px]">
-              <p className="inline-flex w-max items-center gap-2 rounded-full bg-white/72 px-3 py-1.5 text-xs font-semibold text-[#2F2633] shadow-soft backdrop-blur sm:text-sm">
-                <Sparkles className="size-4 text-[#7A4EAB]" aria-hidden="true" />
-                SoulEvents.dk
-              </p>
-              <h1 className="mt-5 max-w-[720px] text-5xl font-semibold leading-[0.98] text-[#2F2633] lg:text-7xl">
+              <h1 className="max-w-[720px] text-5xl font-semibold leading-[0.98] text-[#2F2633] lg:text-7xl">
                 Din vej til
                 <br />
                 personlig udvikling, nærvær og fællesskab

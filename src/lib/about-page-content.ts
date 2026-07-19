@@ -51,7 +51,7 @@ export const defaultAboutPageContent: AboutPageContent = {
   ctaTitle: "Vil du skabe events på SoulEvents?",
   ctaText: "Opret en gratis arrangørprofil og bliv en del af et univers for krop, sind og sjæl.",
   ctaButtonText: "Opret arrangørprofil",
-  ctaButtonLink: "/auth/signup",
+  ctaButtonLink: "/bliv-arrangoer",
   images: {
     hero: { alt: "SoulEvents univers for krop, sind og sjæl", path: null },
     why: { alt: "Nærværende fællesskab", path: null },

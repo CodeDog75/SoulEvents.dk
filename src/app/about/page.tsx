@@ -305,7 +305,7 @@ export default async function AboutPage() {
             {content.ctaButtonText && (
               <Link
                 className="mt-6 inline-flex h-12 items-center justify-center rounded-button bg-olive px-6 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-sage-700 hover:shadow-lift"
-                href={content.ctaButtonLink || "/auth/signup"}
+                href={content.ctaButtonLink || "/bliv-arrangoer"}
               >
                 {content.ctaButtonText}
               </Link>

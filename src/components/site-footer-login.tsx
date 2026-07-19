@@ -12,7 +12,7 @@ export function SiteFooterLogin() {
           <Link className="transition hover:text-rose" href="/about">
             Om SoulEvents
           </Link>
-          <Link className="transition hover:text-rose" href="/auth/signup">
+          <Link className="transition hover:text-rose" href="/bliv-arrangoer">
             Opret arrangørprofil
           </Link>
           <Link className="transition hover:text-rose" href="/contact">
