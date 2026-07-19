@@ -227,8 +227,8 @@ const steps: Array<{
   {
     eyebrow: "Forbindelse",
     id: "links",
-    text: "Del de steder, hvor deltagere kan lære dig bedre at kende.",
-    title: "Hvor kan deltagerne finde dig?",
+    text: "Se din loginmail, og vedligehold telefonnummer og de links, deltagere må bruge.",
+    title: "Kontaktoplysninger",
   },
   {
     eyebrow: "Ydelser",
@@ -833,6 +833,7 @@ export function ProfileForm({
   const initialSelectedCategoryIds = selectedCategoryIds.filter((categoryId) => visibleCategoryIds.has(categoryId));
   const [selectedExperiences, setSelectedExperiences] = useState(initialSelectedCategoryIds);
   const [story, setStory] = useState(value(facilitatorProfile.long_description || facilitatorProfile.short_description));
+  const [phone, setPhone] = useState(profile.phone ?? "");
   const [website, setWebsite] = useState(value(facilitatorProfile.website_url));
   const [facebook, setFacebook] = useState(value(facilitatorProfile.facebook_url));
   const [instagram, setInstagram] = useState(value(facilitatorProfile.instagram_url));
@@ -858,6 +859,7 @@ export function ProfileForm({
   const publicProfileName = useCustomProfileName ? profileName.trim() : fullPublicName;
   const hasWorkArea = selectedExperiences.length > 0;
   const specialtyChips = splitSpecialties(specialties);
+  const specialtyText = specialtyChips.join(" ");
   const hasIndividualServicesDescription = offersIndividualServices && serviceDescription.trim().length > 0;
   const hasLinks = Boolean(website.trim() || facebook.trim() || instagram.trim() || youtube.trim());
   const missingRequired = [
@@ -890,7 +892,7 @@ export function ProfileForm({
     full_name: fullPublicName,
     last_name: lastName,
     long_description: story,
-    phone: profile.phone ?? "",
+    phone,
     short_description: story.trim().slice(0, 300),
   };
 
@@ -960,6 +962,13 @@ export function ProfileForm({
     }
 
     if (currentStep.id === "links") {
+      const contactResult = await autosaveFacilitatorProfileAction({
+        section: "contact",
+        values: contactValues,
+      });
+
+      if (!contactResult.ok) return contactResult;
+
       const result = await autosaveFacilitatorProfileAction({
         section: "social",
         values: {
@@ -1553,6 +1562,10 @@ export function ProfileForm({
 
       {currentStep.id === "story" && (
         <div className="grid gap-4">
+          <div className="flex items-center gap-2 border-b border-midnight/10 pb-3">
+            <PencilLine className="size-4 text-sage-700" aria-hidden="true" />
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mit univers</p>
+          </div>
           <div className="relative">
             <textarea
               className="min-h-64 w-full rounded-[24px] border border-midnight/10 bg-white p-5 pr-12 text-lg leading-8 text-midnight shadow-soft outline-none transition duration-200 placeholder:text-ink/35 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/10"
@@ -1577,6 +1590,15 @@ export function ProfileForm({
 
       {currentStep.id === "links" && (
         <div className="grid gap-4">
+          <section className="rounded-[22px] border border-midnight/10 bg-white/75 p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mailadresse</p>
+            <p className="mt-2 break-all text-base font-semibold text-midnight">{profile.email}</p>
+            <p className="mt-2 text-sm leading-6 text-ink/55">Mailadressen bruges til login og vigtige beskeder.</p>
+            <Link className="mt-3 inline-flex text-sm font-semibold text-[#7A4EAB] hover:text-sage-700" href="/facilitator?messages=open#beskeder-admin">
+              Skift mailadresse under Login og sikkerhed
+            </Link>
+          </section>
+          <ClearableInput onChange={setPhone} placeholder="Telefonnummer" value={phone} />
           <ClearableInput onChange={setWebsite} placeholder="Website" value={website} />
           <ClearableInput onChange={setFacebook} placeholder="Facebook" value={facebook} />
           <ClearableInput onChange={setInstagram} placeholder="Instagram" value={instagram} />
@@ -1653,18 +1675,20 @@ export function ProfileForm({
 
       {currentStep.id === "review" && (
         <div className="rounded-[34px] border border-midnight/5 bg-[#F4F0E9] p-4 shadow-soft sm:p-6">
-          <div className="grid gap-5">
-            <section className="grid gap-3">
-              <div>
+          <div className="grid gap-5 [&>*+*]:border-t [&>*+*]:border-midnight/10 [&>*+*]:pt-5">
+            <ReviewJump
+              label="Rediger profilbanner"
+              onClick={() => editFromReview("profile-image")}
+              className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
+            >
+              <section className="grid gap-3">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Dit valgte profilbanner</p>
                   <p className="mt-1 text-sm leading-6 text-ink/60">
                     Banneret bruges øverst på din offentlige profil. Hele profilvisningen åbnes separat.
                   </p>
                 </div>
-              </div>
 
-              <ReviewJump label="Rediger profilbanner" onClick={() => editFromReview("profile-image")}>
                 <div className="overflow-hidden rounded-[28px] bg-midnight shadow-soft transition group-hover:shadow-lift">
                   <div className="relative aspect-[16/7] max-h-[220px] min-h-[160px] sm:min-h-[190px] lg:max-h-[240px]">
                     <Image
@@ -1678,12 +1702,10 @@ export function ProfileForm({
                     />
                   </div>
                 </div>
-              </ReviewJump>
 
-              <div>
                 <p className="text-sm font-semibold text-ink/60">Valgt banner: {heroPreview.label}</p>
-              </div>
-            </section>
+              </section>
+            </ReviewJump>
 
             <section className="grid gap-3 rounded-[26px] bg-white/70 p-4 sm:grid-cols-[112px_minmax(0,1fr)] sm:p-5">
               <ReviewJump label="Rediger profilbillede" onClick={() => editFromReview("profile-image")}>
@@ -1705,8 +1727,12 @@ export function ProfileForm({
               </ReviewJump>
             </section>
 
-            <ReviewJump label="Rediger arbejdsområder og speciale" onClick={() => editFromReview("experiences")} className="-m-2 p-2 pr-14">
-              <div className="grid gap-4 rounded-[26px] bg-white/70 p-4 sm:p-5">
+            <ReviewJump
+              label="Rediger arbejdsområder og speciale"
+              onClick={() => editFromReview("experiences")}
+              className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
+            >
+              <div className="grid gap-4">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Arbejdsområder</p>
                   {reviewCategories.length > 0 ? (
@@ -1723,24 +1749,25 @@ export function ProfileForm({
                     </p>
                   )}
                 </div>
-                {specialtyChips.length > 0 ? (
+                {specialtyText ? (
                   <div className="grid gap-2">
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Beskrivelse af speciale</p>
-                    {specialtyChips.map((specialty) => (
-                      <p
-                        className="rounded-[18px] bg-[#F1EAF5] px-4 py-3 text-sm font-semibold leading-6 text-[#2F2437] [overflow-wrap:anywhere]"
-                        key={specialty}
-                      >
-                        {specialty}
-                      </p>
-                    ))}
+                    <p className="rounded-[18px] bg-[#F1EAF5] px-4 py-3 text-sm font-semibold leading-6 text-[#2F2437] [overflow-wrap:anywhere]">
+                      {specialtyText}
+                    </p>
                   </div>
                 ) : null}
               </div>
             </ReviewJump>
 
-            <ReviewJump label="Rediger stemningsbilleder" onClick={() => editFromReview("profile-image")}>
-              <div className="grid grid-cols-3 gap-2">
+            <ReviewJump
+              label="Rediger stemningsbilleder"
+              onClick={() => editFromReview("profile-image")}
+              className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
+            >
+              <div className="grid gap-3">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Stemningsbilleder</p>
+                <div className="grid grid-cols-3 gap-2">
                 {moodImages.map((image, index) => (
                   <div
                     className="aspect-square overflow-hidden rounded-[18px] bg-white/45 text-sage-700/45"
@@ -1755,10 +1782,16 @@ export function ProfileForm({
                     )}
                   </div>
                 ))}
+                </div>
               </div>
             </ReviewJump>
 
-            <ReviewJump label="Rediger om mig" onClick={() => editFromReview("story")} className="-m-2 p-2 pr-14">
+            <ReviewJump
+              label="Rediger om mig"
+              onClick={() => editFromReview("story")}
+              className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
+            >
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mit univers</p>
               {story.trim() ? (
                 <p className="min-w-0 whitespace-pre-line text-base leading-8 text-ink/72">{story}</p>
               ) : (
@@ -1769,7 +1802,11 @@ export function ProfileForm({
             </ReviewJump>
 
             {offersIndividualServices || presentationMode !== "onboarding" ? (
-              <ReviewJump label="Rediger individuelle ydelser" onClick={() => editFromReview("services")} className="-m-2 p-2 pr-14">
+              <ReviewJump
+                label="Rediger individuelle ydelser"
+                onClick={() => editFromReview("services")}
+                className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
+              >
                 <div className="grid gap-3">
                   <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Individuelle ydelser</p>
                   {hasIndividualServicesDescription ? (
@@ -1791,11 +1828,36 @@ export function ProfileForm({
               </ReviewJump>
             ) : null}
 
-            {hasLinks ? (
-              <ReviewJump label="Rediger links" onClick={() => editFromReview("links")} className="-m-2 p-2 pr-14">
-                <LinkRows facebook={facebook} instagram={instagram} website={website} youtube={youtube} />
+            <ReviewJump
+              label="Rediger kontaktoplysninger"
+              onClick={() => editFromReview("links")}
+              className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
+            >
+              <div className="grid gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Kontaktoplysninger</p>
+                  <div className="mt-3 grid gap-3 text-sm leading-6 text-midnight">
+                    <div className="border-b border-midnight/10 pb-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-ink/45">Mailadresse</p>
+                      <p className="mt-1 break-all font-semibold">{profile.email}</p>
+                      <p className="mt-1 text-ink/55">Mailadressen bruges til login og vigtige beskeder.</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-ink/45">Telefonnummer</p>
+                      <p className="mt-1 font-semibold">{phone.trim() || "Ikke angivet"}</p>
+                    </div>
+                    <Link
+                      className="w-fit font-semibold text-[#7A4EAB] hover:text-sage-700"
+                      href="/facilitator?messages=open#beskeder-admin"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      Skift mailadresse under Login og sikkerhed
+                    </Link>
+                  </div>
+                </div>
+                {hasLinks ? <LinkRows facebook={facebook} instagram={instagram} website={website} youtube={youtube} /> : null}
+              </div>
               </ReviewJump>
-            ) : null}
 
             {missingRequired.length > 0 ? (
               <div className="rounded-[24px] bg-[#FFF7DE] p-5">
