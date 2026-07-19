@@ -228,7 +228,7 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
       ? await supabase
           .from("facilitator_profiles")
           .select(
-            "id, status, is_disabled, company_name, profiles!facilitator_profiles_profile_id_fkey(email, first_name, full_name)",
+            "id, status, is_disabled, company_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name)",
           )
           .eq("id", facilitatorId)
           .maybeSingle()
@@ -271,7 +271,6 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
       : facilitatorForDeactivation?.data?.profiles;
     const facilitatorName =
       facilitatorForDeactivation?.data?.company_name ||
-      profile?.first_name ||
       profile?.full_name ||
       "arrangør";
     const notificationSent = await sendFacilitatorProfileDeactivatedEmail({
