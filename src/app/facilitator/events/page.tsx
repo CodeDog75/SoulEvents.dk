@@ -9,6 +9,7 @@ import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onbo
 import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
 import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes } from "@/lib/legal/documents";
 import { publicEventPath } from "@/lib/slug";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +87,7 @@ type FacilitatorEventsPageProps = {
 export default async function FacilitatorEventsPage({ searchParams }: FacilitatorEventsPageProps) {
   const [{ draft, event: receiptEventId, message, step, receipt }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
   const supabase = await createClient();
+  const admin = createAdminClient();
 
   const [
     { data: facilitatorProfile },
@@ -155,7 +157,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
       : { data: [] };
   const { data: coOrganizerInvitations } =
     selectedDraft && facilitatorProfile
-      ? await supabase
+      ? await admin
           .from("event_co_organizers")
           .select(
             "id, status, co_organizer_profile_id, facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(city, company_name, status, is_paused, is_disabled, profile_image_path, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name)))",
