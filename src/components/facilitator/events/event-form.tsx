@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { cancelCoOrganizerInvitationAction, createEventAction, searchCoOrganizerCandidatesAction } from "@/app/facilitator/events/actions";
+import { cancelCoOrganizerInvitationAction, createEventAction, resendCoOrganizerInvitationAction, searchCoOrganizerCandidatesAction } from "@/app/facilitator/events/actions";
 import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
 
 type Region = {
@@ -97,7 +97,7 @@ type CoOrganizerInvitation = {
   name: string;
   profileIsActive?: boolean;
   profileId: string;
-  status: "pending" | "accepted";
+  status: "accepted" | "declined" | "pending";
 };
 
 type CoOrganizerCandidate = {
@@ -262,6 +262,38 @@ function CoOrganizerAvatar({ imageUrl, name }: { imageUrl?: string | null; name:
       {name.slice(0, 1).toUpperCase()}
     </span>
   );
+}
+
+function coOrganizerStatusCopy(status: CoOrganizerInvitation["status"], profileIsActive?: boolean) {
+  if (profileIsActive === false) {
+    return {
+      badgeClass: "border-[#E8D2CC] bg-[#FFF8F6] text-[#9A4F45]",
+      description: "Profilen er ikke længere aktiv og skal fjernes, før eventet kan offentliggøres.",
+      label: "Ikke aktiv",
+    };
+  }
+
+  if (status === "accepted") {
+    return {
+      badgeClass: "border-[#BFD9B6] bg-[#F1F7ED] text-[#3F6838]",
+      description: "Invitationen er bekræftet. Medarrangøren vises på eventet.",
+      label: "Bekræftet",
+    };
+  }
+
+  if (status === "declined") {
+    return {
+      badgeClass: "border-[#E8D2CC] bg-[#FFF8F6] text-[#9A4F45]",
+      description: "Medarrangøren har sagt nej tak til invitationen.",
+      label: "Afslået",
+    };
+  }
+
+  return {
+    badgeClass: "border-[#E7D59D] bg-[#FFF8DF] text-[#7A5A15]",
+    description: "Invitationen er sendt og afventer bekræftelse.",
+    label: "Afventer accept",
+  };
 }
 
 const legacyEventDraftStorageKey = "soulevents:event-form-draft:v1";
@@ -847,8 +879,9 @@ export function EventForm({
     [],
   );
   const existingCoOrganizers = draftEvent?.coOrganizerInvitations ?? [];
-  const inactiveExistingCoOrganizers = existingCoOrganizers.filter((coOrganizer) => coOrganizer.profileIsActive === false);
-  const activeCoOrganizerCount = existingCoOrganizers.length + selectedCoOrganizers.length;
+  const activeExistingCoOrganizers = existingCoOrganizers.filter((coOrganizer) => coOrganizer.status === "pending" || coOrganizer.status === "accepted");
+  const inactiveExistingCoOrganizers = activeExistingCoOrganizers.filter((coOrganizer) => coOrganizer.profileIsActive === false);
+  const activeCoOrganizerCount = activeExistingCoOrganizers.length + selectedCoOrganizers.length;
   const canAddCoOrganizer = activeCoOrganizerCount < 2;
   const organizerAcceptanceMessage =
     message && (message.toLowerCase().includes("arrangørvilkår") || message.toLowerCase().includes("retningslinjer"))
@@ -2415,42 +2448,55 @@ export function EventForm({
 
           {existingCoOrganizers.length > 0 || selectedCoOrganizers.length > 0 ? (
             <div className="grid gap-3">
-              {existingCoOrganizers.map((coOrganizer) => (
-                <div
-                  className={
-                    "flex items-start gap-3 rounded-card border p-3 shadow-sm " +
-                    (coOrganizer.profileIsActive === false ? "border-[#E8D2CC] bg-[#FFF8F6]" : "border-[#E5D4F7] bg-white")
-                  }
-                  key={coOrganizer.id}
-                >
-                  <CoOrganizerAvatar imageUrl={coOrganizer.imageUrl} name={coOrganizer.name} />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-midnight">{coOrganizer.name}</p>
-                    <p
-                      className={
-                        "text-xs font-semibold uppercase tracking-wide " +
-                        (coOrganizer.profileIsActive === false ? "text-[#9A4F45]" : "text-[#7A5D91]")
-                      }
-                    >
-                      {coOrganizer.profileIsActive === false
-                        ? "Ikke aktiv - fjern før publicering"
-                        : coOrganizer.status === "accepted"
-                          ? "Bekræftet"
-                          : "Afventer bekræftelse"}
-                    </p>
-                    {coOrganizer.city ? <p className="mt-1 text-sm text-ink/58">{coOrganizer.city}</p> : null}
-                  </div>
-                  <button
-                    className="inline-flex h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-3 text-xs font-semibold text-ink/64 transition hover:border-[#B56F8A] hover:text-[#B56F8A]"
-                    formAction={cancelCoOrganizerInvitationAction}
-                    name="invitation_id"
-                    type="submit"
-                    value={coOrganizer.id}
+              {existingCoOrganizers.map((coOrganizer) => {
+                const statusCopy = coOrganizerStatusCopy(coOrganizer.status, coOrganizer.profileIsActive);
+                return (
+                  <div
+                    className={
+                      "flex flex-col gap-3 rounded-card border p-3 shadow-sm sm:flex-row sm:items-start " +
+                      (coOrganizer.profileIsActive === false ? "border-[#E8D2CC] bg-[#FFF8F6]" : "border-[#E5D4F7] bg-white")
+                    }
+                    key={coOrganizer.id}
                   >
-                    Fjern
-                  </button>
-                </div>
-              ))}
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <CoOrganizerAvatar imageUrl={coOrganizer.imageUrl} name={coOrganizer.name} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-midnight">{coOrganizer.name}</p>
+                          <span className={"rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide " + statusCopy.badgeClass}>
+                            {statusCopy.label}
+                          </span>
+                        </div>
+                        {coOrganizer.city ? <p className="mt-1 text-sm text-ink/58">{coOrganizer.city}</p> : null}
+                        <p className="mt-2 text-sm leading-5 text-ink/62">{statusCopy.description}</p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                      {coOrganizer.status === "pending" && coOrganizer.profileIsActive !== false ? (
+                        <button
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#D8CBE4] bg-[#F4F0F7] px-3 text-xs font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
+                          formAction={resendCoOrganizerInvitationAction}
+                          name="invitation_id"
+                          type="submit"
+                          value={coOrganizer.id}
+                        >
+                          <Send className="size-3.5" aria-hidden="true" />
+                          Send invitation igen
+                        </button>
+                      ) : null}
+                      <button
+                        className="inline-flex h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-3 text-xs font-semibold text-ink/64 transition hover:border-[#B56F8A] hover:text-[#B56F8A]"
+                        formAction={cancelCoOrganizerInvitationAction}
+                        name="invitation_id"
+                        type="submit"
+                        value={coOrganizer.id}
+                      >
+                        Fjern invitation
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
 
               {selectedCoOrganizers.map((coOrganizer) => (
                 <div className="flex items-start gap-3 rounded-card border border-[#D8CBE4] bg-white p-3 shadow-sm" key={coOrganizer.id}>

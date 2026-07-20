@@ -26,7 +26,7 @@ type BookingRelationRow = { status?: string | null };
 type CoOrganizerInvitationRow = {
   co_organizer_profile_id: string;
   id: string;
-  status: "pending" | "accepted";
+  status: "accepted" | "declined" | "pending";
   facilitator_profiles?:
     | {
         city?: string | null;
@@ -162,7 +162,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
           )
           .eq("event_id", selectedDraft.id)
           .eq("primary_organizer_profile_id", facilitatorProfile.id)
-          .in("status", ["pending", "accepted"])
+          .in("status", ["pending", "accepted", "declined"])
       : { data: [] };
   const { data: receiptEvent } =
     receipt === "published" && receiptEventId && facilitatorProfile

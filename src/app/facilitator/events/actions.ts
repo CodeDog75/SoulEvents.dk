@@ -1715,6 +1715,72 @@ export async function cancelCoOrganizerInvitationAction(formData: FormData) {
   redirect("/facilitator/events?draft=" + eventId + "&message=" + encodeURIComponent("Medarrangøren er fjernet fra eventet."));
 }
 
+export async function resendCoOrganizerInvitationAction(formData: FormData) {
+  const profile = await requireRole("facilitator");
+  const invitationId = getString(formData, "invitation_id");
+  const eventId = getString(formData, "event_id");
+
+  if (!invitationId || !eventId) {
+    eventsRedirect("Invitationen kunne ikke sendes igen.");
+  }
+
+  const supabase = createAdminClient();
+  const { data: facilitatorProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("id, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)")
+    .eq("profile_id", profile.id)
+    .maybeSingle();
+
+  if (!facilitatorProfile) {
+    eventsRedirect("Arrangørprofilen mangler.");
+  }
+
+  const { data: invitation, error: invitationError } = await supabase
+    .from("event_co_organizers")
+    .select(
+      "id, event_id, status, response_token, events(title, starts_at, facilitator_id), facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name))",
+    )
+    .eq("id", invitationId)
+    .eq("event_id", eventId)
+    .maybeSingle();
+
+  const event = firstRelation(invitation?.events);
+
+  if (invitationError || !invitation || event?.facilitator_id !== facilitatorProfile.id) {
+    eventFormRedirect("Invitationen kunne ikke findes.", { eventId });
+  }
+
+  if (invitation.status !== "pending") {
+    eventFormRedirect("Kun afventende invitationer kan sendes igen.", { eventId });
+  }
+
+  const coOrganizerProfile = firstRelation(invitation.facilitator_profiles);
+  const coOrganizerUser = firstRelation(coOrganizerProfile?.profiles);
+  const recipientEmail = coOrganizerUser?.email;
+
+  if (!recipientEmail || !event?.title || !event.starts_at || !invitation.response_token) {
+    eventFormRedirect("Invitationen kunne ikke sendes igen, fordi modtageroplysninger mangler.", { eventId });
+  }
+
+  const mailSent = await sendCoOrganizerInvitationEmail({
+    eventId,
+    eventStartsAt: event.starts_at,
+    eventTitle: event.title,
+    invitationUrl: coOrganizerInvitationUrl(invitation.response_token),
+    primaryOrganizerName: coOrganizerDisplayName(facilitatorProfile),
+    recipientEmail,
+    recipientName: coOrganizerDisplayName(coOrganizerProfile ?? {}),
+  });
+
+  if (!mailSent) {
+    console.error("Co-organizer invitation resend mail failed", { eventId, invitationId });
+    eventFormRedirect("Invitationen kunne ikke sendes igen lige nu.", { eventId });
+  }
+
+  revalidatePath("/facilitator/events");
+  redirect("/facilitator/events?draft=" + eventId + "&message=" + encodeURIComponent("Invitationen er sendt igen."));
+}
+
 export async function respondToCoOrganizerInvitationAction(formData: FormData) {
   const profile = await requireRole("facilitator");
   const invitationId = getString(formData, "invitation_id");

@@ -187,7 +187,7 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
   const metadata = buildEventMetadata({
     categories,
     city: event.city,
-    description: event.short_description || event.long_description,
+    description: event.long_description,
     eventFormat: event.event_format,
     organizerCategories,
     organizerName: facilitatorName,
@@ -492,7 +492,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         url: absoluteUrl(publicFacilitatorPath(coOrganizer.slug || coOrganizer.id)),
       };
     }),
-    description: event.short_description || event.long_description,
+    description: event.long_description,
     endDate: event.ends_at,
     eventFormat: event.event_format,
     imageUrl: eventCoverUrl,
@@ -628,7 +628,6 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               ))}
             </div>
             <h2 className="mt-5 text-5xl font-medium leading-tight text-olive sm:text-6xl">{event.title}</h2>
-            <p className="mt-4 max-w-3xl text-base leading-7 text-ink/72">{event.short_description}</p>
             </div>
           </section>
 

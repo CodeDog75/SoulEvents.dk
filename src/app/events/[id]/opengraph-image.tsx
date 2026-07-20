@@ -75,7 +75,7 @@ export default async function EventOpenGraphImage({ params }: OpenGraphImageProp
   const imagePath = event.cover_image_path || firstImagePath(event.event_images) || firstCategoryImagePath(event.event_main_categories);
   const imageUrl = storagePublicUrl(imagePath) ?? (await getHomepageOpenGraphImageUrl());
   const facilitatorName = facilitator?.company_name || facilitator?.profiles?.full_name || "SoulEvents";
-  const description = stripHtml(event.short_description || event.long_description) || "Se eventet og arrangøren på SoulEvents.dk.";
+  const description = stripHtml(event.long_description) || "Se eventet og arrangøren på SoulEvents.dk.";
 
   return renderOpenGraphImage({
     imageUrl,
