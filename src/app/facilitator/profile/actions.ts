@@ -146,7 +146,11 @@ type ProfileAutosaveInput = {
 
 const profileImageMaxFileSize = 10 * 1024 * 1024;
 const moodImageActionMaxFileSize = 15 * 1024 * 1024;
-const specialtyMaxLength = 150;
+const specialtyMaxLength = 180;
+
+function normalizeSpecialtyText(input: string | null | undefined) {
+  return (input ?? "").replace(/\s+/g, " ").trim();
+}
 
 function isEditableProfileSection(value: string | null | undefined): value is EditableProfileSection {
   return editableProfileSections.includes(value as EditableProfileSection);
@@ -1062,10 +1066,10 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
 
   if (section === "categories") {
     const categoryIds = [...new Set(arrayForAutosave(input.values.category_ids))];
-    const specialties = valueForAutosave(input.values.specialties);
+    const specialties = normalizeSpecialtyText(valueForAutosave(input.values.specialties));
 
     if (specialties.length > specialtyMaxLength) {
-      return { message: "Specialet må højst være 150 tegn.", ok: false };
+      return { message: "Specialet må højst være 180 tegn.", ok: false };
     }
 
     if (categoryIds.length === 0) {
@@ -1764,7 +1768,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   const uniqueCategoryIds = [...new Set(categoryIds)];
   const offersServices = formData.get("offers_services") === "on";
   const serviceDescription = getOptionalString(formData, "service_description");
-  const specialties = getOptionalString(formData, "specialties");
+  const specialties = normalizeSpecialtyText(getOptionalString(formData, "specialties"));
   const showInLocalServiceResults = formData.get("show_in_local_service_results") === "on";
   const galleryPaths = formData
     .getAll("gallery_image_paths")

@@ -25,7 +25,7 @@ type ProfileIdentityHeaderProps = {
   name: string;
   place?: string | null;
   profileImageUrl?: string | null;
-  specialties: string[];
+  specialty?: string | null;
   variant?: "full" | "compact";
 };
 
@@ -38,10 +38,10 @@ export function ProfileIdentityHeader({
   name,
   place,
   profileImageUrl,
-  specialties,
+  specialty,
   variant = "full",
 }: ProfileIdentityHeaderProps) {
-  const specialtyText = specialties.map((specialty) => specialty.trim()).filter(Boolean).join(" ");
+  const specialtyText = specialty?.trim() ?? "";
   const compactHeader = (
     <div className="overflow-hidden rounded-[26px] bg-[#FAF7F2] shadow-[0_20px_54px_rgba(47,36,55,0.12)]">
       <div className="relative h-[170px] overflow-hidden bg-[#2F2437] sm:h-[190px]">

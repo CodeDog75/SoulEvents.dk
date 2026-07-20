@@ -54,12 +54,9 @@ function safeFacilitatorReturnPath(path: string | undefined) {
     : null;
 }
 
-function splitSpecialties(input: string | null | undefined) {
-  return (input ?? "")
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 3);
+function specialtyMetadataValues(input: string | null | undefined) {
+  const specialty = (input ?? "").replace(/\s+/g, " ").trim();
+  return specialty ? [specialty] : [];
 }
 
 export async function generateMetadata({ params }: EventDetailPageProps): Promise<Metadata> {
@@ -194,7 +191,7 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
     eventFormat: event.event_format,
     organizerCategories,
     organizerName: facilitatorName,
-    organizerSpecialties: splitSpecialties((facilitator as any)?.specialties),
+    organizerSpecialties: specialtyMetadataValues((facilitator as any)?.specialties),
     startsAt: event.starts_at,
     tags,
     title: event.title,
@@ -513,7 +510,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         .filter((category: any) => category?.name)
         .map((category: any) => category.name) ?? [],
     organizerName: facilitatorName,
-    organizerSpecialties: splitSpecialties((facilitatorProfile as any)?.specialties),
+    organizerSpecialties: specialtyMetadataValues((facilitatorProfile as any)?.specialties),
     organizerUrl: absoluteUrl(publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id)),
     priceCents: event.price_cents,
     startsAt: event.starts_at,

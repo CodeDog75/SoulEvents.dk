@@ -238,7 +238,7 @@ export async function GET(request: Request) {
   <h1>SoulEvents statistikeksport</h1>
   <p>Periode: ${periodText}</p>
   ${section("Arrangører", [
-    "Arrangør-ID", "Status", "Vist navn/virksomhed", "Rigtigt navn", "Login e-mail", "Privat telefon", "Offentlig e-mail", "Offentlig telefon", "Hjemmeside", "Facebook", "Instagram", "Adresse", "Postnummer", "By", "Område", "Land", "Kategorier", "Tags", "Tilbyder ydelser", "Specialer", "Ydelsesbeskrivelse", "Oprettet", "Profilvisninger", "Påmindelses-mails", "Events i perioden", "Kladder", "Aktive", "Afholdte", "Aflyste", "Tilmeldinger", "Pladser", "Bookingværdi"
+    "Arrangør-ID", "Status", "Vist navn/virksomhed", "Rigtigt navn", "Login e-mail", "Privat telefon", "Offentlig e-mail", "Offentlig telefon", "Hjemmeside", "Facebook", "Instagram", "Adresse", "Postnummer", "By", "Område", "Land", "Kategorier", "Tags", "Tilbyder ydelser", "Mit speciale", "Ydelsesbeskrivelse", "Oprettet", "Profilvisninger", "Påmindelses-mails", "Events i perioden", "Kladder", "Aktive", "Afholdte", "Aflyste", "Tilmeldinger", "Pladser", "Bookingværdi"
   ], facilitatorRows)}
   ${section("Events", [
     "Event-ID", "Titel", "Status", "Arrangør-ID", "Arrangør", "Oprettet", "Start", "Slut", "Format", "By", "Land", "Hovedkategorier", "Underkategorier", "Kategorier", "Tags", "Deltagerpris", "Kapacitet", "Tilmeldinger", "Pladser", "Bookingværdi"

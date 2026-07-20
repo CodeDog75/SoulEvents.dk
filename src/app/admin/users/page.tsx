@@ -315,17 +315,17 @@ function searchScore(facilitator: SearchableFacilitator, queryText: string) {
   const contactFields = [facilitator.email, facilitator.phone, facilitator.public_email, facilitator.public_phone];
   const locationFields = [facilitator.city, facilitator.postal_code, facilitator.address_line];
   const exactFields = [...primaryFields, ...contactFields, ...locationFields, facilitator.host_reference_id, facilitator.id];
-  const specialtyFields = splitSpecialties(facilitator.specialties);
+  const specialtyField = normalizeSpecialtyText(facilitator.specialties);
   const badgeFields = [...facilitator.facilitator_categories, ...facilitator.facilitator_tags];
 
   if (exactFields.some((value) => normalizeSearchValue(value) === queryText)) return 1000;
   if (startsWithQuery(primaryFields, queryText)) return 900;
   if (primaryFields.some((value) => normalizeSearchValue(value).split(/\s+/).some((word) => word.startsWith(queryText)))) return 850;
   if (startsWithQuery([facilitator.id, facilitator.host_reference_id, facilitator.email, facilitator.phone, facilitator.city, facilitator.postal_code], queryText)) return 760;
-  if (startsWithQuery([...badgeFields, ...specialtyFields], queryText)) return 700;
+  if (startsWithQuery([...badgeFields, specialtyField], queryText)) return 700;
   if (includesQuery(primaryFields, queryText)) return 650;
   if (includesQuery([...contactFields, ...locationFields, facilitator.host_reference_id, facilitator.id], queryText)) return 550;
-  if (includesQuery([...badgeFields, ...specialtyFields], queryText)) return 450;
+  if (includesQuery([...badgeFields, specialtyField], queryText)) return 450;
   if (
     includesQuery(
       [
@@ -334,7 +334,7 @@ function searchScore(facilitator: SearchableFacilitator, queryText: string) {
         facilitator.short_description,
         facilitator.long_description,
         facilitator.website_url,
-        ...specialtyFields,
+        specialtyField,
         facilitator.is_featured ? "fremhævet" : "",
         facilitator.auto_approve_events ? "auto-godkendelse" : "",
         facilitator.is_active_host ? "aktiv arrangør" : "",
@@ -450,11 +450,8 @@ async function getAuthActivityByProfileId(supabase: ReturnType<typeof createAdmi
   return { activity, isComplete: activity.size >= wantedIds.size };
 }
 
-function splitSpecialties(input: string | null | undefined) {
-  return (input ?? "")
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+function normalizeSpecialtyText(input: string | null | undefined) {
+  return (input ?? "").replace(/\s+/g, " ").trim();
 }
 
 function filteredUsersHref(params: {

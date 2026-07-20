@@ -51,14 +51,6 @@ function isHiddenHomepageFacilitator(facilitator: { host_reference_id?: string |
   return Boolean(facilitator?.host_reference_id && hiddenHomepageFacilitatorReferenceIds.has(facilitator.host_reference_id));
 }
 
-function splitSpecialties(input: string | null | undefined) {
-  return (input ?? "")
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 3);
-}
-
 type LocalServiceProvider = {
   id: string;
   slug?: string | null;
@@ -905,7 +897,7 @@ async function getLocalServiceProviders(selected: {
           return category?.slug && facilitatorWorkAreaSlugSet.has(category.slug) ? category.name ?? "" : "";
         })
         .filter(Boolean);
-      const visibleServiceLabels = [...categories, ...splitSpecialties(provider.specialties)].slice(0, 3);
+      const visibleServiceLabels = categories.slice(0, 3);
       const distanceKm =
         userLocation && typeof provider.latitude === "number" && typeof provider.longitude === "number"
           ? distanceInKm(userLocation, { latitude: provider.latitude, longitude: provider.longitude })

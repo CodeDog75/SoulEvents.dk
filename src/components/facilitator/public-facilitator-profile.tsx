@@ -60,7 +60,7 @@ type PublicFacilitatorProfileProps = {
   reminderFormAction: (formData: FormData) => Promise<void>;
   reminderMessage?: string;
   serviceDescription?: string | null;
-  specialties: string[];
+  specialty?: string | null;
   showFallbackNotice?: boolean;
 };
 
@@ -136,7 +136,7 @@ export function PublicFacilitatorProfile({
   reminderMessage,
   serviceDescription,
   showFallbackNotice = false,
-  specialties,
+  specialty,
 }: PublicFacilitatorProfileProps) {
   const place = locationText(contact);
   const hasContact = Boolean(place || contact.email || contact.phone || contact.links.length > 0);
@@ -167,7 +167,7 @@ export function PublicFacilitatorProfile({
           name={name}
           place={place}
           profileImageUrl={profileImageUrl}
-          specialties={specialties}
+          specialty={specialty}
         />
       </section>
 

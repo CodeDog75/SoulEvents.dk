@@ -48,12 +48,8 @@ function ensureUrl(url: string) {
   return /^https?:\/\//i.test(url) ? url : "https://" + url;
 }
 
-function splitSpecialties(input: string | null | undefined) {
-  return (input ?? "")
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 3);
+function normalizeSpecialtyText(input: string | null | undefined) {
+  return (input ?? "").replace(/\s+/g, " ").trim();
 }
 
 function facilitatorCategories(facilitator: any) {
@@ -212,7 +208,7 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
     presentationText: facilitator.long_description || facilitator.short_description,
     region: first((facilitator as any).regions)?.name,
     serviceDescription: (facilitator as any).service_description,
-    specialties: splitSpecialties((facilitator as any).specialties),
+    specialties: normalizeSpecialtyText((facilitator as any).specialties) ? [normalizeSpecialtyText((facilitator as any).specialties)] : [],
   });
 
   return createPageMetadata({
@@ -380,7 +376,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     facilitatorData.facilitator_categories
       ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
       .filter((category: any) => category?.slug && facilitatorWorkAreaSlugSet.has(category.slug)) ?? [];
-  const specialties = splitSpecialties(facilitatorData.specialties);
+  const specialty = normalizeSpecialtyText(facilitatorData.specialties);
   const publicEmail = facilitatorData.public_email || profile?.email || null;
   const publicPhone = facilitatorData.public_phone || profile?.phone || null;
   const links = [
@@ -419,7 +415,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     presentationText,
     region: region?.name,
     serviceDescription: facilitatorData.offers_services ? facilitatorData.service_description : null,
-    specialties,
+    specialties: specialty ? [specialty] : [],
   });
 
   return (
@@ -459,7 +455,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
         reminderMessage={reminderMessage}
         serviceDescription={facilitatorData.offers_services ? facilitatorData.service_description : null}
         showFallbackNotice={Boolean(adminReturnLink || isOwnProfilePreview)}
-        specialties={specialties}
+        specialty={specialty}
       />
     </>
   );

@@ -48,7 +48,7 @@ type FacilitatorAdminCardProps = {
   metrics?: FacilitatorAdminMetric[];
   metaLine?: string | null;
   mode?: "compact" | "full";
-  specialties?: string[];
+  specialty?: string | null;
   task?: FacilitatorAdminTask | null;
 };
 
@@ -127,14 +127,13 @@ export function FacilitatorAdminCard({
   metrics = [],
   metaLine,
   mode = "full",
-  specialties = [],
+  specialty,
   task,
 }: FacilitatorAdminCardProps) {
   const displayName = facilitator.company_name || facilitator.full_name || "Uden navn";
   const location = [facilitator.postal_code, facilitator.city].filter(Boolean).join(" ");
   const isCompact = mode === "compact";
-  const visibleSpecialties = specialties.map((specialty) => specialty.trim()).filter(Boolean).slice(0, 3);
-  const hiddenSpecialtyCount = Math.max(specialties.filter((specialty) => specialty.trim()).length - visibleSpecialties.length, 0);
+  const specialtyText = specialty?.replace(/\s+/g, " ").trim() ?? "";
 
   return (
     <article
@@ -210,20 +209,12 @@ export function FacilitatorAdminCard({
             </div>
           ) : null}
 
-          {visibleSpecialties.length > 0 ? (
+          {specialtyText ? (
             <div className="mt-4 grid gap-2">
-              <p className="text-xs font-bold uppercase tracking-wide text-[#7A5D91]">Specialer</p>
-              {visibleSpecialties.map((specialty, index) => (
-                <div
-                  className="h-auto max-w-3xl rounded-[18px] border border-[#D8CBE4] bg-[#F1EAF5] px-3.5 py-3 text-sm font-medium leading-5 text-midnight [overflow-wrap:anywhere] break-words"
-                  key={specialty + index}
-                >
-                  {specialty}
-                </div>
-              ))}
-              {hiddenSpecialtyCount > 0 ? (
-                <p className="text-xs font-semibold text-ink/55">+{hiddenSpecialtyCount} flere</p>
-              ) : null}
+              <p className="text-xs font-bold uppercase tracking-wide text-[#7A5D91]">Mit speciale</p>
+              <p className="h-auto max-w-3xl rounded-[18px] border border-[#D8CBE4] bg-[#F1EAF5] px-3.5 py-3 text-sm font-medium leading-5 text-midnight [overflow-wrap:anywhere] break-words">
+                {specialtyText}
+              </p>
             </div>
           ) : null}
         </div>

@@ -258,18 +258,14 @@ const steps: Array<{
 
 const onboardingStepIds: PrototypeStep[] = ["person", "profile-image", "experiences", "story", "links", "services", "review", "approval", "complete"];
 const editingStepIds: PrototypeStep[] = ["review", "person", "profile-image", "experiences", "story", "links", "services"];
-const specialtyMaxLength = 150;
+const specialtyMaxLength = 180;
 
 function value(input: string | null | undefined) {
   return input ?? "";
 }
 
-function splitSpecialties(input: string | null | undefined) {
-  return value(input)
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 3);
+function normalizeSpecialtyText(input: string | null | undefined) {
+  return value(input).replace(/\s+/g, " ").trim();
 }
 
 function publicImageUrl(path: string) {
@@ -858,8 +854,7 @@ export function ProfileForm({
       : currentStep;
   const publicProfileName = useCustomProfileName ? profileName.trim() : fullPublicName;
   const hasWorkArea = selectedExperiences.length > 0;
-  const specialtyChips = splitSpecialties(specialties);
-  const specialtyText = specialtyChips.join(" ");
+  const specialtyText = normalizeSpecialtyText(specialties);
   const hasIndividualServicesDescription = offersIndividualServices && serviceDescription.trim().length > 0;
   const hasLinks = Boolean(website.trim() || facebook.trim() || instagram.trim() || youtube.trim());
   const missingRequired = [
@@ -1542,14 +1537,14 @@ export function ProfileForm({
               Beskriv dit speciale
             </p>
             <p className="mt-2 text-xs leading-5 text-ink/55">
-              Uddyb kort dit speciale, og skriv gerne siden hvornår du har arbejdet med området. Eksempel: &quot;Traumeterapeut med speciale i børn – siden 2018&quot;. Maks. 150 tegn.
+              Uddyb kort dit speciale, og skriv gerne siden hvornår du har arbejdet med området. Eksempel: &quot;Traumeterapeut med speciale i børn – siden 2018&quot;. Maks. 180 tegn.
             </p>
             <div className="mt-3">
               <ClearableTextarea
                 className="bg-white text-base"
                 maxLength={specialtyMaxLength}
                 onChange={setSpecialties}
-                placeholder="Skriv dit speciale"
+                placeholder="Beskriv kort dit speciale eller det, du brænder for"
                 value={specialties}
               />
               <p className="mt-2 text-right text-xs font-semibold text-ink/50">

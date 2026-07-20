@@ -148,11 +148,8 @@ function isOlderThanMonths(value: Date, now: Date, months: number) {
   return threshold < now;
 }
 
-function splitSpecialties(input: string | null | undefined) {
-  return (input ?? "")
-    .split(/\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+function normalizeSpecialtyText(input: string | null | undefined) {
+  return (input ?? "").replace(/\s+/g, " ").trim();
 }
 
 type AuthProviderIdentity = {
@@ -1047,7 +1044,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     moodImages,
     preferCustomWhenUnset: true,
   });
-  const profileSpecialties = splitSpecialties(facilitatorProfile?.specialties);
+  const profileSpecialty = normalizeSpecialtyText(facilitatorProfile?.specialties);
   const profilePlace = facilitatorProfile?.city || null;
   const { data: authUserData, error: authUserError } = await supabase.auth.admin.getUserById(profile.id);
   const authProviders = authUserData.user?.identities?.map((identity) => identity.provider).filter(Boolean) ?? [];
@@ -1213,7 +1210,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             name={profileName}
             place={profilePlace}
             profileImageUrl={profileImageUrl}
-            specialties={profileSpecialties}
+            specialty={profileSpecialty}
           />
 
           <AdminMessageCta unreadCount={unreadMessageCount} />

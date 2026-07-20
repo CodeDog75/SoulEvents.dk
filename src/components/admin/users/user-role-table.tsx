@@ -110,11 +110,8 @@ function loginActivityText(facilitator: FacilitatorOverviewRow) {
   return "Aldrig logget ind";
 }
 
-function splitSpecialties(input: string | null | undefined) {
-  return (input ?? "")
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+function normalizeSpecialtyText(input: string | null | undefined) {
+  return (input ?? "").replace(/\s+/g, " ").trim();
 }
 
 function pauseMessageTemplate(name: string) {
@@ -514,7 +511,7 @@ export function UserRoleTable({ currentProfileId, exportHref, facilitators, high
                   { label: "Tilmeldinger", value: facilitator.total_bookings },
                   { label: "Afventer", tone: facilitator.pending_bookings > 0 ? "attention" : "neutral", value: facilitator.pending_bookings },
                 ]}
-                specialties={splitSpecialties(facilitator.specialties)}
+                specialty={normalizeSpecialtyText(facilitator.specialties)}
                 task={getFacilitatorAdminTask({
                   facilitator,
                 })}
