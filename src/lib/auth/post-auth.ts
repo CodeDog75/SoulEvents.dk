@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
 import { resolveNameParts } from "@/lib/auth/names";
+import { notifyInternalAdminOfNewFacilitatorProfile } from "@/lib/email/facilitator-profile-created-admin";
 import type { AppRole } from "@/types/database";
 
 export const disabledFacilitatorLoginMessage =
@@ -194,7 +195,7 @@ export async function ensureAppProfileForAuthUser(
           profile_id: appProfile.id,
           status: "pending",
         })
-        .select("id, company_name, short_description, postal_code, city, status, is_paused, is_disabled, facilitator_categories(category_id)")
+        .select("id, slug, company_name, short_description, postal_code, city, status, created_at, is_paused, is_disabled, facilitator_categories(category_id)")
         .single();
 
       if (facilitatorError || !insertedFacilitatorProfile) {
@@ -202,6 +203,17 @@ export async function ensureAppProfileForAuthUser(
       }
 
       facilitatorProfile = insertedFacilitatorProfile as NonNullable<EnsuredAuthProfile["facilitatorProfile"]>;
+      notifyInternalAdminOfNewFacilitatorProfile({
+        city: insertedFacilitatorProfile.city,
+        createdAt: insertedFacilitatorProfile.created_at,
+        displayName: insertedFacilitatorProfile.company_name,
+        email: appProfile.email,
+        fullName: appProfile.full_name,
+        phone: appProfile.phone,
+        profileId: insertedFacilitatorProfile.id,
+        publicSlug: insertedFacilitatorProfile.slug,
+        status: insertedFacilitatorProfile.status,
+      });
     } else {
       facilitatorProfile = existingFacilitatorProfile as NonNullable<EnsuredAuthProfile["facilitatorProfile"]>;
     }
