@@ -27,6 +27,7 @@ const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "re
 const activeCoOrganizerStatuses = ["pending", "accepted"] as const;
 const allowedFormats = ["physical", "online"] as const;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
+type ActiveCoOrganizerStatus = (typeof activeCoOrganizerStatuses)[number];
 
 const facilitatorProfileEventSelect = "id, status, is_paused, is_disabled, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)";
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -588,16 +589,75 @@ export async function searchCoOrganizerCandidatesAction(query: string, eventId?:
   }
 
   const excludedProfileIds = new Set<string>([facilitatorProfile.id]);
+  let existingCoOrganizerMatches: Array<{
+    categories: string[];
+    city: string | null;
+    id: string;
+    imageUrl: string | null;
+    name: string;
+    profileId: string;
+    profileIsActive: boolean;
+    status: ActiveCoOrganizerStatus;
+  }> = [];
 
   if (eventId) {
     const { data: existingRows } = await supabase
       .from("event_co_organizers")
-      .select("co_organizer_profile_id")
+      .select(
+        "id, status, co_organizer_profile_id, facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(id, status, is_paused, is_disabled, company_name, profile_image_path, city, facilitator_categories(categories(name)), profiles!facilitator_profiles_profile_id_fkey(full_name))",
+      )
       .eq("event_id", eventId)
       .in("status", [...activeCoOrganizerStatuses]);
     for (const row of existingRows ?? []) {
       excludedProfileIds.add(row.co_organizer_profile_id);
     }
+
+    existingCoOrganizerMatches = ((existingRows ?? []) as any[])
+      .map((row) => {
+        const coOrganizerProfile = firstRelation(row.facilitator_profiles);
+        const coOrganizerUser = firstRelation(coOrganizerProfile?.profiles);
+        const categories =
+          coOrganizerProfile?.facilitator_categories
+            ?.map((categoryRow: any) => firstRelation(categoryRow.categories)?.name)
+            .filter((name: string | null | undefined): name is string => Boolean(name)) ?? [];
+        const profileIsActive =
+          coOrganizerProfile?.status === "approved" &&
+          !coOrganizerProfile.is_paused &&
+          !coOrganizerProfile.is_disabled;
+        const name = coOrganizerProfile?.company_name || coOrganizerUser?.full_name || "Arrangør";
+        const haystack = [name, coOrganizerProfile?.city, ...categories].filter(Boolean).join(" ").toLowerCase();
+
+        if (!haystack.includes(normalizedQuery.toLowerCase())) {
+          return null;
+        }
+
+        return {
+          categories: categories.slice(0, 3),
+          city: coOrganizerProfile?.city ?? null,
+          id: row.id,
+          imageUrl: coOrganizerProfile?.profile_image_path
+            ? supabase.storage.from("media").getPublicUrl(coOrganizerProfile.profile_image_path).data.publicUrl
+            : null,
+          name,
+          profileId: row.co_organizer_profile_id,
+          profileIsActive,
+          status: row.status,
+        };
+      })
+      .filter(
+        (
+          match,
+        ): match is {
+          categories: string[];
+          city: string | null;
+          id: string;
+          imageUrl: string | null;
+          name: string;
+          profileId: string;
+          profileIsActive: boolean;
+          status: ActiveCoOrganizerStatus;
+        } => Boolean(match),
+      );
   }
 
   const { data, error } = await supabase
@@ -612,7 +672,7 @@ export async function searchCoOrganizerCandidatesAction(query: string, eventId?:
 
   if (error) {
     console.error("Co-organizer search failed", { message: error.message });
-    return [];
+    return { candidates: [], existingMatches: existingCoOrganizerMatches };
   }
 
   const normalizedNeedle = normalizedQuery.toLowerCase();
@@ -646,7 +706,7 @@ export async function searchCoOrganizerCandidatesAction(query: string, eventId?:
       return haystack.includes(normalizedNeedle);
     });
 
-  return matchedCandidates
+  const candidates = matchedCandidates
     .slice(0, 8)
     .map((candidate) => {
       const profileImageUrl = candidate.profile_image_path
@@ -667,6 +727,11 @@ export async function searchCoOrganizerCandidatesAction(query: string, eventId?:
         specialties: candidate.specialties,
       };
     });
+
+  return {
+    candidates,
+    existingMatches: existingCoOrganizerMatches,
+  };
 }
 
 async function createUniqueEventSlug(supabase: AdminClient, baseSlug: string) {

@@ -863,6 +863,7 @@ export function EventForm({
   const [coOrganizerSearchOpen, setCoOrganizerSearchOpen] = useState(false);
   const [coOrganizerSearchQuery, setCoOrganizerSearchQuery] = useState("");
   const [coOrganizerCandidates, setCoOrganizerCandidates] = useState<CoOrganizerCandidate[]>([]);
+  const [coOrganizerExistingMatches, setCoOrganizerExistingMatches] = useState<CoOrganizerInvitation[]>([]);
   const [selectedCoOrganizers, setSelectedCoOrganizers] = useState<CoOrganizerCandidate[]>([]);
   const [coOrganizerSearchMessage, setCoOrganizerSearchMessage] = useState("");
   const [isSearchingCoOrganizers, startCoOrganizerSearch] = useTransition();
@@ -887,7 +888,7 @@ export function EventForm({
   const inactiveExistingCoOrganizers = activeExistingCoOrganizers.filter((coOrganizer) => coOrganizer.profileIsActive === false);
   const activeCoOrganizerCount = activeExistingCoOrganizers.length + selectedCoOrganizers.length;
   const coOrganizerSearchNeedle = normalizeCoOrganizerSearchText(coOrganizerSearchQuery);
-  const matchingExistingCoOrganizers =
+  const localMatchingExistingCoOrganizers =
     coOrganizerSearchNeedle.length >= 2
       ? existingCoOrganizers.filter((coOrganizer) =>
           normalizeCoOrganizerSearchText([coOrganizer.name, coOrganizer.city, ...(coOrganizer.categories ?? [])].filter(Boolean).join(" ")).includes(
@@ -895,6 +896,12 @@ export function EventForm({
           ),
         )
       : [];
+  const matchingExistingCoOrganizers = [
+    ...localMatchingExistingCoOrganizers,
+    ...coOrganizerExistingMatches.filter(
+      (remoteMatch) => !localMatchingExistingCoOrganizers.some((localMatch) => localMatch.id === remoteMatch.id),
+    ),
+  ];
   const canAddCoOrganizer = activeCoOrganizerCount < 2;
   const organizerAcceptanceMessage =
     message && (message.toLowerCase().includes("arrangørvilkår") || message.toLowerCase().includes("retningslinjer"))
@@ -1288,6 +1295,7 @@ export function EventForm({
 
     if (nextQuery.trim().length < 2) {
       setCoOrganizerCandidates([]);
+      setCoOrganizerExistingMatches([]);
       return;
     }
 
@@ -1296,16 +1304,19 @@ export function EventForm({
         ...activeExistingCoOrganizers.map((coOrganizer) => coOrganizer.profileId),
         ...selectedCoOrganizers.map((coOrganizer) => coOrganizer.id),
       ]);
-      const results = await searchCoOrganizerCandidatesAction(nextQuery, draftEvent?.id ?? null);
+      const searchResult = await searchCoOrganizerCandidatesAction(nextQuery, draftEvent?.id ?? null);
+      const results = Array.isArray(searchResult) ? searchResult : searchResult.candidates;
+      const remoteExistingMatches = Array.isArray(searchResult) ? [] : searchResult.existingMatches;
       const filteredResults = results.filter((candidate) => !existingProfileIds.has(candidate.id));
       setCoOrganizerCandidates(filteredResults);
+      setCoOrganizerExistingMatches(remoteExistingMatches);
       const existingMatchFound = existingCoOrganizers.some((coOrganizer) =>
         normalizeCoOrganizerSearchText([coOrganizer.name, coOrganizer.city, ...(coOrganizer.categories ?? [])].filter(Boolean).join(" ")).includes(
           normalizeCoOrganizerSearchText(nextQuery),
         ),
       );
       setCoOrganizerSearchMessage(
-        filteredResults.length === 0 && !existingMatchFound
+        filteredResults.length === 0 && !existingMatchFound && remoteExistingMatches.length === 0
           ? "Ingen aktive og fuldførte arrangørprofiler matcher din søgning."
           : "",
       );
