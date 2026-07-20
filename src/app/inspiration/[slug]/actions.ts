@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { env } from "@/lib/env";
+import { renderEmailLayout, renderEmailTable, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, sendLoggedEmail } from "@/lib/email/resend-mail";
 import { getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -32,23 +33,26 @@ export async function sendInspiratorContactAction(formData: FormData) {
     redirect("/inspiration/" + encodeURIComponent(slug) + "?contact=email-missing#contact");
   }
 
-  const safeName = escapeHtml(name);
-  const safeEmail = escapeHtml(email);
   const safeMessage = escapeHtml(message).replace(/\n/g, "<br />");
+  const html = await renderEmailLayout({
+    title: "Ny besked via SoulEvents.dk",
+    children: [
+      renderEmailTable([
+        ["Til", inspirator.name],
+        ["Navn", name],
+        ["E-mail", email],
+      ]),
+      '<p style="margin: 22px 0 8px; font-weight: 700;">Besked</p>',
+      `<p style="margin: 0; white-space: pre-line;">${safeMessage}</p>`,
+    ].join(""),
+  });
 
   await sendLoggedEmail({
     type: "inspirator_contact",
     to: inspirator.contact_email,
     replyTo: email,
     subject: "Ny besked via SoulEvents.dk til " + inspirator.name,
-    html: `
-      <h1>Ny besked via SoulEvents.dk</h1>
-      <p><strong>Til:</strong> ${escapeHtml(inspirator.name)}</p>
-      <p><strong>Navn:</strong> ${safeName}</p>
-      <p><strong>E-mail:</strong> ${safeEmail}</p>
-      <p><strong>Besked:</strong></p>
-      <p>${safeMessage}</p>
-    `,
+    html,
     text: `Ny besked via SoulEvents.dk
 
 Til: ${inspirator.name}
@@ -56,7 +60,8 @@ Navn: ${name}
 E-mail: ${email}
 
 Besked:
-${message}`,
+${message}
+${renderPlainTextFooter().join("\n")}`,
   });
 
   redirect("/inspiration/" + encodeURIComponent(slug) + "?contact=sent#contact");

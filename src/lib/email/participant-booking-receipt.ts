@@ -27,14 +27,14 @@ async function buildHtml(input: ParticipantBookingReceiptInput) {
   ];
 
   return renderEmailLayout({
-    title: "Vi har modtaget din tilmelding",
+    title: "Tak for din tilmelding",
     children: [
       '<p style="margin: 0 0 16px;">Hej ' + escapeHtml(input.participantName) + '</p>',
       '<p style="margin: 0 0 12px;">Tak for din tilmelding til ' + escapeHtml(input.eventTitle) + '.</p>',
       '<div style="margin: 0 0 22px; padding: 16px; border: 1px solid #E5D4F7; border-radius: 14px; background: #FAF7FE;">',
       '<p style="margin: 0 0 8px; font-weight: 700; color: #4F3A63;">Afventer arrangørens bekræftelse</p>',
-      '<p style="margin: 0 0 8px;">Din tilmelding er endnu ikke endeligt bekræftet.</p>',
-      '<p style="margin: 0;">Arrangøren gennemgår den nu, og du modtager en ny e-mail, så snart din plads er godkendt.</p>',
+      '<p style="margin: 0 0 8px;">Din tilmelding er modtaget, men den er endnu ikke endeligt bekræftet.</p>',
+      '<p style="margin: 0;">Arrangøren skal først godkende den. Du modtager en ny mail, så snart arrangøren har svaret.</p>',
       "</div>",
       renderEmailTable(rows),
       '<h2 style="font-size: 16px; margin: 24px 0 8px; color: #2F2633;">Vigtigt om din tilmelding</h2>',
@@ -54,8 +54,8 @@ function buildText(input: ParticipantBookingReceiptInput) {
     "",
     "Tak for din tilmelding til " + input.eventTitle + ".",
     "Afventer arrangørens bekræftelse",
-    "Din tilmelding er endnu ikke endeligt bekræftet.",
-    "Arrangøren gennemgår den nu, og du modtager en ny e-mail, så snart din plads er godkendt.",
+    "Din tilmelding er modtaget, men den er endnu ikke endeligt bekræftet.",
+    "Arrangøren skal først godkende den. Du modtager en ny mail, så snart arrangøren har svaret.",
     "",
     "Event: " + input.eventTitle,
     "Dato: " + formatDate(input.eventStartsAt),

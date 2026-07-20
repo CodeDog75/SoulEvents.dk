@@ -1,6 +1,6 @@
 import { renderEmailButton, renderEmailLayout, renderEmailTable, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, sendLoggedEmail } from "@/lib/email/resend-mail";
-import { env } from "@/lib/env";
+import { getAppUrl } from "@/lib/app-url";
 
 type FacilitatorProfileChangesRequestedInput = {
   comment: string;
@@ -61,5 +61,5 @@ export async function sendFacilitatorProfileChangesRequestedEmail(input: Facilit
 }
 
 export function facilitatorProfileEditUrl() {
-  return `${env.appUrl || "http://localhost:3001"}/facilitator/profile`;
+  return `${getAppUrl()}/facilitator/profile`;
 }

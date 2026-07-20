@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { env } from "@/lib/env";
+import { renderEmailLayout, renderEmailTable, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, sendLoggedEmail } from "@/lib/email/resend-mail";
 
 const CONTACT_EMAIL = "hej@soulevents.dk";
@@ -70,24 +71,26 @@ function validateContactForm(formData: FormData): ContactFormState | null {
 async function sendContactMessage(formData: FormData) {
   const { email, message, name, phone } = readContactForm(formData);
 
-  const safeName = escapeHtml(name);
-  const safeEmail = escapeHtml(email);
-  const safePhone = phone ? escapeHtml(phone) : "Ikke oplyst";
   const safeMessage = escapeHtml(message).replace(/\n/g, "<br />");
+  const html = await renderEmailLayout({
+    title: "Ny besked fra SoulEvents.dk",
+    children: [
+      renderEmailTable([
+        ["Navn", name],
+        ["E-mail", email],
+        ["Telefon", phone || "Ikke oplyst"],
+      ]),
+      '<p style="margin: 22px 0 8px; font-weight: 700;">Besked</p>',
+      `<p style="margin: 0; white-space: pre-line;">${safeMessage}</p>`,
+    ].join(""),
+  });
 
   const sent = await sendLoggedEmail({
     type: "contact_form",
     to: CONTACT_EMAIL,
     replyTo: email,
     subject: `Ny besked fra ${name}`,
-    html: `
-      <h1>Ny besked fra SoulEvents.dk</h1>
-      <p><strong>Navn:</strong> ${safeName}</p>
-      <p><strong>E-mail:</strong> ${safeEmail}</p>
-      <p><strong>Telefon:</strong> ${safePhone}</p>
-      <p><strong>Besked:</strong></p>
-      <p>${safeMessage}</p>
-    `,
+    html,
     text: `Ny besked fra SoulEvents.dk
 
 Navn: ${name}
@@ -95,7 +98,8 @@ E-mail: ${email}
 Telefon: ${phone || "Ikke oplyst"}
 
 Besked:
-${message}`,
+${message}
+${renderPlainTextFooter().join("\n")}`,
   });
 
   if (!sent) {

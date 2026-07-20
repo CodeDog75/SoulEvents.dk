@@ -17,13 +17,13 @@ type ParticipantBookingResponseInput = {
 const statusText: Partial<Record<BookingStatus, { subject: string; headline: string; body: string }>> = {
   confirmed: {
     subject: "Din tilmelding er bekræftet",
-    headline: "Din plads er nu bekræftet",
-    body: "Arrangøren har godkendt din tilmelding. Din plads er nu endeligt bekræftet.",
+    headline: "Din tilmelding er bekræftet",
+    body: "Arrangøren har nu bekræftet din tilmelding. Vi glæder os til, at du skal med.",
   },
   sold_out: {
-    subject: "Arrangementet er udsolgt",
-    headline: "Arrangementet er udsolgt",
-    body: "Arrangøren har markeret arrangementet som udsolgt.",
+    subject: "Eventet er udsolgt",
+    headline: "Eventet er udsolgt",
+    body: "Arrangøren har markeret eventet som udsolgt.",
   },
   cancelled: {
     subject: "Din tilmelding er blevet annulleret",

@@ -34,8 +34,8 @@ async function buildHtml(input: BookingNotificationInput) {
     children: `
       <p style="margin: 0 0 16px;">Hej ${escapeHtml(input.facilitatorName)}, der er kommet en ny tilmelding til dit event.</p>
       ${renderEmailTable(rows)}
-      <p style="margin: 20px 0 0;">Log ind på SoulEvents for at se tilmeldingen og husk at bekræfte den.</p>
-      ${renderEmailButton(input.bookingsUrl, "Se og bekræft tilmelding")}
+      <p style="margin: 20px 0 0;">Tilmeldingen afventer din behandling. Log ind på SoulEvents for at bekræfte eller afvise den.</p>
+      ${renderEmailButton(input.bookingsUrl, "Behandl tilmeldingen")}
     `,
   });
 }
@@ -53,7 +53,7 @@ function buildText(input: BookingNotificationInput) {
     `Event: ${input.eventTitle}`,
     `Dato: ${formatDate(input.eventStartsAt)}`,
     "",
-    "Log ind på SoulEvents for at se tilmeldingen og husk at bekræfte den:",
+    "Tilmeldingen afventer din behandling. Log ind på SoulEvents for at bekræfte eller afvise den:",
     input.bookingsUrl,
     ...renderPlainTextFooter(),
   ].join("\n");

@@ -1,5 +1,6 @@
-import { escapeHtml, sendLoggedEmail } from "@/lib/email/resend-mail";
-import { env } from "@/lib/env";
+import { getAppUrl } from "@/lib/app-url";
+import { renderEmailButton, renderEmailLayout, renderEmailTable, renderPlainTextFooter } from "@/lib/email/email-layout";
+import { formatDate, sendLoggedEmail } from "@/lib/email/resend-mail";
 
 type FacilitatorProfileReadyInput = {
   adminEmail: string;
@@ -10,42 +11,24 @@ type FacilitatorProfileReadyInput = {
 };
 
 function formatSubmittedAt(value: string) {
-  return new Intl.DateTimeFormat("da-DK", {
-    dateStyle: "full",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return formatDate(value);
 }
 
-function buildHtml(input: FacilitatorProfileReadyInput) {
-  const rows = [
+async function buildHtml(input: FacilitatorProfileReadyInput) {
+  const rows: Array<[string, string]> = [
     ["Navn", input.facilitatorName],
     ["E-mailadresse", input.facilitatorEmail],
     ["Dato og tidspunkt", formatSubmittedAt(input.submittedAt)],
   ];
 
-  return `
-    <div style="font-family: Arial, sans-serif; color: #4B5645; line-height: 1.5;">
-      <h1 style="font-size: 22px; margin: 0 0 12px;">Arrangørprofil klar til godkendelse</h1>
-      <p style="margin: 0 0 20px;">En arrangør har udfyldt minimumskravene og er klar til gennemgang.</p>
-      <table style="border-collapse: collapse; width: 100%; max-width: 620px;">
-        <tbody>
-          ${rows
-            .map(
-              ([label, value]) => `
-                <tr>
-                  <td style="border-bottom: 1px solid #D8C1A2; padding: 8px 10px; font-weight: 700;">${escapeHtml(label)}</td>
-                  <td style="border-bottom: 1px solid #D8C1A2; padding: 8px 10px;">${escapeHtml(value)}</td>
-                </tr>
-              `,
-            )
-            .join("")}
-        </tbody>
-      </table>
-      <p style="margin: 24px 0 0;">
-        <a href="${escapeHtml(input.profileUrl)}" style="color: #D89A94; font-weight: 700;">Åbn profil til godkendelse</a>
-      </p>
-    </div>
-  `;
+  return renderEmailLayout({
+    title: "Arrangørprofil klar til godkendelse",
+    children: [
+      '<p style="margin: 0 0 16px;">En arrangør har udfyldt minimumskravene og er klar til gennemgang.</p>',
+      renderEmailTable(rows),
+      renderEmailButton(input.profileUrl, "Åbn profil til godkendelse"),
+    ].join(""),
+  });
 }
 
 function buildText(input: FacilitatorProfileReadyInput) {
@@ -65,11 +48,11 @@ export async function sendFacilitatorProfileReadyEmail(input: FacilitatorProfile
     to: input.adminEmail,
     replyTo: input.facilitatorEmail,
     subject: `Profil klar til godkendelse: ${input.facilitatorName}`,
-    html: buildHtml(input),
+    html: await buildHtml(input),
     text: buildText(input),
   });
 }
 
 export function profileApprovalUrl() {
-  return `${env.appUrl || "http://localhost:3001"}/admin?status=pending`;
+  return `${getAppUrl()}/admin?status=pending`;
 }
