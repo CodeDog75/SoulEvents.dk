@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
-import { ArrowLeft, CalendarDays, CircleUserRound, ExternalLink, Mail, MapPinned, Phone, Ticket } from "lucide-react";
+import { ArrowLeft, CalendarDays, CircleUserRound, Clock3, ExternalLink, Leaf, Mail, MapPinned, Phone, Ticket } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { OrganizerBadges } from "@/components/badges/organizer-badges";
 import { CapacityBadge } from "@/components/events/capacity-badge";
@@ -222,6 +222,33 @@ function formatPrice(priceCents: number) {
   return new Intl.NumberFormat("da-DK").format(priceCents / 100) + " kr.";
 }
 
+function formatDanishDate(value: string) {
+  const parts = new Intl.DateTimeFormat("da-DK", {
+    day: "numeric",
+    month: "long",
+    timeZone: "Europe/Copenhagen",
+    weekday: "long",
+    year: "numeric",
+  }).formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
+
+  return `${part("weekday")} ${part("day")}. ${part("month")} ${part("year")}`.trim();
+}
+
+function formatDanishTime(value: string) {
+  return new Intl.DateTimeFormat("da-DK", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Copenhagen",
+  })
+    .format(new Date(value))
+    .replace(":", ".");
+}
+
+function isSameDanishDate(start: string, end: string) {
+  return formatDanishDate(start) === formatDanishDate(end);
+}
+
 function formatEventDuration(startsAt: string, endsAt: string | null) {
   if (!endsAt) return null;
 
@@ -231,19 +258,43 @@ function formatEventDuration(startsAt: string, endsAt: string | null) {
 
   if (!Number.isFinite(durationMs) || durationMs <= 0) return null;
 
-  const hours = durationMs / (1000 * 60 * 60);
+  const minutes = Math.round(durationMs / (1000 * 60));
 
-  if (hours < 24) {
-    const roundedHours = Math.round(hours * 10) / 10;
-    return new Intl.NumberFormat("da-DK").format(roundedHours) + " timer";
+  if (minutes < 60) {
+    return minutes === 1 ? "1 minut" : `${minutes} minutter`;
   }
 
-  const days = Math.ceil(hours / 24);
-  return days === 1 ? "1 dag" : days + " dage";
+  const hours = minutes / 60;
+
+  if (minutes < 24 * 60) {
+    const roundedHours = Math.round(hours * 10) / 10;
+    return roundedHours === 1
+      ? "1 time"
+      : new Intl.NumberFormat("da-DK", { maximumFractionDigits: 1 }).format(roundedHours) + " timer";
+  }
+
+  const days = Math.round(hours / 24);
+
+  if (minutes % (24 * 60) === 0 && days <= 2) {
+    return days === 1 ? "1 døgn" : `${days} døgn`;
+  }
+
+  const roundedDays = Math.ceil(hours / 24);
+  return roundedDays === 1 ? "1 dag" : `${roundedDays} dage`;
 }
 
 function ensureUrl(url: string) {
   return /^https?:\/\//i.test(url) ? url : "https://" + url;
+}
+
+function formatContactPhone(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+
+  if (digits.length === 8) {
+    return digits.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
+  }
+
+  return phone;
 }
 
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
@@ -457,6 +508,23 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
   const eventDuration = formatEventDuration(event.starts_at, event.ends_at);
+  const eventHasEndTime = Boolean(event.ends_at);
+  const eventIsSameDay = event.ends_at ? isSameDanishDate(event.starts_at, event.ends_at) : true;
+  const eventDateLines =
+    event.ends_at && !eventIsSameDay
+      ? [
+          `${formatDanishDate(event.starts_at)} · ${formatDanishTime(event.starts_at)}`,
+          `${formatDanishDate(event.ends_at)} · ${formatDanishTime(event.ends_at)}`,
+        ]
+      : [formatDanishDate(event.starts_at), eventHasEndTime ? `${formatDanishTime(event.starts_at)} – ${formatDanishTime(event.ends_at!)}` : formatDanishTime(event.starts_at)];
+  const isOnlineEvent = event.event_format === "online";
+  const locationTitle = isOnlineEvent ? "Online" : event.address_line || event.city || region?.name || "Lokation kommer snart";
+  const locationDetail = isOnlineEvent
+    ? event.online_description || event.online_url_or_note || "Link sendes efter tilmelding"
+    : [event.postal_code, event.city].filter(Boolean).join(" ") || region?.name || null;
+  const contactEmail = event.contact_email?.trim() || null;
+  const contactPhone = event.contact_phone?.trim() || null;
+  const contactPhoneDigits = contactPhone?.replace(/\D/g, "") ?? "";
   const firstEventImagePath = images[0]?.image_path ?? null;
   const categoryCoverPath = mainCategories.find((category) => category.image_path)?.image_path ?? null;
   const eventCoverPath = event.cover_image_path || firstEventImagePath || categoryCoverPath;
@@ -570,7 +638,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-[1400px] gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1fr_400px]">
+      <section className="mx-auto grid max-w-[1400px] gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1fr_370px]">
         <div className="grid gap-6">
           {!isPublicEvent && !isHeldEvent && (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-5 shadow-soft">
@@ -756,70 +824,98 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         </div>
 
         <aside className="grid content-start gap-5 lg:sticky lg:top-6">
-          <section className="rounded-card bg-white p-6 shadow-soft" id="event-betingelser">
-            <h2 className="text-4xl font-medium text-olive">Praktisk</h2>
-            <div className="mt-4 grid gap-3 text-sm text-ink/72">
-              <div className="inline-flex w-fit rounded-full border border-olive/10 bg-white px-2.5 py-1 text-xs font-medium text-ink/55">
-                {formatEventFormat(event.event_format)}
-              </div>
-              <div className="rounded-md border border-sage-700/15 bg-sage-50/70 p-4">
-                <div className="flex gap-3">
-                  <CalendarDays className="mt-1 size-5 text-sage-700" aria-hidden="true" />
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-sage-700">Start</p>
-                    <p className="mt-1 text-lg font-semibold leading-snug text-midnight">
-                      {new Intl.DateTimeFormat("da-DK", { dateStyle: "full", timeStyle: "short" }).format(
-                        new Date(event.starts_at),
-                      )}
+          <section className="rounded-card bg-white p-4 shadow-soft sm:p-5" id="event-betingelser">
+            <h2 className="font-serif text-3xl font-semibold leading-none text-olive sm:text-4xl">Praktisk</h2>
+            <div className="mt-3 inline-flex w-fit items-center rounded-full border border-olive/10 bg-white px-2.5 py-1 text-[0.7rem] font-semibold text-ink/60 shadow-[0_1px_6px_rgba(47,36,55,0.06)]">
+              {formatEventFormat(event.event_format)}
+            </div>
+
+            <div className="mt-5 grid gap-0 text-ink/72">
+              <div className="grid grid-cols-[2.75rem_1fr] gap-2.5 border-b border-[#E8E0D8] pb-4 sm:grid-cols-[3.25rem_1fr] sm:gap-3">
+                <span className="grid size-11 place-items-center rounded-[13px] bg-sage-50 text-olive sm:size-13">
+                  <CalendarDays className="size-5 sm:size-6" aria-hidden="true" />
+                </span>
+                <div className="self-center">
+                  <p className="text-[0.64rem] font-bold uppercase tracking-[0.12em] text-sage-700 sm:text-[0.68rem]">Dato &amp; tid</p>
+                  {eventDateLines.map((line, index) => (
+                    <p
+                      className={index === 0 ? "mt-1 text-base font-bold leading-snug text-midnight sm:text-lg" : "mt-0.5 text-sm leading-snug text-ink/78 sm:text-base"}
+                      key={line}
+                    >
+                      {line}
                     </p>
-                    {event.ends_at && (
-                      <p className="mt-2 text-sm text-ink/70">
-                        Slutter:{" "}
-                        {new Intl.DateTimeFormat("da-DK", { dateStyle: "full", timeStyle: "short" }).format(
-                          new Date(event.ends_at),
-                        )}
-                      </p>
-                    )}
-                    {eventDuration && <p className="mt-1 text-sm font-semibold text-sage-700">Varighed: {eventDuration}</p>}
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[2.75rem_1fr] gap-2.5 border-b border-[#E8E0D8] py-4 sm:grid-cols-[3.25rem_1fr] sm:gap-3">
+                <span className="grid size-11 place-items-center rounded-[13px] bg-sage-50 text-olive sm:size-13">
+                  <MapPinned className="size-5 sm:size-6" aria-hidden="true" />
+                </span>
+                <div className="self-center">
+                  <p className="text-[0.64rem] font-bold uppercase tracking-[0.12em] text-sage-700 sm:text-[0.68rem]">Sted</p>
+                  <p className="mt-1 text-base font-bold leading-snug text-midnight sm:text-lg">{locationTitle}</p>
+                  {locationDetail ? <p className="mt-0.5 text-sm leading-snug text-ink/62 sm:text-base">{locationDetail}</p> : null}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[2.75rem_1fr] gap-2.5 border-b border-[#E8E0D8] py-4 sm:grid-cols-[3.25rem_1fr] sm:gap-3">
+                <span className="grid size-11 place-items-center rounded-[13px] bg-sage-50 text-olive sm:size-13">
+                  <Ticket className="size-5 sm:size-6" aria-hidden="true" />
+                </span>
+                <div className="self-center">
+                  <p className="text-[0.64rem] font-bold uppercase tracking-[0.12em] text-sage-700 sm:text-[0.68rem]">Pris</p>
+                  <p className="mt-1 text-base font-bold leading-snug text-midnight sm:text-lg">{formatPrice(event.price_cents)}</p>
+                </div>
+              </div>
+
+              {eventDuration ? (
+                <div className="grid grid-cols-[2.75rem_1fr] gap-2.5 py-4 sm:grid-cols-[3.25rem_1fr] sm:gap-3">
+                  <span className="grid size-11 place-items-center rounded-[13px] bg-sage-50 text-olive sm:size-13">
+                    <Clock3 className="size-5 sm:size-6" aria-hidden="true" />
+                  </span>
+                  <div className="self-center">
+                    <p className="text-[0.64rem] font-bold uppercase tracking-[0.12em] text-sage-700 sm:text-[0.68rem]">Varighed</p>
+                    <p className="mt-1 text-base font-bold leading-snug text-midnight sm:text-lg">{eventDuration}</p>
                   </div>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <MapPinned className="mt-0.5 size-4 text-sage-700" aria-hidden="true" />
-                <span>
-                  {[event.address_line, event.postal_code, event.city, region?.name].filter(Boolean).join(", ") ||
-                    "Lokation kommer snart"}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Ticket className="mt-0.5 size-4 text-midnight" aria-hidden="true" />
-                <span>{formatPrice(event.price_cents)}</span>
-              </div>
-              <CapacityBadge availableSeats={availableSeats} capacity={event.capacity} status={event.status} />
-              {event.practical_information && (
-                <div className="rounded-md bg-sage-50 p-3">
-                  <p className="font-semibold text-olive">Praktisk information til deltagere</p>
-                  <p className="mt-1">{event.practical_information}</p>
+              ) : null}
+
+              {event.practical_information ? (
+                <div className="mb-4 grid grid-cols-[2.75rem_1fr] gap-2.5 rounded-[14px] border border-[#E8E0D8] bg-white/80 p-3 shadow-soft sm:grid-cols-[3rem_1fr] sm:gap-3">
+                  <span className="grid size-9 place-items-center rounded-full bg-sage-100 text-olive sm:size-10">
+                    <Leaf className="size-4.5 sm:size-5" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0 self-center">
+                    <p className="text-sm font-bold leading-snug text-olive">Praktisk information til deltagere</p>
+                    <p className="mt-1 break-words text-sm leading-6 text-ink/72">{event.practical_information}</p>
+                  </div>
                 </div>
-              )}
-              {event.event_format === "online" && (
-                <div className="rounded-md bg-sage-50 p-3">
-                  <p className="font-semibold text-olive">Online-info</p>
-                  <p className="mt-1">{event.online_description || event.online_url_or_note || "Link sendes efter tilmelding."}</p>
+              ) : null}
+
+              {(contactEmail || contactPhone) ? (
+                <div className="border-t border-[#E8E0D8] pt-3.5">
+                  <h3 className="text-base font-bold text-olive">Kontakt arrangøren</h3>
+                  <div className="mt-2.5 grid gap-2 text-sm text-ink/72">
+                    {contactEmail ? (
+                      <a className="inline-flex min-w-0 items-center gap-2.5 break-all transition hover:text-olive" href={`mailto:${contactEmail}`}>
+                        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-sage-100 text-olive">
+                          <Mail className="size-3.5" aria-hidden="true" />
+                        </span>
+                        {contactEmail}
+                      </a>
+                    ) : null}
+                    {contactPhone ? (
+                      <a className="inline-flex items-center gap-2.5 transition hover:text-olive" href={`tel:${contactPhoneDigits || contactPhone}`}>
+                        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-sage-100 text-olive">
+                          <Phone className="size-3.5" aria-hidden="true" />
+                        </span>
+                        {formatContactPhone(contactPhone)}
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
-              )}
-              {event.contact_email && (
-                <div className="flex gap-2">
-                  <Mail className="mt-0.5 size-4 text-midnight" aria-hidden="true" />
-                  <span>{event.contact_email}</span>
-                </div>
-              )}
-              {event.contact_phone && (
-                <div className="flex gap-2">
-                  <Phone className="mt-0.5 size-4 text-midnight" aria-hidden="true" />
-                  <span>{event.contact_phone}</span>
-                </div>
-              )}
+              ) : null}
             </div>
           </section>
 

@@ -5,17 +5,18 @@ import { PauseCircle } from "lucide-react";
 import { updateEventStatusAction } from "@/app/facilitator/events/actions";
 
 type CancelEventActionProps = {
+  className?: string;
   eventId: string;
   eventTitle: string;
 };
 
-export function CancelEventAction({ eventId, eventTitle }: CancelEventActionProps) {
+export function CancelEventAction({ className = "", eventId, eventTitle }: CancelEventActionProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
     <>
       <button
-        className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-red-200 bg-white/70 px-3 text-xs font-semibold text-red-800 transition hover:bg-red-50"
+        className={`inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-red-200 bg-white/70 px-3 text-xs font-semibold text-red-800 transition hover:bg-red-50 ${className}`}
         onClick={() => setIsOpen(true)}
         type="button"
       >

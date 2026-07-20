@@ -721,23 +721,33 @@ function EventCard({
               <Inbox className="size-4" aria-hidden="true" />
               Se tilmeldinger
             </Link>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={publicEventPath(event.slug || event.id) + "?return_to=/facilitator/events"}>
-                Se event
-              </Link>
-              <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={"/facilitator/events?draft=" + event.id}>
-                Rediger
-              </Link>
-              {isCopyableAsDraft ? (
-                <form action={copyEventAsDraftAction}>
-                  <input name="event_id" type="hidden" value={event.id} />
-                  <button className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-[#E5DDEA] bg-white/70 px-3 text-xs font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91]" type="submit">
-                    <Copy className="size-3.5" aria-hidden="true" />
-                    Kopiér som nyt event
-                  </button>
-                </form>
-              ) : null}
-              <CancelEventAction eventId={event.id} eventTitle={event.title || "Event uden titel"} />
+            <div className="grid min-w-0 gap-2">
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.45fr)]">
+                <Link
+                  className="inline-flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-[#E5DDEA] bg-white/70 px-2.5 text-xs font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A5D91]"
+                  href={publicEventPath(event.slug || event.id) + "?return_to=/facilitator/events"}
+                >
+                  <Eye className="size-3.5" aria-hidden="true" />
+                  <span>Se event</span>
+                </Link>
+                <Link
+                  className="inline-flex h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-[#E5DDEA] bg-white/70 px-2.5 text-xs font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A5D91]"
+                  href={"/facilitator/events?draft=" + event.id}
+                >
+                  <PencilLine className="size-3.5" aria-hidden="true" />
+                  <span>Rediger</span>
+                </Link>
+                {isCopyableAsDraft ? (
+                  <form action={copyEventAsDraftAction} className="col-span-2 min-w-0 sm:col-span-1">
+                    <input name="event_id" type="hidden" value={event.id} />
+                    <button className="inline-flex h-9 w-full min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-[#E5DDEA] bg-white/70 px-2.5 text-xs font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A5D91]" type="submit">
+                      <Copy className="size-3.5" aria-hidden="true" />
+                      Kopiér som nyt event
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+              <CancelEventAction className="w-full" eventId={event.id} eventTitle={event.title || "Event uden titel"} />
             </div>
           </>
         )}
