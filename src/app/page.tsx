@@ -51,6 +51,20 @@ function isHiddenHomepageFacilitator(facilitator: { host_reference_id?: string |
   return Boolean(facilitator?.host_reference_id && hiddenHomepageFacilitatorReferenceIds.has(facilitator.host_reference_id));
 }
 
+function sortedFacilitatorCategories(rows: any[] | null | undefined) {
+  return (
+    rows
+      ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
+      .filter(Boolean)
+      .sort((a: any, b: any) => {
+        const sortA = Number.isFinite(a.sort_order) ? a.sort_order : Number.MAX_SAFE_INTEGER;
+        const sortB = Number.isFinite(b.sort_order) ? b.sort_order : Number.MAX_SAFE_INTEGER;
+        if (sortA !== sortB) return sortA - sortB;
+        return String(a.name ?? "").localeCompare(String(b.name ?? ""), "da");
+      }) ?? []
+  );
+}
+
 type LocalServiceProvider = {
   id: string;
   slug?: string | null;
@@ -984,10 +998,7 @@ function LocalServiceProviderSection({ providers }: { providers: LocalServicePro
 
 function mapFacilitatorCard(facilitator: any, supabase: Awaited<ReturnType<typeof createClient>>) {
   const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
-  const categories =
-    facilitator.facilitator_categories
-      ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
-      .filter(Boolean) ?? [];
+  const categories = sortedFacilitatorCategories(facilitator.facilitator_categories);
 
   return {
     id: facilitator.id,
@@ -1000,6 +1011,7 @@ function mapFacilitatorCard(facilitator: any, supabase: Awaited<ReturnType<typeo
     city: facilitator.city,
     tagline: facilitator.short_description || "",
     primaryCategory: categories[0]?.name ?? null,
+    primaryCategoryExtraCount: Math.max(categories.length - 1, 0),
     isOnline: Boolean(facilitator.is_online),
     isActiveHost: Boolean(facilitator.is_active_host),
     isExperiencedHost: Boolean(facilitator.is_experienced_host),
@@ -1014,7 +1026,7 @@ async function getFeaturedHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex))")
+    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex, sort_order))")
     .eq("status", "approved")
     .eq("is_paused", false)
     .eq("is_disabled", false)
@@ -1038,7 +1050,7 @@ async function getNewHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex))")
+    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex, sort_order))")
     .eq("status", "approved")
     .eq("is_paused", false)
     .eq("is_disabled", false)
@@ -1061,7 +1073,7 @@ async function getHomeFacilitators(queryText: string) {
   const { data: facilitators } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, slug, host_reference_id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, is_online_facilitator, is_active_host, is_experienced_host, website_url, facebook_url, instagram_url, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, color_hex)), facilitator_tags(tags(name))",
+      "id, slug, host_reference_id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, is_online_facilitator, is_active_host, is_experienced_host, website_url, facebook_url, instagram_url, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, color_hex, sort_order)), facilitator_tags(tags(name))",
     )
     .eq("status", "approved")
     .eq("is_paused", false)
@@ -1073,10 +1085,7 @@ async function getHomeFacilitators(queryText: string) {
 
     const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
     const region = Array.isArray(facilitator.regions) ? facilitator.regions[0] : facilitator.regions;
-    const categories =
-      facilitator.facilitator_categories
-        ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
-        .filter(Boolean) ?? [];
+    const categories = sortedFacilitatorCategories(facilitator.facilitator_categories);
     const categoryNames = categories.map((category: any) => category.name).filter(Boolean).join(" ");
     const tagNames =
       facilitator.facilitator_tags
@@ -1106,10 +1115,7 @@ async function getHomeFacilitators(queryText: string) {
   const mapped = filtered.map((facilitator: any) => {
     const profile = Array.isArray(facilitator.profiles) ? facilitator.profiles[0] : facilitator.profiles;
     const region = Array.isArray(facilitator.regions) ? facilitator.regions[0] : facilitator.regions;
-    const categories =
-      facilitator.facilitator_categories
-        ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
-        .filter(Boolean) ?? [];
+    const categories = sortedFacilitatorCategories(facilitator.facilitator_categories);
 
     return {
       id: facilitator.id,

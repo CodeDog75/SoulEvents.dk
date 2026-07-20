@@ -66,54 +66,59 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
 
         {facilitators.length > 0 ? (
           <div className="mt-6 flex snap-x gap-4 overflow-x-auto pb-4">
-            {facilitators.map((facilitator) => (
-              <Link
-                className="group min-w-[250px] max-w-[250px] snap-start overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[300px] sm:max-w-[300px]"
-                href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
-                key={facilitator.id}
-              >
-                <div className="relative aspect-[5/4] bg-sage-50">
-                  {facilitator.isExperiencedHost ? (
-                    <OrganizerImageBadge type="experienced" />
-                  ) : facilitator.isActiveHost ? (
-                    <OrganizerImageBadge type="active" />
-                  ) : null}
-                  {facilitator.imageUrl ? (
-                    <Image
-                      alt={facilitator.name}
-                      className="object-cover object-top"
-                      fill
-                      sizes="(min-width: 640px) 300px, 250px"
-                      src={facilitator.imageUrl}
-                    />
-                  ) : (
-                    <div className="grid h-full place-items-center bg-sage-50 text-sage-700">
-                      <UserRound className="size-14" aria-hidden="true" />
-                    </div>
-                  )}
-                </div>
-                <div className="p-5">
-                  <h3 className="text-2xl font-medium leading-7 text-[#2F2633]">{facilitator.name}</h3>
-                  <SoulEventsIdTag className="mt-2" hostReferenceId={facilitator.hostReferenceId} />
-                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink/66">
-                    {facilitator.tagline || [facilitator.city, "Arrangør på SoulEvents"].filter(Boolean).join(" · ")}
-                  </p>
-                  {facilitator.categories.length > 0 && (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {facilitator.categories.slice(0, 3).map((category) => (
+            {facilitators.map((facilitator) => {
+              const primaryCategory = facilitator.categories[0];
+              const primaryCategoryLabel =
+                primaryCategory && facilitator.categories.length > 1
+                  ? `${primaryCategory.name} · +${facilitator.categories.length - 1} flere`
+                  : primaryCategory?.name;
+
+              return (
+                <Link
+                  className="group min-w-[250px] max-w-[250px] snap-start overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[300px] sm:max-w-[300px]"
+                  href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
+                  key={facilitator.id}
+                >
+                  <div className="relative aspect-[5/4] bg-sage-50">
+                    {facilitator.isExperiencedHost ? (
+                      <OrganizerImageBadge type="experienced" />
+                    ) : facilitator.isActiveHost ? (
+                      <OrganizerImageBadge type="active" />
+                    ) : null}
+                    {facilitator.imageUrl ? (
+                      <Image
+                        alt={facilitator.name}
+                        className="object-cover object-top"
+                        fill
+                        sizes="(min-width: 640px) 300px, 250px"
+                        src={facilitator.imageUrl}
+                      />
+                    ) : (
+                      <div className="grid h-full place-items-center bg-sage-50 text-sage-700">
+                        <UserRound className="size-14" aria-hidden="true" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-5">
+                    <h3 className="text-2xl font-medium leading-7 text-[#2F2633]">{facilitator.name}</h3>
+                    <SoulEventsIdTag className="mt-2" hostReferenceId={facilitator.hostReferenceId} />
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink/66">
+                      {facilitator.tagline || [facilitator.city, "Arrangør på SoulEvents"].filter(Boolean).join(" · ")}
+                    </p>
+                    {primaryCategory && primaryCategoryLabel && (
+                      <div className="mt-4">
                         <span
-                          className="rounded-full px-3 py-1 text-xs font-semibold text-[#2F2633]"
-                          key={category.name}
-                          style={{ backgroundColor: category.color_hex ? category.color_hex + "22" : "#eef2e3" }}
+                          className="inline-block max-w-full truncate rounded-full px-3 py-1 text-xs font-semibold text-[#2F2633]"
+                          style={{ backgroundColor: primaryCategory.color_hex ? primaryCategory.color_hex + "22" : "#eef2e3" }}
                         >
-                          {category.name}
+                          {primaryCategoryLabel}
                         </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Link>
-            ))}
+                      </div>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         ) : (
           <section className="mt-8 rounded-card bg-white p-8 text-center shadow-soft">

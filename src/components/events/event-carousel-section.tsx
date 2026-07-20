@@ -260,6 +260,12 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
 }
 
 function FacilitatorCardVisual({ facilitator }: { facilitator: FacilitatorCarouselCard }) {
+  const primaryCategory = facilitator.categories[0];
+  const primaryCategoryLabel =
+    primaryCategory && facilitator.categories.length > 1
+      ? `${primaryCategory.name} · +${facilitator.categories.length - 1} flere`
+      : primaryCategory?.name;
+
   return (
     <Link
       className="group block min-w-[72vw] max-w-[72vw] snap-start overflow-hidden rounded-[24px] bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[280px] sm:max-w-[280px] lg:min-w-[300px] lg:max-w-[300px]"
@@ -286,12 +292,12 @@ function FacilitatorCardVisual({ facilitator }: { facilitator: FacilitatorCarous
         )}
       </div>
       <div className="p-5">
-        {facilitator.categories[0] && (
+        {primaryCategory && primaryCategoryLabel && (
           <span
-            className="rounded-full px-3 py-1 text-xs font-semibold text-[#2F2633]"
-            style={{ backgroundColor: facilitator.categories[0].color_hex ? facilitator.categories[0].color_hex + "22" : "#EEF2E3" }}
+            className="inline-block max-w-full truncate rounded-full px-3 py-1 text-xs font-semibold text-[#2F2633]"
+            style={{ backgroundColor: primaryCategory.color_hex ? primaryCategory.color_hex + "22" : "#EEF2E3" }}
           >
-            {facilitator.categories[0].name}
+            {primaryCategoryLabel}
           </span>
         )}
         <h3 className="mt-3 line-clamp-2 text-2xl font-medium leading-7 text-olive">{facilitator.name}</h3>

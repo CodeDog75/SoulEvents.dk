@@ -13,6 +13,7 @@ export type HomeFacilitatorCard = {
   city: string | null;
   tagline: string;
   primaryCategory: string | null;
+  primaryCategoryExtraCount?: number;
   isOnline?: boolean;
   isActiveHost?: boolean;
   isExperiencedHost?: boolean;
@@ -20,6 +21,11 @@ export type HomeFacilitatorCard = {
 };
 
 function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) {
+  const primaryCategoryLabel =
+    facilitator.primaryCategory && facilitator.primaryCategoryExtraCount
+      ? `${facilitator.primaryCategory} · +${facilitator.primaryCategoryExtraCount} flere`
+      : facilitator.primaryCategory;
+
   return (
     <Link
       className="group block overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift"
@@ -46,9 +52,9 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
         )}
       </div>
       <div className="p-5">
-        {facilitator.primaryCategory && (
-          <span className="rounded-full bg-sage-50 px-3 py-1 text-xs font-semibold text-sage-700">
-            {facilitator.primaryCategory}
+        {primaryCategoryLabel && (
+          <span className="inline-block max-w-full truncate rounded-full bg-sage-50 px-3 py-1 text-xs font-semibold text-sage-700">
+            {primaryCategoryLabel}
           </span>
         )}
         <h3 className="mt-3 text-2xl font-medium leading-7 text-olive">{facilitator.name}</h3>
