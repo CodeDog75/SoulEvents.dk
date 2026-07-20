@@ -27,6 +27,7 @@ const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "re
 const activeCoOrganizerStatuses = ["pending", "accepted"] as const;
 const allowedFormats = ["physical", "online"] as const;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
+const missingCoverPublishMessage = "Tilføj et coverbillede, før eventet kan offentliggøres.";
 type ActiveCoOrganizerStatus = (typeof activeCoOrganizerStatuses)[number];
 
 const facilitatorProfileEventSelect = "id, status, is_paused, is_disabled, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)";
@@ -219,6 +220,11 @@ async function uploadEventCoverImage(formData: FormData, currentImagePath: strin
   return imagePath;
 }
 
+function hasSubmittedEventCoverImage(formData: FormData) {
+  const file = formData.get("event_cover_file");
+  return file instanceof File && file.size > 0;
+}
+
 function toDateTime(date: string, time: string) {
   if (!date || !time) {
     return "";
@@ -324,7 +330,7 @@ function coOrganizerCategoryIds(row: {
 
 function coOrganizerPublicEligibility(row: CoOrganizerCandidateRow) {
   const profile = firstRelation(row.profiles);
-  return getFacilitatorPublicEligibility({
+  const eligibility = getFacilitatorPublicEligibility({
     categoryIds: coOrganizerCategoryIds(row),
     city: row.city,
     companyName: row.company_name,
@@ -337,6 +343,12 @@ function coOrganizerPublicEligibility(row: CoOrganizerCandidateRow) {
     shortDescription: row.short_description,
     status: row.status,
   });
+  const missing = eligibility.missing.filter((key) => key !== "short_description");
+
+  return {
+    isEligible: missing.length === 0,
+    missing,
+  };
 }
 
 function isEligibleCoOrganizer(row: CoOrganizerCandidateRow) {
@@ -808,12 +820,13 @@ export async function createEventAction(formData: FormData) {
   let existingEventStatus: EventStatus | null = null;
   let existingEventSlug: string | null = null;
   let existingEventPublishedAt: string | null = null;
+  let existingEventCoverImagePath: string | null = null;
   let previousEventSnapshot: EventUpdateSnapshot | null = null;
 
   if (existingEventId) {
     const { data: existingEvent } = await supabase
       .from("events")
-      .select("id, slug, status, published_at, title, starts_at, ends_at, address_line, postal_code, city, country, price_cents, event_format, online_description, online_url_or_note")
+      .select("id, slug, status, published_at, cover_image_path, title, starts_at, ends_at, address_line, postal_code, city, country, price_cents, event_format, online_description, online_url_or_note")
       .eq("id", existingEventId)
       .eq("facilitator_id", facilitatorProfile.id)
       .maybeSingle();
@@ -825,6 +838,7 @@ export async function createEventAction(formData: FormData) {
     existingEventStatus = existingEvent.status as EventStatus;
     existingEventSlug = existingEvent.slug ?? null;
     existingEventPublishedAt = existingEvent.published_at ?? null;
+    existingEventCoverImagePath = existingEvent.cover_image_path ?? null;
     previousEventSnapshot = existingEvent as EventUpdateSnapshot;
   }
 
@@ -897,7 +911,7 @@ export async function createEventAction(formData: FormData) {
     getString(formData, "short_description");
   const shortDescription = eventDescription.slice(0, 220);
   const longDescription = eventDescription;
-  const currentCoverImagePath = getOptionalString(formData, "current_cover_image_path");
+  const currentCoverImagePath = getOptionalString(formData, "current_cover_image_path") ?? existingEventCoverImagePath;
   const startsAt = toDateTime(getString(formData, "start_date"), getString(formData, "start_time"));
   const endsAt = toDateTime(getString(formData, "end_date"), getString(formData, "end_time"));
   const addressLine = getOptionalString(formData, "address_line");
@@ -974,6 +988,10 @@ export async function createEventAction(formData: FormData) {
 
   if (eventDescription.length > 2000) {
     eventsRedirect("Beskrivelse af event må højst være 2000 tegn.");
+  }
+
+  if ((status === "active" || status === "sold_out") && !currentCoverImagePath && !hasSubmittedEventCoverImage(formData)) {
+    eventsRedirect(missingCoverPublishMessage);
   }
 
   if (!startsAt || !endsAt || new Date(endsAt) <= new Date(startsAt)) {
@@ -1426,11 +1444,11 @@ export async function updateEventStatusAction(formData: FormData) {
     eventsRedirect("Færdiggør din profil, før du offentliggør events.");
   }
 
-  if (status === "active") {
+  if (status === "active" || status === "sold_out") {
     const facilitatorIds = (facilitatorProfiles ?? []).map((facilitatorProfile) => facilitatorProfile.id);
     const { data: event } = await supabase
       .from("events")
-      .select("id, facilitator_id, published_at")
+      .select("id, facilitator_id, published_at, cover_image_path")
       .eq("id", eventId)
       .in("facilitator_id", facilitatorIds)
       .maybeSingle();
@@ -1438,6 +1456,10 @@ export async function updateEventStatusAction(formData: FormData) {
 
     if (!event || !facilitatorProfile) {
       eventsRedirect("Eventet kunne ikke findes.");
+    }
+
+    if (!event.cover_image_path) {
+      eventsRedirect(missingCoverPublishMessage);
     }
 
     const facilitatorId = facilitatorProfile.id;
@@ -1456,7 +1478,7 @@ export async function updateEventStatusAction(formData: FormData) {
   }
 
   const updatePayload: { published_at?: string | null; status: EventStatus } = { status };
-  if (status === "active") {
+  if (status === "active" || status === "sold_out") {
     const { data: currentEvent } = await supabase.from("events").select("published_at").eq("id", eventId).maybeSingle();
     updatePayload.published_at = currentEvent?.published_at ?? new Date().toISOString();
   }
@@ -1476,7 +1498,7 @@ export async function updateEventStatusAction(formData: FormData) {
     facilitatorOverviewRedirect("Eventstatus kunne ikke opdateres.");
   }
 
-  if (status === "active") {
+  if (status === "active" || status === "sold_out") {
     await notifySubscribersWithoutBlockingPublication(eventId);
   }
 

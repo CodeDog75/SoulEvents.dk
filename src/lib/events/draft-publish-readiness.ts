@@ -22,6 +22,7 @@ export function getDraftPublishReadiness({
     capacity?: number | null;
     city?: string | null;
     country?: string | null;
+    cover_image_path?: string | null;
     ends_at?: string | null;
     event_format?: string | null;
     event_main_categories?: Array<{ main_category_id?: string | null }> | null;
@@ -44,6 +45,7 @@ export function getDraftPublishReadiness({
   const checklist: DraftPublishChecklistItem[] = [
     { key: "title", label: "Titel", valid: hasText(event.title) },
     { key: "description", label: "Beskrivelse", valid: hasText(event.long_description, 20) },
+    { key: "cover", label: "Coverbillede", valid: hasText(event.cover_image_path) },
     { key: "date", label: "Dato", valid: Boolean(startsAt && Number.isFinite(startsAt.getTime()) && startsAt > new Date()) },
     { key: "time", label: "Tidspunkt", valid: Boolean(startsAt && endsAt && Number.isFinite(endsAt.getTime()) && endsAt > startsAt) },
     {

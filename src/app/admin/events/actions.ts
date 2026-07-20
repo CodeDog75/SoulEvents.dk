@@ -11,6 +11,7 @@ import type { EventStatus } from "@/types/database";
 
 const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "rejected", "sold_out", "cancelled", "completed", "archived"];
 const financiallyClosedStatuses = ["below_threshold", "no_revenue", "settled", "waived"];
+const missingCoverPublishMessage = "Tilføj et coverbillede, før eventet kan offentliggøres.";
 
 function go(message: string): never {
   redirect("/admin/events?message=" + encodeURIComponent(message));
@@ -29,7 +30,7 @@ export async function updateAdminEventStatusAction(formData: FormData) {
   const supabase = createAdminClient();
   const { data: event } = await supabase
     .from("events")
-    .select("id, ends_at, facilitator_id, published_at, status, facilitator_profiles(status, is_paused, is_disabled)")
+    .select("id, ends_at, facilitator_id, published_at, status, cover_image_path, facilitator_profiles(status, is_paused, is_disabled)")
     .eq("id", eventId)
     .maybeSingle();
 
@@ -37,11 +38,15 @@ export async function updateAdminEventStatusAction(formData: FormData) {
     go("Eventet kunne ikke findes.");
   }
 
-  if (status === "active") {
+  if (status === "active" || status === "sold_out") {
     const facilitator = Array.isArray(event.facilitator_profiles) ? event.facilitator_profiles[0] : event.facilitator_profiles;
 
     if (facilitator?.status !== "approved" || facilitator?.is_paused || facilitator?.is_disabled) {
       go("Eventet kan først publiceres, når arrangøren er aktiv og godkendt.");
+    }
+
+    if (!event.cover_image_path) {
+      go(missingCoverPublishMessage);
     }
 
     const limitStatus = await getFacilitatorEventLimitStatus(supabase, event.facilitator_id, {
@@ -75,7 +80,7 @@ export async function updateAdminEventStatusAction(formData: FormData) {
 
   const updatePayload: { published_at?: string | null; reviewed_at?: string | null; reviewed_by?: string | null; status: EventStatus } = { status };
 
-  if (status === "active") {
+  if (status === "active" || status === "sold_out") {
     updatePayload.published_at = new Date().toISOString();
     updatePayload.reviewed_at = new Date().toISOString();
     updatePayload.reviewed_by = adminProfile.id;
@@ -96,7 +101,7 @@ export async function updateAdminEventStatusAction(formData: FormData) {
     new_value: status,
   });
 
-  if (status === "active") {
+  if (status === "active" || status === "sold_out") {
     await notifyFacilitatorEventReminderSubscribers(event.id);
   }
 

@@ -867,10 +867,11 @@ export function EventForm({
   const [selectedCoOrganizers, setSelectedCoOrganizers] = useState<CoOrganizerCandidate[]>([]);
   const [coOrganizerSearchMessage, setCoOrganizerSearchMessage] = useState("");
   const [isSearchingCoOrganizers, startCoOrganizerSearch] = useTransition();
+  const [isUpdatingCoOrganizerInvitation, startCoOrganizerInvitationUpdate] = useTransition();
   const titleBoxStateClass = titleValue.trim()
     ? "border-[#CFE3C8] bg-[#F6FBF3]"
     : "border-[#F0D6D2] bg-[#FFF8F6]";
-  const hasExistingCoverImage = Boolean(draftEvent?.coverImageUrl || draftEvent?.cover_image_path);
+  const hasCoverImage = Boolean(currentCoverImageUrl || draftEvent?.cover_image_path || coverFileName);
   const draftEventStatus = draftEvent?.status ?? null;
   const isEditingPublishedEvent = draftEventStatus === "active" || draftEventStatus === "sold_out";
   const activeBookingCount = draftEvent?.activeBookingCount ?? 0;
@@ -1345,6 +1346,19 @@ export function EventForm({
     setSelectedCoOrganizers((current) => current.filter((candidate) => candidate.id !== candidateId));
   }
 
+  function runCoOrganizerInvitationAction(action: (formData: FormData) => Promise<void>, invitationId: string) {
+    if (!draftEvent?.id) {
+      setCoOrganizerSearchMessage("Medarrangøren kunne ikke opdateres.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("event_id", draftEvent.id);
+    formData.set("invitation_id", invitationId);
+    startCoOrganizerInvitationUpdate(() => {
+      void action(formData);
+    });
+  }
 
   function setRegionFromPostalCode(nextPostalCode: string) {
     const regionSlug = regionSlugFromPostalCode(nextPostalCode);
@@ -1551,6 +1565,10 @@ export function EventForm({
 
     if (text("event_description").length < 20) {
       addMissing({ focusSelector: "#event-description-input", key: "description", label: "Beskrivelse", step: 0, targetId: "event-description-field" });
+    }
+
+    if (!hasCoverImage) {
+      addMissing({ focusSelector: "#event-cover-file", key: "cover", label: "Coverbillede", step: 0, targetId: "event-cover-field" });
     }
 
     if (getStepStatus(1) !== "complete") {
@@ -2508,10 +2526,9 @@ export function EventForm({
                       {coOrganizer.status === "pending" && coOrganizer.profileIsActive !== false ? (
                         <button
                           className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#D8CBE4] bg-[#F4F0F7] px-3 text-xs font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
-                          formAction={resendCoOrganizerInvitationAction}
-                          name="invitation_id"
-                          type="submit"
-                          value={coOrganizer.id}
+                          disabled={isUpdatingCoOrganizerInvitation}
+                          onClick={() => runCoOrganizerInvitationAction(resendCoOrganizerInvitationAction, coOrganizer.id)}
+                          type="button"
                         >
                           <Send className="size-3.5" aria-hidden="true" />
                           Send invitation igen
@@ -2519,10 +2536,9 @@ export function EventForm({
                       ) : null}
                       <button
                         className="inline-flex h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-3 text-xs font-semibold text-ink/64 transition hover:border-[#B56F8A] hover:text-[#B56F8A]"
-                        formAction={cancelCoOrganizerInvitationAction}
-                        name="invitation_id"
-                        type="submit"
-                        value={coOrganizer.id}
+                        disabled={isUpdatingCoOrganizerInvitation}
+                        onClick={() => runCoOrganizerInvitationAction(cancelCoOrganizerInvitationAction, coOrganizer.id)}
+                        type="button"
                       >
                         Fjern invitation
                       </button>
