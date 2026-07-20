@@ -84,7 +84,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
 
   let query = supabase
     .from("events")
-    .select("id, slug, title, status, starts_at, created_at, updated_at, published_at, reviewed_at, reviewed_by, city, event_format, price_cents, cover_image_path, bookings(status), facilitator_profiles(id, slug, status, company_name, profile_image_path, profiles!facilitator_profiles_profile_id_fkey(full_name, email)), regions(name), event_categories(categories(name))")
+    .select("id, slug, title, status, starts_at, ends_at, created_at, updated_at, published_at, reviewed_at, reviewed_by, city, event_format, price_cents, cover_image_path, bookings(status), facilitator_profiles(id, slug, status, company_name, profile_image_path, profiles!facilitator_profiles_profile_id_fkey(full_name, email)), regions(name), event_categories(categories(name))")
     .order(selectedReview === "unreviewed" || selectedReview === "public" || selectedReview === "upcoming" ? "published_at" : "updated_at", {
       ascending: false,
       nullsFirst: false,
@@ -342,6 +342,7 @@ export default async function AdminEventsPage({ searchParams }: AdminEventsPageP
                     cityOrRegion={event.city || region?.name || event.event_format || "Ikke angivet"}
                     event={{
                       created_at: event.created_at,
+                      ends_at: event.ends_at,
                       id: event.id,
                       price_cents: event.price_cents,
                       published_at: event.published_at,

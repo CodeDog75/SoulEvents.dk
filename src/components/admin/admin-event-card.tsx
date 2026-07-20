@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Archive, CalendarDays, Check, Clock3, Eye, MoreHorizontal, RotateCcw, Slash, UserRound } from "lucide-react";
 import { markAdminEventReviewedAction, updateAdminEventStatusAction } from "@/app/admin/events/actions";
 import { AdminActionMenu } from "@/components/admin/action-menu";
+import { getUserFacingEventStatus, getUserFacingEventStatusLabel } from "@/lib/events/user-facing-status";
 import { cn } from "@/lib/utils";
 import type { EventStatus } from "@/types/database";
 
@@ -12,6 +13,7 @@ type AdminEventCardProps = {
   cityOrRegion: string;
   event: {
     created_at: string | null;
+    ends_at: string | null;
     id: string;
     price_cents: number | null;
     published_at: string | null;
@@ -35,17 +37,6 @@ type AdminEventCardProps = {
   publicEventHref: string;
 };
 
-const statusLabels: Record<string, string> = {
-  active: "Publiceret",
-  archived: "Arkiveret",
-  cancelled: "Aflyst",
-  completed: "Afholdt",
-  draft: "Kladde",
-  pending_review: "Legacy",
-  rejected: "Skjult",
-  sold_out: "Udsolgt",
-};
-
 const statusClasses: Record<string, string> = {
   active: "border-sage-200 bg-sage-50 text-sage-800",
   archived: "border-midnight/10 bg-midnight/5 text-ink/70",
@@ -55,6 +46,7 @@ const statusClasses: Record<string, string> = {
   pending_review: "border-terracotta/20 bg-terracotta/10 text-terracotta",
   rejected: "border-rose/20 bg-rose/10 text-rose",
   sold_out: "border-[#D9CBAA] bg-[#F7F0DE] text-[#766338]",
+  held: "border-[#E8DEC8] bg-sand text-midnight",
 };
 
 function EventStatusButton({ eventId, status, children }: { children: React.ReactNode; eventId: string; status: EventStatus }) {
@@ -108,6 +100,7 @@ export function AdminEventCard({
   publicEventHref,
 }: AdminEventCardProps) {
   const isPublic = ["active", "sold_out"].includes(event.status);
+  const userFacingStatus = getUserFacingEventStatus(event);
   const isReviewed = Boolean(event.reviewed_at);
   const canMarkReviewed = isPublic && !isReviewed;
 
@@ -125,8 +118,8 @@ export function AdminEventCard({
 
       <div className="grid min-w-0 gap-4">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className={cn("rounded-full border px-2.5 py-1 text-xs font-bold", statusClasses[event.status] ?? "border-midnight/10 bg-midnight/5 text-ink/72")}>
-            {statusLabels[event.status] ?? event.status}
+          <span className={cn("rounded-full border px-2.5 py-1 text-xs font-bold", statusClasses[userFacingStatus] ?? "border-midnight/10 bg-midnight/5 text-ink/72")}>
+            {getUserFacingEventStatusLabel(userFacingStatus)}
           </span>
           {isReviewed ? (
             <span className="rounded-full border border-sage-200 bg-sage-50 px-2.5 py-1 text-xs font-bold text-sage-800">Kontrolleret</span>

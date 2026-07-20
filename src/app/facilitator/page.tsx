@@ -11,10 +11,8 @@ import {
   Inbox,
   Leaf,
   Mail,
-  MoreHorizontal,
   PauseCircle,
   PencilLine,
-  RotateCcw,
   Settings,
   Ticket,
   XCircle,
@@ -29,15 +27,17 @@ import {
   sendFacilitatorAdminMessageAction,
   sendFacilitatorProfileToReviewAction,
 } from "@/app/facilitator/actions";
-import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction, publishDraftEventAction } from "@/app/facilitator/events/actions";
+import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { DashboardGreeting } from "@/components/facilitator/dashboard-greeting";
+import { CancelEventAction } from "@/components/facilitator/events/cancel-event-action";
 import { LoginSecuritySection } from "@/components/facilitator/login-security-section";
 import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireRole } from "@/lib/auth/roles";
 import { draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
+import { getUserFacingEventStatus, getUserFacingEventStatusLabel, isEventPastEnd } from "@/lib/events/user-facing-status";
 import { resolveFacilitatorHero } from "@/lib/facilitators/hero-collection";
 import { resolveFacilitatorMoodImage, withFacilitatorMoodImageFallback } from "@/lib/facilitators/mood-image-fallback";
 import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
@@ -91,17 +91,6 @@ type DashboardAction = {
   title: string;
 };
 
-const statusLabels: Record<string, string> = {
-  draft: "Kladde",
-  pending_review: "Afventer godkendelse",
-  active: "Aktiv",
-  rejected: "Afvist",
-  sold_out: "Udsolgt",
-  cancelled: "Aflyst",
-  completed: "Afholdt",
-  archived: "Arkiveret",
-};
-
 const statusStyles: Record<string, string> = {
   draft: "bg-[#E9E6E1] text-[#6A6258]",
   pending_review: "bg-[#FFF7E8] text-[#8A6A2E]",
@@ -111,6 +100,7 @@ const statusStyles: Record<string, string> = {
   cancelled: "bg-red-50 text-red-800",
   completed: "bg-[#F7F1EA] text-[#756758]",
   archived: "bg-stone-100 text-stone-600",
+  held: "bg-[#F7F1EA] text-[#756758]",
 };
 
 function first<T>(value: T | T[] | null | undefined) {
@@ -126,16 +116,12 @@ function formatDateTime(value: string | null | undefined) {
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-function statusLabel(status: string) {
-  return statusLabels[status] ?? status;
-}
-
 function statusClass(status: string) {
   return statusStyles[status] ?? "bg-stone-100 text-stone-700";
 }
 
 function isPastEvent(event: { ends_at?: string | null; starts_at: string; status: string }, now: Date) {
-  return event.status === "completed" || event.status === "cancelled" || new Date(event.ends_at ?? event.starts_at) < now;
+  return getUserFacingEventStatus(event, now) === "held" || event.status === "cancelled";
 }
 
 function eventEndDate(event: { ends_at?: string | null; starts_at: string }) {
@@ -547,12 +533,30 @@ function ProfileChangesRequestedCard({
   );
 }
 
-function StatusAction({ eventId, status, children }: { eventId: string; status: string; children: React.ReactNode }) {
+function StatusAction({
+  children,
+  eventId,
+  isDestructive = false,
+  status,
+}: {
+  children: React.ReactNode;
+  eventId: string;
+  isDestructive?: boolean;
+  status: string;
+}) {
   return (
     <form action={updateEventStatusAction}>
       <input name="event_id" type="hidden" value={eventId} />
       <input name="status" type="hidden" value={status} />
-      <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#E5DDEA] bg-white px-4 text-sm font-semibold text-[#2F2437] transition hover:border-[#7A5D91] hover:text-[#7A5D91]" type="submit">
+      <button
+        className={
+          "inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full border bg-white/70 px-3 text-xs font-semibold transition " +
+          (isDestructive
+            ? "border-red-200 text-red-800 hover:bg-red-50"
+            : "border-[#E5DDEA] text-[#6E5A86] hover:border-[#7A5D91] hover:text-[#7A5D91]")
+        }
+        type="submit"
+      >
         {children}
       </button>
     </form>
@@ -575,19 +579,18 @@ function EventCard({
   const bookingCount = event.bookings?.length ?? 0;
   const location = event.event_format === "online" ? "Online" : event.city || "Lokation kommer";
   const isDraft = event.status === "draft";
+  const isPendingReview = event.status === "pending_review";
+  const userFacingStatus = getUserFacingEventStatus(event);
   const draftReadiness = isDraft
     ? getDraftPublishReadiness({
         event,
         facilitatorStatus,
       })
     : null;
-  const isActive = event.status === "active" || event.status === "sold_out";
-  const isCopyableAsDraft =
-    event.status === "active" ||
-    event.status === "sold_out" ||
-    event.status === "completed" ||
-    event.status === "cancelled" ||
-    new Date(event.starts_at) < new Date();
+  const isActive = userFacingStatus === "active" || userFacingStatus === "sold_out";
+  const isHeld = userFacingStatus === "held";
+  const isCancelled = userFacingStatus === "cancelled";
+  const isCopyableAsDraft = isDraft || isActive || isHeld || isCancelled || isEventPastEnd(event);
 
   const variantStyles: Record<DashboardEventVariant, { accent: string; card: string; note: string }> = {
     active: {
@@ -629,7 +632,9 @@ function EventCard({
     <article className={"relative overflow-hidden rounded-[28px] border p-5 shadow-[0_16px_38px_rgba(47,36,55,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_48px_rgba(47,36,55,0.12)] " + currentStyle.card}>
       <div className={"absolute inset-x-0 top-0 h-1.5 " + currentStyle.accent} />
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <span className={"rounded-full px-3 py-1 text-xs font-semibold " + statusClass(event.status)}>{statusLabel(event.status)}</span>
+        <span className={"rounded-full px-3 py-1 text-xs font-semibold " + statusClass(userFacingStatus)}>
+          {getUserFacingEventStatusLabel(userFacingStatus)}
+        </span>
         {event.event_reference_id ? <span className="text-xs font-semibold text-[#8B7F93]">Ref. {event.event_reference_id}</span> : null}
       </div>
       <h3 className="mt-4 text-xl font-semibold leading-tight text-[#2F2437]">{event.title || "Event uden titel"}</h3>
@@ -655,7 +660,7 @@ function EventCard({
         </div>
       ) : null}
       <div className="mt-5 grid gap-3">
-        {variant === "completed" ? (
+        {isHeld || isCancelled ? (
           <div className="flex flex-wrap gap-2">
             <Link
               className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]"
@@ -673,89 +678,69 @@ function EventCard({
               </form>
             ) : null}
           </div>
-        ) : draftReadiness?.canPublish ? (
+        ) : isDraft || isPendingReview ? (
           <>
-            <form action={publishDraftEventAction}>
-              <input name="event_id" type="hidden" value={event.id} />
-              <button className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]" type="submit">
-                <ArrowRight className="size-4" aria-hidden="true" />
-                Offentliggør event
-              </button>
-            </form>
-            <p className="max-w-md text-xs leading-5 text-ink/58">
-              Ved offentliggørelse bekræfter du SoulEvents&apos;{" "}
-              <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/arrangoervilkaar" target="_blank">
-                arrangørvilkår
-              </Link>{" "}
-              og{" "}
-              <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4" href="/legal/platformens-retningslinjer" target="_blank">
-                retningslinjer
-              </Link>
-              .
-            </p>
+            <Link
+              className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]"
+              href={"/facilitator/events?draft=" + event.id}
+            >
+              <PencilLine className="size-4" aria-hidden="true" />
+              Fortsæt redigering
+            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <form action={copyEventAsDraftAction}>
+                <input name="event_id" type="hidden" value={event.id} />
+                <button className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-[#E5DDEA] bg-white/70 px-3 text-xs font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91]" type="submit">
+                  <Copy className="size-3.5" aria-hidden="true" />
+                  Kopiér som nyt event
+                </button>
+              </form>
+              {isDraft ? (
+                <form action={deleteDraftEventAction}>
+                  <input name="event_id" type="hidden" value={event.id} />
+                  <button className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-red-200 bg-white/70 px-3 text-xs font-semibold text-red-800 transition hover:bg-red-50" type="submit">
+                    <XCircle className="size-3.5" aria-hidden="true" />
+                    Slet kladde
+                  </button>
+                </form>
+              ) : null}
+              {isPendingReview ? (
+                <StatusAction eventId={event.id} status="draft">
+                  <XCircle className="size-3.5" aria-hidden="true" />
+                  Fortryd indsendelse
+                </StatusAction>
+              ) : null}
+            </div>
           </>
         ) : (
-          <Link
-            className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]"
-            href={isActive ? "/facilitator/bookings?event=" + event.id : "/facilitator/events?draft=" + event.id}
-          >
-            {isActive ? <Inbox className="size-4" aria-hidden="true" /> : <PencilLine className="size-4" aria-hidden="true" />}
-            {isActive ? "Se tilmeldinger" : "Fortsæt redigering"}
-          </Link>
-        )}
-        {variant !== "completed" ? (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold text-[#6E5A86]">
-            <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={"/facilitator/events?draft=" + event.id}>
-              {isDraft ? "Fortsæt redigering" : "Rediger"}
+          <>
+            <Link
+              className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]"
+              href={"/facilitator/bookings?event=" + event.id}
+            >
+              <Inbox className="size-4" aria-hidden="true" />
+              Se tilmeldinger
             </Link>
-            <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={"/facilitator/bookings?event=" + event.id}>
-              Tilmeldinger
-            </Link>
-            {isActive ? (
+            <div className="flex flex-wrap items-center gap-2">
               <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={publicEventPath(event.slug || event.id) + "?return_to=/facilitator/events"}>
                 Se event
               </Link>
-            ) : null}
-            <details className="relative">
-              <summary className="inline-flex cursor-pointer list-none items-center gap-1 whitespace-nowrap transition hover:text-[#7A5D91]">
-                Flere
-                <MoreHorizontal className="size-4" aria-hidden="true" />
-              </summary>
-              <div className="mt-3 grid gap-2 rounded-[18px] border border-[#E5DDEA] bg-white p-3 shadow-soft">
-                {isCopyableAsDraft ? (
-                  <form action={copyEventAsDraftAction}>
-                    <input name="event_id" type="hidden" value={event.id} />
-                    <button className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#F4F0F7] px-3 text-xs font-semibold text-[#6E5A86]" type="submit">
-                      <Copy className="size-3.5" aria-hidden="true" />
-                      Kopiér som nyt event
-                    </button>
-                  </form>
-                ) : null}
-                {event.status === "draft" ? (
-                  <form action={deleteDraftEventAction}>
-                    <input name="event_id" type="hidden" value={event.id} />
-                    <button className="inline-flex h-9 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-800" type="submit">
-                      <XCircle className="size-3.5" aria-hidden="true" />
-                      Slet kladde
-                    </button>
-                  </form>
-                ) : null}
-                {event.status === "pending_review" ? (
-                  <StatusAction eventId={event.id} status="draft">
-                    <RotateCcw className="size-3.5" aria-hidden="true" />
-                    Fortryd indsendelse
-                  </StatusAction>
-                ) : null}
-                {event.status !== "cancelled" && event.status !== "draft" && event.status !== "pending_review" ? (
-                  <StatusAction eventId={event.id} status="cancelled">
-                    <PauseCircle className="size-3.5" aria-hidden="true" />
-                    Aflys
-                  </StatusAction>
-                ) : null}
-              </div>
-            </details>
-          </div>
-        ) : null}
+              <Link className="whitespace-nowrap transition hover:text-[#7A5D91]" href={"/facilitator/events?draft=" + event.id}>
+                Rediger
+              </Link>
+              {isCopyableAsDraft ? (
+                <form action={copyEventAsDraftAction}>
+                  <input name="event_id" type="hidden" value={event.id} />
+                  <button className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-[#E5DDEA] bg-white/70 px-3 text-xs font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91]" type="submit">
+                    <Copy className="size-3.5" aria-hidden="true" />
+                    Kopiér som nyt event
+                  </button>
+                </form>
+              ) : null}
+              <CancelEventAction eventId={event.id} eventTitle={event.title || "Event uden titel"} />
+            </div>
+          </>
+        )}
       </div>
     </article>
   );
@@ -1136,10 +1121,13 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const pendingCoOrganizerInvitations = coOrganizerRows.filter((row) => row.status === "pending");
   const acceptedCoOrganizerInvitations = coOrganizerRows.filter((row) => row.status === "accepted");
   const unreadMessageCount = unreadAdminMessageCount ?? 0;
-  const activeEvents = eventRows.filter((event) => ["active", "sold_out", "pending_review"].includes(event.status) && !isPastEvent(event, now));
+  const activeEvents = eventRows.filter((event) => {
+    const userStatus = getUserFacingEventStatus(event, now);
+    return userStatus === "active" || userStatus === "sold_out";
+  });
   const completedEvents = eventRows.filter((event) => isPastEvent(event, now));
   const visibleCompletedEvents = completedEvents.filter((event) => !isOlderThanMonths(eventEndDate(event), now, 12));
-  const draftEvents = eventRows.filter((event) => event.status === "draft");
+  const draftEvents = eventRows.filter((event) => event.status === "draft" || event.status === "pending_review");
   const profileReadiness = getProfileReadiness({
     categoryCount: categoryNames.length,
     facilitatorProfile,

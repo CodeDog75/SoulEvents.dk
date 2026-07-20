@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Clock3, Minus, Plus, Send } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { ChevronDown, Clock3, Minus, Plus, Send, Sparkles, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createBookingAction } from "@/app/events/[id]/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { CapacityBadge } from "@/components/events/capacity-badge";
@@ -12,6 +12,9 @@ type BookingFormProps = {
   eventId: string;
   availableSeats: number;
   capacity?: number | null;
+  eventStartsAt: string;
+  eventTitle: string;
+  facilitatorProfileHref: string;
   message?: string;
   messageVariant?: "notice" | "success";
   bookingSent?: boolean;
@@ -21,6 +24,10 @@ const inputClass =
   "h-11 rounded-md border border-[#e5d4f7] bg-white px-3 text-base outline-none transition focus:border-[#b98be8] focus:ring-2 focus:ring-[#e5d4f7]";
 const textareaClass =
   "min-h-28 rounded-md border border-[#e5d4f7] bg-white px-3 py-3 text-base outline-none transition focus:border-[#b98be8] focus:ring-2 focus:ring-[#e5d4f7]";
+const primaryActionClass =
+  "rounded-button bg-gradient-to-br from-purple via-amethyst to-plum px-4 text-sm font-semibold text-white shadow-soft transition duration-200 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-lift active:translate-y-0 active:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple disabled:cursor-not-allowed disabled:from-purple/40 disabled:via-amethyst/35 disabled:to-plum/30 disabled:shadow-soft disabled:hover:translate-y-0 disabled:hover:brightness-100";
+const bookingCtaClass =
+  "group rounded-button bg-gradient-to-br from-purple via-amethyst to-plum px-5 py-5 text-base font-bold text-white shadow-lift transition duration-200 motion-safe:hover:-translate-y-1 hover:brightness-105 hover:shadow-[0_24px_48px_rgba(122,78,171,0.22)] active:translate-y-0 active:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple disabled:cursor-not-allowed disabled:from-purple/40 disabled:via-amethyst/35 disabled:to-plum/30 disabled:shadow-soft disabled:hover:translate-y-0 disabled:hover:brightness-100 sm:text-[1.05rem]";
 
 function cleanPhone(value: string) {
   return value.replace(/\D/g, "");
@@ -49,10 +56,45 @@ function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-export function BookingForm({ eventId, availableSeats, capacity, message, messageVariant = "notice", bookingSent = false }: BookingFormProps) {
+function getStickyHeaderOffset() {
+  const header = document.querySelector<HTMLElement>("header");
+
+  if (!header) {
+    return 0;
+  }
+
+  const position = window.getComputedStyle(header).position;
+
+  if (position !== "fixed" && position !== "sticky") {
+    return 0;
+  }
+
+  return header.getBoundingClientRect().height;
+}
+
+export function BookingForm({
+  eventId,
+  availableSeats,
+  capacity,
+  eventStartsAt,
+  eventTitle,
+  facilitatorProfileHref,
+  message,
+  messageVariant = "notice",
+  bookingSent = false,
+}: BookingFormProps) {
   const isSoldOut = availableSeats <= 0;
   const formRef = useRef<HTMLFormElement>(null);
+  const bookingToggleRef = useRef<HTMLButtonElement>(null);
+  const bookingDialogRef = useRef<HTMLDivElement>(null);
+  const bookingFieldsRef = useRef<HTMLDivElement>(null);
+  const bookingFormStartRef = useRef<HTMLDivElement>(null);
+  const firstFieldRef = useRef<HTMLInputElement>(null);
+  const receiptSectionRef = useRef<HTMLElement>(null);
+  const receiptHeadingRef = useRef<HTMLHeadingElement>(null);
   const highSeatSubmitConfirmedRef = useRef(false);
+  const submitStartedRef = useRef(false);
+  const shouldScrollToBookingStartRef = useRef(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -61,6 +103,9 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [showHighSeatConfirmation, setShowHighSeatConfirmation] = useState(false);
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(Boolean(message) && !bookingSent);
+  const [receiptDismissed, setReceiptDismissed] = useState(false);
+  const [usesModalBookingForm, setUsesModalBookingForm] = useState(false);
 
   const nameComplete = Boolean(name.trim());
   const emailComplete = validEmail(email.trim());
@@ -71,6 +116,227 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
   const showPhoneError = (attemptedSubmit || phone.length > 0) && !phoneValid;
   const showSeatLimitMessage = !isSoldOut && availableSeats > maxSeatsPerBooking && seats >= maxSeatsPerBooking;
   const highSeatPersonLabel = seats === 1 ? "person" : "personer";
+  const bookingPanelIsOpen = isFormOpen || (bookingSent && !receiptDismissed);
+  const formattedEventDate = new Intl.DateTimeFormat("da-DK", { dateStyle: "full", timeStyle: "short" }).format(new Date(eventStartsAt));
+
+  const closeBookingForm = useCallback(() => {
+    if (isSubmittingBooking) {
+      return;
+    }
+
+    if (bookingSent) {
+      setIsFormOpen(false);
+      setReceiptDismissed(true);
+      return;
+    }
+
+    setIsFormOpen(false);
+    window.requestAnimationFrame(() => {
+      bookingToggleRef.current?.focus({ preventScroll: true });
+    });
+  }, [bookingSent, isSubmittingBooking]);
+
+  const scrollToBookingFormStart = useCallback(() => {
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const target = bookingFormStartRef.current ?? firstFieldRef.current ?? bookingFieldsRef.current;
+
+    if (!target) {
+      return;
+    }
+
+    window.scrollTo({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      top: Math.max(0, target.getBoundingClientRect().top + window.scrollY - getStickyHeaderOffset() - 16),
+    });
+  }, []);
+
+  const toggleBookingForm = useCallback(() => {
+    const nextIsOpen = !isFormOpen;
+    setIsFormOpen(nextIsOpen);
+
+    if (nextIsOpen && !usesModalBookingForm) {
+      shouldScrollToBookingStartRef.current = true;
+    } else {
+      shouldScrollToBookingStartRef.current = false;
+    }
+  }, [isFormOpen, usesModalBookingForm]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 768px)");
+    const updateModalMode = () => setUsesModalBookingForm(mediaQuery.matches);
+
+    updateModalMode();
+    mediaQuery.addEventListener("change", updateModalMode);
+
+    return () => mediaQuery.removeEventListener("change", updateModalMode);
+  }, []);
+
+  useEffect(() => {
+    if (!bookingPanelIsOpen || !usesModalBookingForm) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    window.requestAnimationFrame(() => {
+      if (bookingSent) {
+        receiptHeadingRef.current?.focus({ preventScroll: true });
+      } else {
+        firstFieldRef.current?.focus({ preventScroll: true });
+      }
+    });
+
+    const getFocusableElements = () =>
+      Array.from(
+        bookingDialogRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((element) => !element.hasAttribute("aria-hidden"));
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isSubmittingBooking) {
+        event.preventDefault();
+        closeBookingForm();
+        return;
+      }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const focusableElements = getFocusableElements();
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (!firstElement || !lastElement) {
+        return;
+      }
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [bookingPanelIsOpen, bookingSent, closeBookingForm, isSubmittingBooking, usesModalBookingForm]);
+
+  useEffect(() => {
+    if (!bookingSent) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      receiptHeadingRef.current?.focus({ preventScroll: true });
+
+      if (usesModalBookingForm) {
+        bookingDialogRef.current?.scrollTo({ top: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
+      } else {
+        receiptSectionRef.current?.scrollIntoView({
+          behavior: prefersReducedMotion ? "auto" : "smooth",
+          block: "start",
+        });
+      }
+    });
+  }, [bookingSent, usesModalBookingForm]);
+
+  const receiptContent = (
+      <section
+        className="rounded-card border border-[#E5D4F7] bg-[#FAF7FE] p-6 text-midnight shadow-[0_18px_45px_rgba(90,59,122,0.14)]"
+        id="booking-response"
+        ref={receiptSectionRef}
+      >
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6E5A86]">TILMELDING MODTAGET</p>
+        <h2
+          className="mt-2 text-2xl font-semibold leading-tight text-olive"
+          ref={receiptHeadingRef}
+          tabIndex={-1}
+        >
+          Din tilmelding er modtaget 💜
+        </h2>
+        <p className="mt-4 text-sm leading-6 text-ink/72">
+          Du modtager en e-mail, når arrangøren har bekræftet din tilmelding.
+        </p>
+        <div className="mt-6 rounded-md border border-[#E5D4F7] bg-white/80 px-4 py-3 text-sm leading-6 text-ink/72 shadow-soft">
+          <p>
+            <span className="font-semibold text-midnight">Event:</span> {eventTitle}
+          </p>
+          <p>
+            <span className="font-semibold text-midnight">Dato:</span> {formattedEventDate}
+          </p>
+        </div>
+        <div className="mt-6 grid gap-3">
+          <Link
+            className={`${primaryActionClass} inline-flex h-11 items-center justify-center`}
+            href="/"
+          >
+            Tilbage til forsiden
+          </Link>
+          <Link
+            className="inline-flex h-11 items-center justify-center rounded-button border border-sage-700/25 bg-white px-4 text-sm font-semibold text-sage-700 transition hover:border-sage-700 hover:bg-sage-50"
+            href={facilitatorProfileHref}
+          >
+            Besøg arrangørens profil
+          </Link>
+        </div>
+      </section>
+  );
+
+  if (bookingSent) {
+    return (
+      <section className="rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_18px_45px_rgba(90,59,122,0.16)]">
+        {!usesModalBookingForm || receiptDismissed ? receiptContent : null}
+
+        {usesModalBookingForm && !receiptDismissed ? (
+          <div
+            aria-labelledby="booking-receipt-title"
+            aria-modal="true"
+            className="fixed inset-0 z-50 items-start justify-center overflow-y-auto bg-[#2F2633]/35 px-4 py-8 backdrop-blur-sm md:grid"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                closeBookingForm();
+              }
+            }}
+            role="dialog"
+          >
+            <div
+              className="w-full max-w-2xl rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_24px_70px_rgba(47,36,55,0.22)]"
+              ref={bookingDialogRef}
+              tabIndex={-1}
+            >
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Tilmelding</p>
+                  <h3 className="mt-1 text-3xl font-semibold text-olive" id="booking-receipt-title">
+                    Tilmelding modtaget
+                  </h3>
+                </div>
+                <button
+                  aria-label="Luk kvittering"
+                  className="grid size-10 shrink-0 place-items-center rounded-full border border-[#D8CBE4] bg-white text-[#6E5A86] shadow-soft transition hover:border-[#7A5D91] hover:text-[#2F2633]"
+                  onClick={closeBookingForm}
+                  type="button"
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </button>
+              </div>
+              {receiptContent}
+            </div>
+          </div>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <form
@@ -78,6 +344,12 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
       action={createBookingAction}
       className="rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_18px_45px_rgba(90,59,122,0.16)]"
       onSubmit={(event) => {
+        if (submitStartedRef.current) {
+          event.preventDefault();
+          return;
+        }
+
+        setIsFormOpen(true);
         setAttemptedSubmit(true);
         if (!phoneValid) {
           event.preventDefault();
@@ -92,6 +364,7 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
           return;
         }
 
+        submitStartedRef.current = true;
         setIsSubmittingBooking(true);
       }}
     >
@@ -99,24 +372,110 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
       <h2 className="text-3xl font-semibold text-olive">Tilmeld dig</h2>
       <CapacityBadge availableSeats={availableSeats} capacity={capacity} className="mt-2" />
 
-      <div className="mt-4 rounded-md border border-white/70 bg-white/70 px-3 py-3 text-sm leading-6 text-ink/72 shadow-soft">
-        <p className="font-semibold text-midnight">{"\ud83d\udc9c Vigtigt f\u00f8r du tilmelder dig"}</p>
-        <p className="mt-2">
-          {"Din tilmelding sendes som en foresp\u00f8rgsel til arrangøren. Din plads er f\u00f8rst reserveret, n\u00e5r du har modtaget en bekr\u00e6ftelse."}
-        </p>
-        <p className="mt-2 italic">
-          {"SoulEvents.dk hj\u00e6lper deltagere og arrangører med at finde hinanden. Det er den enkelte arrangør, der st\u00e5r for eventet og h\u00e5ndterer tilmeldinger."}
-        </p>
-      </div>
+      {!bookingSent ? (
+        <button
+          aria-controls="booking-form-fields"
+          aria-expanded={isFormOpen}
+          ref={bookingToggleRef}
+          className={`${bookingCtaClass} mt-5 inline-flex min-h-[4.25rem] w-full items-center justify-center gap-3`}
+          disabled={isSoldOut}
+          onClick={toggleBookingForm}
+          type="button"
+        >
+          {isFormOpen ? (
+            <>
+              Skjul formular
+              <ChevronDown className="size-5 rotate-180 transition-transform duration-200" aria-hidden="true" />
+            </>
+          ) : (
+            <>
+              <Sparkles className="size-5" aria-hidden="true" />
+              Tilmeld dig
+              <ChevronDown
+                className="size-5 -rotate-90 transition-transform duration-200 motion-safe:group-hover:translate-x-1 motion-safe:group-focus-visible:translate-x-1"
+                aria-hidden="true"
+              />
+            </>
+          )}
+        </button>
+      ) : null}
+
+      <div
+        aria-hidden={!isFormOpen && !bookingSent}
+        aria-labelledby={usesModalBookingForm && bookingPanelIsOpen ? "booking-dialog-title" : undefined}
+        aria-modal={usesModalBookingForm && bookingPanelIsOpen ? true : undefined}
+        className={
+          "grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-300 ease-out md:fixed md:inset-0 md:z-50 md:items-start md:justify-center md:overflow-y-auto md:bg-[#2F2633]/35 md:px-4 md:py-8 md:backdrop-blur-sm " +
+          (bookingPanelIsOpen ? "mt-4 grid-rows-[1fr] opacity-100 md:mt-0" : "mt-0 grid-rows-[0fr] opacity-0 md:pointer-events-none md:grid-rows-[1fr]")
+        }
+        id="booking-form-fields"
+        inert={!bookingPanelIsOpen ? true : undefined}
+        ref={bookingFieldsRef}
+        onClick={(event) => {
+          if (event.target === event.currentTarget && usesModalBookingForm) {
+            closeBookingForm();
+          }
+        }}
+        onTransitionEnd={(event) => {
+          if (
+            event.target !== event.currentTarget ||
+            event.propertyName !== "grid-template-rows" ||
+            !isFormOpen ||
+            usesModalBookingForm ||
+            !shouldScrollToBookingStartRef.current
+          ) {
+            return;
+          }
+
+          shouldScrollToBookingStartRef.current = false;
+          scrollToBookingFormStart();
+        }}
+        role={usesModalBookingForm && bookingPanelIsOpen ? "dialog" : undefined}
+      >
+        <div
+          className="min-h-0 md:max-h-[calc(100vh-4rem)] md:w-full md:max-w-2xl md:overflow-y-auto md:rounded-card md:border md:border-[#e5d4f7] md:bg-[#f6efff] md:p-6 md:shadow-[0_24px_70px_rgba(47,36,55,0.22)]"
+          ref={bookingDialogRef}
+          tabIndex={usesModalBookingForm && bookingPanelIsOpen ? -1 : undefined}
+        >
+          <div className="mb-5 hidden items-start justify-between gap-4 md:flex">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Tilmelding</p>
+              <h3 className="mt-1 text-3xl font-semibold text-olive" id="booking-dialog-title">
+                Tilmeld dig
+              </h3>
+            </div>
+            <button
+              aria-label="Luk tilmeldingsformular"
+              className="grid size-10 shrink-0 place-items-center rounded-full border border-[#D8CBE4] bg-white text-[#6E5A86] shadow-soft transition hover:border-[#7A5D91] hover:text-[#2F2633]"
+              disabled={isSubmittingBooking}
+              onClick={closeBookingForm}
+              type="button"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+          <div
+            className="rounded-md border border-white/70 bg-white/70 px-3 py-3 text-sm leading-6 text-ink/72 shadow-soft"
+            ref={bookingFormStartRef}
+          >
+            <p className="font-semibold text-midnight">{"\ud83d\udc9c Vigtigt f\u00f8r du tilmelder dig"}</p>
+            <p className="mt-2">
+              {"Din tilmelding sendes som en foresp\u00f8rgsel til arrangøren. Din plads er f\u00f8rst reserveret, n\u00e5r du har modtaget en bekr\u00e6ftelse."}
+            </p>
+            <p className="mt-2 italic">
+              {"SoulEvents.dk hj\u00e6lper deltagere og arrangører med at finde hinanden. Det er den enkelte arrangør, der st\u00e5r for eventet og h\u00e5ndterer tilmeldinger."}
+            </p>
+          </div>
 
       <div className="mt-6 grid gap-4 [&_input::placeholder]:text-sm [&_input::placeholder]:font-normal [&_input::placeholder]:text-ink/45 [&_textarea::placeholder]:text-sm [&_textarea::placeholder]:font-normal [&_textarea::placeholder]:text-ink/45">
         <label className="grid gap-2 text-sm font-medium text-ink/72">
           Dit navn *
-          <input
-            autoComplete="name"
-            className={inputClass}
-            disabled={isSoldOut}
-            maxLength={120}
+              <input
+                autoComplete="name"
+                className={inputClass}
+                disabled={isSoldOut}
+                ref={firstFieldRef}
+                maxLength={120}
             name="participant_name"
             onChange={(event) => setName(event.target.value)}
             placeholder="Dit fulde navn"
@@ -286,7 +645,7 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
       </div>
 
       <button
-        className="mt-6 h-12 w-full rounded-button bg-rose px-4 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:bg-rose/40"
+        className={`${primaryActionClass} mt-6 h-12 w-full`}
         disabled={isSoldOut || isSubmittingBooking}
         type="submit"
       >
@@ -295,6 +654,38 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
           {isSubmittingBooking ? "Sender tilmelding..." : "Send tilmelding"}
         </span>
       </button>
+
+          {message && (
+            <div id="booking-response" className="mt-4 grid scroll-mt-8 gap-3">
+              {bookingSent ? (
+                <div className="rounded-card border border-[#E5D4F7] bg-[#FAF7FE] p-5 text-midnight shadow-soft">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#6E5A86] shadow-soft">
+                      <Clock3 aria-hidden="true" className="h-5 w-5" />
+                    </span>
+                    <div className="grid gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6E5A86]">Tilmelding modtaget</p>
+                      <h3 className="text-lg font-semibold leading-tight text-midnight">Din tilmelding afventer arrangørens bekræftelse</h3>
+                      <p className="text-sm leading-6 text-ink/72">{message}</p>
+                      <p className="text-sm font-semibold leading-6 text-ink/72">
+                        Hold øje med din indbakke. Din endelige bekræftelse sendes i en separat e-mail.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <AuthMessage message={message} variant={messageVariant} />
+              )}
+              <Link
+                className="inline-flex h-11 items-center justify-center rounded-md border border-sage-700/25 bg-white px-4 text-sm font-semibold text-sage-700 transition hover:border-sage-700 hover:bg-sage-50"
+                href="/"
+              >
+                Tilbage til forsiden
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
 
       {showHighSeatConfirmation && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[#2F2633]/45 px-4 py-6" role="presentation">
@@ -324,7 +715,7 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
                 Gå tilbage
               </button>
               <button
-                className="h-11 rounded-button bg-rose px-4 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:bg-rose/45"
+                className={`${primaryActionClass} h-11`}
                 disabled={isSubmittingBooking}
                 onClick={() => {
                   highSeatSubmitConfirmedRef.current = true;
@@ -342,35 +733,6 @@ export function BookingForm({ eventId, availableSeats, capacity, message, messag
         </div>
       )}
 
-      {message && (
-        <div id="booking-response" className="mt-4 grid scroll-mt-8 gap-3">
-          {bookingSent ? (
-            <div className="rounded-card border border-[#E5D4F7] bg-[#FAF7FE] p-5 text-midnight shadow-soft">
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#6E5A86] shadow-soft">
-                  <Clock3 aria-hidden="true" className="h-5 w-5" />
-                </span>
-                <div className="grid gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6E5A86]">Tilmelding modtaget</p>
-                  <h3 className="text-lg font-semibold leading-tight text-midnight">Din tilmelding afventer arrangørens bekræftelse</h3>
-                  <p className="text-sm leading-6 text-ink/72">{message}</p>
-                  <p className="text-sm font-semibold leading-6 text-ink/72">
-                    Hold øje med din indbakke. Din endelige bekræftelse sendes i en separat e-mail.
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <AuthMessage message={message} variant={messageVariant} />
-          )}
-          <Link
-            className="inline-flex h-11 items-center justify-center rounded-md border border-sage-700/25 bg-white px-4 text-sm font-semibold text-sage-700 transition hover:border-sage-700 hover:bg-sage-50"
-            href="/"
-          >
-            Tilbage til forsiden
-          </Link>
-        </div>
-      )}
     </form>
   );
 }

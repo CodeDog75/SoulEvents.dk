@@ -1,4 +1,4 @@
-import { renderEmailButton, renderEmailLayout, renderEmailTable, renderPlainTextFooter } from "@/lib/email/email-layout";
+import { renderEmailButton, renderEmailLayout, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, formatDate, sendLoggedEmail } from "@/lib/email/resend-mail";
 
 type BookingNotificationInput = {
@@ -12,6 +12,7 @@ type BookingNotificationInput = {
   participantName: string;
   participantEmail: string;
   participantPhone: string | null;
+  participantMessage?: string | null;
   seats: number;
 };
 
@@ -21,48 +22,59 @@ function formatSeats(seats: number) {
 
 async function buildHtml(input: BookingNotificationInput) {
   const rows: Array<[string, string]> = [
-    ["Tilmeldt af", input.participantName],
-    ["Antal reserverede pladser", String(input.seats)],
-    ["E-mailadresse", input.participantEmail],
-    ["Telefonnummer", input.participantPhone || "Ikke angivet"],
     ["Event", input.eventTitle],
     ["Dato", formatDate(input.eventStartsAt)],
+    ["Antal reserverede pladser", formatSeats(input.seats)],
   ];
+  const heading = `${input.participantName} har reserveret ${formatSeats(input.seats)}`;
 
   return renderEmailLayout({
-    title: "Du har modtaget en ny tilmelding",
+    title: heading,
     children: `
-      <p style="margin: 0 0 16px;">Hej ${escapeHtml(input.facilitatorName)}, der er kommet en ny tilmelding til dit event.</p>
-      ${renderEmailTable(rows)}
-      <p style="margin: 20px 0 0;">Tilmeldingen afventer din behandling. Log ind på SoulEvents for at bekræfte eller afvise den.</p>
-      ${renderEmailButton(input.bookingsUrl, "Behandl tilmeldingen")}
+      <p style="margin: -6px 0 16px; color: #6E6475; font-size: 16px; font-weight: 700;">til ${escapeHtml(input.eventTitle)}</p>
+      <p style="margin: 0 0 12px;">Du har modtaget en ny reservationsforespørgsel.</p>
+      <p style="margin: 0 0 18px; color: #2F2633; font-size: 17px; font-weight: 800;">Tilmeldingen er endnu ikke gyldig.</p>
+      <p style="margin: 0 0 18px;">Den bliver først endeligt bekræftet, når du aktivt godkender den i SoulEvents.</p>
+      <div style="margin: 20px 0 0; border-radius: 16px; background: #F7F2FB; padding: 16px;">
+        ${rows
+          .map(
+            ([label, value]) => `
+              <p style="margin: 0 0 10px; color: #4A4050;">
+                <span style="display: block; color: #2F2633; font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;">${escapeHtml(label)}</span>
+                <span style="font-size: 16px; font-weight: 700;">${escapeHtml(value)}</span>
+              </p>
+            `,
+          )
+          .join("")}
+      </div>
+      ${renderEmailButton(input.bookingsUrl, "Bekræft tilmelding")}
     `,
   });
 }
 
 function buildText(input: BookingNotificationInput) {
+  const heading = `${input.participantName} har reserveret ${formatSeats(input.seats)}`;
   return [
-    "Du har modtaget en ny tilmelding",
+    heading,
+    `til ${input.eventTitle}`,
     "",
-    `Hej ${input.facilitatorName}, der er kommet en ny tilmelding til:`,
+    "Du har modtaget en ny reservationsforespørgsel.",
     "",
-    `Tilmeldt af: ${input.participantName}`,
-    `Antal reserverede pladser: ${input.seats}`,
-    `E-mailadresse: ${input.participantEmail}`,
-    `Telefonnummer: ${input.participantPhone || "Ikke angivet"}`,
+    "Tilmeldingen er endnu ikke gyldig.",
+    "Den bliver først endeligt bekræftet, når du aktivt godkender den i SoulEvents.",
+    "",
     `Event: ${input.eventTitle}`,
     `Dato: ${formatDate(input.eventStartsAt)}`,
+    `Antal reserverede pladser: ${formatSeats(input.seats)}`,
     "",
-    "Tilmeldingen afventer din behandling. Log ind på SoulEvents for at bekræfte eller afvise den:",
+    "Bekræft tilmelding:",
     input.bookingsUrl,
     ...renderPlainTextFooter(),
   ].join("\n");
 }
 
 export async function sendBookingNotification(input: BookingNotificationInput) {
-  const subject = input.seats === 1
-    ? `Ny tilmelding til ${input.eventTitle}`
-    : `Ny tilmelding: ${formatSeats(input.seats)} til ${input.eventTitle}`;
+  const subject = `Ny tilmelding: ${formatSeats(input.seats)} til ${input.eventTitle}`;
 
   return sendLoggedEmail({
     type: "booking_created_facilitator",

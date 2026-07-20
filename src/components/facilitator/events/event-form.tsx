@@ -1920,7 +1920,7 @@ export function EventForm({
       refreshFormValidationState();
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [capacityValue, city, country, endDate, endTime, eventFormat, hasChosenEventFormat, isForeignLocation, isFree, postalCode, priceValue, regionId, selectedMainCategoryIds, selectedTagIds, startDate, startTime]);
+  }, [capacityValue, city, country, endDate, endTime, eventFormat, hasChosenEventFormat, hasCoverImage, isForeignLocation, isFree, postalCode, priceValue, regionId, selectedMainCategoryIds, selectedTagIds, startDate, startTime]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -2178,7 +2178,7 @@ export function EventForm({
                 : "bg-[#D8CBE4] text-white shadow-none")
             }
             name="status"
-            disabled={coOrganizerBlocksSubmit || activeLimitBlocksSubmit || legalAcceptanceBlocksSubmit || isSubmittingEventUpdate}
+            disabled={!canSubmitEvent || isSubmittingEventUpdate}
             type="submit"
             value={primarySubmitStatus}
           >
@@ -2270,7 +2270,7 @@ export function EventForm({
         const isDialogParticipantSubmit = submitter?.name === "notify_participants";
         const submittedStatus = isDialogParticipantSubmit ? pendingSubmitStatus || primarySubmitStatus : submitter?.value;
         const latestMissingInvitationItems = getMissingInvitationItems();
-        const latestCanPublish = latestMissingInvitationItems.length === 0 && !activeLimitBlocksSubmit;
+        const latestCanPublish = latestMissingInvitationItems.length === 0 && !coOrganizerBlocksSubmit && !activeLimitBlocksSubmit;
 
         const isPrimarySubmit =
           submittedStatus === "active" ||

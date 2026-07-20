@@ -28,6 +28,7 @@ const activeCoOrganizerStatuses = ["pending", "accepted"] as const;
 const allowedFormats = ["physical", "online"] as const;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 const missingCoverPublishMessage = "Tilføj et coverbillede, før eventet kan offentliggøres.";
+const danishTimeZone = "Europe/Copenhagen";
 type ActiveCoOrganizerStatus = (typeof activeCoOrganizerStatuses)[number];
 
 const facilitatorProfileEventSelect = "id, status, is_paused, is_disabled, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)";
@@ -231,6 +232,120 @@ function toDateTime(date: string, time: string) {
   }
 
   return new Date(`${date}T${time}:00`).toISOString();
+}
+
+function getDanishDateTimeParts(value: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    month: "2-digit",
+    second: "2-digit",
+    timeZone: danishTimeZone,
+    year: "numeric",
+  }).formatToParts(value);
+  const partValue = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+
+  return {
+    day: partValue("day"),
+    hour: partValue("hour"),
+    minute: partValue("minute"),
+    month: partValue("month"),
+    second: partValue("second"),
+    year: partValue("year"),
+  };
+}
+
+function utcFromDanishLocalTime(input: {
+  day: number;
+  hour: number;
+  minute: number;
+  month: number;
+  second: number;
+  year: number;
+}) {
+  const utcGuess = new Date(Date.UTC(input.year, input.month - 1, input.day, input.hour, input.minute, input.second));
+  const guessParts = getDanishDateTimeParts(utcGuess);
+  const guessedLocalAsUtc = Date.UTC(
+    guessParts.year,
+    guessParts.month - 1,
+    guessParts.day,
+    guessParts.hour,
+    guessParts.minute,
+    guessParts.second,
+  );
+  const targetLocalAsUtc = Date.UTC(input.year, input.month - 1, input.day, input.hour, input.minute, input.second);
+  const offset = guessedLocalAsUtc - utcGuess.getTime();
+
+  return new Date(targetLocalAsUtc - offset);
+}
+
+function addDanishCalendarDays(
+  input: {
+    day: number;
+    month: number;
+    year: number;
+  },
+  days: number,
+) {
+  const date = new Date(Date.UTC(input.year, input.month - 1, input.day + days));
+
+  return {
+    day: date.getUTCDate(),
+    month: date.getUTCMonth() + 1,
+    year: date.getUTCFullYear(),
+  };
+}
+
+function daysBetweenDanishDates(
+  start: {
+    day: number;
+    month: number;
+    year: number;
+  },
+  end: {
+    day: number;
+    month: number;
+    year: number;
+  },
+) {
+  const startUtc = Date.UTC(start.year, start.month - 1, start.day);
+  const endUtc = Date.UTC(end.year, end.month - 1, end.day);
+
+  return Math.max(0, Math.round((endUtc - startUtc) / 86_400_000));
+}
+
+function copiedEventDateTimes(sourceStartsAt: string, sourceEndsAt: string) {
+  const sourceStart = new Date(sourceStartsAt);
+  const sourceEnd = new Date(sourceEndsAt);
+  const sourceStartParts = getDanishDateTimeParts(sourceStart);
+  const sourceEndParts = getDanishDateTimeParts(sourceEnd);
+  const todayParts = getDanishDateTimeParts(new Date());
+  const targetStartDate = addDanishCalendarDays(todayParts, 7);
+  const endDateOffset = daysBetweenDanishDates(sourceStartParts, sourceEndParts);
+  const targetEndDate = addDanishCalendarDays(targetStartDate, endDateOffset);
+  const startsAt = utcFromDanishLocalTime({
+    ...targetStartDate,
+    hour: sourceStartParts.hour,
+    minute: sourceStartParts.minute,
+    second: sourceStartParts.second,
+  });
+  let endsAt = utcFromDanishLocalTime({
+    ...targetEndDate,
+    hour: sourceEndParts.hour,
+    minute: sourceEndParts.minute,
+    second: sourceEndParts.second,
+  });
+
+  if (endsAt <= startsAt) {
+    endsAt = new Date(startsAt.getTime() + Math.max(sourceEnd.getTime() - sourceStart.getTime(), 60 * 60 * 1000));
+  }
+
+  return {
+    endsAt: endsAt.toISOString(),
+    startsAt: startsAt.toISOString(),
+  };
 }
 
 async function replaceEventRelations(
@@ -801,7 +916,10 @@ export async function createEventAction(formData: FormData) {
     eventsRedirect("Færdiggør og indsend din arrangørprofil, før du opretter events.");
   }
 
-  const requestedStatus = getString(formData, "status") as EventStatus;
+  const requestedStatusValues = getAllStrings(formData, "status");
+  const requestedStatus = (requestedStatusValues.includes("draft")
+    ? "draft"
+    : requestedStatusValues[0] || getString(formData, "status")) as EventStatus;
   const notifyParticipants = getString(formData, "notify_participants") === "yes";
   const participantUpdateMessage = getOptionalString(formData, "participant_update_message");
   const existingEventId = getOptionalString(formData, "event_id");
@@ -1411,6 +1529,10 @@ export async function updateEventStatusAction(formData: FormData) {
     eventsRedirect("Ugyldig eventhandling.");
   }
 
+  if (status === "cancelled" && formData.get("confirm_cancel_event") !== "yes") {
+    eventsRedirect("Bekræft aflysningen, før eventet aflyses.");
+  }
+
   const supabase = createAdminClient();
   const { data: facilitatorProfiles } = await supabase
     .from("facilitator_profiles")
@@ -1641,6 +1763,7 @@ export async function copyEventAsDraftAction(formData: FormData) {
   }
 
   const copyTitle = sourceEvent.title + " (kopi)";
+  const copiedDateTimes = copiedEventDateTimes(sourceEvent.starts_at, sourceEvent.ends_at);
   const { data: copiedEvent, error: copyError } = await supabase
     .from("events")
     .insert({
@@ -1651,8 +1774,8 @@ export async function copyEventAsDraftAction(formData: FormData) {
       short_description: sourceEvent.short_description,
       long_description: sourceEvent.long_description,
       cover_image_path: sourceEvent.cover_image_path,
-      starts_at: sourceEvent.starts_at,
-      ends_at: sourceEvent.ends_at,
+      starts_at: copiedDateTimes.startsAt,
+      ends_at: copiedDateTimes.endsAt,
       address_line: sourceEvent.address_line,
       postal_code: sourceEvent.postal_code,
       city: sourceEvent.city,

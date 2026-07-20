@@ -10,6 +10,7 @@ import { ShareEventButton } from "@/components/events/detail/share-event-button"
 import { SoulEventsIdTag } from "@/components/facilitator/soulevents-id-tag";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
+import { getUserFacingEventStatus, isEventPastEnd } from "@/lib/events/user-facing-status";
 import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
 import { buildEventJsonLd, buildEventMetadata } from "@/lib/seo/public-page-metadata";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
@@ -137,7 +138,7 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
 
   const facilitator = first((event as any)?.facilitator_profiles);
   const isPublishedEvent = event ? ["active", "sold_out"].includes(event.status) : false;
-  const isExpiredEvent = event ? new Date(event.ends_at ?? event.starts_at) < new Date() : true;
+  const isExpiredEvent = event ? isEventPastEnd(event) : true;
   const isPublicEvent =
     isPublishedEvent &&
     !isExpiredEvent &&
@@ -420,9 +421,10 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     : event.facilitator_profiles;
   const isPublishedEvent = ["active", "sold_out"].includes(event.status);
   const isSoldOut = event.status === "sold_out" || availableSeats <= 0;
-  const isExpiredEvent = new Date(event.ends_at ?? event.starts_at) < new Date();
+  const userFacingStatus = getUserFacingEventStatus(event);
+  const isExpiredEvent = userFacingStatus === "held";
   const isPreviouslyPublished = Boolean(event.published_at) || ["active", "sold_out", "completed", "cancelled", "archived"].includes(event.status);
-  const isHeldEvent = isPreviouslyPublished && (event.status === "completed" || isExpiredEvent);
+  const isHeldEvent = isPreviouslyPublished && userFacingStatus === "held";
   const isPublicEvent = isPublishedEvent && !isExpiredEvent && facilitatorProfile?.status === "approved" && !facilitatorProfile.is_paused && !facilitatorProfile.is_disabled;
   const canPreviewEvent = viewer?.role === "admin" || viewer?.id === facilitatorProfile?.profile_id;
   if (!isPublicEvent && !canPreviewEvent) {
@@ -464,6 +466,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const eventCoverLabel = mainCategories[0]?.name || categories[0]?.name || "SoulEvents";
   const eventCoverColor = mainCategories[0]?.color_hex || categories[0]?.color_hex || "#D89A94";
   const canonicalEventUrl = absoluteUrl(publicEventPath(event.slug || event.id));
+  const eventDescription = event.long_description?.trim() ?? "";
 
   const facilitatorLinks = [
     facilitatorProfile?.website_url ? { label: "Hjemmeside", href: ensureUrl(facilitatorProfile.website_url) } : null,
@@ -616,24 +619,22 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               )}
             </div>
             <div className="p-8 sm:p-10">
-            <div className="flex flex-wrap gap-2">
-              {categories.map((category) => (
-                <span
-                  className="rounded-full px-3 py-1 text-xs font-semibold text-white"
-                  key={category.name}
-                  style={{ backgroundColor: category.color_hex }}
-                >
-                  {category.name}
-                </span>
-              ))}
+              <div className="flex flex-wrap gap-2">
+                {categories.map((category) => (
+                  <span
+                    className="rounded-full px-3 py-1 text-xs font-semibold text-white"
+                    key={category.name}
+                    style={{ backgroundColor: category.color_hex }}
+                  >
+                    {category.name}
+                  </span>
+                ))}
+              </div>
+              <h2 className="mt-5 text-5xl font-medium leading-tight text-olive sm:text-6xl">{event.title}</h2>
+              {eventDescription ? (
+                <div className="mt-6 max-w-3xl whitespace-pre-line text-base leading-8 text-ink/72">{eventDescription}</div>
+              ) : null}
             </div>
-            <h2 className="mt-5 text-5xl font-medium leading-tight text-olive sm:text-6xl">{event.title}</h2>
-            </div>
-          </section>
-
-          <section className="rounded-card bg-white p-8 shadow-soft">
-            <h2 className="text-4xl font-medium text-olive">Om eventet</h2>
-            <div className="mt-4 whitespace-pre-line text-sm leading-7 text-ink/72">{event.long_description}</div>
           </section>
 
           {images.length > 0 && (
@@ -845,6 +846,9 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               bookingSent={booking === "sent"}
               capacity={event.capacity}
               eventId={event.id}
+              eventStartsAt={event.starts_at}
+              eventTitle={event.title}
+              facilitatorProfileHref={publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id)}
               message={message}
               messageVariant={messageVariant}
             />

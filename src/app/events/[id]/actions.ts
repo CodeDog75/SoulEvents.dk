@@ -120,6 +120,19 @@ function mailErrorDetails(result: PromiseSettledResult<boolean>) {
   };
 }
 
+function maskEmail(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const [localPart, domain] = value.split("@");
+  if (!localPart || !domain) {
+    return "[email]";
+  }
+
+  return localPart.slice(0, 2) + "***@" + domain;
+}
+
 export async function createBookingAction(formData: FormData) {
   const eventId = getString(formData, "event_id");
   const participantName = getString(formData, "participant_name");
@@ -306,7 +319,7 @@ export async function createBookingAction(formData: FormData) {
     : facilitatorContact?.profiles;
   const facilitatorEmail = facilitatorContactProfile?.email ?? facilitatorUser?.email ?? null;
 
-  const [facilitatorMailResult, participantMailResult] = await Promise.allSettled([
+  void Promise.allSettled([
     sendBookingNotification({
       bookingId: booking.id,
       eventId: event.id,
@@ -318,6 +331,7 @@ export async function createBookingAction(formData: FormData) {
       participantName,
       participantEmail,
       participantPhone,
+      participantMessage: message,
       seats,
     }),
     sendParticipantBookingReceipt({
@@ -330,28 +344,27 @@ export async function createBookingAction(formData: FormData) {
       participantEmail,
       seats,
     }),
-  ]);
-  const facilitatorMailSent = facilitatorMailResult.status === "fulfilled" && facilitatorMailResult.value;
-  const participantMailSent = participantMailResult.status === "fulfilled" && participantMailResult.value;
+  ]).then(([facilitatorMailResult, participantMailResult]) => {
+    const facilitatorMailSent = facilitatorMailResult.status === "fulfilled" && facilitatorMailResult.value;
+    const participantMailSent = participantMailResult.status === "fulfilled" && participantMailResult.value;
 
-  if (!facilitatorMailSent || !participantMailSent) {
-    console.error("Booking mail delivery failed", {
-      bookingId: booking.id,
-      eventId: event.id,
-      facilitatorEmail,
-      facilitatorMailError: mailErrorDetails(facilitatorMailResult),
-      facilitatorMailSent,
-      participantEmail,
-      participantMailError: mailErrorDetails(participantMailResult),
-      participantMailSent,
-      sequence: "facilitator and participant mails attempted in parallel with Promise.allSettled",
-    });
-  }
+    if (!facilitatorMailSent || !participantMailSent) {
+      console.error("Booking mail delivery failed", {
+        bookingId: booking.id,
+        eventId: event.id,
+        facilitatorEmail: maskEmail(facilitatorEmail),
+        facilitatorMailError: mailErrorDetails(facilitatorMailResult),
+        facilitatorMailSent,
+        participantEmail: maskEmail(participantEmail),
+        participantMailError: mailErrorDetails(participantMailResult),
+        participantMailSent,
+        sequence: "facilitator and participant mails started before booking redirect and logged asynchronously",
+      });
+    }
+  });
 
   const successMessage =
-    facilitatorMailSent && participantMailSent
-      ? "Din tilmelding er modtaget, men endnu ikke endeligt bekræftet. Arrangøren skal først godkende den. Du modtager en ny e-mail, så snart det sker."
-      : "Din tilmelding er modtaget, men mailen kunne ikke sendes lige nu. Arrangøren skal stadig først godkende den, før pladsen er endeligt bekræftet.";
+    "Din tilmelding er modtaget, men endnu ikke endeligt bekræftet. Arrangøren skal først godkende den. Du modtager en ny e-mail, så snart det sker.";
 
   revalidatePath("/events/" + eventId);
   if (event.slug) {
@@ -360,7 +373,6 @@ export async function createBookingAction(formData: FormData) {
   redirect(
     publicEventPath(event.slug || eventId) +
       "?booking=sent&message=" +
-      encodeURIComponent(successMessage) +
-      "#booking-response",
+      encodeURIComponent(successMessage),
   );
 }
