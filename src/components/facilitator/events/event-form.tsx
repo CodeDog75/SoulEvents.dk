@@ -296,6 +296,10 @@ function coOrganizerStatusCopy(status: CoOrganizerInvitation["status"], profileI
   };
 }
 
+function normalizeCoOrganizerSearchText(value: string | null | undefined) {
+  return (value ?? "").toLowerCase().trim();
+}
+
 const legacyEventDraftStorageKey = "soulevents:event-form-draft:v1";
 const eventDraftStoragePrefix = "soulevents:event-form-draft:v2";
 const maxEventDescriptionLength = 2000;
@@ -882,6 +886,15 @@ export function EventForm({
   const activeExistingCoOrganizers = existingCoOrganizers.filter((coOrganizer) => coOrganizer.status === "pending" || coOrganizer.status === "accepted");
   const inactiveExistingCoOrganizers = activeExistingCoOrganizers.filter((coOrganizer) => coOrganizer.profileIsActive === false);
   const activeCoOrganizerCount = activeExistingCoOrganizers.length + selectedCoOrganizers.length;
+  const coOrganizerSearchNeedle = normalizeCoOrganizerSearchText(coOrganizerSearchQuery);
+  const matchingExistingCoOrganizers =
+    coOrganizerSearchNeedle.length >= 2
+      ? existingCoOrganizers.filter((coOrganizer) =>
+          normalizeCoOrganizerSearchText([coOrganizer.name, coOrganizer.city, ...(coOrganizer.categories ?? [])].filter(Boolean).join(" ")).includes(
+            coOrganizerSearchNeedle,
+          ),
+        )
+      : [];
   const canAddCoOrganizer = activeCoOrganizerCount < 2;
   const organizerAcceptanceMessage =
     message && (message.toLowerCase().includes("arrangørvilkår") || message.toLowerCase().includes("retningslinjer"))
@@ -1280,13 +1293,22 @@ export function EventForm({
 
     startCoOrganizerSearch(async () => {
       const existingProfileIds = new Set([
-        ...existingCoOrganizers.map((coOrganizer) => coOrganizer.profileId),
+        ...activeExistingCoOrganizers.map((coOrganizer) => coOrganizer.profileId),
         ...selectedCoOrganizers.map((coOrganizer) => coOrganizer.id),
       ]);
       const results = await searchCoOrganizerCandidatesAction(nextQuery, draftEvent?.id ?? null);
       const filteredResults = results.filter((candidate) => !existingProfileIds.has(candidate.id));
       setCoOrganizerCandidates(filteredResults);
-      setCoOrganizerSearchMessage(filteredResults.length === 0 ? "Ingen aktive og fuldførte arrangørprofiler matcher din søgning." : "");
+      const existingMatchFound = existingCoOrganizers.some((coOrganizer) =>
+        normalizeCoOrganizerSearchText([coOrganizer.name, coOrganizer.city, ...(coOrganizer.categories ?? [])].filter(Boolean).join(" ")).includes(
+          normalizeCoOrganizerSearchText(nextQuery),
+        ),
+      );
+      setCoOrganizerSearchMessage(
+        filteredResults.length === 0 && !existingMatchFound
+          ? "Ingen aktive og fuldførte arrangørprofiler matcher din søgning."
+          : "",
+      );
     });
   }
 
@@ -2544,6 +2566,26 @@ export function EventForm({
                   </label>
                   {isSearchingCoOrganizers ? <p className="text-sm text-ink/58">Søger...</p> : null}
                   {coOrganizerSearchMessage ? <p className="text-sm font-semibold text-[#6E5A86]">{coOrganizerSearchMessage}</p> : null}
+                  {matchingExistingCoOrganizers.length > 0 ? (
+                    <div className="grid gap-2 rounded-card border border-[#E7D59D] bg-[#FFF8DF] p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-[#7A5A15]">Allerede inviteret</p>
+                      {matchingExistingCoOrganizers.map((coOrganizer) => {
+                        const statusCopy = coOrganizerStatusCopy(coOrganizer.status, coOrganizer.profileIsActive);
+                        return (
+                          <div className="flex items-start gap-3 rounded-[18px] bg-white/70 p-3" key={"existing-search-" + coOrganizer.id}>
+                            <CoOrganizerAvatar imageUrl={coOrganizer.imageUrl} name={coOrganizer.name} />
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-semibold text-midnight">{coOrganizer.name}</span>
+                              <span className="mt-1 block text-sm leading-5 text-ink/62">{statusCopy.description}</span>
+                            </span>
+                            <span className={"shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide " + statusCopy.badgeClass}>
+                              {statusCopy.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                   {coOrganizerCandidates.length > 0 ? (
                     <div className="grid gap-2">
                       {coOrganizerCandidates.map((candidate) => (
