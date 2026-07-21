@@ -664,7 +664,7 @@ function EventCard({
           <div className="flex flex-wrap gap-2">
             <Link
               className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E4F86]"
-              href={publicEventPath(event.slug || event.id) + "?return_to=/facilitator/events"}
+              href={publicEventPath(event.slug || event.id) + "?return_to=/facilitator"}
             >
               Se detaljer
             </Link>

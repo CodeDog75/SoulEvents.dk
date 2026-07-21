@@ -50,6 +50,7 @@ function withSearch(path: string, searchParams: Record<string, string | undefine
 
 function safeFacilitatorReturnPath(path: string | undefined) {
   if (!path) return null;
+  if (path === "/facilitator" || path.startsWith("/facilitator?") || path.startsWith("/facilitator#")) return path;
   return path === "/facilitator/events" || path.startsWith("/facilitator/events?") || path.startsWith("/facilitator/events#")
     ? path
     : null;
@@ -503,7 +504,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   );
   const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør";
   const isBookable = isPublicEvent && !isSoldOut && !isHeldEvent;
-  const facilitatorReturn = safeFacilitatorReturnPath(returnTo);
+  const facilitatorReturn = safeFacilitatorReturnPath(returnTo) ?? (viewer?.id === facilitatorProfile?.profile_id ? "/facilitator" : null);
   const facilitatorImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;

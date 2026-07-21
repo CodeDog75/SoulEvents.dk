@@ -208,6 +208,63 @@ function EditorialSection() {
   );
 }
 
+function AboutFaqSection() {
+  const items = [
+    {
+      question: "Hvem kan bruge SoulEvents?",
+      answer:
+        "SoulEvents er for dig, der søger events, ydelser og fællesskaber inden for krop, sind og sjæl. Det kan være alt fra yoga og meditation til saunagus, lydbade, healing, retreats og nærværende samtaler.",
+    },
+    {
+      question: "Er SoulEvents arrangør af eventene?",
+      answer:
+        "SoulEvents samler og formidler events fra selvstændige arrangører. Den enkelte arrangør har ansvaret for eventets indhold, praktiske oplysninger, betaling og dialog med deltagerne.",
+    },
+    {
+      question: "Hvordan vælger SoulEvents arrangører?",
+      answer:
+        "Arrangører opretter en profil, som gennemgås af SoulEvents, før den kan blive synlig på platformen. Formålet er at skabe et trygt, seriøst og inspirerende univers for både deltagere og arrangører.",
+    },
+    {
+      question: "Kan jeg finde både events og ydelser?",
+      answer:
+        "Ja. SoulEvents viser både events, du kan deltage i, og arrangører med ydelser som individuelle sessioner, behandlinger, coaching, yoga, healing eller andre forløb.",
+    },
+    {
+      question: "Koster det noget at bruge SoulEvents?",
+      answer:
+        "Det er som udgangspunkt gratis at bruge SoulEvents for både deltagere og arrangører. Eventuelle betalingsydelser, annoncer eller premiumfunktioner vil altid blive oplyst tydeligt, før de vælges.",
+    },
+  ];
+
+  return (
+    <section className="rounded-[28px] bg-white p-6 shadow-soft sm:p-8">
+      <div className="max-w-[78ch]">
+        <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">FAQ</p>
+        <h2 className="mt-3 text-3xl font-medium leading-tight text-olive sm:text-4xl">Ofte stillede spørgsmål</h2>
+        <p className="mt-4 text-base leading-8 text-ink/70">
+          Her finder du korte svar på nogle af de spørgsmål, nye deltagere og arrangører ofte har om SoulEvents.
+        </p>
+      </div>
+      <div className="mt-7 grid gap-3">
+        {items.map((item) => (
+          <details className="group rounded-[20px] border border-sage-700/10 bg-[#FAF6EF] px-5 py-4" key={item.question}>
+            <summary className="cursor-pointer list-none text-base font-semibold text-[#2F2633] marker:hidden">
+              <span className="flex items-center justify-between gap-4">
+                {item.question}
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white text-[#7A4EAB] shadow-soft transition group-open:rotate-45">
+                  +
+                </span>
+              </span>
+            </summary>
+            <p className="mt-3 max-w-[76ch] text-sm leading-7 text-ink/68">{item.answer}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export async function generateMetadata(): Promise<Metadata> {
   const supabase = await createClient();
   const { data: setting } = await supabase.from("site_settings").select("value").eq("key", aboutPageSettingKey).maybeSingle();
@@ -296,6 +353,7 @@ export default async function AboutPage() {
           <EditorialSection />
           <HowItWorksSection text={content.howText} title={content.howTitle} />
           <ValuesSection text={content.valuesText} title={content.valuesTitle} />
+          <AboutFaqSection />
         </div>
 
         {(content.ctaTitle || content.ctaText || content.ctaButtonText) && (
