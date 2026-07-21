@@ -40,5 +40,5 @@ drop policy if exists "Admins manage work area suggestions" on public.facilitato
 create policy "Admins manage work area suggestions"
   on public.facilitator_work_area_suggestions
   for all
-  using (public.is_admin())
-  with check (public.is_admin());
+  using (private.is_admin())
+  with check (private.is_admin());

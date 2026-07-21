@@ -20,6 +20,8 @@ with soulevents_progressive_source as (
     currency,
     created_by,
     reason,
+    effective_from,
+    created_at,
     row_number() over (order by effective_from desc, created_at desc) as recency_rank,
     count(*) over () as active_count
   from public.commission_settings

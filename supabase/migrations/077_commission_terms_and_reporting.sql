@@ -15,6 +15,17 @@ create table if not exists public.commission_settings (
   constraint commission_settings_currency_check check (char_length(currency) = 3)
 );
 
+alter table public.commission_settings
+  add column if not exists threshold_cents int not null default 120000,
+  add column if not exists commission_rate_bps int not null default 1000,
+  add column if not exists minimum_commission_cents int not null default 0,
+  add column if not exists currency text not null default 'DKK',
+  add column if not exists effective_from timestamptz not null default now(),
+  add column if not exists is_active boolean not null default true,
+  add column if not exists reason text,
+  add column if not exists created_by uuid references public.profiles(id) on delete set null,
+  add column if not exists created_at timestamptz not null default now();
+
 create table if not exists public.facilitator_commission_terms (
   id uuid primary key default gen_random_uuid(),
   facilitator_id uuid not null references public.facilitator_profiles(id) on delete cascade,
@@ -32,6 +43,18 @@ create table if not exists public.facilitator_commission_terms (
   constraint facilitator_commission_terms_minimum_check check (minimum_commission_cents is null or minimum_commission_cents >= 0),
   constraint facilitator_commission_terms_currency_check check (currency is null or char_length(currency) = 3)
 );
+
+alter table public.facilitator_commission_terms
+  add column if not exists facilitator_id uuid references public.facilitator_profiles(id) on delete cascade,
+  add column if not exists threshold_cents int,
+  add column if not exists commission_rate_bps int,
+  add column if not exists minimum_commission_cents int,
+  add column if not exists currency text,
+  add column if not exists effective_from timestamptz not null default now(),
+  add column if not exists is_active boolean not null default true,
+  add column if not exists reason text,
+  add column if not exists created_by uuid references public.profiles(id) on delete set null,
+  add column if not exists created_at timestamptz not null default now();
 
 create unique index if not exists facilitator_commission_terms_one_active_idx
   on public.facilitator_commission_terms(facilitator_id)

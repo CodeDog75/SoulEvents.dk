@@ -18,6 +18,20 @@ alter table public.event_financial_records
   add column if not exists tier_three_rate_bps int not null default 400,
   add column if not exists tier_three_revenue_cents int not null default 0;
 
+update public.commission_settings
+set
+  tier_one_limit_cents = case
+    when tier_one_limit_cents <= threshold_cents then threshold_cents + 1
+    else tier_one_limit_cents
+  end,
+  tier_two_limit_cents = case
+    when tier_two_limit_cents <= greatest(tier_one_limit_cents, threshold_cents + 1)
+      then greatest(tier_one_limit_cents, threshold_cents + 1) + 1
+    else tier_two_limit_cents
+  end
+where tier_one_limit_cents <= threshold_cents
+   or tier_two_limit_cents <= greatest(tier_one_limit_cents, threshold_cents + 1);
+
 alter table public.commission_settings
   drop constraint if exists commission_settings_revenue_bracket_limits_check,
   add constraint commission_settings_revenue_bracket_limits_check check (
