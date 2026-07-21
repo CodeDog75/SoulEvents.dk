@@ -16,6 +16,7 @@ import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes, recordLeg
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
 import { assertRateLimit, isRateLimitExceededError, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
+import { validateSocialProfileLink } from "@/lib/social-profile-links";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -134,7 +135,7 @@ function categoryDebugContext(
   };
 }
 
-const editableProfileSections = ["contact", "location", "social", "images", "categories", "services"] as const;
+const editableProfileSections = ["contact", "location", "social", "images", "categories", "payment", "services"] as const;
 type EditableProfileSection = (typeof editableProfileSections)[number];
 type ProfileSection = EditableProfileSection | "all";
 
@@ -311,6 +312,24 @@ function countDigits(value: string) {
 
 function isValidPhoneNumber(value: string) {
   return /^[\d\s]+$/.test(value) && countDigits(value) === 8;
+}
+
+function isValidWebUrl(value: string) {
+  if (!value) {
+    return true;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function parsePaymentDeadlineDays(value: string) {
+  const fallback = value ? Number(value) : 14;
+  return Number.isInteger(fallback) && fallback >= 0 && fallback <= 60 ? fallback : null;
 }
 
 function isProfileReady(input: {
@@ -1013,13 +1032,93 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
       return { message: "Et link er længere end tilladt.", ok: false };
     }
 
-    updates.facebook_url = facebookUrl;
-    updates.instagram_url = instagramUrl;
+    const facebookValidation = validateSocialProfileLink(facebookUrl, "facebook");
+    if (!facebookValidation.ok) {
+      return { message: facebookValidation.message, ok: false };
+    }
+
+    const instagramValidation = validateSocialProfileLink(instagramUrl, "instagram");
+    if (!instagramValidation.ok) {
+      return { message: instagramValidation.message, ok: false };
+    }
+
+    updates.facebook_url = facebookValidation.value;
+    updates.instagram_url = instagramValidation.value;
     updates.public_email = publicEmail;
     updates.public_phone = publicPhone;
     updates.tiktok_url = tiktokUrl;
     updates.website_url = websiteUrl;
     updates.youtube_url = youtubeUrl;
+  }
+
+  if (section === "payment") {
+    const mobilepayNumber = valueForAutosave(input.values.payment_mobilepay_number);
+    const bankRegistrationNumber = valueForAutosave(input.values.payment_bank_registration_number);
+    const bankAccountNumber = valueForAutosave(input.values.payment_bank_account_number);
+    const bankAccountName = valueForAutosave(input.values.payment_bank_account_name);
+    const externalUrl = valueForAutosave(input.values.payment_external_url);
+    const instructions = valueForAutosave(input.values.payment_instructions);
+    const deadlineDays = parsePaymentDeadlineDays(valueForAutosave(input.values.payment_deadline_days));
+
+    if (
+      mobilepayNumber.length > 40 ||
+      bankRegistrationNumber.length > 20 ||
+      bankAccountNumber.length > 40 ||
+      bankAccountName.length > 120 ||
+      externalUrl.length > 300 ||
+      instructions.length > 800
+    ) {
+      return { message: "Et betalingsfelt er længere end tilladt.", ok: false };
+    }
+
+    if (!isValidWebUrl(externalUrl)) {
+      return { message: "Betalingslink skal starte med http:// eller https://.", ok: false };
+    }
+
+    if (deadlineDays === null) {
+      return { message: "Betalingsfrist skal være mellem 0 og 60 dage.", ok: false };
+    }
+
+    const { error: paymentSettingsError } = await supabase.from("facilitator_payment_settings").upsert(
+      {
+        facilitator_id: facilitatorId,
+        mobilepay_number: mobilepayNumber || null,
+        bank_registration_number: bankRegistrationNumber || null,
+        bank_account_number: bankAccountNumber || null,
+        bank_account_name: bankAccountName || null,
+        external_url: externalUrl || null,
+        instructions: instructions || null,
+        deadline_days: deadlineDays,
+      },
+      { onConflict: "facilitator_id" },
+    );
+
+    if (paymentSettingsError) {
+      console.error("[facilitator-profile:payment] Payment settings could not be saved", {
+        authenticatedProfileRef: logProfileReference(profile.id),
+        code: paymentSettingsError.code,
+        details: paymentSettingsError.details,
+        facilitatorId,
+        facilitatorOwnerMatchesAuthenticatedProfile: targetProfileId === profile.id,
+        hint: paymentSettingsError.hint,
+        message: paymentSettingsError.message,
+        operation: "upsert",
+        payloadColumns: [
+          "facilitator_id",
+          "mobilepay_number",
+          "bank_registration_number",
+          "bank_account_number",
+          "bank_account_name",
+          "external_url",
+          "instructions",
+          "deadline_days",
+        ],
+        profileRef: logProfileReference(targetProfileId),
+        table: "facilitator_payment_settings",
+        upsertOnConflict: "facilitator_id",
+      });
+      return { message: "Betalingsoplysningerne kunne ikke gemmes.", ok: false };
+    }
   }
 
   if (section === "services") {
@@ -1893,6 +1992,24 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     profileRedirect("Telefonnummer skal bestå af præcis 8 tal. Kun tal og mellemrum er tilladt.", redirectOrigin, "contact");
   }
 
+  if (savesSection(section, "social")) {
+    const facebookValidation = validateSocialProfileLink(facebookUrl, "facebook");
+    if (!facebookValidation.ok) {
+      if (isAdminEdit) {
+        adminProfileRedirect(facebookValidation.message, adminReturnTo, "social");
+      }
+      profileRedirect(facebookValidation.message, redirectOrigin, "social");
+    }
+
+    const instagramValidation = validateSocialProfileLink(instagramUrl, "instagram");
+    if (!instagramValidation.ok) {
+      if (isAdminEdit) {
+        adminProfileRedirect(instagramValidation.message, adminReturnTo, "social");
+      }
+      profileRedirect(instagramValidation.message, redirectOrigin, "social");
+    }
+  }
+
   if (savesSection(section, "location") && (!postalCode || !city)) {
     if (isAdminEdit) {
       adminProfileRedirect("Postnummer og by skal udfyldes.", adminReturnTo, "location");
@@ -1973,8 +2090,11 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   }
 
   if (savesSection(section, "social")) {
-    facilitatorUpdates.facebook_url = facebookUrl;
-    facilitatorUpdates.instagram_url = instagramUrl;
+    const facebookValidation = validateSocialProfileLink(facebookUrl, "facebook");
+    const instagramValidation = validateSocialProfileLink(instagramUrl, "instagram");
+
+    facilitatorUpdates.facebook_url = facebookValidation.ok ? facebookValidation.value : null;
+    facilitatorUpdates.instagram_url = instagramValidation.ok ? instagramValidation.value : null;
     facilitatorUpdates.public_email = publicEmail;
     facilitatorUpdates.public_phone = publicPhone;
     facilitatorUpdates.tiktok_url = tiktokUrl;

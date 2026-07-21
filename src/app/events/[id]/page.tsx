@@ -319,6 +319,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       starts_at,
       ends_at,
       published_at,
+      updated_at,
       address_line,
       postal_code,
       city,
@@ -395,6 +396,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         starts_at,
         ends_at,
         published_at,
+        updated_at,
         address_line,
         postal_code,
         city,
@@ -474,6 +476,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const isPublishedEvent = ["active", "sold_out"].includes(event.status);
   const isSoldOut = event.status === "sold_out" || availableSeats <= 0;
   const userFacingStatus = getUserFacingEventStatus(event);
+  const isCancelledEvent = event.status === "cancelled";
   const isExpiredEvent = userFacingStatus === "held";
   const isPreviouslyPublished = Boolean(event.published_at) || ["active", "sold_out", "completed", "cancelled", "archived"].includes(event.status);
   const isHeldEvent = isPreviouslyPublished && userFacingStatus === "held";
@@ -536,6 +539,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const eventCoverColor = mainCategories[0]?.color_hex || categories[0]?.color_hex || "#D89A94";
   const canonicalEventUrl = absoluteUrl(publicEventPath(event.slug || event.id));
   const eventDescription = event.long_description?.trim() ?? "";
+  const cancelledDateLabel = formatDanishDate(event.updated_at || event.starts_at);
 
   const facilitatorLinks = [
     facilitatorProfile?.website_url ? { label: "Hjemmeside", href: ensureUrl(facilitatorProfile.website_url) } : null,
@@ -590,6 +594,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     tags: tags.map((tag) => tag.name),
     title: event.title,
   });
+  const isFreeEvent = event.price_cents === 0;
 
   return (
     <main className="min-h-screen bg-cream">
@@ -641,7 +646,16 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
 
       <section className="mx-auto grid max-w-[1400px] gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1fr_370px]">
         <div className="grid gap-6">
-          {!isPublicEvent && !isHeldEvent && (
+          {isCancelledEvent ? (
+            <section className="rounded-card border border-red-200 bg-red-50 p-5 shadow-soft">
+              <p className="text-sm font-semibold uppercase tracking-wide text-red-700">Aflyst</p>
+              <h2 className="mt-1 text-2xl font-semibold text-red-800">Eventet blev aflyst: {cancelledDateLabel}</h2>
+              <p className="mt-2 text-sm leading-6 text-red-900/80">
+                Du ser eventet som {viewer?.role === "admin" ? "administrator" : "arrangør"}. Eventet er ikke synligt for deltagere på SoulEvents.
+              </p>
+            </section>
+          ) : null}
+          {!isPublicEvent && !isHeldEvent && !isCancelledEvent && (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-5 shadow-soft">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Forhåndsvisning</p>
               <h2 className="mt-1 text-2xl font-semibold text-midnight">Dette event er endnu ikke offentligt</h2>
@@ -860,13 +874,13 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                 </div>
               </div>
 
-              <div className="grid grid-cols-[2.75rem_1fr] gap-2.5 border-b border-[#E8E0D8] py-4 sm:grid-cols-[3.25rem_1fr] sm:gap-3">
-                <span className="grid size-11 place-items-center rounded-[13px] bg-sage-50 text-olive sm:size-13">
+              <div className={`grid grid-cols-[2.75rem_1fr] gap-2.5 border-b border-[#E8E0D8] py-4 sm:grid-cols-[3.25rem_1fr] sm:gap-3 ${isFreeEvent ? "rounded-[16px] bg-[#EEF7F0]/70 px-2" : ""}`}>
+                <span className={`grid size-11 place-items-center rounded-[13px] sm:size-13 ${isFreeEvent ? "bg-[#EEF7F0] text-[#4F654A]" : "bg-sage-50 text-olive"}`}>
                   <Ticket className="size-5 sm:size-6" aria-hidden="true" />
                 </span>
                 <div className="self-center">
                   <p className="text-[0.64rem] font-bold uppercase tracking-[0.12em] text-sage-700 sm:text-[0.68rem]">Pris</p>
-                  <p className="mt-1 text-base font-bold leading-snug text-midnight sm:text-lg">{formatPrice(event.price_cents)}</p>
+                  <p className={`mt-1 text-base font-bold leading-snug sm:text-lg ${isFreeEvent ? "text-[#4F654A]" : "text-midnight"}`}>{formatPrice(event.price_cents)}</p>
                 </div>
               </div>
 

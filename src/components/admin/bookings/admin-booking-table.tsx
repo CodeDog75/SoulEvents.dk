@@ -6,6 +6,8 @@ type BookingRow = {
   participant_name: string;
   participant_email: string;
   seats: number;
+  booking_value_cents: number;
+  manually_marked_paid_at: string | null;
   event_title_snapshot: string;
   event_starts_at_snapshot: string;
   facilitator_name_snapshot: string;
@@ -52,6 +54,7 @@ export function AdminBookingTable({ bookings }: AdminBookingTableProps) {
               <th className="px-4 py-3">Arrangør</th>
               <th className="px-4 py-3">Deltager</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Betaling</th>
               <th className="px-4 py-3 text-right">Pladser</th>
             </tr>
           </thead>
@@ -78,6 +81,24 @@ export function AdminBookingTable({ bookings }: AdminBookingTableProps) {
                   <span className="rounded-md bg-sage-50 px-2.5 py-1 text-xs font-semibold text-sage-700">
                     {statusLabels[booking.status]}
                   </span>
+                </td>
+                <td className="px-4 py-4 align-top">
+                  {booking.booking_value_cents > 0 ? (
+                    <span
+                      className={
+                        "rounded-md px-2.5 py-1 text-xs font-semibold " +
+                        (booking.manually_marked_paid_at ? "bg-[#EEF7F0] text-sage-700" : "bg-[#FFF8E8] text-[#6E5528]")
+                      }
+                    >
+                      {booking.manually_marked_paid_at
+                        ? booking.status === "cancelled"
+                          ? "Tidligere betalt"
+                          : "Betalt"
+                        : "Ikke registreret"}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold text-ink/48">Gratis</span>
+                  )}
                 </td>
                 <td className="px-4 py-4 text-right align-top text-ink/72">{booking.seats}</td>
               </tr>

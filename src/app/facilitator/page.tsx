@@ -32,6 +32,7 @@ import { AuthMessage } from "@/components/auth/auth-message";
 import { DashboardGreeting } from "@/components/facilitator/dashboard-greeting";
 import { CancelEventAction } from "@/components/facilitator/events/cancel-event-action";
 import { LoginSecuritySection } from "@/components/facilitator/login-security-section";
+import { PaymentSettingsCard } from "@/components/facilitator/payment-settings-card";
 import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireRole } from "@/lib/auth/roles";
@@ -90,6 +91,16 @@ type DashboardAction = {
   label: string;
   title: string;
 };
+
+type FacilitatorPaymentSettings = {
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
+  bank_registration_number?: string | null;
+  deadline_days?: number | null;
+  external_url?: string | null;
+  instructions?: string | null;
+  mobilepay_number?: string | null;
+} | null;
 
 const statusStyles: Record<string, string> = {
   draft: "bg-[#E9E6E1] text-[#6A6258]",
@@ -859,6 +870,7 @@ function SettingsPanel({
   isPaused,
   oauthProvider,
   passwordLoginAvailable,
+  paymentSettings,
   pendingEmailChange,
   unreadMessageCount,
 }: {
@@ -869,6 +881,7 @@ function SettingsPanel({
   isPaused: boolean;
   oauthProvider?: string | null;
   passwordLoginAvailable: boolean;
+  paymentSettings: FacilitatorPaymentSettings;
   pendingEmailChange?: { expires_at: string; new_email: string } | null;
   unreadMessageCount: number;
 }) {
@@ -891,6 +904,10 @@ function SettingsPanel({
             passwordLoginAvailable={passwordLoginAvailable}
             pendingEmailChange={pendingEmailChange}
           />
+        </div>
+
+        <div className="lg:col-span-2">
+          <PaymentSettingsCard paymentSettings={paymentSettings} />
         </div>
 
         <form action={sendFacilitatorAdminMessageAction} className="rounded-[20px] border border-[#E5DDEA] bg-[#FAF7F2] p-5">
@@ -1059,6 +1076,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     { data: coOrganizerInvitations },
     { data: latestChangeRequest },
     { data: pendingEmailChange },
+    { data: paymentSettings },
   ] =
     facilitatorProfile
       ? await Promise.all([
@@ -1107,8 +1125,15 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .order("requested_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
+          supabase
+            .from("facilitator_payment_settings")
+            .select(
+              "mobilepay_number, bank_registration_number, bank_account_number, bank_account_name, external_url, instructions, deadline_days",
+            )
+            .eq("facilitator_id", facilitatorProfile.id)
+            .maybeSingle(),
         ])
-      : [{ data: [] }, { data: [] }, { count: 0 }, { data: [] }, { data: [] }, { data: null }, { data: null }];
+      : [{ data: [] }, { data: [] }, { count: 0 }, { data: [] }, { data: [] }, { data: null }, { data: null }, { data: null }];
 
   const eventRows = (events ?? []) as any[];
   const currentPendingBookingRows = ((pendingBookingRows ?? []) as Array<{
@@ -1361,6 +1386,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             isPaused={Boolean(facilitatorProfile?.is_paused)}
             oauthProvider={primaryOauthProvider}
             passwordLoginAvailable={passwordLoginAvailable}
+            paymentSettings={paymentSettings as FacilitatorPaymentSettings}
             pendingEmailChange={pendingEmailChange}
             unreadMessageCount={unreadMessageCount}
           />

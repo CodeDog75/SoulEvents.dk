@@ -119,6 +119,12 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
     redirect("/auth/oauth-profile");
   }
 
+  const { data: facilitatorPaymentSettings } = await supabase
+    .from("facilitator_payment_settings")
+    .select("*")
+    .eq("facilitator_id", facilitatorProfile.id)
+    .maybeSingle();
+
   const onboardingState = await getFacilitatorOnboardingStateForProfile(supabase, {
     fullName: profile.full_name,
     profileId: profile.id,
@@ -137,6 +143,15 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
           .eq("id", draft)
           .eq("facilitator_id", facilitatorProfile.id)
           .in("status", ["draft", "active", "pending_review"])
+          .maybeSingle()
+      : { data: null };
+  const { data: selectedDraftPaymentSettings } =
+    selectedDraft && facilitatorProfile
+      ? await supabase
+          .from("event_payment_settings")
+          .select("*")
+          .eq("event_id", selectedDraft.id)
+          .eq("facilitator_id", facilitatorProfile.id)
           .maybeSingle()
       : { data: null };
   const limitStatus = facilitatorProfile
@@ -312,6 +327,14 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
                     mainCategoryIds: selectedDraft.event_main_categories?.map((row: MainCategoryRelationRow) => row.main_category_id) ?? [],
                     subcategoryIds: selectedDraft.event_subcategories?.map((row: SubcategoryRelationRow) => row.subcategory_id) ?? [],
                     tagIds: selectedDraft.event_tags?.map((row: { tag_id: string }) => row.tag_id) ?? [],
+                    payment_method_source: selectedDraftPaymentSettings?.method_source ?? "facilitator",
+                    payment_mobilepay_number: selectedDraftPaymentSettings?.mobilepay_number ?? null,
+                    payment_bank_registration_number: selectedDraftPaymentSettings?.bank_registration_number ?? null,
+                    payment_bank_account_number: selectedDraftPaymentSettings?.bank_account_number ?? null,
+                    payment_bank_account_name: selectedDraftPaymentSettings?.bank_account_name ?? null,
+                    payment_external_url: selectedDraftPaymentSettings?.external_url ?? null,
+                    payment_instructions: selectedDraftPaymentSettings?.instructions ?? null,
+                    payment_deadline_days: selectedDraftPaymentSettings?.deadline_days ?? null,
                     activeBookingCount:
                       selectedDraft.bookings?.filter((booking: BookingRelationRow) => ["pending", "confirmed"].includes(booking.status ?? "")).length ?? 0,
                     coOrganizerInvitations: ((coOrganizerInvitations ?? []) as CoOrganizerInvitationRow[]).map((invitation) => {
@@ -363,6 +386,13 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
               postalCode: facilitatorProfile.postal_code,
               city: facilitatorProfile.city,
               maxTicketPricePerPerson: facilitatorProfile.max_ticket_price_per_person,
+              paymentMobilepayNumber: facilitatorPaymentSettings?.mobilepay_number ?? null,
+              paymentBankRegistrationNumber: facilitatorPaymentSettings?.bank_registration_number ?? null,
+              paymentBankAccountNumber: facilitatorPaymentSettings?.bank_account_number ?? null,
+              paymentBankAccountName: facilitatorPaymentSettings?.bank_account_name ?? null,
+              paymentExternalUrl: facilitatorPaymentSettings?.external_url ?? null,
+              paymentInstructions: facilitatorPaymentSettings?.instructions ?? null,
+              paymentDeadlineDays: facilitatorPaymentSettings?.deadline_days ?? 14,
             }}
             regions={regions ?? []}
           />

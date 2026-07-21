@@ -6,10 +6,9 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarPlus,
-  CheckCircle2,
   ChevronDown,
+  CreditCard,
   Eye,
-  HeartHandshake,
   ImagePlus,
   Mail,
   MapPin,
@@ -71,6 +70,14 @@ type DraftEvent = {
   country?: string | null;
   region_id?: string | null;
   price_cents?: number | null;
+  payment_method_source?: "facilitator" | "custom" | "none" | null;
+  payment_mobilepay_number?: string | null;
+  payment_bank_registration_number?: string | null;
+  payment_bank_account_number?: string | null;
+  payment_bank_account_name?: string | null;
+  payment_external_url?: string | null;
+  payment_instructions?: string | null;
+  payment_deadline_days?: number | null;
   capacity?: number | null;
   contact_name?: string | null;
   contact_email?: string | null;
@@ -134,6 +141,13 @@ type EventFormProps = {
     postalCode: string | null;
     city: string | null;
     maxTicketPricePerPerson: number | null;
+    paymentMobilepayNumber?: string | null;
+    paymentBankRegistrationNumber?: string | null;
+    paymentBankAccountNumber?: string | null;
+    paymentBankAccountName?: string | null;
+    paymentExternalUrl?: string | null;
+    paymentInstructions?: string | null;
+    paymentDeadlineDays?: number | null;
   };
 };
 
@@ -305,6 +319,12 @@ const eventDraftStoragePrefix = "soulevents:event-form-draft:v2";
 const maxEventDescriptionLength = 2000;
 const maxEventTags = 4;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
+const paymentDeadlineOptions = [
+  { label: "3 dage efter bekræftelse", value: "3" },
+  { label: "5 dage efter bekræftelse", value: "5" },
+  { label: "14 dage efter bekræftelse", value: "14" },
+  { label: "Senest på eventdagen", value: "60" },
+];
 const timeOptions = Array.from({ length: 96 }, (_, index) => {
   const hour = String(Math.floor(index / 4)).padStart(2, "0");
   const minute = String((index % 4) * 15).padStart(2, "0");
@@ -822,6 +842,43 @@ export function EventForm({
     draftEvent ? ((draftEvent.price_cents ?? 0) > 0 ? "paid" : "free") : "",
   );
   const [isFree, setIsFree] = useState((draftEvent?.price_cents ?? 0) === 0);
+  const hasCustomPaymentSettings = draftEvent?.payment_method_source === "custom";
+  const standardPaymentMobilepayNumber = value(facilitator.paymentMobilepayNumber);
+  const standardPaymentBankRegistrationNumber = value(facilitator.paymentBankRegistrationNumber);
+  const standardPaymentBankAccountNumber = value(facilitator.paymentBankAccountNumber);
+  const standardPaymentBankAccountName = value(facilitator.paymentBankAccountName);
+  const standardPaymentExternalUrl = value(facilitator.paymentExternalUrl);
+  const standardPaymentInstructions = value(facilitator.paymentInstructions);
+  const standardPaymentDeadlineDays = value(facilitator.paymentDeadlineDays ?? 14);
+  const hasStandardPaymentSettings = Boolean(
+    standardPaymentMobilepayNumber.trim() ||
+      standardPaymentBankRegistrationNumber.trim() ||
+      standardPaymentBankAccountNumber.trim() ||
+      standardPaymentExternalUrl.trim() ||
+      standardPaymentInstructions.trim(),
+  );
+  const initialPaymentMobilepayNumber = hasCustomPaymentSettings ? value(draftEvent?.payment_mobilepay_number) : standardPaymentMobilepayNumber;
+  const initialPaymentBankRegistrationNumber = hasCustomPaymentSettings
+    ? value(draftEvent?.payment_bank_registration_number)
+    : standardPaymentBankRegistrationNumber;
+  const initialPaymentBankAccountNumber = hasCustomPaymentSettings ? value(draftEvent?.payment_bank_account_number) : standardPaymentBankAccountNumber;
+  const initialPaymentBankAccountName = hasCustomPaymentSettings ? value(draftEvent?.payment_bank_account_name) : standardPaymentBankAccountName;
+  const initialPaymentExternalUrl = hasCustomPaymentSettings ? value(draftEvent?.payment_external_url) : standardPaymentExternalUrl;
+  const initialPaymentInstructions = hasCustomPaymentSettings ? value(draftEvent?.payment_instructions) : standardPaymentInstructions;
+  const initialPaymentDeadlineDays = hasCustomPaymentSettings
+    ? value(draftEvent?.payment_deadline_days ?? facilitator.paymentDeadlineDays ?? 14)
+    : standardPaymentDeadlineDays;
+  const initialPaymentFieldsEdited = hasCustomPaymentSettings;
+  const [sendPaymentInfo, setSendPaymentInfo] = useState(draftEvent?.payment_method_source !== "none");
+  const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
+  const [paymentFieldsEdited, setPaymentFieldsEdited] = useState(initialPaymentFieldsEdited);
+  const [paymentMobilepayNumber, setPaymentMobilepayNumber] = useState(initialPaymentMobilepayNumber);
+  const [paymentBankRegistrationNumber, setPaymentBankRegistrationNumber] = useState(initialPaymentBankRegistrationNumber);
+  const [paymentBankAccountNumber, setPaymentBankAccountNumber] = useState(initialPaymentBankAccountNumber);
+  const [paymentBankAccountName, setPaymentBankAccountName] = useState(initialPaymentBankAccountName);
+  const [paymentExternalUrl, setPaymentExternalUrl] = useState(initialPaymentExternalUrl);
+  const [paymentInstructions, setPaymentInstructions] = useState(initialPaymentInstructions);
+  const [paymentDeadlineDays, setPaymentDeadlineDays] = useState(initialPaymentDeadlineDays);
   const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState<string[]>(draftEvent?.mainCategoryIds ?? []);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>((draftEvent?.tagIds ?? []).slice(0, maxEventTags));
   const [categoryLimitMessage, setCategoryLimitMessage] = useState("");
@@ -879,6 +936,15 @@ export function EventForm({
   const primarySubmitStatus = isEditingPublishedEvent && draftEventStatus ? draftEventStatus : "active";
   const userDraftStorageKey = `${eventDraftStoragePrefix}:${facilitator.id}`;
   const draftStorageKey = draftEvent?.id ? `${userDraftStorageKey}:event:${draftEvent.id}` : `${userDraftStorageKey}:new`;
+  const paymentFieldsDifferFromStandard =
+    paymentMobilepayNumber.trim() !== standardPaymentMobilepayNumber.trim() ||
+    paymentBankRegistrationNumber.trim() !== standardPaymentBankRegistrationNumber.trim() ||
+    paymentBankAccountNumber.trim() !== standardPaymentBankAccountNumber.trim() ||
+    paymentBankAccountName.trim() !== standardPaymentBankAccountName.trim() ||
+    paymentExternalUrl.trim() !== standardPaymentExternalUrl.trim() ||
+    paymentInstructions.trim() !== standardPaymentInstructions.trim() ||
+    paymentDeadlineDays.trim() !== standardPaymentDeadlineDays.trim();
+  const effectivePaymentMethodSource = priceMode === "paid" ? (sendPaymentInfo ? "custom" : "none") : "facilitator";
   const statusHelp = useMemo(
     () =>
       "Når du gør eventet offentligt, bliver det synligt med det samme, hvis din arrangørprofil er godkendt og eventet er klar.",
@@ -1720,8 +1786,19 @@ export function EventForm({
           eventFormat: String(formData.get("event_format") || eventFormat),
           hasChosenEventFormat,
           isForeignLocation,
+          paymentBankAccountName,
+          paymentBankAccountNumber,
+          paymentBankRegistrationNumber,
+          paymentDeadlineDays,
+          paymentExternalUrl,
+          paymentFieldsEdited,
+          paymentFieldsInitialized: true,
+          paymentInstructions,
+          paymentMobilepayNumber,
+          isPaymentFormOpen,
           priceMode,
           isFree,
+          sendPaymentInfo,
           sendOnlineLinkLater,
           capacityValue,
 
@@ -1834,6 +1911,23 @@ export function EventForm({
     setHasChosenEventFormat(Boolean(draft.state?.hasChosenEventFormat));
     setPriceMode(draft.state?.priceMode === "paid" || draft.state?.priceMode === "free" ? draft.state.priceMode : "");
     setIsFree(Boolean(draft.state?.isFree));
+    setSendPaymentInfo(
+      typeof draft.state?.sendPaymentInfo === "boolean"
+        ? draft.state.sendPaymentInfo
+        : draft.state?.paymentMethodSource !== "none",
+    );
+    const hasPersistedPaymentFields = draft.state?.paymentFieldsInitialized === true && draft.state?.paymentFieldsEdited === true;
+    setPaymentFieldsEdited(Boolean(draft.state?.paymentFieldsEdited) || initialPaymentFieldsEdited);
+    setPaymentMobilepayNumber(hasPersistedPaymentFields ? draft.state?.paymentMobilepayNumber ?? "" : initialPaymentMobilepayNumber);
+    setPaymentBankRegistrationNumber(
+      hasPersistedPaymentFields ? draft.state?.paymentBankRegistrationNumber ?? "" : initialPaymentBankRegistrationNumber,
+    );
+    setPaymentBankAccountNumber(hasPersistedPaymentFields ? draft.state?.paymentBankAccountNumber ?? "" : initialPaymentBankAccountNumber);
+    setPaymentBankAccountName(hasPersistedPaymentFields ? draft.state?.paymentBankAccountName ?? "" : initialPaymentBankAccountName);
+    setPaymentExternalUrl(hasPersistedPaymentFields ? draft.state?.paymentExternalUrl ?? "" : initialPaymentExternalUrl);
+    setPaymentInstructions(hasPersistedPaymentFields ? draft.state?.paymentInstructions ?? "" : initialPaymentInstructions);
+    setPaymentDeadlineDays(hasPersistedPaymentFields ? draft.state?.paymentDeadlineDays ?? "" : initialPaymentDeadlineDays);
+    setIsPaymentFormOpen(false);
     setSendOnlineLinkLater(Boolean(draft.state?.sendOnlineLinkLater));
     setCapacityValue(draft.state?.capacityValue ?? String(draftEvent?.capacity ?? 12));
     setSelectedMainCategoryIds(Array.isArray(draft.state?.selectedMainCategoryIds) ? draft.state.selectedMainCategoryIds : []);
@@ -1912,7 +2006,33 @@ export function EventForm({
   useEffect(() => {
     const timeout = window.setTimeout(writeDraft, 350);
     return () => window.clearTimeout(timeout);
-  }, [capacityValue, city, country, endDate, endTime, eventFormat, hasChosenEventFormat, isForeignLocation, priceMode, isFree, postalCode, regionId, selectedMainCategoryIds, selectedTagIds, startDate, startTime]);
+  }, [
+    capacityValue,
+    city,
+    country,
+    endDate,
+    endTime,
+    eventFormat,
+    hasChosenEventFormat,
+    isForeignLocation,
+    isFree,
+    isPaymentFormOpen,
+    paymentBankAccountName,
+    paymentBankAccountNumber,
+    paymentBankRegistrationNumber,
+    paymentDeadlineDays,
+    paymentExternalUrl,
+    paymentInstructions,
+    paymentMobilepayNumber,
+    postalCode,
+    priceMode,
+    regionId,
+    sendPaymentInfo,
+    selectedMainCategoryIds,
+    selectedTagIds,
+    startDate,
+    startTime,
+  ]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -2881,6 +3001,211 @@ export function EventForm({
             <span className="text-xs leading-5 text-ink/52">Maks. 500 deltagere.</span>
           </label>
         </div>
+
+        <input name="payment_method_source" type="hidden" value={effectivePaymentMethodSource} />
+        <input name="payment_mobilepay_number" type="hidden" value={priceMode === "paid" && sendPaymentInfo ? paymentMobilepayNumber : ""} />
+        <input name="payment_bank_registration_number" type="hidden" value={priceMode === "paid" && sendPaymentInfo ? paymentBankRegistrationNumber : ""} />
+        <input name="payment_bank_account_number" type="hidden" value={priceMode === "paid" && sendPaymentInfo ? paymentBankAccountNumber : ""} />
+        <input name="payment_bank_account_name" type="hidden" value={priceMode === "paid" && sendPaymentInfo ? paymentBankAccountName : ""} />
+        <input name="payment_external_url" type="hidden" value={priceMode === "paid" && sendPaymentInfo ? paymentExternalUrl : ""} />
+        <input name="payment_instructions" type="hidden" value={priceMode === "paid" && sendPaymentInfo ? paymentInstructions : ""} />
+        <input name="payment_deadline_days" type="hidden" value={priceMode === "paid" && sendPaymentInfo ? paymentDeadlineDays : ""} />
+
+        {priceMode === "paid" ? (
+          <section className="grid gap-4 rounded-card border border-[#E5D4F7] bg-[#FBF8FE] p-4 sm:p-5">
+            <div className="flex items-start gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-[#7A4EAB] shadow-soft">
+                <CreditCard className="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h3 className="text-base font-semibold text-midnight">Betalingsoplysninger til bekræftelsesmailen</h3>
+                <p className="mt-1 text-sm leading-6 text-ink/62">
+                  Disse betalingsoplysninger sendes kun til de deltagere, du bekræfter. De vises ikke på dit event
+                  eller din arrangørprofil og kan tilpasses for dette event.
+                </p>
+              </div>
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-card border border-midnight/10 bg-white p-4 text-sm text-midnight shadow-soft transition hover:border-[#7A4EAB]/35">
+              <input
+                checked={sendPaymentInfo}
+                className="mt-1 size-5 rounded border-midnight/20 accent-[#7A4EAB]"
+                onChange={(event) => {
+                  const checked = event.currentTarget.checked;
+                  setSendPaymentInfo(checked);
+                  if (!checked) {
+                    setIsPaymentFormOpen(false);
+                  }
+                }}
+                type="checkbox"
+              />
+              <span>
+                <span className="block font-semibold">Send betalingsoplysninger til deltageren</span>
+                <span className="mt-1 block leading-6 text-ink/62">
+                  Slå fra, hvis betalingen aftales direkte mellem dig og deltageren.
+                </span>
+              </span>
+            </label>
+
+            {sendPaymentInfo ? (
+              <div className="grid gap-4">
+                {hasStandardPaymentSettings ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-sage-700/15 bg-sage-50 px-4 py-3 text-sm text-sage-700">
+                    <span className="font-semibold">✓ Standardbetalingsoplysninger anvendes.</span>
+                    <button
+                      className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(47,36,55,0.10)] focus:outline-none focus:ring-4 focus:ring-[#CDB4EA]"
+                      onClick={() => setIsPaymentFormOpen((isOpen) => !isOpen)}
+                      type="button"
+                    >
+                      <span aria-hidden="true">{isPaymentFormOpen ? "▲" : "▼"}</span>
+                      Tilpas betalingsoplysninger
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid gap-3 rounded-card border border-[#E5D4F7] bg-white px-4 py-4 text-sm text-ink/68 shadow-soft">
+                    <p className="font-semibold text-midnight">Du har endnu ikke opsat standardbetalingsoplysninger.</p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Link
+                        className="inline-flex h-11 items-center justify-center rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(122,78,171,0.22)] focus:outline-none focus:ring-4 focus:ring-[#CDB4EA]"
+                        href="/facilitator#beskeder-admin"
+                      >
+                        Opsæt standardbetaling
+                      </Link>
+                      <button
+                        className="text-sm font-semibold text-[#7A4EAB] underline-offset-4 hover:underline focus:outline-none focus:ring-4 focus:ring-[#CDB4EA]"
+                        onClick={() => setIsPaymentFormOpen(true)}
+                        type="button"
+                      >
+                        eller udfyld betalingsoplysninger kun for dette event
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  className={
+                    "grid overflow-hidden transition-all duration-300 ease-out " +
+                    (isPaymentFormOpen ? "max-h-[1400px] gap-4 opacity-100" : "max-h-0 gap-0 opacity-0")
+                  }
+                >
+                  {paymentFieldsDifferFromStandard ? (
+                    <span className="w-fit rounded-full bg-[#F2ECF8] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#7A4EAB]">
+                      Tilpasset til dette event
+                    </span>
+                  ) : null}
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                    MobilePay
+                    <input
+                      className="h-12 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      maxLength={40}
+                      onChange={(event) => {
+                        setPaymentFieldsEdited(true);
+                        setPaymentMobilepayNumber(event.currentTarget.value);
+                      }}
+                      placeholder="MobilePay-nummer"
+                      value={paymentMobilepayNumber}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                    Betalingslink
+                    <input
+                      className="h-12 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      maxLength={300}
+                      onChange={(event) => {
+                        setPaymentFieldsEdited(true);
+                        setPaymentExternalUrl(event.currentTarget.value);
+                      }}
+                      placeholder="Indsæt betalingslink"
+                      value={paymentExternalUrl}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                    Registreringsnummer
+                    <input
+                      className="h-12 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      maxLength={20}
+                      onChange={(event) => {
+                        setPaymentFieldsEdited(true);
+                        setPaymentBankRegistrationNumber(event.currentTarget.value);
+                      }}
+                      placeholder="Registreringsnummer"
+                      value={paymentBankRegistrationNumber}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                    Kontonummer
+                    <input
+                      className="h-12 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      maxLength={40}
+                      onChange={(event) => {
+                        setPaymentFieldsEdited(true);
+                        setPaymentBankAccountNumber(event.currentTarget.value);
+                      }}
+                      placeholder="Kontonummer"
+                      value={paymentBankAccountNumber}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                    Kontohaver
+                    <input
+                      className="h-12 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      maxLength={120}
+                      onChange={(event) => {
+                        setPaymentFieldsEdited(true);
+                        setPaymentBankAccountName(event.currentTarget.value);
+                      }}
+                      placeholder="Kontohaver"
+                      value={paymentBankAccountName}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                    Betalingsfrist
+                    <select
+                      className="h-12 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      onChange={(event) => {
+                        setPaymentFieldsEdited(true);
+                        setPaymentDeadlineDays(event.currentTarget.value);
+                      }}
+                      value={paymentDeadlineOptions.some((option) => option.value === paymentDeadlineDays) ? paymentDeadlineDays : "14"}
+                    >
+                      {paymentDeadlineOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-2 text-sm font-semibold text-midnight md:col-span-2">
+                    Betalingsvejledning
+                    <textarea
+                      className="min-h-28 resize-y rounded-card border border-midnight/10 bg-white px-4 py-3 text-sm font-normal leading-6 text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      maxLength={800}
+                      onChange={(event) => {
+                        setPaymentFieldsEdited(true);
+                        setPaymentInstructions(event.currentTarget.value);
+                      }}
+                      placeholder="Skriv betalingsvejledning til dette event"
+                      value={paymentInstructions}
+                    />
+                  </label>
+                  </div>
+
+                  <p className="text-sm leading-6 text-ink/58">
+                    Ændringer her gælder kun dette event og ændrer ikke dine standardbetalingsoplysninger.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {!sendPaymentInfo ? (
+              <p className="rounded-card bg-white px-4 py-3 text-sm leading-6 text-ink/62">
+                Betalingen aftales direkte mellem dig og deltageren. Der sendes ingen betalingsoplysninger.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
       </section>
 
 <section className={isStepOpen(2) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>

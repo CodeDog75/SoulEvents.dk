@@ -2,16 +2,25 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { sendParticipantBookingResponse } from "@/lib/email/participant-booking-response";
+import { sendBookingPaymentReminder } from "@/lib/email/booking-payment-reminder";
+import { sendParticipantBookingResponse, sendParticipantBookingSeatsUpdated } from "@/lib/email/participant-booking-response";
 import { env } from "@/lib/env";
 import { syncEventCapacityStatus } from "@/lib/events/capacity";
 import { getString } from "@/lib/forms/form-data";
 import { requireRole } from "@/lib/auth/roles";
+import {
+  buildBookingPaymentInstructions,
+  paymentSettingsToInstructionsRecord,
+  parsePaymentInstructionsSnapshot,
+  type PaymentInstructionsSnapshot,
+} from "@/lib/payment-instructions";
 import { publicEventPath } from "@/lib/slug";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { BookingStatus } from "@/types/database";
 
 const responseStatuses: BookingStatus[] = ["confirmed", "cancelled"];
+const paymentReminderCooldownMs = 24 * 60 * 60 * 1000;
 
 function firstRelation<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -22,19 +31,27 @@ function publicEventUrl(eventId: string, eventSlug?: string | null) {
   return appUrl + publicEventPath(eventSlug || eventId);
 }
 
-function bookingsRedirect(message: string, eventId?: string | null): never {
+function bookingsRedirect(message: string, eventId?: string | null, bookingId?: string | null): never {
   const params = new URLSearchParams({ message });
 
   if (eventId) {
     params.set("event", eventId);
   }
 
-  redirect(`/facilitator/bookings?${params.toString()}`);
+  if (bookingId) {
+    params.set("booking", bookingId);
+  }
+
+  redirect(`/facilitator/bookings?${params.toString()}${bookingId ? `#booking-${bookingId}` : ""}`);
 }
 
 function getSeats(formData: FormData) {
   const seats = Number(getString(formData, "seats"));
   return Number.isInteger(seats) ? seats : 0;
+}
+
+function isLikelyEmail(value: string | null | undefined) {
+  return Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
 }
 
 export async function updateBookingStatusAction(formData: FormData) {
@@ -69,6 +86,9 @@ export async function updateBookingStatusAction(formData: FormData) {
       participant_email,
       status,
       seats,
+      price_per_seat_cents,
+      booking_value_cents,
+      payment_reference,
       event_title_snapshot,
       event_starts_at_snapshot,
       facilitator_name_snapshot,
@@ -91,7 +111,64 @@ export async function updateBookingStatusAction(formData: FormData) {
     bookingsRedirect("Kun afventende eller bekræftede tilmeldinger kan aflyses.", booking.event_id);
   }
 
-  const { error } = await supabase.from("bookings").update({ status }).eq("id", bookingId);
+  let paymentInstructions: PaymentInstructionsSnapshot | null = null;
+
+  if (status === "confirmed") {
+    const [{ data: event }, { data: eventPaymentSettings }, { data: facilitatorPaymentSettings }] = await Promise.all([
+      supabase.from("events").select("id, starts_at").eq("id", booking.event_id).maybeSingle(),
+      supabase
+        .from("event_payment_settings")
+        .select("*")
+        .eq("event_id", booking.event_id)
+        .eq("facilitator_id", booking.facilitator_id)
+        .maybeSingle(),
+      supabase
+        .from("facilitator_payment_settings")
+        .select("*")
+        .eq("facilitator_id", booking.facilitator_id)
+        .maybeSingle(),
+    ]);
+
+    if (event) {
+      const eventPaymentRecord = {
+        ...paymentSettingsToInstructionsRecord(eventPaymentSettings),
+        payment_method_source: eventPaymentSettings?.method_source ?? "facilitator",
+      };
+      const facilitatorPaymentRecord = paymentSettingsToInstructionsRecord(facilitatorPaymentSettings);
+
+      paymentInstructions = buildBookingPaymentInstructions({
+        amountCents: booking.booking_value_cents,
+        confirmedAt: new Date(),
+        event: eventPaymentRecord,
+        eventStartsAt: event.starts_at,
+        facilitator: facilitatorPaymentRecord,
+        reference: booking.payment_reference,
+      });
+    }
+
+    if (booking.booking_value_cents > 0 && !paymentInstructions) {
+      console.warn("[booking-confirmation:payment] Missing payment instructions for paid confirmed booking", {
+        amountCents: booking.booking_value_cents,
+        bookingId: booking.id,
+        eventId: booking.event_id,
+        eventPaymentSource: eventPaymentSettings?.method_source ?? "facilitator",
+        eventWasLoaded: Boolean(event),
+        facilitatorId: booking.facilitator_id,
+        hasEventPaymentSettings: Boolean(eventPaymentSettings),
+        hasFacilitatorPaymentSettings: Boolean(facilitatorPaymentSettings),
+      });
+    }
+  }
+
+  const bookingUpdates: Record<string, unknown> = { status };
+
+  if (paymentInstructions) {
+    bookingUpdates.payment_instructions_snapshot = paymentInstructions;
+    bookingUpdates.payment_due_at = paymentInstructions.dueAt;
+    bookingUpdates.payment_snapshot_created_at = paymentInstructions.generatedAt;
+  }
+
+  const { error } = await supabase.from("bookings").update(bookingUpdates).eq("id", bookingId);
 
   if (error) {
     bookingsRedirect("Tilmeldingsstatus kunne ikke opdateres.", booking.event_id);
@@ -110,6 +187,7 @@ export async function updateBookingStatusAction(formData: FormData) {
     eventStartsAt: booking.event_starts_at_snapshot,
     facilitatorName: booking.facilitator_name_snapshot,
     eventUrl: status === "confirmed" ? publicEventUrl(booking.event_id, firstRelation(booking.events)?.slug ?? null) : null,
+    paymentInstructions,
   });
 
   revalidatePath("/facilitator");
@@ -134,6 +212,7 @@ export async function updateBookingSeatsAction(formData: FormData) {
   const profile = await requireRole("facilitator");
   const bookingId = getString(formData, "booking_id");
   const currentEventId = getString(formData, "current_event_id");
+  const sendUpdateEmail = getString(formData, "send_update_email") === "1";
   const seats = getSeats(formData);
 
   if (!bookingId || seats <= 0) {
@@ -153,7 +232,9 @@ export async function updateBookingSeatsAction(formData: FormData) {
 
   const { data: booking } = await supabase
     .from("bookings")
-    .select("id, event_id, facilitator_id, status, seats")
+    .select(
+      "id, event_id, facilitator_id, status, seats, participant_email, participant_name, event_title_snapshot, event_starts_at_snapshot, facilitator_name_snapshot, price_per_seat_cents, booking_value_cents, booking_reference, payment_reference, payment_instructions_snapshot",
+    )
     .eq("id", bookingId)
     .eq("facilitator_id", facilitatorProfile.id)
     .single();
@@ -166,24 +247,282 @@ export async function updateBookingSeatsAction(formData: FormData) {
     bookingsRedirect("Kun aktive tilmeldinger kan justeres.", booking.event_id);
   }
 
-  if (seats >= booking.seats) {
-    bookingsRedirect("Antal pladser kan kun sænkes her.", booking.event_id);
+  if (seats === booking.seats) {
+    bookingsRedirect("Antal pladser er uændret.", booking.event_id, booking.id);
   }
 
-  const { error } = await supabase.from("bookings").update({ seats }).eq("id", booking.id);
+  if (seats > booking.seats) {
+    const admin = createAdminClient();
+    const [{ data: event }, { data: activeBookings }] = await Promise.all([
+      admin.from("events").select("capacity").eq("id", booking.event_id).single(),
+      admin
+        .from("bookings")
+        .select("id, seats, status")
+        .eq("event_id", booking.event_id)
+        .in("status", ["pending", "confirmed"])
+        .neq("id", booking.id),
+    ]);
+
+    const usedSeats = (activeBookings ?? []).reduce((sum, activeBooking) => sum + (activeBooking.seats ?? 0), 0);
+    if (typeof event?.capacity === "number" && usedSeats + seats > event.capacity) {
+      bookingsRedirect("Der er ikke nok ledige pladser til at gemme ændringen.", booking.event_id, booking.id);
+    }
+  }
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({ seats })
+    .eq("id", booking.id);
 
   if (error) {
-    bookingsRedirect("Antal pladser kunne ikke opdateres.", booking.event_id);
+    bookingsRedirect(
+      error.code === "23514" ? "Der er ikke nok ledige pladser til at gemme ændringen." : "Antal pladser kunne ikke opdateres.",
+      booking.event_id,
+      booking.id,
+    );
   }
 
   await syncEventCapacityStatus(supabase, booking.event_id);
+
+  let participantMailSent = false;
+  if (sendUpdateEmail && booking.status === "confirmed") {
+    const paymentSnapshot = parsePaymentInstructionsSnapshot(booking.payment_instructions_snapshot);
+    const nextBookingValueCents = booking.price_per_seat_cents * seats;
+    const paymentInstructions = paymentSnapshot
+      ? {
+          ...paymentSnapshot,
+          amountCents: nextBookingValueCents,
+          reference: booking.booking_reference || paymentSnapshot.reference,
+        }
+      : null;
+
+    participantMailSent = await sendParticipantBookingSeatsUpdated({
+      bookingId: booking.id,
+      bookingReference: booking.booking_reference || booking.payment_reference,
+      eventId: booking.event_id,
+      participantEmail: booking.participant_email,
+      participantName: booking.participant_name,
+      previousSeats: booking.seats,
+      nextSeats: seats,
+      pricePerSeatCents: booking.price_per_seat_cents,
+      nextBookingValueCents,
+      eventTitle: booking.event_title_snapshot,
+      eventStartsAt: booking.event_starts_at_snapshot,
+      facilitatorName: booking.facilitator_name_snapshot,
+      paymentInstructions,
+    });
+  }
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/bookings");
   revalidatePath("/");
   revalidatePath("/events/" + booking.event_id);
 
-  bookingsRedirect("Antal pladser er opdateret.", booking.event_id);
+  bookingsRedirect(
+    sendUpdateEmail
+      ? participantMailSent
+        ? "Antal pladser er opdateret, og deltageren har fået besked."
+        : "Antal pladser er opdateret, men beskeden kunne ikke sendes."
+      : "Antal pladser er opdateret.",
+    booking.event_id,
+    booking.id,
+  );
+}
+
+export async function updateBookingManualPaymentAction(formData: FormData) {
+  const profile = await requireRole("facilitator");
+  const bookingId = getString(formData, "booking_id");
+  const currentEventId = getString(formData, "current_event_id");
+  const paymentAction = getString(formData, "payment_action");
+  const manualPaymentNote = getString(formData, "manual_payment_note").trim();
+
+  if (!bookingId || !["mark", "clear"].includes(paymentAction)) {
+    bookingsRedirect("Ugyldig betalingshandling.", currentEventId);
+  }
+
+  if (manualPaymentNote.length > 160) {
+    bookingsRedirect("Betalingsnoten må højst være 160 tegn.", currentEventId);
+  }
+
+  const supabase = await createClient();
+  const { data: facilitatorProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .single();
+
+  if (!facilitatorProfile) {
+    bookingsRedirect("Arrangørprofilen mangler.", currentEventId);
+  }
+
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("id, event_id, facilitator_id, status, booking_value_cents, manually_marked_paid_at")
+    .eq("id", bookingId)
+    .eq("facilitator_id", facilitatorProfile.id)
+    .single();
+
+  if (!booking) {
+    bookingsRedirect("Tilmeldingen kunne ikke findes.", currentEventId);
+  }
+
+  if (booking.booking_value_cents <= 0) {
+    bookingsRedirect("Gratis tilmeldinger kan ikke markeres som betalt.", booking.event_id);
+  }
+
+  if (booking.status !== "confirmed") {
+    bookingsRedirect("Kun bekræftede tilmeldinger kan markeres som betalt.", booking.event_id);
+  }
+
+  const isMarkingPaid = paymentAction === "mark";
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      manually_marked_paid_at: isMarkingPaid ? new Date().toISOString() : null,
+      manually_marked_paid_by: isMarkingPaid ? profile.id : null,
+      manual_payment_note: isMarkingPaid ? manualPaymentNote || null : null,
+    })
+    .eq("id", booking.id);
+
+  if (error) {
+    bookingsRedirect("Betalingsmarkeringen kunne ikke gemmes.", booking.event_id);
+  }
+
+  const admin = createAdminClient();
+  await admin.from("admin_audit_log").insert({
+    actor_profile_id: profile.id,
+    facilitator_id: facilitatorProfile.id,
+    event_id: booking.event_id,
+    action: isMarkingPaid ? "manual_payment_marked_paid" : "manual_payment_marking_cleared",
+    old_value: booking.manually_marked_paid_at ? "paid" : "not_registered",
+    new_value: isMarkingPaid ? "paid" : "not_registered",
+    reason: manualPaymentNote || null,
+  });
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/bookings");
+
+  bookingsRedirect(
+    isMarkingPaid ? "Tilmeldingen er markeret som betalt." : "Betalingsmarkeringen er fjernet.",
+    booking.event_id,
+    booking.id,
+  );
+}
+
+export async function sendBookingPaymentReminderAction(formData: FormData) {
+  const profile = await requireRole("facilitator");
+  const bookingId = getString(formData, "booking_id");
+  const currentEventId = getString(formData, "current_event_id");
+
+  if (!bookingId) {
+    bookingsRedirect("Tilmeldingen kunne ikke findes.", currentEventId);
+  }
+
+  const supabase = await createClient();
+  const admin = createAdminClient();
+  const { data: facilitatorProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("id, company_name")
+    .eq("profile_id", profile.id)
+    .single();
+
+  if (!facilitatorProfile) {
+    bookingsRedirect("Arrangørprofilen mangler.", currentEventId);
+  }
+
+  const { data: booking } = await admin
+    .from("bookings")
+    .select(
+      "id, event_id, facilitator_id, status, participant_name, participant_email, seats, event_title_snapshot, event_starts_at_snapshot, facilitator_name_snapshot, booking_value_cents, payment_instructions_snapshot, payment_reminder_sent_at, manually_marked_paid_at, events!inner(facilitator_id)",
+    )
+    .eq("id", bookingId)
+    .eq("events.facilitator_id", facilitatorProfile.id)
+    .maybeSingle();
+
+  if (!booking) {
+    bookingsRedirect("Tilmeldingen kunne ikke findes.", currentEventId);
+  }
+
+  if (booking.status !== "confirmed") {
+    bookingsRedirect("Betalingspåmindelser kan kun sendes til bekræftede tilmeldinger.", booking.event_id, booking.id);
+  }
+
+  if (booking.booking_value_cents <= 0) {
+    bookingsRedirect("Gratis tilmeldinger skal ikke have betalingspåmindelser.", booking.event_id, booking.id);
+  }
+
+  if (booking.manually_marked_paid_at) {
+    bookingsRedirect("Tilmeldingen er allerede markeret som betalt.", booking.event_id, booking.id);
+  }
+
+  if (!isLikelyEmail(booking.participant_email)) {
+    bookingsRedirect("Deltageren mangler en gyldig e-mailadresse.", booking.event_id, booking.id);
+  }
+
+  const latestReminderAt = booking.payment_reminder_sent_at ? new Date(booking.payment_reminder_sent_at) : null;
+  if (latestReminderAt && Date.now() - latestReminderAt.getTime() < paymentReminderCooldownMs) {
+    bookingsRedirect("Der er allerede sendt en betalingspåmindelse inden for de seneste 24 timer.", booking.event_id, booking.id);
+  }
+
+  const paymentInstructions = parsePaymentInstructionsSnapshot(booking.payment_instructions_snapshot);
+  if (!paymentInstructions || paymentInstructions.source === "none" || (paymentInstructions.methods.length === 0 && !paymentInstructions.note)) {
+    bookingsRedirect("Der findes ikke betalingsoplysninger fra bekræftelsen, som kan sendes igen.", booking.event_id, booking.id);
+  }
+
+  const facilitatorName =
+    booking.facilitator_name_snapshot ||
+    facilitatorProfile.company_name ||
+    profile.full_name ||
+    "Arrangøren";
+
+  const reminderSent = await sendBookingPaymentReminder({
+    bookingId: booking.id,
+    eventId: booking.event_id,
+    participantEmail: booking.participant_email,
+    participantName: booking.participant_name,
+    seats: booking.seats,
+    eventTitle: booking.event_title_snapshot,
+    eventStartsAt: booking.event_starts_at_snapshot,
+    facilitatorName,
+    paymentInstructions,
+  });
+
+  if (!reminderSent) {
+    bookingsRedirect("Betalingspåmindelsen kunne ikke sendes. Prøv igen om lidt.", booking.event_id, booking.id);
+  }
+
+  const sentAt = new Date().toISOString();
+  const { error } = await admin
+    .from("bookings")
+    .update({ payment_reminder_sent_at: sentAt })
+    .eq("id", booking.id);
+
+  if (error) {
+    console.error("[booking-payment-reminder] Sent email but failed to save reminder timestamp", {
+      bookingId: booking.id,
+      code: error.code,
+      details: error.details,
+      eventId: booking.event_id,
+      hint: error.hint,
+      message: error.message,
+    });
+    bookingsRedirect("Påmindelsen blev sendt, men tidspunktet kunne ikke gemmes.", booking.event_id, booking.id);
+  }
+
+  await admin.from("admin_audit_log").insert({
+    actor_profile_id: profile.id,
+    facilitator_id: facilitatorProfile.id,
+    event_id: booking.event_id,
+    action: "booking_payment_reminder_sent",
+    old_value: latestReminderAt?.toISOString() ?? null,
+    new_value: sentAt,
+    reason: booking.id,
+  });
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/bookings");
+
+  bookingsRedirect(`Betalingspåmindelsen er sendt til ${booking.participant_name}.`, booking.event_id, booking.id);
 }
 
 export async function markEventSoldOutAction(formData: FormData) {

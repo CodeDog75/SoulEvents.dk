@@ -42,7 +42,7 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
   let query = supabase
     .from("bookings")
     .select(
-      "id, status, participant_name, participant_email, seats, event_title_snapshot, event_starts_at_snapshot, facilitator_name_snapshot, primary_category_snapshot, created_at",
+      "id, status, participant_name, participant_email, seats, booking_value_cents, manually_marked_paid_at, event_title_snapshot, event_starts_at_snapshot, facilitator_name_snapshot, primary_category_snapshot, created_at",
     )
     .order("created_at", { ascending: false });
 

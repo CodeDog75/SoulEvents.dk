@@ -6,6 +6,7 @@ import {
   Brain,
   Camera,
   Circle,
+  CreditCard,
   Dumbbell,
   ExternalLink,
   Flame,
@@ -55,6 +56,7 @@ import {
 } from "@/lib/facilitators/hero-collection";
 import { facilitatorWorkAreas, sortFacilitatorWorkAreas } from "@/lib/facilitators/work-areas";
 import { publicFacilitatorPath } from "@/lib/slug";
+import { socialProfileLinkHelpText, socialProfileLinkPlaceholder, validateSocialProfileLink } from "@/lib/social-profile-links";
 
 type Region = {
   id: string;
@@ -92,6 +94,13 @@ type FacilitatorProfile = {
   country?: string | null;
   is_online_facilitator?: boolean | null;
   region_id: string | null;
+  payment_mobilepay_number?: string | null;
+  payment_bank_registration_number?: string | null;
+  payment_bank_account_number?: string | null;
+  payment_bank_account_name?: string | null;
+  payment_external_url?: string | null;
+  payment_instructions?: string | null;
+  payment_deadline_days?: number | null;
   offers_services?: boolean | null;
   service_description?: string | null;
   specialties?: string | null;
@@ -138,6 +147,7 @@ type PrototypeStep =
   | "experiences"
   | "story"
   | "links"
+  | "payment"
   | "services"
   | "review"
   | "approval"
@@ -229,6 +239,12 @@ const steps: Array<{
     id: "links",
     text: "Se din loginmail, og vedligehold telefonnummer og de links, deltagere må bruge.",
     title: "Kontaktoplysninger",
+  },
+  {
+    eyebrow: "Betaling",
+    id: "payment",
+    text: "Gem dine standardbetalingsoplysninger. De sendes først til deltageren, når du bekræfter en tilmelding.",
+    title: "Standardbetaling for dine events",
   },
   {
     eyebrow: "Ydelser",
@@ -834,6 +850,13 @@ export function ProfileForm({
   const [facebook, setFacebook] = useState(value(facilitatorProfile.facebook_url));
   const [instagram, setInstagram] = useState(value(facilitatorProfile.instagram_url));
   const [youtube, setYoutube] = useState(value(facilitatorProfile.youtube_url));
+  const [paymentMobilepayNumber, setPaymentMobilepayNumber] = useState(value(facilitatorProfile.payment_mobilepay_number));
+  const [paymentBankRegistrationNumber, setPaymentBankRegistrationNumber] = useState(value(facilitatorProfile.payment_bank_registration_number));
+  const [paymentBankAccountNumber, setPaymentBankAccountNumber] = useState(value(facilitatorProfile.payment_bank_account_number));
+  const [paymentBankAccountName, setPaymentBankAccountName] = useState(value(facilitatorProfile.payment_bank_account_name));
+  const [paymentExternalUrl, setPaymentExternalUrl] = useState(value(facilitatorProfile.payment_external_url));
+  const [paymentInstructions, setPaymentInstructions] = useState(value(facilitatorProfile.payment_instructions));
+  const [paymentDeadlineDays, setPaymentDeadlineDays] = useState(String(facilitatorProfile.payment_deadline_days ?? 14));
   const [offersIndividualServices, setOffersIndividualServices] = useState(Boolean(facilitatorProfile.offers_services));
   const [serviceDescription, setServiceDescription] = useState(value(facilitatorProfile.service_description));
   const [specialties, setSpecialties] = useState(value(facilitatorProfile.specialties));
@@ -856,6 +879,17 @@ export function ProfileForm({
   const hasWorkArea = selectedExperiences.length > 0;
   const specialtyText = normalizeSpecialtyText(specialties);
   const hasIndividualServicesDescription = offersIndividualServices && serviceDescription.trim().length > 0;
+  const hasPaymentDefaults = Boolean(
+    paymentMobilepayNumber.trim() ||
+      paymentBankRegistrationNumber.trim() ||
+      paymentBankAccountNumber.trim() ||
+      paymentExternalUrl.trim() ||
+      paymentInstructions.trim(),
+  );
+  const facebookValidation = validateSocialProfileLink(facebook, "facebook");
+  const instagramValidation = validateSocialProfileLink(instagram, "instagram");
+  const facebookError = facebook.trim() && !facebookValidation.ok ? facebookValidation.message : null;
+  const instagramError = instagram.trim() && !instagramValidation.ok ? instagramValidation.message : null;
   const hasLinks = Boolean(website.trim() || facebook.trim() || instagram.trim() || youtube.trim());
   const missingRequired = [
     !firstName.trim() || !lastName.trim() ? { label: "Dit navn", step: "person" as PrototypeStep } : null,
@@ -894,8 +928,9 @@ export function ProfileForm({
   async function saveCurrentStep() {
     const shouldPersistAdminCategories = presentationMode === "admin" && currentStep.id === "experiences";
     const shouldPersistAdminImages = presentationMode === "admin" && currentStep.id === "profile-image";
+    const shouldPersistAdminLinks = presentationMode === "admin" && currentStep.id === "links";
 
-    if ((!autosaveEnabled || presentationMode === "admin") && !shouldPersistAdminCategories && !shouldPersistAdminImages) {
+    if ((!autosaveEnabled || presentationMode === "admin") && !shouldPersistAdminCategories && !shouldPersistAdminImages && !shouldPersistAdminLinks) {
       return { message: "Gemt", ok: true };
     }
 
@@ -957,7 +992,11 @@ export function ProfileForm({
     }
 
     if (currentStep.id === "links") {
+      if (!facebookValidation.ok) return { message: facebookValidation.message, ok: false };
+      if (!instagramValidation.ok) return { message: instagramValidation.message, ok: false };
+
       const contactResult = await autosaveFacilitatorProfileAction({
+        adminTargetFacilitatorId: shouldPersistAdminLinks ? (adminTargetFacilitatorId ?? null) : null,
         section: "contact",
         values: contactValues,
       });
@@ -965,6 +1004,7 @@ export function ProfileForm({
       if (!contactResult.ok) return contactResult;
 
       const result = await autosaveFacilitatorProfileAction({
+        adminTargetFacilitatorId: shouldPersistAdminLinks ? (adminTargetFacilitatorId ?? null) : null,
         section: "social",
         values: {
           facebook_url: facebook,
@@ -974,6 +1014,23 @@ export function ProfileForm({
           tiktok_url: facilitatorProfile.tiktok_url ?? "",
           website_url: website,
           youtube_url: youtube,
+        },
+      });
+
+      if (!result.ok) return result;
+    }
+
+    if (currentStep.id === "payment") {
+      const result = await autosaveFacilitatorProfileAction({
+        section: "payment",
+        values: {
+          payment_bank_account_name: paymentBankAccountName,
+          payment_bank_account_number: paymentBankAccountNumber,
+          payment_bank_registration_number: paymentBankRegistrationNumber,
+          payment_deadline_days: paymentDeadlineDays,
+          payment_external_url: paymentExternalUrl,
+          payment_instructions: paymentInstructions,
+          payment_mobilepay_number: paymentMobilepayNumber,
         },
       });
 
@@ -1595,9 +1652,91 @@ export function ProfileForm({
           </section>
           <ClearableInput onChange={setPhone} placeholder="Telefonnummer" value={phone} />
           <ClearableInput onChange={setWebsite} placeholder="Website" value={website} />
-          <ClearableInput onChange={setFacebook} placeholder="Facebook" value={facebook} />
-          <ClearableInput onChange={setInstagram} placeholder="Instagram" value={instagram} />
+          <div className="grid gap-2">
+            <ClearableInput onChange={setFacebook} placeholder={socialProfileLinkPlaceholder("facebook")} value={facebook} />
+            {facebookError ? <p className="text-sm font-semibold leading-5 text-[#A51D1D]">{facebookError}</p> : null}
+          </div>
+          <div className="grid gap-2">
+            <ClearableInput onChange={setInstagram} placeholder={socialProfileLinkPlaceholder("instagram")} value={instagram} />
+            {instagramError ? <p className="text-sm font-semibold leading-5 text-[#A51D1D]">{instagramError}</p> : null}
+          </div>
+          <p className="text-sm leading-6 text-ink/55">{socialProfileLinkHelpText}</p>
           <ClearableInput onChange={setYoutube} placeholder="YouTube" value={youtube} />
+        </div>
+      )}
+
+      {currentStep.id === "payment" && (
+        <div className="grid gap-5">
+          <section className="rounded-[24px] border border-[#E5D4F7] bg-[#F5EFFB] p-4">
+            <div className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-white text-[#7A4EAB] shadow-soft">
+                <CreditCard className="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#7A4EAB]">Privat betalingsinfo</p>
+                <p className="mt-2 text-sm leading-6 text-ink/65">
+                  Betalingsoplysningerne vises ikke offentligt. De sendes først til deltageren, når du bekræfter en tilmelding.
+                  SoulEvents modtager eller behandler ikke betalingen.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <ClearableInput label="MobilePay" maxLength={40} onChange={setPaymentMobilepayNumber} placeholder="Nummer eller MobilePay Box" value={paymentMobilepayNumber} />
+            <ClearableInput label="Betalingslink" maxLength={300} onChange={setPaymentExternalUrl} placeholder="https://..." value={paymentExternalUrl} />
+            <ClearableInput
+              label="Bank reg.nr."
+              maxLength={20}
+              onChange={setPaymentBankRegistrationNumber}
+              placeholder="F.eks. 1234"
+              value={paymentBankRegistrationNumber}
+            />
+            <ClearableInput
+              label="Bank kontonr."
+              maxLength={40}
+              onChange={setPaymentBankAccountNumber}
+              placeholder="Kontonummer"
+              value={paymentBankAccountNumber}
+            />
+            <ClearableInput
+              className="md:col-span-2"
+              label="Kontonavn"
+              maxLength={120}
+              onChange={setPaymentBankAccountName}
+              placeholder="Navn på modtager"
+              value={paymentBankAccountName}
+            />
+          </div>
+
+          <label className="grid gap-2 text-sm font-semibold text-ink/65">
+            Standard betalingsfrist
+            <input
+              className={inputClass("max-w-44")}
+              max={60}
+              min={0}
+              onChange={(event) => setPaymentDeadlineDays(event.target.value.replace(/\D/g, "").slice(0, 2))}
+              placeholder="14"
+              type="number"
+              value={paymentDeadlineDays}
+            />
+            <span className="text-xs leading-5 text-ink/55">
+              Antal dage efter bekræftet tilmelding. Fristen bliver aldrig sat efter eventets startdato.
+            </span>
+          </label>
+
+          <label className="grid gap-2 text-sm font-semibold text-ink/65">
+            Betalingsinstruktioner
+            <ClearableTextarea
+              maxLength={800}
+              onChange={setPaymentInstructions}
+              placeholder="F.eks. skriv eventnavn og betalingsreference i beskedfeltet ved betaling."
+              value={paymentInstructions}
+            />
+            <span className="text-xs leading-5 text-ink/55">
+              Brug feltet til praktiske detaljer, som deltageren skal kende efter bekræftelse.
+            </span>
+          </label>
         </div>
       )}
 
@@ -1823,6 +1962,36 @@ export function ProfileForm({
                   )}
                 </div>
               </ReviewJump>
+            ) : null}
+
+            {presentationMode !== "onboarding" ? (
+              <Link
+                aria-label="Gå til betaling under Hjælp og profilindstillinger"
+                className="relative block rounded-[26px] bg-white/70 p-4 pr-14 text-left shadow-soft transition hover:-translate-y-0.5 hover:bg-white sm:p-5 sm:pr-14"
+                href="/facilitator?messages=open#betaling"
+              >
+                <div className="grid gap-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Standardbetaling</p>
+                  {hasPaymentDefaults ? (
+                    <div className="flex flex-wrap gap-2 text-sm font-semibold text-sage-700">
+                      {paymentMobilepayNumber.trim() ? <span className="rounded-full bg-sage-50 px-3 py-1">MobilePay</span> : null}
+                      {paymentBankRegistrationNumber.trim() || paymentBankAccountNumber.trim() ? (
+                        <span className="rounded-full bg-sage-50 px-3 py-1">Bankoverførsel</span>
+                      ) : null}
+                      {paymentExternalUrl.trim() ? <span className="rounded-full bg-sage-50 px-3 py-1">Betalingslink</span> : null}
+                      {paymentInstructions.trim() ? <span className="rounded-full bg-sage-50 px-3 py-1">Instruktioner</span> : null}
+                    </div>
+                  ) : (
+                    <p className="text-sm leading-6 text-ink/55">
+                      Ikke angivet endnu. Du kan stadig skrive betalingsoplysninger direkte på et event.
+                    </p>
+                  )}
+                  <p className="text-xs leading-5 text-ink/55">
+                    Sendes først til deltageren, når du bekræfter en betalt tilmelding.
+                  </p>
+                </div>
+                <ArrowRight className="absolute right-4 top-1/2 size-5 -translate-y-1/2 text-sage-700" aria-hidden="true" />
+              </Link>
             ) : null}
 
             <ReviewJump

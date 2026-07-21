@@ -183,6 +183,8 @@ export type Database = {
           event_starts_at_snapshot: string;
           facilitator_name_snapshot: string;
           primary_category_snapshot: string | null;
+          booking_number: number;
+          booking_reference: string;
           price_per_seat_cents: number;
           commission_rate_bps: number;
           booking_value_cents: number;
@@ -192,6 +194,14 @@ export type Database = {
           commission_currency: string;
           commission_calculated_at: string;
           commission_terms_snapshot: Json;
+          payment_reference: string;
+          payment_instructions_snapshot: Json | null;
+          payment_due_at: string | null;
+          payment_snapshot_created_at: string | null;
+          payment_reminder_sent_at: string | null;
+          manually_marked_paid_at: string | null;
+          manually_marked_paid_by: string | null;
+          manual_payment_note: string | null;
           reporting_month: string;
           reporting_month_locked_at: string | null;
           created_at: string;
@@ -199,6 +209,42 @@ export type Database = {
         }>;
         Insert: Insert<Database["public"]["Tables"]["bookings"]["Row"]>;
         Update: Update<Database["public"]["Tables"]["bookings"]["Row"]>;
+        Relationships: [];
+      };
+      facilitator_payment_settings: {
+        Row: Row<{
+          facilitator_id: string;
+          mobilepay_number: string | null;
+          bank_registration_number: string | null;
+          bank_account_number: string | null;
+          bank_account_name: string | null;
+          external_url: string | null;
+          instructions: string | null;
+          deadline_days: number;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["facilitator_payment_settings"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["facilitator_payment_settings"]["Row"]>;
+        Relationships: [];
+      };
+      event_payment_settings: {
+        Row: Row<{
+          event_id: string;
+          facilitator_id: string;
+          method_source: "facilitator" | "custom" | "none";
+          mobilepay_number: string | null;
+          bank_registration_number: string | null;
+          bank_account_number: string | null;
+          bank_account_name: string | null;
+          external_url: string | null;
+          instructions: string | null;
+          deadline_days: number | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["event_payment_settings"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["event_payment_settings"]["Row"]>;
         Relationships: [];
       };
       commission_settings: {

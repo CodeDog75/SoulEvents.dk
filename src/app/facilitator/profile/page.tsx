@@ -68,6 +68,12 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
     redirect("/auth/oauth-profile");
   }
 
+  const { data: paymentSettings } = await supabase
+    .from("facilitator_payment_settings")
+    .select("*")
+    .eq("facilitator_id", facilitatorProfile.id)
+    .maybeSingle();
+
   const { data: latestChangeRequest } = await admin
     .from("admin_audit_log")
     .select("reason")
@@ -269,7 +275,16 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
         <ProfileForm
           categories={categories ?? []}
           errorSection={errorSection ?? null}
-          facilitatorProfile={facilitatorProfile}
+          facilitatorProfile={{
+            ...facilitatorProfile,
+            payment_mobilepay_number: paymentSettings?.mobilepay_number ?? null,
+            payment_bank_registration_number: paymentSettings?.bank_registration_number ?? null,
+            payment_bank_account_number: paymentSettings?.bank_account_number ?? null,
+            payment_bank_account_name: paymentSettings?.bank_account_name ?? null,
+            payment_external_url: paymentSettings?.external_url ?? null,
+            payment_instructions: paymentSettings?.instructions ?? null,
+            payment_deadline_days: paymentSettings?.deadline_days ?? 14,
+          }}
           feedbackMessage={message ?? null}
           galleryImages={galleryImages}
           logoSources={logoSources}

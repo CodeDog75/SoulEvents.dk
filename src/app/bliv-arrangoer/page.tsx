@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Play, Sparkles } from "lucide-react";
+import { OrganizerPresentationGallery } from "@/components/become-organizer/organizer-presentation-gallery";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteFooterLogin } from "@/components/site-footer-login";
 import {
@@ -309,6 +310,7 @@ export default async function BecomeOrganizerPage() {
         {content.sections.map((section) => (
           <SectionRenderer key={section.id} section={section} supabase={supabase} />
         ))}
+        <OrganizerPresentationGallery />
       </section>
 
       {faqSection ? (

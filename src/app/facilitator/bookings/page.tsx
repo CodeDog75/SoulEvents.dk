@@ -3,19 +3,27 @@ import { ArrowLeft, Inbox } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BookingList } from "@/components/facilitator/bookings/booking-list";
 import { requireRole } from "@/lib/auth/roles";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 type FacilitatorBookingsPageProps = {
   searchParams: Promise<{
+    booking?: string;
     event?: string;
     message?: string;
   }>;
 };
 
+const bookingSelect =
+  "id, event_id, status, participant_name, participant_email, participant_phone, seats, message, event_title_snapshot, event_starts_at_snapshot, booking_number, booking_reference, booking_value_cents, payment_reference, payment_instructions_snapshot, payment_due_at, payment_snapshot_created_at, payment_reminder_sent_at, manually_marked_paid_at, manually_marked_paid_by, manual_payment_note, created_at";
+
+const bookingSelectWithoutReminder =
+  "id, event_id, status, participant_name, participant_email, participant_phone, seats, message, event_title_snapshot, event_starts_at_snapshot, booking_value_cents, payment_reference, payment_instructions_snapshot, payment_due_at, payment_snapshot_created_at, manually_marked_paid_at, manually_marked_paid_by, manual_payment_note, created_at";
+
 export default async function FacilitatorBookingsPage({ searchParams }: FacilitatorBookingsPageProps) {
-  const [{ event, message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const [{ booking, event, message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
   const supabase = await createClient();
 
   const { data: facilitatorProfile } = await supabase
@@ -28,7 +36,7 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
   const { data: eventOptions } = facilitatorProfile
     ? await supabase
         .from("events")
-        .select("id, title, starts_at, ends_at, status, capacity, bookings(id, status, seats)")
+        .select("id, title, starts_at, ends_at, status, capacity, address_line, city, bookings(id, status, seats)")
         .eq("facilitator_id", facilitatorProfile.id)
         .in("status", ["active", "sold_out"])
         .order("starts_at", { ascending: true })
@@ -40,16 +48,41 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
   });
   const selectedEvent = currentEventOptions.find((eventOption) => eventOption.id === event) ?? null;
 
-  const { data: bookings } = selectedEvent && facilitatorProfile
-    ? await supabase
+  let bookingsErrorMessage: string | null = null;
+  let bookings: unknown[] = [];
+
+  if (selectedEvent && facilitatorProfile) {
+    const adminSupabase = createAdminClient();
+    const bookingResult = await adminSupabase
+      .from("bookings")
+      .select(bookingSelect)
+      .eq("event_id", selectedEvent.id)
+      .order("created_at", { ascending: false });
+
+    if (
+      bookingResult.error?.code === "42703" ||
+      bookingResult.error?.message.includes("payment_reminder_sent_at") ||
+      bookingResult.error?.message.includes("booking_number") ||
+      bookingResult.error?.message.includes("booking_reference")
+    ) {
+      const fallbackBookingResult = await adminSupabase
         .from("bookings")
-        .select(
-          "id, event_id, status, participant_name, participant_email, participant_phone, seats, message, event_title_snapshot, event_starts_at_snapshot, booking_value_cents, created_at",
-        )
-        .eq("facilitator_id", facilitatorProfile.id)
+        .select(bookingSelectWithoutReminder)
         .eq("event_id", selectedEvent.id)
-        .order("created_at", { ascending: false })
-    : { data: [] };
+        .order("created_at", { ascending: false });
+
+      bookings = (fallbackBookingResult.data ?? []).map((booking) => ({
+        ...booking,
+        booking_number: null,
+        booking_reference: booking.payment_reference,
+        payment_reminder_sent_at: null,
+      }));
+      bookingsErrorMessage = fallbackBookingResult.error?.message ?? null;
+    } else {
+      bookings = bookingResult.data ?? [];
+      bookingsErrorMessage = bookingResult.error?.message ?? null;
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -75,10 +108,16 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
       </header>
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:px-8">
-        <AuthMessage message={message} />
+        <AuthMessage
+          message={
+            message ??
+            (bookingsErrorMessage ? "Tilmeldingerne kunne ikke hentes lige nu. Prøv at genindlæse siden." : undefined)
+          }
+        />
         <BookingList
           bookings={(bookings ?? []) as never}
           eventOptions={currentEventOptions as never}
+          initialExpandedBookingId={booking ?? null}
           selectedEventId={selectedEvent?.id ?? null}
         />
       </section>

@@ -18,6 +18,7 @@ import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readi
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes, recordLegalAcceptances } from "@/lib/legal/documents";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
+import { hasPaymentInstructions, paymentSettingsToInstructionsRecord, type PaymentMethodSource } from "@/lib/payment-instructions";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
 import { createSlug, publicEventPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -31,7 +32,8 @@ const missingCoverPublishMessage = "Tilføj et coverbillede, før eventet kan of
 const danishTimeZone = "Europe/Copenhagen";
 type ActiveCoOrganizerStatus = (typeof activeCoOrganizerStatuses)[number];
 
-const facilitatorProfileEventSelect = "id, status, is_paused, is_disabled, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)";
+const facilitatorProfileEventSelect =
+  "id, status, is_paused, is_disabled, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)";
 type AdminClient = ReturnType<typeof createAdminClient>;
 type EventUpdateSnapshot = {
   address_line: string | null;
@@ -108,6 +110,53 @@ function isValidUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+function normalizePaymentMethodSource(value: string): PaymentMethodSource {
+  return value === "custom" || value === "none" ? value : "facilitator";
+}
+
+function getPaymentDeadlineDays(formData: FormData) {
+  const rawValue = getOptionalString(formData, "payment_deadline_days");
+
+  if (!rawValue) {
+    return null;
+  }
+
+  const deadlineDays = Number(rawValue);
+  return Number.isInteger(deadlineDays) && deadlineDays >= 0 && deadlineDays <= 60 ? deadlineDays : Number.NaN;
+}
+
+async function upsertEventPaymentSettings(
+  supabase: AdminClient,
+  input: {
+    bankAccountName: string | null;
+    bankAccountNumber: string | null;
+    bankRegistrationNumber: string | null;
+    deadlineDays: number | null;
+    eventId: string;
+    externalUrl: string | null;
+    facilitatorId: string;
+    instructions: string | null;
+    methodSource: PaymentMethodSource;
+    mobilepayNumber: string | null;
+  },
+) {
+  return supabase.from("event_payment_settings").upsert(
+    {
+      event_id: input.eventId,
+      facilitator_id: input.facilitatorId,
+      method_source: input.methodSource,
+      mobilepay_number: input.mobilepayNumber,
+      bank_registration_number: input.bankRegistrationNumber,
+      bank_account_number: input.bankAccountNumber,
+      bank_account_name: input.bankAccountName,
+      external_url: input.externalUrl,
+      instructions: input.instructions,
+      deadline_days: input.deadlineDays,
+    },
+    { onConflict: "event_id" },
+  );
 }
 
 function formatLocation(input: {
@@ -907,6 +956,12 @@ export async function createEventAction(formData: FormData) {
     redirect("/auth/oauth-profile");
   }
 
+  const { data: facilitatorPaymentSettings } = await supabase
+    .from("facilitator_payment_settings")
+    .select("*")
+    .eq("facilitator_id", facilitatorProfile.id)
+    .maybeSingle();
+
   const onboardingState = await getFacilitatorOnboardingStateForProfile(supabase, {
     fullName: profile.full_name,
     profileId: profile.id,
@@ -1038,6 +1093,17 @@ export async function createEventAction(formData: FormData) {
   const country = getOptionalString(formData, "country") || "Danmark";
   let regionId = getOptionalString(formData, "region_id");
   const priceCents = getPriceCents(formData);
+  const paymentMethodSource = priceCents > 0 ? normalizePaymentMethodSource(getString(formData, "payment_method_source")) : "facilitator";
+  const paymentMobilepayNumber = priceCents > 0 && paymentMethodSource === "custom" ? getOptionalString(formData, "payment_mobilepay_number") : null;
+  const paymentBankRegistrationNumber =
+    priceCents > 0 && paymentMethodSource === "custom" ? getOptionalString(formData, "payment_bank_registration_number") : null;
+  const paymentBankAccountNumber =
+    priceCents > 0 && paymentMethodSource === "custom" ? getOptionalString(formData, "payment_bank_account_number") : null;
+  const paymentBankAccountName =
+    priceCents > 0 && paymentMethodSource === "custom" ? getOptionalString(formData, "payment_bank_account_name") : null;
+  const paymentExternalUrl = priceCents > 0 && paymentMethodSource === "custom" ? getOptionalString(formData, "payment_external_url") : null;
+  const paymentInstructions = priceCents > 0 ? getOptionalString(formData, "payment_instructions") : null;
+  const paymentDeadlineDays = priceCents > 0 && paymentMethodSource === "custom" ? getPaymentDeadlineDays(formData) : null;
   const capacityText = getString(formData, "capacity");
   const rawCapacity = getInteger(formData, "capacity");
   const capacity = isDraft && rawCapacity <= 0 ? 1 : rawCapacity;
@@ -1083,6 +1149,12 @@ export async function createEventAction(formData: FormData) {
     [onlineDescription, 500, "Online-beskrivelse"],
     [onlineUrlOrNote, 500, "Online-link eller tekst"],
     [practicalInformation, 800, "Praktiske oplysninger"],
+    [paymentMobilepayNumber, 40, "MobilePay"],
+    [paymentBankRegistrationNumber, 20, "Bank reg.nr."],
+    [paymentBankAccountNumber, 40, "Bank kontonr."],
+    [paymentBankAccountName, 120, "Kontonavn"],
+    [paymentExternalUrl, 300, "Betalingslink"],
+    [paymentInstructions, 800, "Betalingsinstruktioner"],
   ];
 
   for (const [value, maxLength, label] of lengthChecks) {
@@ -1126,6 +1198,23 @@ export async function createEventAction(formData: FormData) {
 
   if (capacity > 500) {
     eventsRedirect("Maks. antal deltagere er 500.");
+  }
+
+  if (paymentDeadlineDays !== null && Number.isNaN(paymentDeadlineDays)) {
+    eventsRedirect("Betalingsfrist skal være mellem 0 og 60 dage.");
+  }
+
+  if (paymentExternalUrl && !isValidUrl(paymentExternalUrl)) {
+    eventsRedirect("Betalingslink skal være et gyldigt link, fx https://...");
+  }
+
+  if (
+    !isDraft &&
+    priceCents > 0 &&
+    paymentMethodSource === "facilitator" &&
+    !hasPaymentInstructions(paymentSettingsToInstructionsRecord(facilitatorPaymentSettings))
+  ) {
+    eventsRedirect("Tilføj standardbetalingsoplysninger på din profil, vælg egne oplysninger for eventet, eller vælg at betaling aftales direkte.");
   }
 
   if (mainCategoryIds.length > 3 || categoryIds.length > 3 || tagIds.length > 4) {
@@ -1272,6 +1361,24 @@ export async function createEventAction(formData: FormData) {
       console.error("Event update error", updateError);
       const errorMessage = updateError.message ? ": " + updateError.message : "";
       eventsRedirect(isDraft ? "Kladde kunne ikke gemmes" + errorMessage : "Eventet kunne ikke opdateres" + errorMessage);
+    }
+
+    const { error: paymentSettingsError } = await upsertEventPaymentSettings(supabase, {
+      eventId: existingEventId,
+      facilitatorId: facilitatorProfile.id,
+      methodSource: paymentMethodSource,
+      mobilepayNumber: paymentMobilepayNumber,
+      bankRegistrationNumber: paymentBankRegistrationNumber,
+      bankAccountNumber: paymentBankAccountNumber,
+      bankAccountName: paymentBankAccountName,
+      externalUrl: paymentExternalUrl,
+      instructions: paymentInstructions,
+      deadlineDays: paymentDeadlineDays,
+    });
+
+    if (paymentSettingsError) {
+      console.error("Event payment settings update error", paymentSettingsError);
+      eventsRedirect("Eventet blev gemt, men betalingsoplysningerne kunne ikke gemmes.");
     }
 
     await replaceEventRelations(supabase, existingEventId, {
@@ -1444,6 +1551,24 @@ export async function createEventAction(formData: FormData) {
         ? "Kladde kunne ikke gemmes" + errorMessage
         : "Eventet kunne ikke oprettes" + errorMessage,
     );
+  }
+
+  const { error: paymentSettingsError } = await upsertEventPaymentSettings(supabase, {
+    eventId: event.id,
+    facilitatorId: facilitatorProfile.id,
+    methodSource: paymentMethodSource,
+    mobilepayNumber: paymentMobilepayNumber,
+    bankRegistrationNumber: paymentBankRegistrationNumber,
+    bankAccountNumber: paymentBankAccountNumber,
+    bankAccountName: paymentBankAccountName,
+    externalUrl: paymentExternalUrl,
+    instructions: paymentInstructions,
+    deadlineDays: paymentDeadlineDays,
+  });
+
+  if (paymentSettingsError) {
+    console.error("Event payment settings insert error", paymentSettingsError);
+    eventsRedirect("Eventet blev oprettet, men betalingsoplysningerne kunne ikke gemmes.");
   }
 
   if (mainCategoryIds.length > 0) {

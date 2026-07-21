@@ -9,6 +9,7 @@ import { sendAdminMessageNotificationEmail } from "@/lib/email/admin-message-not
 import { facilitatorProfileEditUrl, sendFacilitatorProfileChangesRequestedEmail } from "@/lib/email/facilitator-profile-changes-requested";
 import { sendFacilitatorProfileDeactivatedEmail } from "@/lib/email/facilitator-profile-deactivated";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
+import { validateSocialProfileLink } from "@/lib/social-profile-links";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { FacilitatorStatus } from "@/types/database";
 
@@ -991,6 +992,16 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
     adminFacilitatorEditRedirect(facilitatorId, "Maksimal billetpris skal være et heltal på mindst 0 kr.");
   }
 
+  const facebookValidation = validateSocialProfileLink(facebookUrl, "facebook");
+  if (!facebookValidation.ok) {
+    adminFacilitatorEditRedirect(facilitatorId, facebookValidation.message);
+  }
+
+  const instagramValidation = validateSocialProfileLink(instagramUrl, "instagram");
+  if (!instagramValidation.ok) {
+    adminFacilitatorEditRedirect(facilitatorId, instagramValidation.message);
+  }
+
   const supabase = createAdminClient();
   const { data: previousFacilitator, error: previousFacilitatorError } = await supabase
     .from("facilitator_profiles")
@@ -1020,8 +1031,8 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
     public_email: publicEmail,
     public_phone: publicPhone,
     website_url: websiteUrl,
-    facebook_url: facebookUrl,
-    instagram_url: instagramUrl,
+    facebook_url: facebookValidation.value,
+    instagram_url: instagramValidation.value,
     address_line: addressLine,
     postal_code: postalCode,
     city,
