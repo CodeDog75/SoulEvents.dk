@@ -61,11 +61,7 @@ const showAppleLogin = false;
 const visibleProviders = providers.filter((provider) => showAppleLogin || provider.provider !== "apple");
 
 function appOrigin() {
-  const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
-  const isLocalhost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-
-  if (isLocalhost) return window.location.origin;
-  return configuredAppUrl || window.location.origin;
+  return window.location.origin;
 }
 
 function rememberOAuthFlow() {

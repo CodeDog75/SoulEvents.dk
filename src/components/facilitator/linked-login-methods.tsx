@@ -20,11 +20,7 @@ function providerLabel(provider: string) {
 }
 
 function appOrigin() {
-  const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
-  const isLocalhost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-
-  if (isLocalhost) return window.location.origin;
-  return configuredAppUrl || window.location.origin;
+  return window.location.origin;
 }
 
 export function LinkedLoginMethods({ providers }: LinkedLoginMethodsProps) {
