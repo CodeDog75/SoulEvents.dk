@@ -22,6 +22,7 @@ import {
   Star,
   Tags,
   Ticket,
+  TrendingUp,
   UserCog,
   UserRound,
   UsersRound,
@@ -259,6 +260,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       title: "Platform",
       items: [
         { href: "/admin/settings", title: "Platformindstillinger", text: "Styr grænser for kladder og aktive events per arrangør.", icon: Settings, theme: adminCardThemes.platform },
+        { href: "/admin/insights", title: "Platformindsigter", text: "Se anonymiserede visninger, delinger, bookings og arrangørperformance.", icon: TrendingUp, theme: adminCardThemes.teal },
         { href: "/admin/legal", title: "Juridiske dokumenter", text: "Opdater betingelser, privatliv og retningslinjer.", icon: Scale, theme: adminCardThemes.slate },
         { href: "/admin/commission", title: "Kommission og fakturering", text: "Styr beløbsgrænser, arrangørvilkår, månedsrapporter og fakturagrundlag.", icon: BarChart3, theme: adminCardThemes.navy },
       ],

@@ -1,18 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
+import Image from "next/image";
 import Link from "next/link";
 import { CalendarDays, Check, ChevronDown, Copy, Mail, MessageSquare, Phone, Search, Slash, Ticket, UserRound } from "lucide-react";
 import {
+  confirmAllPendingBookingsAction,
   markEventSoldOutAction,
   updateBookingManualPaymentAction,
   updateBookingSeatsAction,
   updateBookingStatusAction,
 } from "@/app/facilitator/bookings/actions";
 import { CapacityBadge } from "@/components/events/capacity-badge";
+import { EventDateBox } from "@/components/events/event-card-overlays";
 import { CancelBookingAction } from "@/components/facilitator/bookings/cancel-booking-action";
 import { ParticipantListMenu } from "@/components/facilitator/bookings/participant-list-menu";
 import { PaymentReminderAction } from "@/components/facilitator/bookings/payment-reminder-action";
+import { publicMediaUrl } from "@/lib/media/public-url";
 import { formatPaymentDate, parsePaymentInstructionsSnapshot } from "@/lib/payment-instructions";
 import type { BookingStatus, Json } from "@/types/database";
 
@@ -51,6 +56,7 @@ type BookingListProps = {
 type EventOption = {
   address_line?: string | null;
   city?: string | null;
+  cover_image_path?: string | null;
   id: string;
   title: string;
   starts_at: string;
@@ -61,6 +67,17 @@ type EventOption = {
     status: BookingStatus;
     seats: number;
   }>;
+  event_main_categories?: Array<{
+    main_categories?: {
+      color_hex?: string | null;
+      image_path?: string | null;
+      name?: string | null;
+    } | Array<{
+      color_hex?: string | null;
+      image_path?: string | null;
+      name?: string | null;
+    }> | null;
+  }> | null;
 };
 
 const statusLabels: Record<BookingStatus, string> = {
@@ -84,9 +101,9 @@ const statusBadgeClasses: Record<BookingStatus, string> = {
 };
 
 const bookingCardClasses: Partial<Record<BookingStatus, string>> = {
-  pending: "border-[#E6D4A8] bg-[#FBF5E8]",
-  confirmed: "border-[#C9DAC1] bg-[#F1F5EE]",
-  cancelled: "border-[#E5DDEA] bg-[#FAF7F2]",
+  pending: "border-[#E6D4A8] bg-white",
+  confirmed: "border-[#C9DAC1] bg-white",
+  cancelled: "border-[#E5DDEA] bg-white",
 };
 
 function formatMoney(cents: number) {
@@ -95,6 +112,10 @@ function formatMoney(cents: number) {
 
 function formatEventDate(value: string) {
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function first<T>(value: T | T[] | null | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function formatShortDateTime(value: string | null | undefined) {
@@ -133,7 +154,7 @@ function CopyReferenceButton({ reference }: { reference: string }) {
 }
 
 function paymentStatusLabel(booking: BookingRow): "Afventer" | "Betalt" | "Ikke relevant" {
-  if (booking.booking_value_cents <= 0) {
+  if (booking.status === "cancelled" || booking.booking_value_cents <= 0) {
     return "Ikke relevant";
   }
 
@@ -191,10 +212,6 @@ function getEventBookingStats(event: EventOption) {
   };
 }
 
-function bookingLabel(count: number) {
-  return count === 1 ? "1 booking" : `${count} bookinger`;
-}
-
 type BookingFilter = "all" | "confirmed" | "pending" | "paid" | "unpaid" | "cancelled";
 type BookingSort = "newest" | "oldest" | "name_asc" | "name_desc" | "unpaid_first" | "paid_first" | "value_desc" | "value_asc";
 
@@ -233,6 +250,7 @@ function matchesBookingFilter(booking: BookingRow, filter: BookingFilter) {
 }
 
 function paymentSortValue(booking: BookingRow) {
+  if (booking.status === "cancelled") return 3;
   if (booking.booking_value_cents <= 0) return 2;
   return booking.manually_marked_paid_at ? 1 : 0;
 }
@@ -265,22 +283,97 @@ function StatusAction({
   variant?: "primary" | "secondary";
 }) {
   return (
-    <form action={updateBookingStatusAction} className="w-full sm:w-auto">
+    <form action={updateBookingStatusAction} className={variant === "primary" ? "w-full" : "w-full sm:w-auto"}>
       <input name="booking_id" type="hidden" value={bookingId} />
       <input name="current_event_id" type="hidden" value={currentEventId} />
       <input name="status" type="hidden" value={status} />
-      <button
+      <SubmitButton
         className={
-          "inline-flex h-9 w-full items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition sm:w-auto " +
+          "inline-flex w-full items-center justify-center gap-2 rounded-md px-3 font-semibold transition disabled:cursor-wait disabled:opacity-70 " +
           (variant === "primary"
-            ? "bg-sage-700 text-white hover:bg-olive"
-            : "border border-midnight/15 bg-white text-midnight hover:border-sage-700 hover:text-sage-700")
+            ? "min-h-20 bg-sage-700 text-base text-white shadow-soft hover:bg-olive"
+            : "h-9 text-sm border border-midnight/15 bg-white text-midnight hover:border-sage-700 hover:text-sage-700 sm:w-auto")
         }
-        type="submit"
       >
         {children}
-      </button>
+      </SubmitButton>
     </form>
+  );
+}
+
+function SubmitButton({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className: string;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button className={className} disabled={pending} type="submit">
+      {pending ? "Arbejder..." : children}
+    </button>
+  );
+}
+
+function ConfirmAllPendingAction({
+  eventId,
+  pendingCount,
+}: {
+  eventId: string;
+  pendingCount: number;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (pendingCount <= 0) {
+    return null;
+  }
+
+  const bookingLabelText = pendingCount === 1 ? "tilmelding" : "tilmeldinger";
+
+  return (
+    <>
+      <button
+        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-sage-700 px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-olive sm:w-auto"
+        onClick={() => setIsOpen(true)}
+        type="button"
+      >
+        <Check className="size-4" aria-hidden="true" />
+        Bekræft alle ({pendingCount})
+      </button>
+
+      {isOpen ? (
+        <div
+          aria-modal="true"
+          className="fixed inset-0 z-50 grid place-items-center bg-midnight/35 p-4"
+          role="dialog"
+        >
+          <div className="w-full max-w-lg rounded-md border border-midnight/10 bg-white p-6 shadow-2xl">
+            <h3 className="text-xl font-semibold text-midnight">Bekræft alle afventende tilmeldinger?</h3>
+            <p className="mt-3 text-sm leading-6 text-ink/72">
+              Du er ved at bekræfte alle afventende tilmeldinger på én gang. Deltagerne modtager herefter deres bekræftelsesmail samt eventuelle betalingsoplysninger.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-ink/62">Du kan også bekræfte en enkelt deltager ved at åbne tilmeldingen.</p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                className="inline-flex h-11 items-center justify-center rounded-md border border-midnight/15 bg-white px-5 text-sm font-semibold text-midnight transition hover:border-lavender hover:text-lavender"
+                onClick={() => setIsOpen(false)}
+                type="button"
+              >
+                Annuller
+              </button>
+              <form action={confirmAllPendingBookingsAction}>
+                <input name="event_id" type="hidden" value={eventId} />
+                <SubmitButton className="inline-flex h-11 w-full items-center justify-center rounded-md bg-sage-700 px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-olive disabled:cursor-wait disabled:opacity-70 sm:w-auto">
+                  Bekræft alle {pendingCount} {bookingLabelText}
+                </SubmitButton>
+              </form>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -306,116 +399,115 @@ function BookingArticle({
   const paymentLabel = isPaidEventBooking ? (isManuallyMarkedPaid ? "Betalt" : "Afventer betaling") : "Gratis";
 
   return (
-    <article className={"border-l-4 transition " + cardClass} id={`booking-${booking.id}`} key={booking.id}>
-      <button
-        aria-expanded={isExpanded}
-        className="grid w-full gap-4 p-4 text-left transition hover:bg-white/45 md:grid-cols-[minmax(0,1.35fr)_repeat(5,minmax(7rem,auto))_auto] md:items-center"
-        onClick={onToggle}
-        type="button"
-      >
-        <div className="min-w-0">
-          <p className="flex items-center gap-2 text-base font-semibold text-midnight">
-            <UserRound className="size-4 shrink-0 text-lavender" aria-hidden="true" />
-            {booking.booking_number ? (
-              <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold text-lavender shadow-soft">#{booking.booking_number}</span>
-            ) : null}
-            <span className="truncate">{booking.participant_name}</span>
-          </p>
-          <p className="mt-1 truncate text-sm text-ink/62">{booking.participant_email}</p>
-        </div>
-        <div className="flex flex-wrap gap-2 md:contents">
-          <span className="rounded-md bg-white/75 px-3 py-2 text-sm font-semibold text-midnight shadow-soft md:text-center">
-            {booking.seats} {booking.seats === 1 ? "plads" : "pladser"}
+    <article className={"overflow-hidden rounded-md border border-l-4 shadow-soft transition " + cardClass} id={`booking-${booking.id}`} key={booking.id}>
+      <div className="grid w-full gap-3 p-4 transition hover:bg-white/45">
+        <button
+          aria-expanded={isExpanded}
+          aria-label={isExpanded ? "Luk tilmelding" : "Åbn tilmelding"}
+          className="grid w-full cursor-pointer gap-3 text-left md:grid-cols-[minmax(7rem,auto)_minmax(0,1.6fr)_repeat(3,minmax(7rem,auto))_auto] md:items-center"
+          onClick={onToggle}
+          type="button"
+        >
+          <span className={"w-fit rounded-md px-3 py-2 text-sm font-semibold md:text-center " + statusBadgeClasses[booking.status]}>
+            {statusLabels[booking.status]}
           </span>
+          <div className="min-w-0 rounded-md bg-[#FBF8F4] px-3 py-2">
+            <p className="flex min-w-0 items-center gap-2 text-base font-semibold text-midnight">
+              <UserRound className="size-4 shrink-0 text-lavender" aria-hidden="true" />
+              {booking.booking_number ? (
+                <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold text-lavender shadow-soft">#{booking.booking_number}</span>
+              ) : null}
+              <span className="truncate">{booking.participant_name}</span>
+            </p>
+            <p className="mt-1 text-sm font-semibold text-ink/62">
+              {booking.seats} {booking.seats === 1 ? "plads" : "pladser"}
+            </p>
+          </div>
           <span className="rounded-md bg-white/75 px-3 py-2 text-sm font-semibold text-midnight shadow-soft md:text-center">
             {formatMoney(booking.booking_value_cents)}
           </span>
           <span className="rounded-md bg-white/75 px-3 py-2 text-sm font-semibold text-midnight shadow-soft md:text-center">
             {formatShortDateTime(booking.created_at)}
           </span>
-          <span className={"rounded-md px-3 py-2 text-sm font-semibold md:text-center " + statusBadgeClasses[booking.status]}>
-            {statusLabels[booking.status]}
-          </span>
           <span
             className={
               "rounded-md px-3 py-2 text-sm font-semibold md:text-center " +
-              (isPaidEventBooking
-                ? isManuallyMarkedPaid
-                  ? statusBadgeClasses.paid
-                  : "bg-[#FFF8E8] text-[#6E5528]"
-                : "bg-sage-50 text-sage-700")
+              (isCancelledBooking
+                ? "hidden md:block md:invisible"
+                : isPaidEventBooking
+                  ? isManuallyMarkedPaid
+                    ? statusBadgeClasses.paid
+                    : "bg-[#FFF8E8] text-[#6E5528]"
+                  : "bg-sage-50 text-sage-700")
             }
           >
-            {paymentLabel}
+            {isCancelledBooking ? "" : paymentLabel}
           </span>
-        </div>
-        <ChevronDown
-          className={"size-5 justify-self-end text-lavender transition " + (isExpanded ? "rotate-180" : "")}
-          aria-hidden="true"
-        />
-      </button>
+          <span className="grid size-11 shrink-0 place-items-center justify-self-end rounded-md border border-midnight/10 bg-white text-lavender transition hover:border-lavender hover:bg-lavender hover:text-white">
+            <ChevronDown className={"size-6 transition " + (isExpanded ? "rotate-180" : "")} aria-hidden="true" />
+          </span>
+        </button>
+      </div>
 
       {isExpanded ? (
-        <div className="grid gap-5 border-t border-midnight/10 p-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="grid gap-5 border-t border-midnight/10 bg-white/90 p-5 shadow-[inset_0_12px_24px_rgba(46,36,52,0.04)] xl:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="min-w-0">
-            <h3 className="text-lg font-semibold leading-snug text-midnight">{booking.event_title_snapshot}</h3>
-            <div className="mt-4 grid gap-2 text-sm text-ink/72 md:grid-cols-2 xl:grid-cols-3">
-              <p className="min-w-0 rounded-md bg-white/70 px-3 py-2">
+            <h3 className="min-w-0 text-lg font-semibold leading-snug text-midnight">{booking.event_title_snapshot}</h3>
+            <div className="mt-4 grid auto-rows-fr gap-2 text-sm text-ink/72 md:grid-cols-2 xl:grid-cols-3">
+              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2">
                 <span className="block text-xs font-semibold uppercase tracking-wide text-ink/48">Bookingreference</span>
                 <span className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
                   <span className="font-semibold text-midnight [overflow-wrap:anywhere]">{booking.booking_reference || booking.payment_reference || "Ikke oprettet"}</span>
                   {booking.booking_reference ? <CopyReferenceButton reference={booking.booking_reference} /> : null}
                 </span>
               </p>
-              <p className="min-w-0 rounded-md bg-white/70 px-3 py-2">
+              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2">
                 <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink/48">
                   <Mail className="size-3.5" aria-hidden="true" />
                   E-mail
                 </span>
                 <span className="font-semibold text-midnight [overflow-wrap:anywhere]">{booking.participant_email}</span>
               </p>
-              <p className="min-w-0 rounded-md bg-white/70 px-3 py-2">
+              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2">
                 <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink/48">
                   <Phone className="size-3.5" aria-hidden="true" />
                   Telefon
                 </span>
                 <span className="font-semibold text-midnight [overflow-wrap:anywhere]">{booking.participant_phone || "Ikke angivet"}</span>
               </p>
-              <p className="min-w-0 rounded-md bg-white/70 px-3 py-2">
+              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2">
                 <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink/48">
                   <Ticket className="size-3.5" aria-hidden="true" />
                   Pladser
                 </span>
                 <span className="font-semibold text-midnight">{booking.seats}</span>
               </p>
-              <p className="min-w-0 rounded-md bg-white/70 px-3 py-2">
+              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2">
                 <span className="block text-xs font-semibold uppercase tracking-wide text-ink/48">Bookingværdi</span>
                 <span className="font-semibold text-midnight">{formatMoney(booking.booking_value_cents)}</span>
               </p>
-              <p className="min-w-0 rounded-md bg-white/70 px-3 py-2 md:col-span-2">
+              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2 md:col-span-2">
                 <span className="block text-xs font-semibold uppercase tracking-wide text-ink/48">Eventdato</span>
                 <span className="font-semibold text-midnight">{formatShortDateTime(booking.event_starts_at_snapshot)}</span>
               </p>
-              <p className="min-w-0 rounded-md bg-white/70 px-3 py-2">
+              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2">
                 <span className="block text-xs font-semibold uppercase tracking-wide text-ink/48">Tilmeldingsdato</span>
                 <span className="font-semibold text-midnight">{formatShortDateTime(booking.created_at)}</span>
               </p>
             </div>
 
-            {booking.message && (
-              <div className="mt-4 max-w-3xl rounded-md border border-white/70 bg-white/75 p-3 text-sm leading-6 text-ink/70">
-                <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-ink/48">
-                  <MessageSquare className="size-3.5" aria-hidden="true" />
-                  Deltagerens besked
-                </p>
-                <p className="[overflow-wrap:anywhere]">{booking.message}</p>
-              </div>
-            )}
+            <div className="mt-4 max-w-3xl rounded-md border border-midnight/8 bg-white/70 p-3 text-sm leading-6 text-ink/70">
+              <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-ink/48">
+                <MessageSquare className="size-3.5" aria-hidden="true" />
+                Deltagerens besked
+              </p>
+              <p className="[overflow-wrap:anywhere]">{booking.message || "Der er ikke skrevet en besked."}</p>
+            </div>
 
-            {paymentSnapshot ? (
-              <div className="mt-4 grid gap-3 rounded-md border border-sage-700/10 bg-[#EEF7F0] p-4 text-sm leading-6 text-sage-700">
+            {paymentSnapshot && !isCancelledBooking ? (
+              <div className="mt-4 grid gap-2 rounded-md border border-midnight/10 bg-white/80 p-3 text-sm leading-6 text-ink/72">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wide">Betalingsoplysninger sendt</p>
+                  <p className="text-xs font-bold uppercase tracking-wide text-sage-700">Betalingsoplysninger sendt</p>
                   <p className="mt-1 font-semibold text-midnight">Reference: {paymentSnapshot.reference}</p>
                   <p className="text-ink/65">
                     {paymentSnapshot.dueAt ? `Frist: ${formatPaymentDate(paymentSnapshot.dueAt)}` : "Betaling aftales direkte med arrangøren."}
@@ -437,20 +529,18 @@ function BookingArticle({
               </div>
             ) : null}
 
-            {isPaidEventBooking ? (
+            {isPaidEventBooking && !isCancelledBooking ? (
               <div
                 className={
-                  "mt-4 grid gap-3 rounded-md border p-4 text-sm leading-6 " +
+                  "mt-4 grid gap-3 rounded-md border p-3 text-sm leading-6 " +
                   (isManuallyMarkedPaid
-                    ? "border-sage-700/15 bg-[#EEF7F0] text-sage-700"
+                    ? "border-sage-700/15 bg-white/80 text-sage-700"
                     : "border-[#E8D6A8] bg-[#FFF8E8] text-[#6E5528]")
                 }
               >
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide">Manuel betalingsregistrering</p>
-                  <p className="mt-1 font-semibold text-midnight">
-                    {isManuallyMarkedPaid ? (isCancelledBooking ? "Tidligere markeret betalt" : "Betalt") : "Ikke registreret som betalt"}
-                  </p>
+                  <p className="mt-1 font-semibold text-midnight">{isManuallyMarkedPaid ? "Betalt" : "Ikke registreret som betalt"}</p>
                   {booking.manually_marked_paid_at ? (
                     <p className="text-ink/65">
                       Markeret{" "}
@@ -459,9 +549,6 @@ function BookingArticle({
                   ) : (
                     <p className="text-ink/65">SoulEvents verificerer ikke betalingen. Markér kun efter egen kontrol.</p>
                   )}
-                  {isCancelledBooking && isManuallyMarkedPaid ? (
-                    <p className="text-ink/65">Tilmeldingen er aflyst, men historikken er bevaret.</p>
-                  ) : null}
                   {booking.manual_payment_note ? <p className="mt-1 text-ink/65">Note: {booking.manual_payment_note}</p> : null}
                 </div>
               </div>
@@ -469,7 +556,7 @@ function BookingArticle({
           </div>
 
           {showActions ? (
-            <div className="grid content-start gap-3">
+            <div className="flex h-full flex-col gap-3">
               {isPaidEventBooking && booking.status === "confirmed" ? (
                 <div className="rounded-md border border-midnight/10 bg-white/80 p-3">
                   <ManualPaymentAction booking={booking} currentEventId={currentEventId} />
@@ -486,17 +573,19 @@ function BookingArticle({
                 </div>
               ) : null}
               <SeatAdjustmentAction booking={booking} currentEventId={currentEventId} />
-              {booking.status === "pending" && (
-                <StatusAction bookingId={booking.id} currentEventId={currentEventId} status="confirmed" variant="primary">
-                  <Check className="size-4" aria-hidden="true" />
-                  Bekræft
-                </StatusAction>
-              )}
               <div className="pt-1">
                 {["pending", "confirmed"].includes(booking.status) && (
                   <CancelBookingAction bookingId={booking.id} currentEventId={currentEventId} />
                 )}
               </div>
+              {booking.status === "pending" && (
+                <div className="mt-auto pt-2">
+                  <StatusAction bookingId={booking.id} currentEventId={currentEventId} status="confirmed" variant="primary">
+                    <Check className="size-5" aria-hidden="true" />
+                    Bekræft booking
+                  </StatusAction>
+                </div>
+              )}
             </div>
           ) : null}
         </div>
@@ -621,39 +710,90 @@ function EventSelector({
   }
 
   return (
-    <section className="overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
+    <section className="overflow-hidden rounded-[28px] border border-midnight/10 bg-white shadow-soft">
       <div className="border-b border-midnight/10 px-5 py-4">
         <h2 className="text-lg font-semibold text-midnight">Vælg event</h2>
         <p className="mt-1 text-sm text-ink/64">Start med at vælge det event, du vil se tilmeldinger for.</p>
       </div>
-      <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
+      <div className="flex snap-x gap-4 overflow-x-auto px-5 py-5 [scrollbar-width:thin]">
         {eventOptions.map((event) => {
           const stats = getEventBookingStats(event);
           const isSelected = selectedEvent?.id === event.id;
+          const mainCategories =
+            event.event_main_categories
+              ?.map((row) => first(row.main_categories))
+              .filter((category): category is NonNullable<typeof category> => Boolean(category)) ?? [];
+          const categoryImageUrl = publicMediaUrl(mainCategories.find((category) => category.image_path)?.image_path);
+          const eventImageUrl = publicMediaUrl(event.cover_image_path) ?? categoryImageUrl;
+          const fallbackColor = mainCategories[0]?.color_hex || "#D89A94";
+          const availableLabel =
+            stats.availableSeats === null
+              ? "Ledige pladser"
+              : stats.availableSeats === 1
+                ? "1 ledig plads"
+                : `${stats.availableSeats} ledige pladser`;
 
           return (
             <Link
               className={
-                "rounded-md border p-4 transition hover:border-sage-700 " +
-                (isSelected ? "border-sage-700 bg-sage-50 shadow-soft" : "border-midnight/10 bg-white")
+                "group relative block min-w-[235px] max-w-[235px] snap-start overflow-hidden rounded-[22px] border bg-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift sm:min-w-[250px] sm:max-w-[250px] lg:min-w-[270px] lg:max-w-[270px] " +
+                (isSelected ? "border-[#7A5D91] ring-4 ring-[#EADCF7]" : "border-olive/10 hover:border-sage-700/25")
               }
               href={"/facilitator/bookings?event=" + event.id}
               key={event.id}
+              aria-current={isSelected ? "page" : undefined}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold leading-snug text-midnight">{event.title}</h3>
-                  <p className="mt-2 inline-flex items-center gap-2 text-sm text-ink/64">
-                    <CalendarDays className="size-4 text-sage-700" aria-hidden="true" />
-                    {formatEventDate(event.starts_at)}
-                  </p>
+              <div
+                className="relative aspect-[16/10] overflow-hidden bg-[#FAF6EF]"
+                style={
+                  eventImageUrl
+                    ? undefined
+                    : {
+                        background:
+                          "radial-gradient(circle at 18% 20%, rgba(255,255,255,0.88), transparent 32%), linear-gradient(135deg, " +
+                          fallbackColor +
+                          "33, #FAF6EF 56%, #EDE4F7)",
+                      }
+                }
+              >
+                {eventImageUrl ? (
+                  <Image
+                    alt=""
+                    className="object-cover transition duration-500 group-hover:scale-[1.03]"
+                    fill
+                    sizes="(min-width: 1024px) 270px, (min-width: 640px) 250px, 235px"
+                    src={eventImageUrl}
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center px-5 text-center">
+                    <span className="font-serif text-2xl font-medium leading-tight text-olive">
+                      {mainCategories[0]?.name || "SoulEvents"}
+                    </span>
+                  </div>
+                )}
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#2F2633]/12 to-transparent" aria-hidden="true" />
+                <div className="absolute left-3 top-3">
+                  <EventDateBox startsAt={event.starts_at} />
                 </div>
-                <CapacityBadge availableSeats={stats.availableSeats} capacity={event.capacity} className="justify-center text-center" />
+                {isSelected ? (
+                  <span className="absolute right-3 top-3 grid size-8 place-items-center rounded-full bg-[#7A5D91] text-white shadow-soft">
+                    <Check className="size-4" aria-hidden="true" />
+                  </span>
+                ) : null}
               </div>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-ink/64">
-                <span className="rounded-md bg-white px-2.5 py-1">{stats.totalSeats} tilmeldte</span>
-                <span className="rounded-md bg-white px-2.5 py-1">{bookingLabel(stats.bookingCount)}</span>
-                <span className="rounded-md bg-white px-2.5 py-1">{stats.pendingSeats} afventer</span>
+
+              <div className="grid gap-3 p-4">
+                <h3 className="line-clamp-2 min-h-[2.75rem] text-lg font-semibold leading-snug text-midnight">
+                  {event.title}
+                </h3>
+                <p className="inline-flex items-center gap-2 text-sm font-medium text-ink/64">
+                  <CalendarDays className="size-4 shrink-0 text-[#7A5D91]" aria-hidden="true" />
+                  <span>{formatEventDate(event.starts_at).replace(",", " kl.")}</span>
+                </p>
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#EDF3EA] px-3 py-2 text-sm font-semibold text-[#4F6849]">
+                  <Ticket className="size-4 shrink-0" aria-hidden="true" />
+                  {availableLabel}
+                </span>
               </div>
             </Link>
           );
@@ -670,6 +810,7 @@ export function BookingList({ bookings, eventOptions, initialExpandedBookingId, 
   const [sort, setSort] = useState<BookingSort>("newest");
   const selectedEvent = eventOptions.find((event) => event.id === selectedEventId) ?? null;
   const selectedEventStats = selectedEvent ? getEventBookingStats(selectedEvent) : null;
+  const pendingBookingCount = selectedEvent ? bookings.filter((booking) => booking.status === "pending").length : 0;
   const selectedEventLocation = selectedEvent
     ? [selectedEvent.address_line, selectedEvent.city].filter(Boolean).join(", ") || null
     : null;
@@ -774,7 +915,7 @@ export function BookingList({ bookings, eventOptions, initialExpandedBookingId, 
                   value={searchTerm}
                 />
               </label>
-              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
                 <div className="flex flex-wrap gap-2">
                   {bookingFilters.map((bookingFilter) => (
                     <button
@@ -792,32 +933,35 @@ export function BookingList({ bookings, eventOptions, initialExpandedBookingId, 
                     </button>
                   ))}
                 </div>
-                <label className="grid gap-1 text-sm font-semibold text-midnight sm:max-w-xs">
-                  Sortering
-                  <select
-                    className="h-10 rounded-md border border-midnight/12 bg-white px-3 text-sm font-semibold text-midnight"
-                    onChange={(event) => setSort(event.target.value as BookingSort)}
-                    value={sort}
-                  >
-                    {bookingSortOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-end">
+                  {selectedEvent ? <ConfirmAllPendingAction eventId={selectedEvent.id} pendingCount={pendingBookingCount} /> : null}
+                  <label className="grid gap-1 text-sm font-semibold text-midnight sm:w-64">
+                    Sortering
+                    <select
+                      className="h-10 rounded-md border border-midnight/12 bg-white px-3 text-sm font-semibold text-midnight"
+                      onChange={(event) => setSort(event.target.value as BookingSort)}
+                      value={sort}
+                    >
+                      {bookingSortOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
               </div>
             </div>
           ) : null}
 
-          <div className="divide-y divide-midnight/10">
+          <div className="grid gap-4 bg-[#FBF8F4] p-4">
             {bookings.length === 0 ? (
-              <div className="p-8 text-center">
+              <div className="rounded-md border border-midnight/10 bg-white p-8 text-center">
                 <h3 className="text-base font-semibold text-midnight">Ingen tilmeldinger til dette event endnu</h3>
                 <p className="mt-2 text-sm text-ink/64">Når deltagere tilmelder sig det valgte event, vises de her.</p>
               </div>
             ) : visibleBookings.length === 0 ? (
-              <div className="p-8 text-center">
+              <div className="rounded-md border border-midnight/10 bg-white p-8 text-center">
                 <h3 className="text-base font-semibold text-midnight">Ingen tilmeldinger matcher filtrene</h3>
                 <p className="mt-2 text-sm text-ink/64">Prøv at ændre søgning, filter eller sortering.</p>
               </div>

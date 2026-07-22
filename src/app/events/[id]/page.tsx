@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, CircleUserRound, Clock3, ExternalLink, Leaf, Mail, MapPinned, Phone, Ticket } from "lucide-react";
+import { TrackEventView } from "@/components/analytics/track-event-view";
 import { BrandLogo } from "@/components/brand-logo";
 import { OrganizerBadges } from "@/components/badges/organizer-badges";
 import { CapacityBadge } from "@/components/events/capacity-badge";
@@ -595,9 +596,11 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     title: event.title,
   });
   const isFreeEvent = event.price_cents === 0;
+  const shouldTrackEventView = isPublicEvent && !adminReturn && !facilitatorReturn && !returnTo?.startsWith("/admin") && !returnTo?.startsWith("/facilitator");
 
   return (
     <main className="min-h-screen bg-cream">
+      {shouldTrackEventView ? <TrackEventView eventId={event.id} /> : null}
       {isPublicEvent ? (
         <script
           type="application/ld+json"

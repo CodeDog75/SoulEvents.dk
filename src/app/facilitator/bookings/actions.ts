@@ -215,6 +215,148 @@ export async function updateBookingStatusAction(formData: FormData) {
   );
 }
 
+export async function confirmAllPendingBookingsAction(formData: FormData) {
+  const profile = await requireRole("facilitator");
+  const eventId = getString(formData, "event_id");
+
+  if (!eventId) {
+    bookingsRedirect("Vælg et event først.");
+  }
+
+  const supabase = await createClient();
+  const { data: facilitatorProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .single();
+
+  if (!facilitatorProfile) {
+    bookingsRedirect("Arrangørprofilen mangler.", eventId);
+  }
+
+  const [{ data: event }, { data: bookings }] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, starts_at, facilitator_id")
+      .eq("id", eventId)
+      .eq("facilitator_id", facilitatorProfile.id)
+      .maybeSingle(),
+    supabase
+      .from("bookings")
+      .select(
+        `
+        id,
+        event_id,
+        facilitator_id,
+        participant_name,
+        participant_email,
+        status,
+        seats,
+        booking_value_cents,
+        payment_reference,
+        participant_access_token,
+        event_title_snapshot,
+        event_starts_at_snapshot,
+        facilitator_name_snapshot,
+        events(slug)
+      `,
+      )
+      .eq("event_id", eventId)
+      .eq("facilitator_id", facilitatorProfile.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (!event) {
+    bookingsRedirect("Eventet kunne ikke findes.", eventId);
+  }
+
+  if (!bookings || bookings.length === 0) {
+    bookingsRedirect("Der er ingen afventende tilmeldinger at bekræfte.", eventId);
+  }
+
+  const [{ data: eventPaymentSettings }, { data: facilitatorPaymentSettings }] = await Promise.all([
+    supabase
+      .from("event_payment_settings")
+      .select("*")
+      .eq("event_id", eventId)
+      .eq("facilitator_id", facilitatorProfile.id)
+      .maybeSingle(),
+    supabase
+      .from("facilitator_payment_settings")
+      .select("*")
+      .eq("facilitator_id", facilitatorProfile.id)
+      .maybeSingle(),
+  ]);
+
+  const eventPaymentRecord = {
+    ...paymentSettingsToInstructionsRecord(eventPaymentSettings),
+    payment_method_source: eventPaymentSettings?.method_source ?? "facilitator",
+  };
+  const facilitatorPaymentRecord = paymentSettingsToInstructionsRecord(facilitatorPaymentSettings);
+  const requestHeaders = await headers();
+  const requestOrigin = requestHeaders.get("origin");
+  let failedMails = 0;
+
+  for (const booking of bookings) {
+    const paymentInstructions = buildBookingPaymentInstructions({
+      amountCents: booking.booking_value_cents,
+      confirmedAt: new Date(),
+      event: eventPaymentRecord,
+      eventStartsAt: event.starts_at,
+      facilitator: facilitatorPaymentRecord,
+      reference: booking.payment_reference,
+    });
+    const bookingUpdates: Record<string, unknown> = { status: "confirmed" };
+
+    if (paymentInstructions) {
+      bookingUpdates.payment_instructions_snapshot = paymentInstructions;
+      bookingUpdates.payment_due_at = paymentInstructions.dueAt;
+      bookingUpdates.payment_snapshot_created_at = paymentInstructions.generatedAt;
+    }
+
+    const { error } = await supabase.from("bookings").update(bookingUpdates).eq("id", booking.id).eq("status", "pending");
+
+    if (error) {
+      bookingsRedirect("Alle tilmeldinger kunne ikke bekræftes.", eventId);
+    }
+
+    const participantMailSent = await sendParticipantBookingResponse({
+      bookingId: booking.id,
+      eventId: booking.event_id,
+      status: "confirmed",
+      participantEmail: booking.participant_email,
+      participantName: booking.participant_name,
+      seats: booking.seats,
+      eventTitle: booking.event_title_snapshot,
+      eventStartsAt: booking.event_starts_at_snapshot,
+      facilitatorName: booking.facilitator_name_snapshot,
+      eventUrl: publicEventUrl(booking.event_id, firstRelation(booking.events)?.slug ?? null),
+      calendarUrl: participantCalendarUrl(booking.participant_access_token, requestOrigin),
+      cancelUrl: participantCancelUrl(booking.participant_access_token, requestOrigin),
+      paymentInstructions,
+    });
+
+    if (!participantMailSent) {
+      failedMails += 1;
+    }
+  }
+
+  await syncEventCapacityStatus(supabase, eventId);
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/bookings");
+  revalidatePath("/");
+  revalidatePath("/events/" + eventId);
+
+  bookingsRedirect(
+    failedMails > 0
+      ? `${bookings.length} tilmeldinger er bekræftet, men ${failedMails} besked${failedMails === 1 ? "" : "er"} kunne ikke sendes.`
+      : `${bookings.length} tilmeldinger er bekræftet, og deltagerne har fået besked.`,
+    eventId,
+  );
+}
+
 export async function updateBookingSeatsAction(formData: FormData) {
   const profile = await requireRole("facilitator");
   const bookingId = getString(formData, "booking_id");

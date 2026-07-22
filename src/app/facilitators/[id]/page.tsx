@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { headers } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
+import { TrackFacilitatorProfileView } from "@/components/analytics/track-facilitator-profile-view";
 import { organizerBadgesFromFlags } from "@/components/badges/organizer-badges";
 import { PublicFacilitatorProfile } from "@/components/facilitator/public-facilitator-profile";
 import { subscribeToFacilitatorReminderAction } from "./actions";
@@ -321,10 +322,6 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     notFound();
   }
 
-  await createAdminClient()
-    .from("facilitator_profile_views")
-    .insert({ facilitator_id: facilitatorData.id });
-
   const { data: events } = await supabase
     .from("events")
     .select(
@@ -420,6 +417,9 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
 
   return (
     <>
+      {publicFacilitator && !adminReturnLink && !facilitatorReturnLink && !isOwnProfilePreview ? (
+        <TrackFacilitatorProfileView facilitatorId={facilitatorData.id} />
+      ) : null}
       {publicFacilitator ? (
         <script
           type="application/ld+json"

@@ -36,7 +36,7 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
   const { data: eventOptions } = facilitatorProfile
     ? await supabase
         .from("events")
-        .select("id, title, starts_at, ends_at, status, capacity, address_line, city, bookings(id, status, seats)")
+        .select("id, title, starts_at, ends_at, status, capacity, address_line, city, cover_image_path, bookings(id, status, seats), event_main_categories(main_categories(name, color_hex, image_path))")
         .eq("facilitator_id", facilitatorProfile.id)
         .in("status", ["active", "sold_out"])
         .order("starts_at", { ascending: true })

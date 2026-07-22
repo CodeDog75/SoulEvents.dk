@@ -16,6 +16,9 @@ export type InvoiceStatus = "draft" | "approved" | "sent" | "paid" | "cancelled"
 export type EmailStatus = "queued" | "sent" | "failed";
 export type EmailChangeRequestStatus = "pending" | "completed" | "cancelled" | "expired";
 export type LegalDocumentType = "terms" | "privacy" | "guidelines" | "organizer_terms" | "cookies";
+export type AnalyticsEventType = "event_view" | "event_share" | "facilitator_profile_view";
+export type AnalyticsShareMethod = "native_share" | "copy_link" | "email" | "sms" | "messenger" | "facebook" | "other";
+export type AnalyticsReferrerCategory = "direct" | "internal" | "search" | "social" | "external" | "unknown";
 
 type Row<T> = T;
 type Insert<T> = Partial<T>;
@@ -469,6 +472,45 @@ export type Database = {
         Update: Update<Database["public"]["Tables"]["site_settings"]["Row"]>;
         Relationships: [];
       };
+      analytics_events: {
+        Row: Row<{
+          id: string;
+          event_type: AnalyticsEventType;
+          occurred_at: string;
+          event_id: string | null;
+          facilitator_id: string | null;
+          anonymous_session_hash: string;
+          dedupe_bucket: string;
+          is_unique: boolean;
+          share_method: AnalyticsShareMethod | null;
+          referrer_category: AnalyticsReferrerCategory;
+          metadata: Json;
+          created_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["analytics_events"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["analytics_events"]["Row"]>;
+        Relationships: [];
+      };
+      analytics_monthly_snapshots: {
+        Row: Row<{
+          month_start: string;
+          active_facilitators_count: number;
+          new_facilitators_count: number;
+          published_events_count: number;
+          held_events_count: number;
+          bookings_count: number;
+          confirmed_seats_count: number;
+          unique_event_views_count: number;
+          event_shares_count: number;
+          facilitator_profile_views_count: number;
+          generated_at: string;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["analytics_monthly_snapshots"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["analytics_monthly_snapshots"]["Row"]>;
+        Relationships: [];
+      };
       weekly_reflections: {
         Row: Row<{
           id: string;
@@ -524,7 +566,21 @@ export type Database = {
         };
       };
     };
-    Functions: Record<string, never>;
+    Functions: {
+      get_admin_platform_insights: {
+        Args: {
+          period_end: string;
+          period_start: string;
+        };
+        Returns: Json;
+      };
+      refresh_analytics_monthly_snapshot: {
+        Args: {
+          target_month?: string;
+        };
+        Returns: Database["public"]["Tables"]["analytics_monthly_snapshots"]["Row"];
+      };
+    };
     Enums: {
       app_role: AppRole;
       facilitator_status: FacilitatorStatus;

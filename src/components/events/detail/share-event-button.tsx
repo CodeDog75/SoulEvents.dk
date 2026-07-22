@@ -2,6 +2,7 @@
 
 import { Copy, Mail, MessageCircle, Send, Share2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { trackAnalyticsEvent, type AnalyticsShareMethod } from "@/lib/analytics/client";
 import { publicEventPath } from "@/lib/slug";
 
 type ShareEventButtonProps = {
@@ -55,6 +56,7 @@ export function ShareEventButton({ eventId, eventSlug, eventTitle, facilitatorNa
           text: shareData.text,
           url: shareData.eventUrl,
         });
+        trackAnalyticsEvent({ eventId, shareMethod: "native_share", type: "event_share" });
         return;
       } catch {
         return;
@@ -68,10 +70,15 @@ export function ShareEventButton({ eventId, eventSlug, eventTitle, facilitatorNa
     try {
       await navigator.clipboard.writeText(shareData.eventUrl);
       setCopied(true);
+      trackAnalyticsEvent({ eventId, shareMethod: "copy_link", type: "event_share" });
       window.setTimeout(() => setCopied(false), 2200);
     } catch {
       setMenuOpen(true);
     }
+  }
+
+  function trackShareMethod(shareMethod: AnalyticsShareMethod) {
+    trackAnalyticsEvent({ eventId, shareMethod, type: "event_share" });
   }
 
   const encodedText = encodeURIComponent(shareData.text);
@@ -113,6 +120,7 @@ export function ShareEventButton({ eventId, eventSlug, eventTitle, facilitatorNa
               <a
                 className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-olive/15 bg-white px-3 py-2 text-sm font-semibold text-olive transition hover:border-sage-700 hover:bg-sage-50"
                 href={mailHref}
+                onClick={() => trackShareMethod("email")}
               >
                 <Mail className="size-4" aria-hidden="true" />
                 Del via e-mail
@@ -120,6 +128,7 @@ export function ShareEventButton({ eventId, eventSlug, eventTitle, facilitatorNa
               <a
                 className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-olive/15 bg-white px-3 py-2 text-sm font-semibold text-olive transition hover:border-sage-700 hover:bg-sage-50"
                 href={smsHref}
+                onClick={() => trackShareMethod("sms")}
               >
                 <MessageCircle className="size-4" aria-hidden="true" />
                 Del via SMS
@@ -127,6 +136,7 @@ export function ShareEventButton({ eventId, eventSlug, eventTitle, facilitatorNa
               <a
                 className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-olive/15 bg-white px-3 py-2 text-sm font-semibold text-olive transition hover:border-sage-700 hover:bg-sage-50"
                 href={messengerHref}
+                onClick={() => trackShareMethod("messenger")}
                 rel="noreferrer"
                 target="_blank"
               >
