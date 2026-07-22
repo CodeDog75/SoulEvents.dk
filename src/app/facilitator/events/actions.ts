@@ -592,6 +592,20 @@ async function createCoOrganizerInvitations(
     eventFormRedirect("Denne arrangørprofil kan ikke længere inviteres. Profilen er muligvis sat på pause, deaktiveret eller ikke fuldt oprettet.", { eventId: input.eventId });
   }
 
+  const missingRecipientProfileIds = newProfileIds.filter((profileId) => {
+    const candidate = candidateMap.get(profileId);
+    const candidateProfile = firstRelation(candidate?.profiles);
+    return !candidateProfile?.email;
+  });
+
+  if (missingRecipientProfileIds.length > 0) {
+    console.error("Co-organizer invitation recipient email missing", {
+      eventId: input.eventId,
+      profileIds: missingRecipientProfileIds,
+    });
+    eventFormRedirect("Medarrangørinvitationen kunne ikke sendes, fordi modtagerens e-mail mangler.", { eventId: input.eventId });
+  }
+
   const { data: insertedRows, error: insertError } = await supabase
     .from("event_co_organizers")
     .insert(
@@ -613,12 +627,21 @@ async function createCoOrganizerInvitations(
     eventFormRedirect("Medarrangørinvitationen kunne ikke gemmes.", { eventId: input.eventId });
   }
 
+  const failedInvitationIds: string[] = [];
+
   for (const row of insertedRows ?? []) {
     const candidate = candidateMap.get(row.co_organizer_profile_id);
     const candidateProfile = firstRelation(candidate?.profiles);
     const recipientEmail = candidateProfile?.email;
 
     if (!candidate || !recipientEmail) {
+      console.error("Co-organizer invitation mail skipped after insert", {
+        eventId: input.eventId,
+        invitationId: row.id,
+        missingCandidate: !candidate,
+        missingRecipientEmail: !recipientEmail,
+      });
+      failedInvitationIds.push(row.id);
       continue;
     }
 
@@ -637,7 +660,28 @@ async function createCoOrganizerInvitations(
         eventId: input.eventId,
         invitationId: row.id,
       });
+      failedInvitationIds.push(row.id);
     }
+  }
+
+  if (failedInvitationIds.length > 0) {
+    const { error: cancelFailedInvitationsError } = await supabase
+      .from("event_co_organizers")
+      .update({
+        cancelled_at: new Date().toISOString(),
+        status: "cancelled",
+      })
+      .in("id", failedInvitationIds);
+
+    if (cancelFailedInvitationsError) {
+      console.error("Failed co-organizer invitations could not be cancelled", {
+        eventId: input.eventId,
+        invitationIds: failedInvitationIds,
+        message: cancelFailedInvitationsError.message,
+      });
+    }
+
+    eventFormRedirect("Eventet blev gemt, men medarrangørinvitationen kunne ikke sendes. Prøv at invitere medarrangøren igen.", { eventId: input.eventId });
   }
 }
 
