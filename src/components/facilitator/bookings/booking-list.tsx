@@ -106,6 +106,8 @@ const bookingCardClasses: Partial<Record<BookingStatus, string>> = {
   cancelled: "border-[#E5DDEA] bg-white",
 };
 
+const activeSeatBookingStatuses: BookingStatus[] = ["pending", "confirmed"];
+
 function formatMoney(cents: number) {
   return `${new Intl.NumberFormat("da-DK").format(cents / 100)} kr.`;
 }
@@ -194,7 +196,7 @@ function canSendPaymentReminder(booking: BookingRow, paymentSnapshot: ReturnType
 
 function getEventBookingStats(event: EventOption) {
   const bookings = event.bookings ?? [];
-  const activeBookings = bookings.filter((booking) => ["pending", "confirmed"].includes(booking.status));
+  const activeBookings = bookings.filter((booking) => activeSeatBookingStatuses.includes(booking.status));
   const totalSeats = activeBookings.reduce((sum, booking) => sum + booking.seats, 0);
   const pendingSeats = bookings
     .filter((booking) => booking.status === "pending")
@@ -417,10 +419,10 @@ function BookingArticle({
               {booking.booking_number ? (
                 <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold text-lavender shadow-soft">#{booking.booking_number}</span>
               ) : null}
-              <span className="truncate">{booking.participant_name}</span>
-            </p>
-            <p className="mt-1 text-sm font-semibold text-ink/62">
-              {booking.seats} {booking.seats === 1 ? "plads" : "pladser"}
+              <span className="min-w-0 truncate">{booking.participant_name}</span>
+              <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold text-ink/62 shadow-soft">
+                {booking.seats} {booking.seats === 1 ? "plads" : "pladser"}
+              </span>
             </p>
           </div>
           <span className="rounded-md bg-white/75 px-3 py-2 text-sm font-semibold text-midnight shadow-soft md:text-center">
@@ -732,6 +734,8 @@ function EventSelector({
               : stats.availableSeats === 1
                 ? "1 ledig plads"
                 : `${stats.availableSeats} ledige pladser`;
+          const capacitySummaryLabel =
+            stats.availableSeats === null ? `${stats.totalSeats} tilmeldte` : `${stats.totalSeats} tilmeldte • ${availableLabel}`;
 
           return (
             <Link
@@ -776,7 +780,7 @@ function EventSelector({
                   <EventDateBox startsAt={event.starts_at} />
                 </div>
                 {isSelected ? (
-                  <span className="absolute right-3 top-3 grid size-8 place-items-center rounded-full bg-[#7A5D91] text-white shadow-soft">
+                  <span className="absolute bottom-3 right-3 grid size-8 place-items-center rounded-full bg-white text-[#7A5D91] shadow-soft ring-1 ring-[#7A5D91]/20">
                     <Check className="size-4" aria-hidden="true" />
                   </span>
                 ) : null}
@@ -792,7 +796,7 @@ function EventSelector({
                 </p>
                 <span className="inline-flex items-center gap-2 rounded-full bg-[#EDF3EA] px-3 py-2 text-sm font-semibold text-[#4F6849]">
                   <Ticket className="size-4 shrink-0" aria-hidden="true" />
-                  {availableLabel}
+                  {capacitySummaryLabel}
                 </span>
               </div>
             </Link>
@@ -859,12 +863,15 @@ export function BookingList({ bookings, eventOptions, initialExpandedBookingId, 
       ) : (
         <section className="overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
           <div className="border-b border-midnight/10 px-5 py-4">
-            <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
+            <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-start">
               <div>
                 <h2 className="text-lg font-semibold text-midnight">{selectedEvent.title}</h2>
                 <p className="mt-1 text-sm text-ink/64">{formatEventDate(selectedEvent.starts_at)}</p>
                 {selectedEventStats && (
-                  <CapacityBadge availableSeats={selectedEventStats.availableSeats} capacity={selectedEvent.capacity} className="mt-2" />
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-ink/68">{selectedEventStats.totalSeats} tilmeldte</span>
+                    <CapacityBadge availableSeats={selectedEventStats.availableSeats} capacity={selectedEvent.capacity} />
+                  </div>
                 )}
               </div>
               {selectedEvent.status === "sold_out" ? (
