@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { sendBookingNotification } from "@/lib/email/booking-notification";
 import { sendParticipantBookingReceipt } from "@/lib/email/participant-booking-receipt";
 import { getAppUrl } from "@/lib/app-url";
+import { participantCancelUrl } from "@/lib/bookings/participant-links";
 import { maxSeatsPerBooking } from "@/lib/bookings/limits";
 import { bookingCommissionSnapshot, getEffectiveCommissionTerms } from "@/lib/commission/terms";
 import { env } from "@/lib/env";
@@ -99,6 +100,7 @@ type BookingEventResult = {
 type CreatedBookingResult = {
   booking_value_cents: number;
   id: string;
+  participant_access_token: string;
 };
 
 function mailErrorDetails(result: PromiseSettledResult<boolean>) {
@@ -257,7 +259,7 @@ export async function createBookingAction(formData: FormData) {
       reporting_month: commissionSnapshot.reporting_month,
       reporting_month_locked_at: commissionSnapshot.reporting_month_locked_at,
     })
-    .select("id, booking_value_cents")
+    .select("id, booking_value_cents, participant_access_token")
     .single();
 
   const booking = bookingResult as CreatedBookingResult | null;
@@ -297,7 +299,8 @@ export async function createBookingAction(formData: FormData) {
   }
 
   const requestHeaders = await headers();
-  const appUrl = bookingAdminAppUrl(requestHeaders.get("origin"));
+  const requestOrigin = requestHeaders.get("origin");
+  const appUrl = bookingAdminAppUrl(requestOrigin);
   const bookingsUrl = appUrl + "/facilitator/bookings?event=" + encodeURIComponent(event.id);
   const { data: facilitatorContact, error: facilitatorContactError } = await adminSupabase
     .from("facilitator_profiles")
@@ -336,6 +339,7 @@ export async function createBookingAction(formData: FormData) {
     }),
     sendParticipantBookingReceipt({
       bookingId: booking.id,
+      cancelUrl: participantCancelUrl(booking.participant_access_token, requestOrigin),
       eventId: event.id,
       eventTitle: event.title,
       eventStartsAt: event.starts_at,

@@ -5,6 +5,8 @@ import type { BookingStatus } from "@/types/database";
 
 type ParticipantBookingResponseInput = {
   bookingId: string;
+  calendarUrl?: string | null;
+  cancelUrl?: string | null;
   eventId: string;
   status: BookingStatus;
   participantEmail: string;
@@ -146,8 +148,18 @@ async function buildHtml(input: ParticipantBookingResponseInput) {
       ${renderEmailTable(rows)}
       ${input.status === "confirmed" ? buildPaymentHtml(input.paymentInstructions) : ""}
       ${
+        input.status === "confirmed" && input.calendarUrl
+          ? renderEmailButton(input.calendarUrl, "Tilføj til kalender")
+          : ""
+      }
+      ${
         input.status === "confirmed" && input.eventUrl
-          ? renderEmailButton(input.eventUrl, "Se eventet")
+          ? '<p style="margin: 18px 0 0;"><a href="' + escapeHtml(input.eventUrl) + '" style="color: #7A4EAB; font-weight: 700;">Se eventet på SoulEvents</a></p>'
+          : ""
+      }
+      ${
+        input.status === "confirmed" && input.cancelUrl
+          ? '<p style="margin: 18px 0 0; color: #6E6475;">Kan du ikke deltage? <a href="' + escapeHtml(input.cancelUrl) + '" style="color: #7A4EAB; font-weight: 700;">Afmeld din tilmelding</a></p>'
           : ""
       }
     `,
@@ -169,7 +181,9 @@ function buildText(input: ParticipantBookingResponseInput) {
     input.status === "confirmed" && seatsLabel ? `${input.seats === 1 ? "Bekræftet plads" : "Bekræftede pladser"}: ${seatsLabel}` : "",
     `Arrangør: ${input.facilitatorName}`,
     ...(input.status === "confirmed" ? buildPaymentText(input.paymentInstructions) : []),
+    input.status === "confirmed" && input.calendarUrl ? `Tilføj til kalender: ${input.calendarUrl}` : "",
     input.status === "confirmed" && input.eventUrl ? `Eventlink: ${input.eventUrl}` : "",
+    input.status === "confirmed" && input.cancelUrl ? `Afmeld tilmelding: ${input.cancelUrl}` : "",
     ...renderPlainTextFooter(),
   ].join("\n");
 }

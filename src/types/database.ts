@@ -183,6 +183,7 @@ export type Database = {
           event_starts_at_snapshot: string;
           facilitator_name_snapshot: string;
           primary_category_snapshot: string | null;
+          participant_access_token: string;
           booking_number: number;
           booking_reference: string;
           price_per_seat_cents: number;

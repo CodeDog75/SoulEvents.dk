@@ -3,6 +3,7 @@ import { escapeHtml, formatDate, sendLoggedEmail } from "@/lib/email/resend-mail
 
 type ParticipantBookingReceiptInput = {
   bookingId: string;
+  cancelUrl?: string | null;
   eventId: string;
   participantEmail: string;
   participantName: string;
@@ -42,6 +43,11 @@ async function buildHtml(input: ParticipantBookingReceiptInput) {
       guidelines.map((item) => '<li style="margin-bottom: 8px;">' + escapeHtml(item) + "</li>").join(""),
       "</ul>",
       '<p style="margin: 20px 0 0;">Du behøver ikke foretage dig noget lige nu. Hold blot øje med din indbakke.</p>',
+      input.cancelUrl
+        ? '<div style="margin: 22px 0 0; padding-top: 16px; border-top: 1px solid #E9DFF2;"><p style="margin: 0 0 8px; color: #6E6475;">Har du fortrudt din tilmelding? Du kan afmelde den, så længe den ikke er behandlet.</p><a href="' +
+          escapeHtml(input.cancelUrl) +
+          '" style="color: #7A4EAB; font-weight: 700;">Afmeld tilmelding</a></div>'
+        : "",
     ].join(""),
   });
 }
@@ -66,8 +72,11 @@ function buildText(input: ParticipantBookingReceiptInput) {
     ...guidelines.map((item) => "- " + item),
     "",
     "Du behøver ikke foretage dig noget lige nu. Hold blot øje med din indbakke.",
+    input.cancelUrl ? "" : "",
+    input.cancelUrl ? "Har du fortrudt din tilmelding? Du kan afmelde den, så længe den ikke er behandlet:" : "",
+    input.cancelUrl ? input.cancelUrl : "",
     ...renderPlainTextFooter(),
-  ].join("\n");
+  ].filter((line, index, lines) => line || lines[index - 1] || lines[index + 1]).join("\n");
 }
 
 export async function sendParticipantBookingReceipt(input: ParticipantBookingReceiptInput) {

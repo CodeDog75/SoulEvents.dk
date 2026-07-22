@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { sendBookingPaymentReminder } from "@/lib/email/booking-payment-reminder";
 import { sendParticipantBookingResponse, sendParticipantBookingSeatsUpdated } from "@/lib/email/participant-booking-response";
 import { env } from "@/lib/env";
+import { participantCalendarUrl, participantCancelUrl } from "@/lib/bookings/participant-links";
 import { syncEventCapacityStatus } from "@/lib/events/capacity";
 import { getString } from "@/lib/forms/form-data";
 import { requireRole } from "@/lib/auth/roles";
@@ -89,6 +91,7 @@ export async function updateBookingStatusAction(formData: FormData) {
       price_per_seat_cents,
       booking_value_cents,
       payment_reference,
+      participant_access_token,
       event_title_snapshot,
       event_starts_at_snapshot,
       facilitator_name_snapshot,
@@ -175,6 +178,8 @@ export async function updateBookingStatusAction(formData: FormData) {
   }
 
   await syncEventCapacityStatus(supabase, booking.event_id);
+  const requestHeaders = await headers();
+  const requestOrigin = requestHeaders.get("origin");
 
   const participantMailSent = await sendParticipantBookingResponse({
     bookingId: booking.id,
@@ -187,6 +192,8 @@ export async function updateBookingStatusAction(formData: FormData) {
     eventStartsAt: booking.event_starts_at_snapshot,
     facilitatorName: booking.facilitator_name_snapshot,
     eventUrl: status === "confirmed" ? publicEventUrl(booking.event_id, firstRelation(booking.events)?.slug ?? null) : null,
+    calendarUrl: status === "confirmed" ? participantCalendarUrl(booking.participant_access_token, requestOrigin) : null,
+    cancelUrl: participantCancelUrl(booking.participant_access_token, requestOrigin),
     paymentInstructions,
   });
 
