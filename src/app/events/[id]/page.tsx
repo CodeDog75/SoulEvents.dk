@@ -25,7 +25,13 @@ type EventDetailPageProps = {
     id?: string;
     slug?: string;
   }>;
-  searchParams: Promise<{ admin_return?: string; booking?: string; message?: string; return_to?: string }>;
+  searchParams: Promise<{
+    admin_return?: string;
+    booking?: string;
+    message?: string;
+    return_to?: string;
+    [key: string]: string | string[] | undefined;
+  }>;
 };
 
 function first<T>(value: T | T[] | null | undefined) {
@@ -40,10 +46,16 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function withSearch(path: string, searchParams: Record<string, string | undefined>) {
+function withSearch(path: string, searchParams: Record<string, string | string[] | undefined>) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(searchParams)) {
-    if (value) params.set(key, value);
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item) params.append(key, item);
+      }
+    } else if (value) {
+      params.set(key, value);
+    }
   }
   const query = params.toString();
   return query ? path + "?" + query : path;
@@ -100,7 +112,19 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
     .eq("slug", identifier)
     .maybeSingle();
 
-  if (!event && isUuid(identifier)) {
+  let fallbackEventId = isUuid(identifier) ? identifier : null;
+
+  if (!event && !fallbackEventId) {
+    const { data: historicalSlug } = await supabase
+      .from("event_slug_history")
+      .select("event_id")
+      .eq("slug", identifier)
+      .maybeSingle();
+
+    fallbackEventId = historicalSlug?.event_id ?? null;
+  }
+
+  if (!event && fallbackEventId) {
     const fallbackResult = await supabase
       .from("events")
       .select(
@@ -133,7 +157,7 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
         event_images(image_path, sort_order)
       `,
       )
-      .eq("id", identifier)
+      .eq("id", fallbackEventId)
       .maybeSingle();
     event = fallbackResult.data;
   }
@@ -300,12 +324,14 @@ function formatContactPhone(phone: string) {
 }
 
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
-  const [resolvedParams, { admin_return: adminReturn, booking, message, return_to: returnTo }] = await Promise.all([params, searchParams]);
+  const [resolvedParams, resolvedSearchParams] = await Promise.all([params, searchParams]);
+  const { admin_return: adminReturn, booking, message, return_to: returnTo } = resolvedSearchParams;
   const identifier = eventIdentifier(resolvedParams);
   const isLegacyRoute = Boolean(resolvedParams.id);
   const messageVariant = booking === "sent" ? "success" : "notice";
   const supabase = await createClient();
   const viewer = await getCurrentProfile();
+  let resolvedFromHistoricalSlug = false;
 
   let { data: event } = await supabase
     .from("events")
@@ -383,7 +409,20 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     .eq("slug", identifier)
     .maybeSingle();
 
-  if (!event && isUuid(identifier)) {
+  let fallbackEventId = isUuid(identifier) ? identifier : null;
+
+  if (!event && !fallbackEventId) {
+    const { data: historicalSlug } = await supabase
+      .from("event_slug_history")
+      .select("event_id")
+      .eq("slug", identifier)
+      .maybeSingle();
+
+    fallbackEventId = historicalSlug?.event_id ?? null;
+    resolvedFromHistoricalSlug = Boolean(fallbackEventId);
+  }
+
+  if (!event && fallbackEventId) {
     const fallbackResult = await supabase
       .from("events")
       .select(
@@ -457,7 +496,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         )
       `,
       )
-      .eq("id", identifier)
+      .eq("id", fallbackEventId)
       .maybeSingle();
     event = fallbackResult.data;
   }
@@ -470,8 +509,8 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     notFound();
   }
 
-  if (isLegacyRoute && event.slug) {
-    permanentRedirect(withSearch(publicEventPath(event.slug), { admin_return: adminReturn, booking, message, return_to: returnTo }));
+  if ((isLegacyRoute || resolvedFromHistoricalSlug) && event.slug && event.slug !== identifier) {
+    permanentRedirect(withSearch(publicEventPath(event.slug), resolvedSearchParams));
   }
 
   const availableSeats = await getAvailableEventSeats(createAdminClient(), event.id, event.capacity);

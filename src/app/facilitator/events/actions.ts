@@ -100,6 +100,10 @@ function getPriceCents(formData: FormData) {
   return Number(raw) * 100;
 }
 
+function normalizeTextForComparison(value: string | null | undefined) {
+  return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
 function isValidUrl(value: string) {
   if (value.trim() === onlineLinkLaterText) {
     return true;
@@ -960,9 +964,32 @@ async function createUniqueEventSlug(supabase: AdminClient, baseSlug: string) {
   let candidate = cleanBaseSlug;
 
   for (let suffix = 2; suffix < 100; suffix += 1) {
-    const { data: existingEvent } = await supabase.from("events").select("id").eq("slug", candidate).maybeSingle();
+    const [{ data: existingEvent }, { data: existingSlugAlias }] = await Promise.all([
+      supabase.from("events").select("id").eq("slug", candidate).maybeSingle(),
+      supabase.from("event_slug_history").select("event_id").eq("slug", candidate).maybeSingle(),
+    ]);
 
-    if (!existingEvent) {
+    if (!existingEvent && !existingSlugAlias) {
+      return candidate;
+    }
+
+    candidate = cleanBaseSlug + "-" + suffix;
+  }
+
+  return cleanBaseSlug + "-" + crypto.randomUUID().slice(0, 8);
+}
+
+async function createUniqueEventSlugForEvent(supabase: AdminClient, baseSlug: string, eventId: string) {
+  const cleanBaseSlug = baseSlug || "event";
+  let candidate = cleanBaseSlug;
+
+  for (let suffix = 2; suffix < 100; suffix += 1) {
+    const [{ data: existingEvent }, { data: existingSlugAlias }] = await Promise.all([
+      supabase.from("events").select("id").eq("slug", candidate).neq("id", eventId).maybeSingle(),
+      supabase.from("event_slug_history").select("event_id").eq("slug", candidate).neq("event_id", eventId).maybeSingle(),
+    ]);
+
+    if (!existingEvent && !existingSlugAlias) {
       return candidate;
     }
 
@@ -1037,6 +1064,7 @@ export async function createEventAction(formData: FormData) {
 
   let existingEventStatus: EventStatus | null = null;
   let existingEventSlug: string | null = null;
+  let existingEventTitle: string | null = null;
   let existingEventPublishedAt: string | null = null;
   let existingEventCoverImagePath: string | null = null;
   let previousEventSnapshot: EventUpdateSnapshot | null = null;
@@ -1055,6 +1083,7 @@ export async function createEventAction(formData: FormData) {
 
     existingEventStatus = existingEvent.status as EventStatus;
     existingEventSlug = existingEvent.slug ?? null;
+    existingEventTitle = existingEvent.title ?? null;
     existingEventPublishedAt = existingEvent.published_at ?? null;
     existingEventCoverImagePath = existingEvent.cover_image_path ?? null;
     previousEventSnapshot = existingEvent as EventUpdateSnapshot;
@@ -1123,6 +1152,12 @@ export async function createEventAction(formData: FormData) {
   const rawTitle = getString(formData, "title");
   const title = rawTitle || (isDraft ? "Kladde uden titel" : "");
   const slugBase = createSlug(title || "kladde");
+  const titleChangedForExistingEvent =
+    Boolean(existingEventId) && normalizeTextForComparison(existingEventTitle) !== normalizeTextForComparison(title);
+  const nextEventSlug =
+    existingEventId && titleChangedForExistingEvent && slugBase
+      ? await createUniqueEventSlugForEvent(supabase, slugBase, existingEventId)
+      : existingEventSlug;
   const eventDescription =
     getString(formData, "event_description") ||
     getString(formData, "long_description") ||
@@ -1375,6 +1410,7 @@ export async function createEventAction(formData: FormData) {
         status,
         published_at: publishedAt,
         title,
+        slug: nextEventSlug ?? existingEventSlug,
         short_description: shortDescription,
         long_description: longDescription,
         cover_image_path: coverImagePath,
@@ -1406,6 +1442,21 @@ export async function createEventAction(formData: FormData) {
       console.error("Event update error", updateError);
       const errorMessage = updateError.message ? ": " + updateError.message : "";
       eventsRedirect(isDraft ? "Kladde kunne ikke gemmes" + errorMessage : "Eventet kunne ikke opdateres" + errorMessage);
+    }
+
+    if (existingEventSlug && nextEventSlug && existingEventSlug !== nextEventSlug) {
+      const { error: slugHistoryError } = await supabase.from("event_slug_history").upsert(
+        {
+          event_id: existingEventId,
+          slug: existingEventSlug,
+        },
+        { onConflict: "slug" },
+      );
+
+      if (slugHistoryError) {
+        console.error("Event slug history insert error", slugHistoryError);
+        eventsRedirect("Eventets URL-historik kunne ikke gemmes.");
+      }
     }
 
     const { error: paymentSettingsError } = await upsertEventPaymentSettings(supabase, {
@@ -1476,7 +1527,7 @@ export async function createEventAction(formData: FormData) {
             eventId: existingEventId,
             eventStartsAt: startsAt,
             eventTitle: title,
-            eventUrl: publicEventUrl(existingEventId, existingEventSlug),
+            eventUrl: publicEventUrl(existingEventId, nextEventSlug ?? existingEventSlug),
             facilitatorName: contactName || "Arrangør",
             fields: changedFields,
             location: formatLocation({
@@ -1519,6 +1570,12 @@ export async function createEventAction(formData: FormData) {
 
     revalidatePath("/facilitator");
     revalidatePath("/facilitator/events");
+    if (existingEventSlug) {
+      revalidatePath(publicEventPath(existingEventSlug));
+    }
+    if (nextEventSlug) {
+      revalidatePath(publicEventPath(nextEventSlug));
+    }
 
     if (isDraft) {
       redirect("/facilitator/events?draft=" + existingEventId + "&step=" + safeStep + "&message=" + encodeURIComponent("Kladde er opdateret og gemt."));

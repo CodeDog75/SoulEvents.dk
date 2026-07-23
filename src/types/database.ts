@@ -391,6 +391,17 @@ export type Database = {
         Update: Update<Database["public"]["Tables"]["event_co_organizers"]["Row"]>;
         Relationships: [];
       };
+      event_slug_history: {
+        Row: Row<{
+          id: string;
+          event_id: string;
+          slug: string;
+          created_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["event_slug_history"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["event_slug_history"]["Row"]>;
+        Relationships: [];
+      };
       legal_documents: {
         Row: Row<{
           id: string;
