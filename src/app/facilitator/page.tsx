@@ -135,6 +135,47 @@ function isPastEvent(event: { ends_at?: string | null; starts_at: string; status
   return getUserFacingEventStatus(event, now) === "held" || event.status === "cancelled";
 }
 
+function isCurrentPublicCoOrganizerEvent(
+  event:
+    | {
+        ends_at?: string | null;
+        facilitator_profiles?:
+          | {
+              is_disabled?: boolean | null;
+              is_paused?: boolean | null;
+              status?: string | null;
+            }
+          | Array<{
+              is_disabled?: boolean | null;
+              is_paused?: boolean | null;
+              status?: string | null;
+            }>
+          | null;
+        id?: string | null;
+        starts_at?: string | null;
+        status?: string | null;
+      }
+    | null
+    | undefined,
+  now: Date,
+) {
+  if (!event?.id || !event.status) return false;
+
+  const owner = first(event.facilitator_profiles);
+  const ownerCanShowPublicEvents =
+    owner?.status === "approved" && !owner.is_paused && !owner.is_disabled;
+  const eventStatus = getUserFacingEventStatus(
+    {
+      ends_at: event.ends_at,
+      starts_at: event.starts_at,
+      status: event.status,
+    },
+    now,
+  );
+
+  return ownerCanShowPublicEvents && (eventStatus === "active" || eventStatus === "sold_out");
+}
+
 function eventEndDate(event: { ends_at?: string | null; starts_at: string }) {
   return new Date(event.ends_at ?? event.starts_at);
 }
@@ -1105,9 +1146,10 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .in("events.status", ["active", "sold_out"]),
           supabase
             .from("event_co_organizers")
-            .select("id, status, response_token, events(id, slug, title, starts_at, status, facilitator_profiles!events_facilitator_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)))")
+            .select("id, status, response_token, events!inner(id, slug, title, starts_at, ends_at, status, facilitator_profiles!events_facilitator_id_fkey(company_name, status, is_paused, is_disabled, profiles!facilitator_profiles_profile_id_fkey(full_name)))")
             .eq("co_organizer_profile_id", facilitatorProfile.id)
             .in("status", ["pending", "accepted"])
+            .in("events.status", ["active", "sold_out"])
             .order("created_at", { ascending: false }),
           supabase
             .from("admin_audit_log")
@@ -1153,8 +1195,9 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     : { activeCount: 0, draftCount: 0, maxActiveEvents: 10, maxDraftEvents: 5 };
   const messageRows = (adminMessages ?? []) as any[];
   const coOrganizerRows = (coOrganizerInvitations ?? []) as any[];
-  const pendingCoOrganizerInvitations = coOrganizerRows.filter((row) => row.status === "pending");
-  const acceptedCoOrganizerInvitations = coOrganizerRows.filter((row) => row.status === "accepted");
+  const currentCoOrganizerRows = coOrganizerRows.filter((row) => isCurrentPublicCoOrganizerEvent(first(row.events), now));
+  const pendingCoOrganizerInvitations = currentCoOrganizerRows.filter((row) => row.status === "pending");
+  const acceptedCoOrganizerInvitations = currentCoOrganizerRows.filter((row) => row.status === "accepted");
   const unreadMessageCount = unreadAdminMessageCount ?? 0;
   const activeEvents = eventRows.filter((event) => {
     const userStatus = getUserFacingEventStatus(event, now);

@@ -12,6 +12,7 @@ import { sendCoOrganizerInvitationEmail, sendCoOrganizerRemovedEmail, sendCoOrga
 import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
+import { getUserFacingEventStatus } from "@/lib/events/user-facing-status";
 import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
 import { getFacilitatorPublicEligibility } from "@/lib/facilitators/public-eligibility";
 import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
@@ -2183,7 +2184,7 @@ export async function respondToCoOrganizerInvitationAction(formData: FormData) {
 
   const { data: invitation, error: invitationError } = await supabase
     .from("event_co_organizers")
-    .select("id, event_id, primary_organizer_profile_id, co_organizer_profile_id, status, response_token, events(title), facilitator_profiles!event_co_organizers_primary_organizer_profile_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name))")
+    .select("id, event_id, primary_organizer_profile_id, co_organizer_profile_id, status, response_token, events(title, starts_at, ends_at, status, facilitator_profiles!events_facilitator_id_fkey(status, is_paused, is_disabled)), facilitator_profiles!event_co_organizers_primary_organizer_profile_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name))")
     .eq("id", invitationId)
     .eq("response_token", token)
     .maybeSingle();
@@ -2204,6 +2205,29 @@ export async function respondToCoOrganizerInvitationAction(formData: FormData) {
     redirect("/facilitator?message=" + encodeURIComponent("Du kan kun trække dig fra events, hvor du står som medarrangør."));
   }
 
+  const event = firstRelation(invitation.events);
+  const primaryEventOwner = firstRelation(event?.facilitator_profiles);
+  const eventStatus = event?.status
+    ? getUserFacingEventStatus(
+        {
+          ends_at: event.ends_at,
+          starts_at: event.starts_at,
+          status: event.status,
+        },
+        new Date(),
+      )
+    : null;
+  const eventCanAcceptCoOrganizer =
+    Boolean(event?.title) &&
+    (eventStatus === "active" || eventStatus === "sold_out") &&
+    primaryEventOwner?.status === "approved" &&
+    !primaryEventOwner.is_paused &&
+    !primaryEventOwner.is_disabled;
+
+  if (response === "accepted" && !eventCanAcceptCoOrganizer) {
+    redirect("/facilitator?message=" + encodeURIComponent("Eventet findes ikke længere eller er blevet fjernet."));
+  }
+
   const { error: updateError } = await supabase
     .from("event_co_organizers")
     .update({ responded_at: new Date().toISOString(), status: response })
@@ -2219,7 +2243,6 @@ export async function respondToCoOrganizerInvitationAction(formData: FormData) {
     redirect("/facilitator?message=" + encodeURIComponent("Invitationen kunne ikke opdateres."));
   }
 
-  const event = firstRelation(invitation.events);
   const primaryOrganizer = firstRelation(invitation.facilitator_profiles);
   const primaryOrganizerUser = firstRelation(primaryOrganizer?.profiles);
 

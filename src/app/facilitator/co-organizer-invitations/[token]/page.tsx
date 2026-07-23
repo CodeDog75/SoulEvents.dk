@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, MapPin, UsersRound } from "lucide-react";
 import { respondToCoOrganizerInvitationAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { getCurrentProfile } from "@/lib/auth/roles";
+import { getUserFacingEventStatus } from "@/lib/events/user-facing-status";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,45 @@ function formatDate(value?: string | null) {
 
 function formatLocation(input: { address_line?: string | null; city?: string | null; postal_code?: string | null }) {
   return [input.address_line, [input.postal_code, input.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Sted mangler";
+}
+
+function isCurrentPublicInvitationEvent(
+  event:
+    | {
+        ends_at?: string | null;
+        facilitator_profiles?:
+          | {
+              is_disabled?: boolean | null;
+              is_paused?: boolean | null;
+              status?: string | null;
+            }
+          | Array<{
+              is_disabled?: boolean | null;
+              is_paused?: boolean | null;
+              status?: string | null;
+            }>
+          | null;
+        starts_at?: string | null;
+        status?: string | null;
+      }
+    | null
+    | undefined,
+) {
+  if (!event?.status) return false;
+
+  const owner = first(event.facilitator_profiles);
+  const eventStatus = getUserFacingEventStatus({
+    ends_at: event.ends_at,
+    starts_at: event.starts_at,
+    status: event.status,
+  });
+
+  return (
+    (eventStatus === "active" || eventStatus === "sold_out") &&
+    owner?.status === "approved" &&
+    !owner.is_paused &&
+    !owner.is_disabled
+  );
 }
 
 function LoginRequiredCard({
@@ -91,18 +131,22 @@ export default async function CoOrganizerInvitationPage({ params, searchParams }
   const { data: invitation } = await supabase
     .from("event_co_organizers")
     .select(
-      "id, status, response_token, co_organizer_profile_id, events(id, title, starts_at, address_line, postal_code, city, cover_image_path, facilitator_profiles!events_facilitator_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))), facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name))",
+      "id, status, response_token, co_organizer_profile_id, events(id, title, starts_at, ends_at, status, address_line, postal_code, city, cover_image_path, facilitator_profiles!events_facilitator_id_fkey(company_name, status, is_paused, is_disabled, profiles!facilitator_profiles_profile_id_fkey(full_name))), facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name))",
     )
     .eq("response_token", token)
     .maybeSingle();
 
   if (!invitation) {
-    notFound();
+    redirect("/facilitator?message=" + encodeURIComponent("Eventet findes ikke længere eller er blevet fjernet."));
   }
 
   const event = first(invitation.events);
   const invitedFacilitator = first(invitation.facilitator_profiles);
   const invitedUser = first(invitedFacilitator?.profiles);
+
+  if (!isCurrentPublicInvitationEvent(event)) {
+    redirect("/facilitator?message=" + encodeURIComponent("Eventet findes ikke længere eller er blevet fjernet."));
+  }
 
   if (!profile) {
     return <LoginRequiredCard email={invitedUser?.email} eventTitle={event?.title} />;

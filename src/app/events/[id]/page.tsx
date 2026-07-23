@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, CircleUserRound, Clock3, ExternalLink, Leaf, Mail, MapPinned, Phone, Ticket } from "lucide-react";
 import { TrackEventView } from "@/components/analytics/track-event-view";
 import { BrandLogo } from "@/components/brand-logo";
@@ -463,6 +463,10 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   }
 
   if (!event) {
+    if (viewer?.role === "facilitator") {
+      redirect("/facilitator?message=" + encodeURIComponent("Eventet findes ikke længere eller er blevet fjernet."));
+    }
+
     notFound();
   }
 
@@ -484,6 +488,10 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const isPublicEvent = isPublishedEvent && !isExpiredEvent && facilitatorProfile?.status === "approved" && !facilitatorProfile.is_paused && !facilitatorProfile.is_disabled;
   const canPreviewEvent = viewer?.role === "admin" || viewer?.id === facilitatorProfile?.profile_id;
   if (!isPublicEvent && !canPreviewEvent) {
+    if (viewer?.role === "facilitator") {
+      redirect("/facilitator?message=" + encodeURIComponent("Eventet findes ikke længere eller er blevet fjernet."));
+    }
+
     notFound();
   }
 
