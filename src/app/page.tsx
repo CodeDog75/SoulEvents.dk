@@ -15,6 +15,7 @@ import { EventMap } from "@/components/events/event-map";
 import { EventCarouselSection, FacilitatorCarouselSection } from "@/components/events/event-carousel-section";
 import { HomeEventSearchForm } from "@/components/events/home-event-search-form";
 import { PublicEventList, type PublicEvent } from "@/components/events/public-event-list";
+import { FeedbackHomepageCard } from "@/components/home/feedback-homepage-card";
 import { HomeInspirationSections } from "@/components/home/home-inspiration-sections";
 import { MobileHomeMenu } from "@/components/home/mobile-home-menu";
 import { PublicFacilitatorCarousel } from "@/components/facilitator/public-facilitator-carousel";
@@ -22,6 +23,7 @@ import { SiteFooterLogin } from "@/components/site-footer-login";
 import { env } from "@/lib/env";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
 import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
+import type { FeedbackHomepageFrequency } from "@/lib/feedback";
 import { publicMediaUrl } from "@/lib/media/public-url";
 import { createPageMetadata, getHomepageOgImageUrl } from "@/lib/open-graph";
 import { getAreaOption } from "@/lib/regions/areas";
@@ -530,6 +532,13 @@ type WeeklyReflection = {
   end_date?: string | null;
 };
 
+type ActiveFeedbackSurvey = {
+  homepage_display_frequency: FeedbackHomepageFrequency;
+  introduction: string | null;
+  title: string;
+  token: string;
+};
+
 const weeklyReflectionGradients: Record<string, string> = {
   "gradient:lavender-cream": "linear-gradient(135deg, #F1E8F8 0%, #FAF6EF 58%, #FFFDF8 100%)",
   "gradient:sage-sand": "linear-gradient(135deg, #EEF3EA 0%, #F6F1E7 54%, #D8C1A2 130%)",
@@ -613,6 +622,28 @@ async function getActiveWeeklyReflection() {
     imageAltText: reflection.image_alt_text?.trim() || "Illustration til ugens refleksion",
     imageUrl: reflection.image_path ? supabase.storage.from("media").getPublicUrl(reflection.image_path).data.publicUrl : null,
   };
+}
+
+async function getActiveHomepageFeedbackSurvey() {
+  if (!env.supabaseUrl || !env.supabaseAnonKey) {
+    return null;
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("feedback_surveys")
+    .select("token, title, introduction, homepage_display_frequency")
+    .eq("status", "active")
+    .eq("placement", "homepage_link")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data as ActiveFeedbackSurvey;
 }
 
 async function getSearchEvents(selected: {
@@ -1258,6 +1289,7 @@ export default async function Home({ searchParams }: HomeProps) {
   );
   const [
     homeHeroImage,
+    homepageFeedbackSurvey,
     weeklyReflection,
     homepageMiddleAds,
     homepageBottomAds,
@@ -1273,6 +1305,7 @@ export default async function Home({ searchParams }: HomeProps) {
     localServiceProvidersForSearch,
   ] = await Promise.all([
     getHomepageHeroImage(),
+    getActiveHomepageFeedbackSurvey(),
     getActiveWeeklyReflection(),
     getHomepageAds("middle"),
     getHomepageAds("bottom"),
@@ -1688,6 +1721,15 @@ export default async function Home({ searchParams }: HomeProps) {
           </div>
         </section>
       )}
+
+      {homepageFeedbackSurvey ? (
+        <FeedbackHomepageCard
+          frequency={homepageFeedbackSurvey.homepage_display_frequency}
+          introduction={homepageFeedbackSurvey.introduction}
+          title={homepageFeedbackSurvey.title}
+          token={homepageFeedbackSurvey.token}
+        />
+      ) : null}
 
       <section className="bg-[#FAF6EF] py-12 sm:py-12" id="contact">
         <div className="mx-auto max-w-[1200px] px-5 sm:px-8">

@@ -8,6 +8,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
+  ClipboardList,
   FileText,
   HeartHandshake,
   Home,
@@ -252,6 +253,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         { href: "/admin/inspirators", title: "Inspiratorer", text: "Opret og rediger inspiratorprofiler til inspirationsuniverset.", icon: Sparkles, theme: adminCardThemes.indigo },
         { href: "/admin/homepage", title: "Forsidebokse og temaer", text: "Styr de store 1:1 bokse og kampagne-temaer på forsiden.", icon: Home, theme: adminCardThemes.lavender },
         { href: "/admin/ads", title: "Reklamer / partnerindhold", text: "Styr diskrete reklamer på forsiden og hovedkategorisider.", icon: Megaphone, theme: adminCardThemes.pink },
+        { href: "/admin/feedback", title: "Feedback Center", text: "Opret spørgeskemaer, del links og læs svar.", icon: ClipboardList, theme: adminCardThemes.teal },
       ],
     },
     {

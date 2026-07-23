@@ -19,6 +19,13 @@ export type LegalDocumentType = "terms" | "privacy" | "guidelines" | "organizer_
 export type AnalyticsEventType = "event_view" | "event_share" | "facilitator_profile_view";
 export type AnalyticsShareMethod = "native_share" | "copy_link" | "email" | "sms" | "messenger" | "facebook" | "other";
 export type AnalyticsReferrerCategory = "direct" | "internal" | "search" | "social" | "external" | "unknown";
+export type FeedbackSurveyStatus = "draft" | "active" | "closed" | "archived";
+export type FeedbackResponseMode = "named" | "anonymous";
+export type FeedbackPlacement = "link_only" | "homepage_link";
+export type FeedbackHomepageFrequency = "once" | "after_30_days" | "every_visit";
+export type FeedbackQuestionType = "rating" | "free_text" | "yes_no" | "multiple_choice";
+export type FeedbackAnswerType = FeedbackQuestionType | "final_text";
+export type FeedbackResponseSource = "homepage" | "direct";
 
 type Row<T> = T;
 type Insert<T> = Partial<T>;
@@ -539,6 +546,77 @@ export type Database = {
         }>;
         Insert: Insert<Database["public"]["Tables"]["weekly_reflections"]["Row"]>;
         Update: Update<Database["public"]["Tables"]["weekly_reflections"]["Row"]>;
+        Relationships: [];
+      };
+      feedback_surveys: {
+        Row: Row<{
+          id: string;
+          token: string;
+          title: string;
+          introduction: string | null;
+          thank_you_text: string;
+          status: FeedbackSurveyStatus;
+          response_mode: FeedbackResponseMode;
+          placement: FeedbackPlacement;
+          homepage_display_frequency: FeedbackHomepageFrequency;
+          final_question_enabled: boolean;
+          final_question_text: string;
+          created_at: string;
+          updated_at: string;
+          archived_at: string | null;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["feedback_surveys"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["feedback_surveys"]["Row"]>;
+        Relationships: [];
+      };
+      feedback_questions: {
+        Row: Row<{
+          id: string;
+          survey_id: string;
+          question_text: string;
+          question_type: FeedbackQuestionType;
+          sort_order: number;
+          is_required: boolean;
+          rating_comment_enabled: boolean;
+          options: Json;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["feedback_questions"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["feedback_questions"]["Row"]>;
+        Relationships: [];
+      };
+      feedback_responses: {
+        Row: Row<{
+          id: string;
+          survey_id: string;
+          source: FeedbackResponseSource;
+          respondent_name: string | null;
+          respondent_email: string | null;
+          response_identity_hash: string | null;
+          submitted_at: string;
+          created_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["feedback_responses"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["feedback_responses"]["Row"]>;
+        Relationships: [];
+      };
+      feedback_answers: {
+        Row: Row<{
+          id: string;
+          response_id: string;
+          question_id: string | null;
+          question_text_snapshot: string;
+          question_type: FeedbackAnswerType;
+          rating_value: number | null;
+          text_value: string | null;
+          boolean_value: boolean | null;
+          option_value: string | null;
+          rating_comment: string | null;
+          created_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["feedback_answers"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["feedback_answers"]["Row"]>;
         Relationships: [];
       };
     };
