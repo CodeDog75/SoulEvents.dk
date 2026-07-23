@@ -9,6 +9,7 @@ import {
 } from "@/app/facilitator/profile/actions";
 
 type SecurityPasswordFormProps = {
+  onPasswordCreated?: () => void;
   oauthProvider?: "facebook" | "google" | string | null;
   passwordLoginAvailable: boolean;
 };
@@ -70,7 +71,7 @@ function providerName(provider?: "facebook" | "google" | string | null) {
   return "din eksterne loginmetode";
 }
 
-export function SecurityPasswordForm({ oauthProvider, passwordLoginAvailable }: SecurityPasswordFormProps) {
+export function SecurityPasswordForm({ onPasswordCreated, oauthProvider, passwordLoginAvailable }: SecurityPasswordFormProps) {
   const [hasPasswordLogin, setHasPasswordLogin] = useState(passwordLoginAvailable);
   const [createdPasswordMessage, setCreatedPasswordMessage] = useState<string | null>(null);
   const [changeState, changeFormAction, isChangePending] = useActionState(changeFacilitatorPasswordAction, initialState);
@@ -81,6 +82,7 @@ export function SecurityPasswordForm({ oauthProvider, passwordLoginAvailable }: 
     if (result.status === "success") {
       setCreatedPasswordMessage(result.message ?? "Din personlige adgangskode er oprettet.");
       setHasPasswordLogin(true);
+      onPasswordCreated?.();
     }
 
     return result;

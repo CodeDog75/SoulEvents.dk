@@ -1,6 +1,7 @@
 "use client";
 
 import { ShieldCheck } from "lucide-react";
+import { useMemo, useState } from "react";
 import { LinkedLoginMethods } from "@/components/facilitator/linked-login-methods";
 import { SecurityEmailForm } from "@/components/facilitator/security-email-form";
 import { SecurityPasswordForm } from "@/components/facilitator/security-password-form";
@@ -27,6 +28,15 @@ export function LoginSecuritySection({
   passwordLoginAvailable,
   pendingEmailChange,
 }: LoginSecuritySectionProps) {
+  const [hasPasswordLogin, setHasPasswordLogin] = useState(passwordLoginAvailable);
+  const visibleProviders = useMemo(() => {
+    if (!hasPasswordLogin || authProviders.includes("email")) {
+      return authProviders;
+    }
+
+    return ["email", ...authProviders];
+  }, [authProviders, hasPasswordLogin]);
+
   return (
     <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -51,12 +61,16 @@ export function LoginSecuritySection({
       <div className="mt-5 grid gap-4">
         <SecurityEmailForm
           oauthProvider={oauthProvider}
-          passwordLoginAvailable={passwordLoginAvailable}
+          passwordLoginAvailable={hasPasswordLogin}
           pendingEmail={pendingEmailChange?.new_email ?? null}
           pendingExpiresAt={pendingEmailChange?.expires_at ?? null}
         />
-        <SecurityPasswordForm oauthProvider={oauthProvider} passwordLoginAvailable={passwordLoginAvailable} />
-        <LinkedLoginMethods providers={authProviders} />
+        <SecurityPasswordForm
+          oauthProvider={oauthProvider}
+          onPasswordCreated={() => setHasPasswordLogin(true)}
+          passwordLoginAvailable={hasPasswordLogin}
+        />
+        <LinkedLoginMethods providers={visibleProviders} />
       </div>
     </section>
   );

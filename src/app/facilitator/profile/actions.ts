@@ -421,14 +421,6 @@ function hasEmailPasswordIdentity(user: { identities?: Array<{ provider?: string
   return authProvidersForUser(user).includes("email");
 }
 
-function hasRecentSignIn(lastSignInAt: string | null | undefined) {
-  if (!lastSignInAt) {
-    return false;
-  }
-
-  return Date.now() - new Date(lastSignInAt).getTime() <= 30 * 60 * 1000;
-}
-
 async function findFacilitatorByProfileId(supabase: ReturnType<typeof createAdminClient>, profileId: string) {
   const { data } = await supabase
     .from("facilitator_profiles")
@@ -608,13 +600,6 @@ export async function createFacilitatorPasswordAction(
     return { message: "Kontoen har allerede adgangskode. Brug Skift adgangskode i stedet.", status: "error" };
   }
 
-  if (!hasRecentSignIn(authUserData.user.last_sign_in_at)) {
-    return {
-      message: "Log ud og ind igen med din eksterne loginmetode, og opret derefter adgangskoden med det samme.",
-      status: "error",
-    };
-  }
-
   const supabase = await createClient();
   const {
     data: { user },
@@ -629,7 +614,9 @@ export async function createFacilitatorPasswordAction(
     return { message: "Adgangskoden kunne ikke oprettes. Log ind igen og prøv derefter.", status: "error" };
   }
 
-  const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+  const { error: updateError } = await admin.auth.admin.updateUserById(profile.id, {
+    password: newPassword,
+  });
 
   if (updateError) {
     console.error("[facilitator-password:create] Password could not be created", {

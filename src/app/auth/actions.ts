@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { getAppUrl } from "@/lib/app-url";
 import { composeFullName } from "@/lib/auth/names";
 import { getPostAuthRedirect, type PostAuthResult } from "@/lib/auth/post-auth";
+import { sendOauthPasswordSetupEmail } from "@/lib/email/oauth-password-setup";
 import {
   assertPasswordResetRateLimit,
   assertRateLimit,
@@ -89,6 +90,28 @@ function authErrorDetails(error: unknown) {
     requestId: details.requestId ?? details.request_id ?? null,
     status: details.status ?? null,
   };
+}
+
+function providerLabel(provider: string) {
+  if (provider === "facebook") return "Facebook";
+  if (provider === "google") return "Google";
+  if (provider === "apple") return "Apple";
+  return provider;
+}
+
+function authProvidersForUser(user: { identities?: Array<{ provider?: string }> } | null | undefined) {
+  return user?.identities?.map((identity) => identity.provider).filter((provider): provider is string => Boolean(provider)) ?? [];
+}
+
+function hasPasswordLogin(providers: string[]) {
+  return providers.length === 0 || providers.includes("email");
+}
+
+function recoveryActionUrl(redirectTo: string, tokenHash: string) {
+  const url = new URL(redirectTo);
+  url.searchParams.set("token_hash", tokenHash);
+  url.searchParams.set("type", "recovery");
+  return url.toString();
 }
 
 async function getAuthUserByEmail(email: string) {
@@ -287,11 +310,13 @@ export async function requestPasswordResetAction(formData: FormData) {
 
   const supabase = await createClient();
   const authUser = await getDetailedAuthUserByEmail(email);
-  const providers = authUser?.identities?.map((identity) => identity.provider).filter(Boolean) ?? [];
-  const hasEmailIdentity = providers.includes("email");
+  const providers = authProvidersForUser(authUser);
+  const hasEmailIdentity = hasPasswordLogin(providers);
+  const oauthOnlyProviders = providers.filter((provider) => provider !== "email");
   const appUrl = await getRequestAppUrl();
   const redirectTo = `${appUrl}/auth/callback?next=/auth/update-password`;
   const redirectUrl = new URL(redirectTo);
+  const isOauthOnlyUser = Boolean(authUser) && !hasEmailIdentity && oauthOnlyProviders.length > 0;
 
   console.info("[auth:password-reset] reset requested", {
     authUserFound: Boolean(authUser),
@@ -302,6 +327,41 @@ export async function requestPasswordResetAction(formData: FormData) {
     redirectPath: `${redirectUrl.pathname}${redirectUrl.search}`,
     resetPasswordForEmailCalled: false,
   });
+
+  if (isOauthOnlyUser) {
+    const admin = createAdminClient();
+    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+      email,
+      options: { redirectTo },
+      type: "recovery",
+    });
+    const linkProperties = linkData?.properties as { action_link?: string | null; hashed_token?: string | null } | undefined;
+    const actionUrl =
+      linkProperties?.hashed_token
+        ? recoveryActionUrl(redirectTo, linkProperties.hashed_token)
+        : linkProperties?.action_link ?? null;
+    const mailSent = actionUrl
+      ? await sendOauthPasswordSetupEmail({
+          actionUrl,
+          email,
+          providerLabels: oauthOnlyProviders.map(providerLabel),
+        })
+      : false;
+
+    console.info("[auth:password-reset] oauth password setup result", {
+      authUserFound: true,
+      email: maskedEmail,
+      hasActionUrl: Boolean(actionUrl),
+      providers,
+      redirectOrigin: redirectUrl.origin,
+      redirectPath: `${redirectUrl.pathname}${redirectUrl.search}`,
+      resetPasswordForEmailCalled: false,
+      sentCustomMail: mailSent,
+      supabaseError: authErrorDetails(linkError),
+    });
+
+    authRedirect("/auth/forgot-password", neutralPasswordResetMessage);
+  }
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo,
