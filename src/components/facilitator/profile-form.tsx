@@ -54,6 +54,7 @@ import {
   resolveFacilitatorHero,
   type FacilitatorHeroKey,
 } from "@/lib/facilitators/hero-collection";
+import { facilitatorStoryMinLength, normalizeFacilitatorStory } from "@/lib/facilitators/profile-readiness";
 import { facilitatorWorkAreas, sortFacilitatorWorkAreas } from "@/lib/facilitators/work-areas";
 import { publicFacilitatorPath } from "@/lib/slug";
 import { socialProfileLinkHelpText, socialProfileLinkPlaceholder, validateSocialProfileLink } from "@/lib/social-profile-links";
@@ -219,7 +220,7 @@ const steps: Array<{
   {
     eyebrow: "Billeder",
     id: "profile-image",
-    text: "Vælg et profilbillede og op til tre stemningsbilleder, der viser dig og det, du inviterer mennesker ind i.",
+    text: "Tilføj et obligatorisk profilbillede og op til tre stemningsbilleder, der viser dig og det, du inviterer mennesker ind i.",
     title: "Gør din profil levende.",
   },
   {
@@ -231,8 +232,8 @@ const steps: Array<{
   {
     eyebrow: "Din fortælling",
     id: "story",
-    text: "Skriv som du ville fortælle det til et menneske, der overvejer at deltage.",
-    title: "Fortæl lidt om dig.",
+    text: "Fortæl lidt mere om dig, din baggrund og det, du ønsker at skabe for dine deltagere. Din fortælling hjælper nye besøgende med at lære dig at kende og føle sig trygge ved at vælge dig. En personlig og fyldig tekst giver samtidig søgemaskiner og AI et bedre grundlag for at forstå din profil og kan derfor styrke din synlighed.",
+    title: "Din fortælling · Obligatorisk",
   },
   {
     eyebrow: "Forbindelse",
@@ -261,8 +262,8 @@ const steps: Array<{
   {
     eyebrow: "Klar",
     id: "approval",
-    text: "Er du klar til at blive en del af SoulEvents?",
-    title: "Sådan! Din profil er næsten klar",
+    text: "Du kan sende profilen til SoulEvents nu eller gemme den som kladde og fortsætte senere. Når du sender den, gennemgår vi profilen og giver dig besked, så snart den er klar.",
+    title: "Er din profil klar til at blive vist offentligt på SoulEvents?",
   },
   {
     eyebrow: "Velkommen",
@@ -274,6 +275,7 @@ const steps: Array<{
 
 const onboardingStepIds: PrototypeStep[] = ["person", "profile-image", "experiences", "story", "links", "services", "review", "approval", "complete"];
 const editingStepIds: PrototypeStep[] = ["review", "person", "profile-image", "experiences", "story", "links", "services"];
+const onboardingDraftStepStorageKeyBase = "soulevents:onboarding:last-step";
 const specialtyMaxLength = 180;
 
 function value(input: string | null | undefined) {
@@ -565,6 +567,7 @@ function OnboardingShell({
   ctaLabel,
   ctaHelper,
   footerLeading,
+  onSaveDraft,
 }: {
   backHref: string;
   backLabel: string;
@@ -580,6 +583,7 @@ function OnboardingShell({
   logoSources?: BrandLogoSources;
   onBack: () => void;
   onContinue: () => void;
+  onSaveDraft?: () => void;
   presentationMode?: "admin" | "editing" | "onboarding";
 }) {
   const isFirst = currentIndex === 0;
@@ -625,6 +629,16 @@ function OnboardingShell({
               {footerLeading}
               {footer}
               {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
+              {onSaveDraft ? (
+                <button
+                  className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-full border border-midnight/10 bg-white px-5 text-sm font-semibold text-sage-700 shadow-soft transition hover:border-sage-700/35 hover:bg-sage-50 disabled:cursor-not-allowed disabled:opacity-45"
+                  disabled={isBusy}
+                  onClick={onSaveDraft}
+                  type="button"
+                >
+                  Gem kladde og fortsæt senere
+                </button>
+              ) : null}
             </>
           ) : null
         }
@@ -812,11 +826,17 @@ export function ProfileForm({
           .map((stepId) => steps.find((step) => step.id === stepId))
           .filter((step): step is (typeof steps)[number] => Boolean(step))
       : editingStepIds.map((stepId) => steps.find((step) => step.id === stepId)).filter((step): step is (typeof steps)[number] => Boolean(step));
+  const activeStepIds = activeSteps.map((step) => step.id);
+  const activeStepIdsKey = activeStepIds.join("|");
+  const onboardingDraftStepStorageKey = `${onboardingDraftStepStorageKeyBase}:${facilitatorProfile.id ?? profile.email}`;
   const [stepIndex, setStepIndex] = useState(0);
   const [isBusy, setIsBusy] = useState(false);
   const [returnToReview, setReturnToReview] = useState(false);
+  const [profileImageSubmissionError, setProfileImageSubmissionError] = useState(false);
+  const [storySubmissionError, setStorySubmissionError] = useState(false);
   const continueInProgressRef = useRef(false);
   const continueTimeoutRef = useRef<number | null>(null);
+  const restoredOnboardingStepRef = useRef(false);
   const [, startImageTransition] = useTransition();
   const [firstName, setFirstName] = useState(names.firstName);
   const [lastName, setLastName] = useState(names.lastName);
@@ -891,13 +911,16 @@ export function ProfileForm({
   const facebookError = facebook.trim() && !facebookValidation.ok ? facebookValidation.message : null;
   const instagramError = instagram.trim() && !instagramValidation.ok ? instagramValidation.message : null;
   const hasLinks = Boolean(website.trim() || facebook.trim() || instagram.trim() || youtube.trim());
+  const normalizedStory = normalizeFacilitatorStory(story);
+  const storyMeetsMinimum = normalizedStory.length >= facilitatorStoryMinLength;
+  const storyMissingMessage = "Skriv gerne lidt mere om dig selv, før profilen sendes til SoulEvents.";
   const missingRequired = [
     !firstName.trim() || !lastName.trim() ? { label: "Dit navn", step: "person" as PrototypeStep } : null,
     !publicProfileName ? { label: "Profilnavn", step: "person" as PrototypeStep } : null,
-    !profileImageUrl ? { label: "Profilbillede", step: "profile-image" as PrototypeStep } : null,
-    moodImages.every((image) => !image.previewUrl) ? { label: "Mindst ét stemningsbillede", step: "profile-image" as PrototypeStep } : null,
-    !hasWorkArea ? { label: "Begivenheder", step: "experiences" as PrototypeStep } : null,
-    !story.trim() ? { label: "Fortælling", step: "story" as PrototypeStep } : null,
+    !profileImageUrl ? { label: "Tilføj profilbillede", step: "profile-image" as PrototypeStep } : null,
+    moodImages.every((image) => !image.previewUrl) ? { label: "Tilføj mindst ét stemningsbillede", step: "profile-image" as PrototypeStep } : null,
+    !hasWorkArea ? { label: "Vælg mindst ét arbejdsområde", step: "experiences" as PrototypeStep } : null,
+    !storyMeetsMinimum ? { label: "Gå til fortælling", step: "story" as PrototypeStep } : null,
   ].filter((item): item is { label: string; step: PrototypeStep } => Boolean(item));
 
   useEffect(() => {
@@ -905,7 +928,29 @@ export function ProfileForm({
     url.searchParams.delete("confirmed");
     url.searchParams.set("prototypeStep", currentStep.id);
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-  }, [currentStep.id]);
+    if (presentationMode === "onboarding" && currentStep.id !== "complete") {
+      window.localStorage.setItem(onboardingDraftStepStorageKey, currentStep.id);
+    }
+  }, [currentStep.id, onboardingDraftStepStorageKey, presentationMode]);
+
+  useEffect(() => {
+    if (presentationMode !== "onboarding" || restoredOnboardingStepRef.current) {
+      return;
+    }
+
+    restoredOnboardingStepRef.current = true;
+    const url = new URL(window.location.href);
+    const requestedStep = url.searchParams.get("prototypeStep");
+    const storedStep = window.localStorage.getItem(onboardingDraftStepStorageKey);
+    const candidate = requestedStep || storedStep;
+    const availableStepIds = activeStepIdsKey.split("|") as PrototypeStep[];
+    const nextIndex = candidate ? availableStepIds.indexOf(candidate as PrototypeStep) : -1;
+
+    if (nextIndex >= 0 && availableStepIds[nextIndex] !== "complete") {
+      const frame = window.requestAnimationFrame(() => setStepIndex(nextIndex));
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [activeStepIdsKey, onboardingDraftStepStorageKey, presentationMode]);
 
   useEffect(() => {
     return () => {
@@ -925,7 +970,7 @@ export function ProfileForm({
     short_description: story.trim().slice(0, 300),
   };
 
-  async function saveCurrentStep() {
+  async function saveCurrentStep({ submitForReview = true }: { submitForReview?: boolean } = {}) {
     const shouldPersistAdminCategories = presentationMode === "admin" && currentStep.id === "experiences";
     const shouldPersistAdminImages = presentationMode === "admin" && currentStep.id === "profile-image";
     const shouldPersistAdminLinks = presentationMode === "admin" && currentStep.id === "links";
@@ -1051,6 +1096,10 @@ export function ProfileForm({
     }
 
     if (currentStep.id === "approval") {
+      if (!submitForReview) {
+        return { message: "Din profilkladde er gemt.", ok: true };
+      }
+
       const result = await submitFacilitatorProfileForReviewAction({ acceptedTerms });
 
       if (!result.ok) return result;
@@ -1062,11 +1111,6 @@ export function ProfileForm({
 
   async function continueFlow() {
     if (continueInProgressRef.current) {
-      return;
-    }
-
-    if (currentStep.id === "profile-image" && !profileImageUrl) {
-      setStepSaveStatus({ message: "Vælg et profilbillede, før du fortsætter.", status: "error" });
       return;
     }
 
@@ -1083,6 +1127,7 @@ export function ProfileForm({
     }
 
     if (presentationMode === "onboarding" && currentStep.id === "approval") {
+      window.localStorage.removeItem(onboardingDraftStepStorageKey);
       router.push("/facilitator/profile/submitted");
       return;
     }
@@ -1106,6 +1151,27 @@ export function ProfileForm({
       setStepSaveStatus({ message: "", status: "idle" });
       setStepIndex((current) => Math.min(current + 1, activeSteps.length - 1));
     }, 180);
+  }
+
+  async function saveDraftAndExit() {
+    if (continueInProgressRef.current) {
+      return;
+    }
+
+    continueInProgressRef.current = true;
+    setIsBusy(true);
+    setStepSaveStatus({ message: "", status: "idle" });
+
+    const saveResult = await saveCurrentStep({ submitForReview: false });
+    if (!saveResult.ok) {
+      continueInProgressRef.current = false;
+      setIsBusy(false);
+      setStepSaveStatus({ message: saveResult.message, status: "error" });
+      return;
+    }
+
+    window.localStorage.setItem(onboardingDraftStepStorageKey, currentStep.id);
+    router.push("/facilitator?message=" + encodeURIComponent("Din profilkladde er gemt. Du kan fortsætte senere."));
   }
 
   function goBack() {
@@ -1142,6 +1208,16 @@ export function ProfileForm({
   function editFromReview(step: PrototypeStep) {
     setReturnToReview(true);
     goToStep(step);
+  }
+
+  function goToMissingItem(item: { label: string; step: PrototypeStep }) {
+    if (item.step === "profile-image" && item.label.includes("profilbillede")) {
+      setProfileImageSubmissionError(true);
+    }
+    if (item.step === "story") {
+      setStorySubmissionError(true);
+    }
+    goToStep(item.step);
   }
 
   function toggleExperience(categoryId: string) {
@@ -1228,11 +1304,13 @@ export function ProfileForm({
       imageUrl={profileImageUrl}
       label="Vælg profilbillede"
       onSelect={(file, previewUrl) => {
+        setProfileImageSubmissionError(false);
         setProfileImageFile(file);
         setProfileImageUrl(previewUrl);
       }}
     />
   );
+  const profileImageAdded = Boolean(profileImageUrl);
 
   const heroPreview = resolveFacilitatorHero({
     heroKey: selectedHeroKey,
@@ -1429,12 +1507,30 @@ export function ProfileForm({
       <section className="grid gap-5 lg:grid-cols-[minmax(220px,260px)_minmax(0,1fr)] lg:items-center">
         {profileImageTile}
         <div className="rounded-[24px] bg-sage-50 p-5 text-sm leading-6 text-ink/65">
-          <p className="font-semibold text-midnight">
-            Dit profilbillede vises på din offentlige profil og ved dine begivenheder.
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-semibold text-midnight">Profilbillede · Obligatorisk</p>
+            <span
+              className={
+                "rounded-full px-3 py-1 text-xs font-bold " +
+                (profileImageAdded ? "bg-white text-sage-700" : "bg-white text-[#7A4EAB]")
+              }
+            >
+              {profileImageAdded ? "Profilbillede tilføjet" : "Tilføj et profilbillede"}
+            </span>
+          </div>
           <p className="mt-2">
-            Vi anbefaler et kvadratisk billede i god kvalitet.
+            Tilføj et billede af dig selv eller et billede, der tydeligt viser det, du tilbyder. Profilbilledet vises
+            på din offentlige arrangørprofil og skal tilføjes, før profilen kan sendes til SoulEvents.
           </p>
+          <p className="mt-2 text-ink/55">
+            Det må gerne være et portræt, logo eller et billede af en behandling, aktivitet eller stemning, der tydeligt
+            repræsenterer dit virke.
+          </p>
+          {profileImageSubmissionError && !profileImageAdded ? (
+            <p className="mt-3 rounded-[18px] border border-[#E3B6B6] bg-[#FFF7F7] px-4 py-3 font-semibold text-[#A51D1D]">
+              Du skal tilføje et profilbillede, før profilen kan sendes til SoulEvents.
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -1453,12 +1549,12 @@ export function ProfileForm({
     <OnboardingShell
       backHref={shellBackHref}
       backLabel={backLabel}
-      canContinue={(currentStep.id !== "approval" || (acceptedTerms && missingRequired.length === 0)) && (currentStep.id !== "profile-image" || Boolean(profileImageUrl))}
+      canContinue={currentStep.id !== "approval" || (acceptedTerms && missingRequired.length === 0)}
       currentIndex={stepIndex}
       ctaLabel={
         presentationMode === "onboarding"
           ? currentStep.id === "approval"
-            ? "Opret profil"
+            ? "Send profil til SoulEvents"
             : stepIndex === 0
               ? "Fortsæt"
               : undefined
@@ -1468,7 +1564,11 @@ export function ProfileForm({
               ? "Tilbage til gennemse"
               : undefined
       }
-      ctaHelper={presentationMode === "onboarding" && currentStep.id === "approval" ? "Din profil sendes til godkendelse." : undefined}
+      ctaHelper={
+        presentationMode === "onboarding" && currentStep.id === "approval"
+          ? "Din profil sendes til gennemgang og bliver ikke offentlig, før den er godkendt."
+          : undefined
+      }
       footerLeading={
         currentStep.id === "review" && fullProfileHref ? (
           <div className="mb-3 grid gap-2 text-center">
@@ -1491,6 +1591,7 @@ export function ProfileForm({
       logoSources={logoSources}
       onBack={goBack}
       onContinue={continueFlow}
+      onSaveDraft={presentationMode === "onboarding" && currentStep.id !== "complete" ? saveDraftAndExit : undefined}
       presentationMode={presentationMode}
     >
       {currentStep.id === "welcome" ? (
@@ -1613,15 +1714,26 @@ export function ProfileForm({
       )}
 
       {currentStep.id === "story" && (
-        <div className="grid gap-4">
+        <div className="grid gap-5">
           <div className="flex items-center gap-2 border-b border-midnight/10 pb-3">
             <PencilLine className="size-4 text-sage-700" aria-hidden="true" />
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mit univers</p>
           </div>
+          <div className="rounded-[22px] bg-[#FBF5E9] p-4 text-sm leading-6 text-ink/65">
+            <p className="font-semibold text-midnight">Din fortælling hjælper deltagere med at mærke, hvem du er.</p>
+            <p className="mt-1">
+              Kladder må gerne være tomme eller korte. Den behøver først være klar, når profilen sendes til SoulEvents.
+            </p>
+          </div>
           <div className="relative">
             <textarea
               className="min-h-64 w-full rounded-[24px] border border-midnight/10 bg-white p-5 pr-12 text-lg leading-8 text-midnight shadow-soft outline-none transition duration-200 placeholder:text-ink/35 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/10"
-              onChange={(event) => setStory(event.target.value)}
+              onChange={(event) => {
+                setStory(event.target.value);
+                if (normalizeFacilitatorStory(event.target.value).length >= facilitatorStoryMinLength) {
+                  setStorySubmissionError(false);
+                }
+              }}
               placeholder="Fortæl om din tilgang, stemningen i dine begivenheder, og hvad deltagerne kan glæde sig til."
               value={story}
             />
@@ -1636,7 +1748,20 @@ export function ProfileForm({
               </button>
             ) : null}
           </div>
-          <p className="text-sm leading-6 text-ink/55">Skriv varmt og enkelt. Det behøver ikke være perfekt.</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold">
+            {storyMeetsMinimum ? (
+              <span className="rounded-full bg-sage-50 px-3 py-1.5 text-sage-700">✓ Din fortælling er klar</span>
+            ) : (
+              <span className="rounded-full bg-white px-3 py-1.5 text-ink/55 shadow-soft">
+                {storyMissingMessage}
+              </span>
+            )}
+          </div>
+          {storySubmissionError && !storyMeetsMinimum ? (
+            <p className="rounded-[18px] border border-[#E6B4B4] bg-[#FFF1F1] px-4 py-3 text-sm font-semibold leading-6 text-[#A51D1D]">
+              {storyMissingMessage}
+            </p>
+          ) : null}
         </div>
       )}
 
@@ -1926,7 +2051,7 @@ export function ProfileForm({
               className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
             >
               <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mit univers</p>
-              {story.trim() ? (
+              {normalizedStory ? (
                 <p className="min-w-0 whitespace-pre-line text-base leading-8 text-ink/72">{story}</p>
               ) : (
                 <div className="rounded-[22px] bg-[#FFF7DE] p-4 text-sm font-semibold leading-6 text-[#715C21]">
@@ -2028,12 +2153,17 @@ export function ProfileForm({
             {missingRequired.length > 0 ? (
               <div className="rounded-[24px] bg-[#FFF7DE] p-5">
                 <p className="text-sm font-semibold text-[#715C21]">Du mangler stadig nogle oplysninger</p>
+                {!storyMeetsMinimum ? (
+                  <p className="mt-2 text-sm leading-6 text-[#715C21]">
+                    {storyMissingMessage}
+                  </p>
+                ) : null}
                 <div className="mt-3 grid gap-2">
                   {missingRequired.map((item) => (
                     <button
                       className="inline-flex min-h-10 items-center justify-between rounded-full bg-white px-4 text-sm font-semibold text-midnight shadow-soft"
                       key={item.label}
-                      onClick={() => goToStep(item.step)}
+                      onClick={() => goToMissingItem(item)}
                       type="button"
                     >
                       {item.label}
@@ -2049,9 +2179,6 @@ export function ProfileForm({
 
       {currentStep.id === "approval" && (
         <div className="grid gap-6 text-left">
-          <p className="text-base leading-7 text-ink/65">
-            Når du sender profilen til godkendelse, gennemgår vi den og giver dig besked, så snart den er klar.
-          </p>
           <div className="grid gap-4 rounded-[30px] bg-[#F4F0E9] p-5">
             <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Dig + SoulEvents</p>
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
@@ -2098,12 +2225,17 @@ export function ProfileForm({
           {missingRequired.length > 0 ? (
             <div className="rounded-[24px] bg-[#FFF7DE] p-5 text-left">
               <p className="text-sm font-semibold text-[#715C21]">Der mangler lige et par oplysninger, før profilen kan sendes til godkendelse.</p>
+              {!storyMeetsMinimum ? (
+                <p className="mt-2 text-sm leading-6 text-[#715C21]">
+                  {storyMissingMessage}
+                </p>
+              ) : null}
               <div className="mt-3 grid gap-2">
                 {missingRequired.map((item) => (
                   <button
                     className="inline-flex min-h-10 items-center justify-between rounded-full bg-white px-4 text-sm font-semibold text-midnight shadow-soft"
                     key={item.label}
-                    onClick={() => goToStep(item.step)}
+                    onClick={() => goToMissingItem(item)}
                     type="button"
                   >
                     {item.label}

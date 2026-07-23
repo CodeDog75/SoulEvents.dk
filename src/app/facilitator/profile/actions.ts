@@ -1768,8 +1768,21 @@ export async function submitFacilitatorProfileForReviewAction(input: { acceptedT
   const missingFields = readiness.missing.map((item) => missingLabels[item]);
 
   if (missingFields.length > 0) {
+    const storyIsMissing = readiness.missing.includes("short_description");
+    const otherMissingFields = readiness.missing
+      .filter((item) => item !== "short_description")
+      .map((item) => missingLabels[item]);
+    const message = storyIsMissing
+      ? [
+          "Skriv gerne lidt mere om dig selv, før profilen sendes til SoulEvents.",
+          otherMissingFields.length > 0 ? `Der mangler også: ${otherMissingFields.join(", ")}.` : null,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : `Der mangler stadig: ${missingFields.join(", ")}.`;
+
     return {
-      message: `Der mangler stadig: ${missingFields.join(", ")}.`,
+      message,
       ok: false,
     };
   }
@@ -1779,6 +1792,8 @@ export async function submitFacilitatorProfileForReviewAction(input: { acceptedT
   if (missingAcceptances.length > 0 && !input.acceptedTerms) {
     return { message: "Du skal acceptere arrangørvilkår og retningslinjer, før profilen kan sendes til godkendelse.", ok: false };
   }
+
+  const wasAlreadySubmittedForReview = facilitatorProfile.status === "pending" && missingAcceptances.length === 0;
 
   if (missingAcceptances.length > 0) {
     try {
@@ -1813,6 +1828,13 @@ export async function submitFacilitatorProfileForReviewAction(input: { acceptedT
       return { message: "Profilen kunne ikke sendes til gennemgang. Prøv igen.", ok: false };
     }
   }
+
+  await notifyAdminsIfReady({
+    facilitatorEmail: profile.email,
+    facilitatorId: facilitatorProfile.id,
+    facilitatorName: facilitatorProfile.company_name || profile.full_name || profile.email,
+    wasReady: wasAlreadySubmittedForReview,
+  });
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/profile");

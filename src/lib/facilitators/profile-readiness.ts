@@ -16,13 +16,19 @@ export type FacilitatorProfileMissingKey =
   | "postal_code"
   | "short_description";
 
+export const facilitatorStoryMinLength = 100;
+
+export function normalizeFacilitatorStory(input: string | null | undefined) {
+  return (input ?? "").replace(/\s+/g, " ").trim();
+}
+
 export function getFacilitatorProfileReadiness(input: FacilitatorProfileReadinessInput) {
   const missing: FacilitatorProfileMissingKey[] = [];
-  const shortDescription = input.shortDescription?.trim() ?? "";
+  const shortDescription = normalizeFacilitatorStory(input.shortDescription);
 
   if (!input.fullName?.trim()) missing.push("full_name");
   if (!input.companyName?.trim()) missing.push("company_name");
-  if (shortDescription.length < 20) missing.push("short_description");
+  if (shortDescription.length < facilitatorStoryMinLength) missing.push("short_description");
   if (input.requireLocation && !input.postalCode?.trim()) missing.push("postal_code");
   if (input.requireLocation && !input.city?.trim()) missing.push("city");
   if (!input.categoryIds?.length) missing.push("categories");
