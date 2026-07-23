@@ -120,6 +120,62 @@ function isExpiredOrInvalidLink(errorText: string) {
   );
 }
 
+function authErrorDetails(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const details = error as {
+    code?: string;
+    message?: string;
+    name?: string;
+    requestId?: string;
+    request_id?: string;
+    status?: number;
+  };
+
+  return {
+    code: details.code ?? null,
+    message: details.message ?? null,
+    name: details.name ?? null,
+    requestId: details.requestId ?? details.request_id ?? null,
+    status: details.status ?? null,
+  };
+}
+
+function logPasswordRecovery(
+  stage: string,
+  requestUrl: URL,
+  details?: {
+    error?: unknown;
+    redirectPath?: string;
+    sessionUserFound?: boolean;
+    success?: boolean;
+  },
+) {
+  console.info("[auth:password-recovery]", {
+    hasCode: requestUrl.searchParams.has("code"),
+    hasTokenHash: requestUrl.searchParams.has("token_hash"),
+    host: requestUrl.host,
+    next: requestUrl.searchParams.get("next"),
+    path: requestUrl.pathname,
+    redirectPath: details?.redirectPath ?? null,
+    sessionUserFound: details?.sessionUserFound ?? null,
+    stage,
+    success: details?.success ?? null,
+    supabaseError: authErrorDetails(details?.error),
+    timestamp: new Date().toISOString(),
+    type: requestUrl.searchParams.get("type"),
+  });
+}
+
+function passwordResetLinkUnavailableRedirect(requestUrl: URL) {
+  return passwordResetRedirect(
+    requestUrl,
+    "Linket kan ikke længere bruges. Det kan allerede være anvendt. Bestil et nyt link, hvis du stadig mangler at oprette din adgangskode.",
+  );
+}
+
 function isOAuthUser(user: {
   app_metadata?: {
     provider?: string;
@@ -186,6 +242,10 @@ export async function GET(request: NextRequest) {
   const hasOAuthCookie = Boolean(request.cookies.get(oauthFlowCookie)?.value);
   const isOAuthFlow = flow === "oauth" || hasOAuthCookie;
   const isIdentityLinkFlow = flow === "link-identity";
+
+  if (isPasswordResetFlow) {
+    logPasswordRecovery("callback_received", requestUrl);
+  }
 
   if (error) {
     const errorText = `${error} ${errorDescription ?? ""}`;
@@ -301,18 +361,40 @@ export async function GET(request: NextRequest) {
 
   if (isPasswordResetFlow && tokenHash && type === "recovery") {
     const passwordResetClient = createTokenVerificationClient(request);
+    logPasswordRecovery("verify_token_started", requestUrl);
     const { error: verifyError } = await passwordResetClient.supabase.auth.verifyOtp({
       token_hash: tokenHash,
       type: "recovery",
     });
 
     if (verifyError) {
-      console.error("Password reset token verification failed", verifyError);
-      return passwordResetRedirect(
-        requestUrl,
-        "Linket til ny adgangskode er udløbet eller er allerede brugt. Skriv din e-mailadresse, så sender vi et nyt link.",
-      );
+      const {
+        data: { user: existingUser },
+      } = await passwordResetClient.supabase.auth.getUser();
+
+      logPasswordRecovery("verify_token_failed", requestUrl, {
+        error: verifyError,
+        redirectPath: existingUser ? "/auth/update-password" : "/auth/forgot-password",
+        sessionUserFound: Boolean(existingUser),
+        success: false,
+      });
+
+      if (existingUser) {
+        return passwordResetClient.applyCookies(passwordResetRedirect(requestUrl));
+      }
+
+      return passwordResetLinkUnavailableRedirect(requestUrl);
     }
+
+    const {
+      data: { user },
+    } = await passwordResetClient.supabase.auth.getUser();
+
+    logPasswordRecovery("verify_token_succeeded", requestUrl, {
+      redirectPath: "/auth/update-password",
+      sessionUserFound: Boolean(user),
+      success: true,
+    });
 
     return passwordResetClient.applyCookies(passwordResetRedirect(requestUrl));
   }
@@ -320,6 +402,9 @@ export async function GET(request: NextRequest) {
   if (code) {
     const passwordResetClient = isPasswordResetFlow ? createTokenVerificationClient(request) : null;
     const supabase = passwordResetClient?.supabase ?? (await createClient());
+    if (isPasswordResetFlow) {
+      logPasswordRecovery("exchange_code_started", requestUrl);
+    }
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (exchangeError) {
@@ -335,6 +420,23 @@ export async function GET(request: NextRequest) {
         );
       }
 
+      if (isPasswordResetFlow) {
+        const {
+          data: { user: existingUser },
+        } = await supabase.auth.getUser();
+
+        logPasswordRecovery("exchange_code_failed", requestUrl, {
+          error: exchangeError,
+          redirectPath: existingUser ? "/auth/update-password" : "/auth/forgot-password",
+          sessionUserFound: Boolean(existingUser),
+          success: false,
+        });
+
+        if (existingUser) {
+          return passwordResetClient?.applyCookies(passwordResetRedirect(requestUrl)) ?? passwordResetRedirect(requestUrl);
+        }
+      }
+
       if (!isExpiredOrInvalidLink(exchangeError.message)) {
         if (isPasswordResetFlow) {
           return passwordResetRedirect(requestUrl, "Linket til ny adgangskode kunne ikke åbnes. Send et nyt link og prøv igen.");
@@ -346,10 +448,7 @@ export async function GET(request: NextRequest) {
       }
 
       if (isPasswordResetFlow) {
-        return passwordResetRedirect(
-          requestUrl,
-          "Linket til ny adgangskode er udløbet eller er allerede brugt. Skriv din e-mailadresse, så sender vi et nyt link.",
-        );
+        return passwordResetLinkUnavailableRedirect(requestUrl);
       }
 
       const message =
@@ -421,6 +520,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (isPasswordResetFlow) {
+      logPasswordRecovery("exchange_code_succeeded", requestUrl, {
+        redirectPath: "/auth/update-password",
+        sessionUserFound: true,
+        success: true,
+      });
       return passwordResetClient?.applyCookies(passwordResetRedirect(requestUrl)) ?? passwordResetRedirect(requestUrl);
     }
 
@@ -516,6 +620,21 @@ export async function GET(request: NextRequest) {
     }
 
     if (isPasswordResetFlow) {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      logPasswordRecovery("missing_recovery_code", requestUrl, {
+        redirectPath: user ? "/auth/update-password" : "/auth/forgot-password",
+        sessionUserFound: Boolean(user),
+        success: Boolean(user),
+      });
+
+      if (user) {
+        return passwordResetRedirect(requestUrl);
+      }
+
       return passwordResetRedirect(
         requestUrl,
         "Linket til ny adgangskode mangler en kode. Åbn det nyeste link fra din indbakke, eller send et nyt link.",
