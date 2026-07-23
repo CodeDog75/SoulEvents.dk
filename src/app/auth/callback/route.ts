@@ -182,7 +182,7 @@ export async function GET(request: NextRequest) {
   const next = requestUrl.searchParams.get("next") ?? "/dashboard";
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
-  const isPasswordResetFlow = next === "/auth/update-password";
+  const isPasswordResetFlow = next === "/auth/update-password" || type === "recovery";
   const hasOAuthCookie = Boolean(request.cookies.get(oauthFlowCookie)?.value);
   const isOAuthFlow = flow === "oauth" || hasOAuthCookie;
   const isIdentityLinkFlow = flow === "link-identity";
@@ -420,6 +420,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL(`/facilitator?${searchParams.toString()}`, getAppUrl(requestUrl.origin)));
     }
 
+    if (isPasswordResetFlow) {
+      return passwordResetClient?.applyCookies(passwordResetRedirect(requestUrl)) ?? passwordResetRedirect(requestUrl);
+    }
+
     if (isOAuthFlow || isOAuthUser(user)) {
       let postAuthResult: PostAuthResult;
 
@@ -446,10 +450,6 @@ export async function GET(request: NextRequest) {
         postAuthRedirectResponse(requestUrl, postAuthResult),
         hasOAuthCookie,
       );
-    }
-
-    if (isPasswordResetFlow) {
-      return passwordResetClient?.applyCookies(passwordResetRedirect(requestUrl)) ?? passwordResetRedirect(requestUrl);
     }
 
     let postAuthResult: PostAuthResult;

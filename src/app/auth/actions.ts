@@ -6,7 +6,6 @@ import { redirect } from "next/navigation";
 import { getAppUrl } from "@/lib/app-url";
 import { composeFullName } from "@/lib/auth/names";
 import { getPostAuthRedirect, type PostAuthResult } from "@/lib/auth/post-auth";
-import { env } from "@/lib/env";
 import {
   assertPasswordResetRateLimit,
   assertRateLimit,
@@ -59,10 +58,6 @@ async function getRequestAppUrl() {
   const requestOrigin = host ? `${proto}://${host}` : undefined;
 
   return getAppUrl(requestOrigin);
-}
-
-function getCanonicalAppUrl() {
-  return (env.appUrl || "https://www.soulevents.dk").trim().replace(/\/$/, "");
 }
 
 function maskEmailForLog(email: string) {
@@ -294,7 +289,7 @@ export async function requestPasswordResetAction(formData: FormData) {
   const authUser = await getDetailedAuthUserByEmail(email);
   const providers = authUser?.identities?.map((identity) => identity.provider).filter(Boolean) ?? [];
   const hasEmailIdentity = providers.includes("email");
-  const appUrl = getCanonicalAppUrl();
+  const appUrl = await getRequestAppUrl();
   const redirectTo = `${appUrl}/auth/callback?next=/auth/update-password`;
   const redirectUrl = new URL(redirectTo);
 
@@ -350,7 +345,8 @@ export async function updatePasswordAction(formData: FormData) {
   const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
-    authRedirect("/auth/update-password", "Adgangskoden kunne ikke opdateres: " + error.message);
+    console.error("[auth:update-password] server password update failed", authErrorDetails(error));
+    authRedirect("/auth/update-password", "Adgangskoden kunne ikke opdateres. Åbn det nyeste link fra din indbakke, eller send et nyt link og prøv igen.");
   }
 
   revalidatePath("/", "layout");

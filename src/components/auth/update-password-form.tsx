@@ -41,7 +41,12 @@ export function UpdatePasswordForm() {
     setIsSubmitting(false);
 
     if (error) {
-      setMessage("Adgangskoden kunne ikke opdateres: " + error.message);
+      console.error("[auth:update-password] password update failed", {
+        message: error.message,
+        name: error.name,
+        status: error.status,
+      });
+      setMessage("Adgangskoden kunne ikke opdateres. Åbn det nyeste link fra din indbakke, eller send et nyt link og prøv igen.");
       setStatus("error");
       return;
     }
