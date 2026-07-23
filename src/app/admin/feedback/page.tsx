@@ -151,9 +151,10 @@ function FeedbackSurveyForm({ survey }: { survey: any | null }) {
             Takketekst
             <textarea
               className="min-h-32 rounded-md border border-midnight/15 bg-white px-4 py-3 text-base outline-none transition focus:border-[#7A4EAB]"
-              defaultValue={survey?.thank_you_text ?? "Din feedback hjælper os med at gøre SoulEvents endnu bedre."}
+              defaultValue={survey?.thank_you_text ?? ""}
               maxLength={500}
               name="thank_you_text"
+              placeholder="Din feedback hjælper os med at gøre SoulEvents endnu bedre."
               required
             />
           </label>
@@ -206,8 +207,9 @@ function FeedbackSurveyForm({ survey }: { survey: any | null }) {
           </span>
           <input
             className="mt-3 min-h-11 w-full rounded-md border border-midnight/15 bg-white px-3 text-base outline-none transition focus:border-[#7A4EAB]"
-            defaultValue={survey?.final_question_text ?? "Er der andet du synes vi bør vide?"}
+            defaultValue={survey?.final_question_text ?? ""}
             name="final_question_text"
+            placeholder="Er der andet du synes vi bør vide?"
           />
         </label>
 
@@ -415,7 +417,7 @@ export default async function AdminFeedbackPage({ searchParams }: AdminFeedbackP
                       <td className="rounded-r-[18px] px-3 py-4">
                         <div className="grid gap-2">
                           <div className="flex flex-wrap gap-2">
-                            <Link className="inline-flex min-h-9 items-center gap-2 rounded-full bg-white px-3 text-xs font-semibold text-midnight" href={`/admin/feedback?edit=${survey.id}#editor`}>
+                            <Link className="inline-flex min-h-9 items-center gap-2 rounded-full bg-white px-3 text-xs font-semibold text-midnight" href={`/admin/feedback?edit=${survey.id}#create`}>
                               <Edit3 className="size-3.5" aria-hidden="true" />
                               Rediger
                             </Link>
@@ -449,8 +451,8 @@ export default async function AdminFeedbackPage({ searchParams }: AdminFeedbackP
           ) : null}
         </section>
 
-        <div id="editor">
-          <FeedbackSurveyForm survey={editSurvey} />
+        <div id="create">
+          <FeedbackSurveyForm key={editSurvey?.id ?? "new-feedback-survey"} survey={editSurvey} />
         </div>
 
         <div id="results">
