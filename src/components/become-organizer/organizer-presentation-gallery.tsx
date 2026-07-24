@@ -25,10 +25,11 @@ const presentations: PresentationCard[] = [
     alt: "Informationsgrafik om arrangørens eventflow på SoulEvents",
   },
   {
-    title: "Del dit virke med tillid",
-    description: "Præsenter dit arbejde i et trygt og inspirerende univers, hvor deltagere kan mærke hvem du er.",
+    title: "Derfor vælger arrangører SoulEvents",
+    description:
+      "Se, hvordan SoulEvents hjælper dig med at blive fundet, opbygge et publikum og skabe overblik – så du kan bruge mere tid på det, du brænder for.",
     imagePath: "/facilitator/arrangoer-praesentation-3.png",
-    alt: "Informationsgrafik om tryg præsentation af arrangører på SoulEvents",
+    alt: "Informationsgrafik om hvorfor arrangører vælger SoulEvents",
   },
 ];
 
