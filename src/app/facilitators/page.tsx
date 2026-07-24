@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, CalendarDays, Filter, Search, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
+import { FacilitatorLetterFilter, FacilitatorLetterResultsScroll } from "@/components/facilitator/facilitator-letter-filter";
 import { SoulEventsIdTag } from "@/components/facilitator/soulevents-id-tag";
 import { createPageMetadata } from "@/lib/open-graph";
 import { publicFacilitatorPath } from "@/lib/slug";
@@ -54,16 +55,6 @@ function isPlatformOwner(facilitator: any) {
 function startsWithLetter(name: string, letter: string) {
   if (!letter) return true;
   return name.trim().toLocaleUpperCase("da-DK").startsWith(letter);
-}
-
-function withParam(current: Record<string, string>, key: string, value: string) {
-  const params = new URLSearchParams();
-  for (const [paramKey, paramValue] of Object.entries(current)) {
-    if (paramValue && paramKey !== key) params.set(paramKey, paramValue);
-  }
-  if (value) params.set(key, value);
-  const query = params.toString();
-  return query ? "/facilitators?" + query : "/facilitators";
 }
 
 export default async function FacilitatorDirectoryPage({ searchParams }: FacilitatorDirectoryProps) {
@@ -189,26 +180,13 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
           </button>
         </form>
 
-        <nav className="mt-8 flex flex-wrap gap-2" aria-label="Alfabetisk navigation">
-          <Link className="rounded-full border border-olive/10 bg-white px-3 py-1.5 text-sm font-semibold text-olive" href={withParam(selected, "letter", "")}>
-            Alle
-          </Link>
-          {letters.map((letter) => (
-            <Link
-              className={
-                selected.letter === letter
-                  ? "rounded-full bg-olive px-3 py-1.5 text-sm font-semibold text-white"
-                  : "rounded-full border border-olive/10 bg-white px-3 py-1.5 text-sm font-semibold text-olive"
-              }
-              href={withParam(selected, "letter", letter)}
-              key={letter}
-            >
-              {letter}
-            </Link>
-          ))}
-        </nav>
+        <FacilitatorLetterFilter current={selected} letters={letters} />
 
-        <div className="mt-8 flex items-center gap-2 text-sm font-semibold text-ink/60">
+        <div
+          className="mt-8 flex scroll-mt-28 items-center gap-2 text-sm font-semibold text-ink/60"
+          id="facilitator-results"
+        >
+          <FacilitatorLetterResultsScroll />
           <Filter className="size-4" aria-hidden="true" />
           {filtered.length} arrangører fundet
         </div>
