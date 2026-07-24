@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { continueWithEmailAction, resendConfirmationAction, signInAction } from "@/app/auth/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
+import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 import { SignupForm } from "@/components/auth/signup-form";
 import { SocialAuthButtons } from "@/components/auth/social-auth-buttons";
 import { OnboardingIntro, OnboardingShell } from "@/components/onboarding/onboarding-shell";
@@ -107,12 +108,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                     />
                   </label>
 
-                  <button
-                    className="h-12 rounded-full bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700"
-                    type="submit"
+                  <AuthSubmitButton
+                    className="h-12 rounded-full bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700 disabled:cursor-wait disabled:opacity-75"
+                    pendingLabel="Tjekker e-mail..."
                   >
                     Fortsæt
-                  </button>
+                  </AuthSubmitButton>
                 </form>
 
                 <div className="my-7 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#2F2633]/42">
@@ -163,12 +164,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                     </Link>
                   </div>
 
-                  <button
-                    className="mt-1 h-12 rounded-full bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700"
-                    type="submit"
+                  <AuthSubmitButton
+                    className="mt-1 h-12 rounded-full bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700 disabled:cursor-wait disabled:opacity-75"
+                    pendingLabel="Logger ind..."
                   >
                     Log ind
-                  </button>
+                  </AuthSubmitButton>
                 </form>
 
                 <div className="my-7 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#2F2633]/42">
@@ -263,12 +264,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                     required
                     type="email"
                   />
-                  <button
-                    className="min-h-11 rounded-full bg-[#4B5645] px-4 text-sm font-semibold text-white transition hover:bg-[#6A765F]"
-                    type="submit"
+                  <AuthSubmitButton
+                    className="min-h-11 rounded-full bg-[#4B5645] px-4 text-sm font-semibold text-white transition hover:bg-[#6A765F] disabled:cursor-wait disabled:opacity-75"
+                    pendingLabel="Sender..."
                   >
                     Send bekræftelsesmail igen
-                  </button>
+                  </AuthSubmitButton>
                 </div>
               </form>
             ) : null}

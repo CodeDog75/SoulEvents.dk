@@ -1267,6 +1267,21 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
           profileId: targetProfileId,
           stage: "update_facilitator_profile",
         });
+      } else {
+        console.error("[facilitator-profile] Profile section could not be saved", {
+          authenticatedProfileRef: logProfileReference(profile.id),
+          code: facilitatorError.code,
+          details: facilitatorError.details,
+          facilitatorId,
+          facilitatorOwnerMatchesAuthenticatedProfile: targetProfileId === profile.id,
+          hint: facilitatorError.hint,
+          message: facilitatorError.message,
+          operation: "update",
+          payloadColumns: Object.keys(updates),
+          profileRef: logProfileReference(targetProfileId),
+          section,
+          table: "facilitator_profiles",
+        });
       }
       return { message: categorySaveMessage(facilitatorError), ok: false };
     }

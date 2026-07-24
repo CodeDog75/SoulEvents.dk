@@ -56,6 +56,7 @@ import {
 } from "@/lib/facilitators/hero-collection";
 import { facilitatorStoryMinLength, normalizeFacilitatorStory } from "@/lib/facilitators/profile-readiness";
 import { facilitatorWorkAreas, sortFacilitatorWorkAreas } from "@/lib/facilitators/work-areas";
+import { inferRegionSlug } from "@/lib/regions/infer-region";
 import { publicFacilitatorPath } from "@/lib/slug";
 import { socialProfileLinkHelpText, socialProfileLinkPlaceholder, validateSocialProfileLink } from "@/lib/social-profile-links";
 
@@ -144,6 +145,7 @@ type PrototypeStep =
   | "welcome"
   | "account"
   | "person"
+  | "location"
   | "profile-image"
   | "experiences"
   | "story"
@@ -218,6 +220,12 @@ const steps: Array<{
     title: "Hvem står bag profilen?",
   },
   {
+    eyebrow: "Lokation",
+    id: "location",
+    text: "Skriv postnummer og by, så SoulEvents kan placere din profil i det rigtige område. Regionen vælges automatisk ud fra postnummeret.",
+    title: "Hvor holder du til?",
+  },
+  {
     eyebrow: "Billeder",
     id: "profile-image",
     text: "Tilføj et obligatorisk profilbillede og op til tre stemningsbilleder, der viser dig og det, du inviterer mennesker ind i.",
@@ -273,8 +281,8 @@ const steps: Array<{
   },
 ];
 
-const onboardingStepIds: PrototypeStep[] = ["person", "profile-image", "experiences", "story", "links", "services", "review", "approval", "complete"];
-const editingStepIds: PrototypeStep[] = ["review", "person", "profile-image", "experiences", "story", "links", "services"];
+const onboardingStepIds: PrototypeStep[] = ["person", "location", "profile-image", "experiences", "story", "links", "services", "review", "approval", "complete"];
+const editingStepIds: PrototypeStep[] = ["review", "person", "location", "profile-image", "experiences", "story", "links", "services"];
 const onboardingDraftStepStorageKeyBase = "soulevents:onboarding:last-step";
 const specialtyMaxLength = 180;
 
@@ -289,6 +297,28 @@ function normalizeSpecialtyText(input: string | null | undefined) {
 function publicImageUrl(path: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   return supabaseUrl && path ? `${supabaseUrl}/storage/v1/object/public/media/${path}` : "";
+}
+
+function resolveInitialStepIndex({
+  activeStepIds,
+  presentationMode,
+  storageKey,
+}: {
+  activeStepIds: PrototypeStep[];
+  presentationMode: ProfileFormProps["presentationMode"];
+  storageKey: string;
+}) {
+  if (presentationMode !== "onboarding" || typeof window === "undefined") {
+    return 0;
+  }
+
+  const url = new URL(window.location.href);
+  const requestedStep = url.searchParams.get("prototypeStep");
+  const storedStep = window.localStorage.getItem(storageKey);
+  const candidate = requestedStep || storedStep;
+  const nextIndex = candidate ? activeStepIds.indexOf(candidate as PrototypeStep) : -1;
+
+  return nextIndex >= 0 && activeStepIds[nextIndex] !== "complete" ? nextIndex : 0;
 }
 
 function inputClass(extra = "") {
@@ -603,7 +633,7 @@ function OnboardingShell({
       onClick={onContinue}
       type="button"
     >
-      {isBusy ? "Gemmer automatisk..." : ctaLabel ?? (isFirst ? "Kom i gang" : isLast ? "Opret profil" : "Fortsæt")}
+      {isBusy ? "Gemmer..." : ctaLabel ?? (isFirst ? "Kom i gang" : isLast ? "Opret profil" : "Fortsæt")}
       {!isBusy && <ArrowRight className="size-5" aria-hidden="true" />}
     </button>
   );
@@ -810,6 +840,7 @@ export function ProfileForm({
   profile,
   facilitatorProfile,
   categories,
+  regions,
   selectedCategoryIds,
   galleryImages,
   logoSources,
@@ -827,16 +858,19 @@ export function ProfileForm({
           .filter((step): step is (typeof steps)[number] => Boolean(step))
       : editingStepIds.map((stepId) => steps.find((step) => step.id === stepId)).filter((step): step is (typeof steps)[number] => Boolean(step));
   const activeStepIds = activeSteps.map((step) => step.id);
-  const activeStepIdsKey = activeStepIds.join("|");
   const onboardingDraftStepStorageKey = `${onboardingDraftStepStorageKeyBase}:${facilitatorProfile.id ?? profile.email}`;
-  const [stepIndex, setStepIndex] = useState(0);
+  const [stepIndex, setStepIndex] = useState(() =>
+    resolveInitialStepIndex({
+      activeStepIds,
+      presentationMode,
+      storageKey: onboardingDraftStepStorageKey,
+    }),
+  );
   const [isBusy, setIsBusy] = useState(false);
   const [returnToReview, setReturnToReview] = useState(false);
   const [profileImageSubmissionError, setProfileImageSubmissionError] = useState(false);
   const [storySubmissionError, setStorySubmissionError] = useState(false);
   const continueInProgressRef = useRef(false);
-  const continueTimeoutRef = useRef<number | null>(null);
-  const restoredOnboardingStepRef = useRef(false);
   const [, startImageTransition] = useTransition();
   const [firstName, setFirstName] = useState(names.firstName);
   const [lastName, setLastName] = useState(names.lastName);
@@ -844,6 +878,11 @@ export function ProfileForm({
   const initialProfileName = value(facilitatorProfile.company_name);
   const [useCustomProfileName, setUseCustomProfileName] = useState(() => Boolean(initialProfileName && initialProfileName !== fullPublicName));
   const [profileName, setProfileName] = useState(initialProfileName);
+  const [addressLine, setAddressLine] = useState(value(facilitatorProfile.address_line));
+  const [postalCode, setPostalCode] = useState(value(facilitatorProfile.postal_code));
+  const [city, setCity] = useState(value(facilitatorProfile.city));
+  const [country, setCountry] = useState(value(facilitatorProfile.country) || "Danmark");
+  const [isOnlineFacilitator, setIsOnlineFacilitator] = useState(Boolean(facilitatorProfile.is_online_facilitator));
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [profileImageUrl, setProfileImageUrl] = useState(facilitatorProfile.profile_image_path ? publicImageUrl(facilitatorProfile.profile_image_path) : "");
   const [moodImages, setMoodImages] = useState<MoodImage[]>(
@@ -933,33 +972,6 @@ export function ProfileForm({
     }
   }, [currentStep.id, onboardingDraftStepStorageKey, presentationMode]);
 
-  useEffect(() => {
-    if (presentationMode !== "onboarding" || restoredOnboardingStepRef.current) {
-      return;
-    }
-
-    restoredOnboardingStepRef.current = true;
-    const url = new URL(window.location.href);
-    const requestedStep = url.searchParams.get("prototypeStep");
-    const storedStep = window.localStorage.getItem(onboardingDraftStepStorageKey);
-    const candidate = requestedStep || storedStep;
-    const availableStepIds = activeStepIdsKey.split("|") as PrototypeStep[];
-    const nextIndex = candidate ? availableStepIds.indexOf(candidate as PrototypeStep) : -1;
-
-    if (nextIndex >= 0 && availableStepIds[nextIndex] !== "complete") {
-      const frame = window.requestAnimationFrame(() => setStepIndex(nextIndex));
-      return () => window.cancelAnimationFrame(frame);
-    }
-  }, [activeStepIdsKey, onboardingDraftStepStorageKey, presentationMode]);
-
-  useEffect(() => {
-    return () => {
-      if (continueTimeoutRef.current) {
-        window.clearTimeout(continueTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const contactValues = {
     company_name: publicProfileName,
     first_name: firstName,
@@ -985,6 +997,21 @@ export function ProfileForm({
       const result = await autosaveFacilitatorProfileAction({
         section: "contact",
         values: contactValues,
+      });
+
+      if (!result.ok) return result;
+    }
+
+    if (currentStep.id === "location") {
+      const result = await autosaveFacilitatorProfileAction({
+        section: "location",
+        values: {
+          address_line: addressLine,
+          city,
+          country,
+          is_online_facilitator: isOnlineFacilitator,
+          postal_code: postalCode,
+        },
       });
 
       if (!result.ok) return result;
@@ -1133,24 +1160,22 @@ export function ProfileForm({
     }
 
     setStepSaveStatus({ message: saveResult.message, status: "success" });
+    continueInProgressRef.current = false;
+    setIsBusy(false);
 
-    continueTimeoutRef.current = window.setTimeout(() => {
-      continueInProgressRef.current = false;
-      setIsBusy(false);
-      if (presentationMode !== "onboarding" && currentStep.id === "review") {
-        router.push(backHref);
-        return;
-      }
+    if (presentationMode !== "onboarding" && currentStep.id === "review") {
+      router.push(backHref);
+      return;
+    }
 
-      if (returnToReview && currentStep.id !== "review") {
-        setReturnToReview(false);
-        goToStep("review");
-        return;
-      }
+    if (returnToReview && currentStep.id !== "review") {
+      setReturnToReview(false);
+      goToStep("review");
+      return;
+    }
 
-      setStepSaveStatus({ message: "", status: "idle" });
-      setStepIndex((current) => Math.min(current + 1, activeSteps.length - 1));
-    }, 180);
+    setStepSaveStatus({ message: "", status: "idle" });
+    setStepIndex((current) => Math.min(current + 1, activeSteps.length - 1));
   }
 
   async function saveDraftAndExit() {
@@ -1176,10 +1201,6 @@ export function ProfileForm({
 
   function goBack() {
     continueInProgressRef.current = false;
-    if (continueTimeoutRef.current) {
-      window.clearTimeout(continueTimeoutRef.current);
-      continueTimeoutRef.current = null;
-    }
     setStepSaveStatus({ message: "", status: "idle" });
 
     if (returnToReview && currentStep.id !== "review") {
@@ -1194,10 +1215,6 @@ export function ProfileForm({
 
   function goToStep(step: PrototypeStep) {
     continueInProgressRef.current = false;
-    if (continueTimeoutRef.current) {
-      window.clearTimeout(continueTimeoutRef.current);
-      continueTimeoutRef.current = null;
-    }
     const nextIndex = activeSteps.findIndex((item) => item.id === step);
     if (nextIndex >= 0) {
       setStepSaveStatus({ message: "", status: "idle" });
@@ -1324,9 +1341,11 @@ export function ProfileForm({
   const reviewCategories = categories
     .filter((category) => selectedExperiences.includes(category.id))
     .map((category) => ({ name: category.name }));
-  const reviewPlace = facilitatorProfile.is_online_facilitator
+  const inferredRegionSlug = inferRegionSlug({ city, postalCode });
+  const inferredRegionName = inferredRegionSlug ? regions.find((region) => region.slug === inferredRegionSlug)?.name : null;
+  const reviewPlace = isOnlineFacilitator
     ? "Online arrangør"
-    : [facilitatorProfile.city, facilitatorProfile.country].filter(Boolean).join(", ") || null;
+    : [city, country].filter(Boolean).join(", ") || null;
   const fullProfileHref = facilitatorProfile.id
     ? publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id) +
       (adminReturnTo
@@ -1656,6 +1675,49 @@ export function ProfileForm({
               <p className="mt-1 text-2xl font-semibold text-midnight">{fullPublicName || "Dit navn"}</p>
             </div>
           )}
+        </div>
+      )}
+
+      {currentStep.id === "location" && (
+        <div className="grid gap-5">
+          <button
+            aria-pressed={isOnlineFacilitator}
+            className="flex min-h-20 items-center justify-between gap-4 rounded-[24px] border border-midnight/10 bg-white px-4 text-left shadow-soft transition hover:border-sage-700"
+            onClick={() => setIsOnlineFacilitator((current) => !current)}
+            type="button"
+          >
+            <span className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-lavender/15 text-lavender">
+                <Video className="size-5" aria-hidden="true" />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold leading-6 text-midnight">Jeg tilbyder også online forløb eller events.</span>
+                <span className="mt-1 block text-sm leading-6 text-ink/55">
+                  Slå til, hvis deltagere må finde dig som online arrangør.
+                </span>
+              </span>
+            </span>
+            <span className={isOnlineFacilitator ? "flex h-10 w-[4.5rem] shrink-0 items-center justify-end rounded-full bg-sage-700 p-1" : "flex h-10 w-[4.5rem] shrink-0 items-center justify-start rounded-full bg-midnight/15 p-1"}>
+              <span className="size-8 rounded-full bg-white shadow-soft" />
+            </span>
+          </button>
+
+          <ClearableInput label="Adresse (valgfri)" onChange={setAddressLine} placeholder="Gade og nummer" value={addressLine} />
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <ClearableInput label="Postnummer" maxLength={20} onChange={setPostalCode} placeholder="4300" value={postalCode} />
+            <ClearableInput label="By" maxLength={80} onChange={setCity} placeholder="Holbæk" value={city} />
+          </div>
+
+          <ClearableInput label="Land" maxLength={80} onChange={setCountry} placeholder="Danmark" value={country} />
+
+          <div className="flex items-start gap-3 rounded-[22px] bg-sage-50 p-4 text-sm leading-6 text-sage-700">
+            <Globe className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+            <p>
+              Område vælges automatisk ud fra postnummer og by.
+              {inferredRegionName ? <span className="block font-semibold">Aktuelt område: {inferredRegionName}</span> : null}
+            </p>
+          </div>
         </div>
       )}
 
