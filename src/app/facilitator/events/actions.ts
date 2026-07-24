@@ -999,6 +999,10 @@ async function createUniqueEventSlugForEvent(supabase: AdminClient, baseSlug: st
   return cleanBaseSlug + "-" + crypto.randomUUID().slice(0, 8);
 }
 
+function hasEventBeenPublic(status: EventStatus | null, publishedAt: string | null) {
+  return Boolean(publishedAt) || ["active", "sold_out", "cancelled", "completed", "archived"].includes(status ?? "");
+}
+
 function isProfileReady(input: {
   categoryIds: string[];
   city: string | null;
@@ -1154,6 +1158,7 @@ export async function createEventAction(formData: FormData) {
   const slugBase = createSlug(title || "kladde");
   const titleChangedForExistingEvent =
     Boolean(existingEventId) && normalizeTextForComparison(existingEventTitle) !== normalizeTextForComparison(title);
+  const hasExistingEventBeenPublic = Boolean(existingEventId) && hasEventBeenPublic(existingEventStatus, existingEventPublishedAt);
   const nextEventSlug =
     existingEventId && titleChangedForExistingEvent && slugBase
       ? await createUniqueEventSlugForEvent(supabase, slugBase, existingEventId)
@@ -1444,7 +1449,7 @@ export async function createEventAction(formData: FormData) {
       eventsRedirect(isDraft ? "Kladde kunne ikke gemmes" + errorMessage : "Eventet kunne ikke opdateres" + errorMessage);
     }
 
-    if (existingEventSlug && nextEventSlug && existingEventSlug !== nextEventSlug) {
+    if (hasExistingEventBeenPublic && existingEventSlug && nextEventSlug && existingEventSlug !== nextEventSlug) {
       const { error: slugHistoryError } = await supabase.from("event_slug_history").upsert(
         {
           event_id: existingEventId,
@@ -1456,6 +1461,19 @@ export async function createEventAction(formData: FormData) {
       if (slugHistoryError) {
         console.error("Event slug history insert error", slugHistoryError);
         eventsRedirect("Eventets URL-historik kunne ikke gemmes.");
+      }
+    }
+
+    if (nextEventSlug) {
+      const { error: currentSlugAliasError } = await supabase
+        .from("event_slug_history")
+        .delete()
+        .eq("event_id", existingEventId)
+        .eq("slug", nextEventSlug);
+
+      if (currentSlugAliasError) {
+        console.error("Event current slug alias cleanup error", currentSlugAliasError);
+        eventsRedirect("Eventets URL-historik kunne ikke opdateres.");
       }
     }
 
