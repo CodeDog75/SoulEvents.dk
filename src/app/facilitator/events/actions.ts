@@ -281,11 +281,21 @@ function hasSubmittedEventCoverImage(formData: FormData) {
 }
 
 function toDateTime(date: string, time: string) {
-  if (!date || !time) {
+  const dateMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const timeMatch = time.match(/^(\d{2}):(\d{2})$/);
+
+  if (!dateMatch || !timeMatch) {
     return "";
   }
 
-  return new Date(`${date}T${time}:00`).toISOString();
+  return utcFromDanishLocalTime({
+    day: Number(dateMatch[3]),
+    hour: Number(timeMatch[1]),
+    minute: Number(timeMatch[2]),
+    month: Number(dateMatch[2]),
+    second: 0,
+    year: Number(dateMatch[1]),
+  }).toISOString();
 }
 
 function getDanishDateTimeParts(value: Date) {

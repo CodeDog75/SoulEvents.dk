@@ -319,6 +319,7 @@ const eventDraftStoragePrefix = "soulevents:event-form-draft:v2";
 const maxEventDescriptionLength = 2000;
 const maxEventTags = 4;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
+const danishTimeZone = "Europe/Copenhagen";
 const paymentDeadlineOptions = [
   { label: "3 dage efter bekræftelse", value: "3" },
   { label: "5 dage efter bekræftelse", value: "5" },
@@ -348,16 +349,30 @@ function normalizeTimeInputValue(timeValue: string | undefined) {
 }
 
 function formatLocalDateInputValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: danishTimeZone,
+    year: "numeric",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  const year = value("year");
+  const month = value("month");
+  const day = value("day");
 
   return `${year}-${month}-${day}`;
 }
 
 function formatLocalTimeInputValue(date: Date) {
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    timeZone: danishTimeZone,
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  const hours = value("hour");
+  const minutes = value("minute");
 
   return `${hours}:${minutes}`;
 }
