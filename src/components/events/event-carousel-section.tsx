@@ -6,8 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight, Clock3, MapPinned, Ticket, UserRound } from "lucide-react";
 import { CapacityBadge } from "@/components/events/capacity-badge";
 import { EventDateBox, EventImageStatusTag, formatEventTime } from "@/components/events/event-card-overlays";
+import { EventOrganizerChips } from "@/components/events/event-organizer-chips";
 import type { PublicEvent } from "@/components/events/public-event-list";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
+import { withReturnTo } from "@/lib/return-to";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 
 type FacilitatorCarouselCard = {
@@ -27,11 +29,13 @@ type EventCarouselSectionProps = {
   title: string;
   href: string;
   events: PublicEvent[];
+  returnTo?: string | null;
 };
 
 type FacilitatorCarouselSectionProps = {
   facilitators: FacilitatorCarouselCard[];
   href: string;
+  returnTo?: string | null;
   title: string;
 };
 
@@ -54,11 +58,8 @@ function publicMediaUrl(imagePath?: string | null) {
   return supabaseUrl.replace(/\/$/, "") + "/storage/v1/object/public/media/" + imagePath.split("/").map(encodeURIComponent).join("/");
 }
 
-export function EventCardVisual({ event }: { event: PublicEvent }) {
-  const facilitatorProfile = first(event.facilitator_profiles);
-  const facilitatorUser = first(facilitatorProfile?.profiles);
+export function EventCardVisual({ event, returnTo }: { event: PublicEvent; returnTo?: string | null }) {
   const region = first(event.regions);
-  const facilitator = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør";
   const categories =
     event.event_categories
       ?.map((row) => first(row.categories))
@@ -78,7 +79,7 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
   return (
     <Link
       className="group block min-w-[280px] max-w-[280px] shrink-0 snap-start overflow-hidden rounded-[24px] bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[320px] sm:max-w-[320px] lg:min-w-[340px] lg:max-w-[340px]"
-      href={publicEventPath(event.slug || event.id)}
+      href={withReturnTo(publicEventPath(event.slug || event.id), returnTo)}
     >
       <div
         className="relative aspect-[16/11] overflow-hidden bg-[#FAF6EF]"
@@ -127,12 +128,17 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
           {event.event_format === "online" && (
             <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-ink/70 shadow-soft">Online</span>
           )}
+          {event.organizer_role === "coOrganizer" ? (
+            <span className="rounded-full bg-white/95 px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[#7A5D91] shadow-soft">
+              MEDARRANGØR
+            </span>
+          ) : null}
         </div>
       </div>
 
       <div className="p-4 sm:p-5">
         <h3 className="line-clamp-2 text-[1.45rem] font-medium leading-7 text-olive">{event.title}</h3>
-        <p className="mt-1 truncate text-sm font-semibold text-sage-700">{facilitator}</p>
+        <EventOrganizerChips className="mt-2" event={event} />
         <div className="mt-4 grid gap-2 text-sm text-ink/68">
           <span className="flex items-center gap-2">
             <Clock3 className="size-4 shrink-0 text-rose" aria-hidden="true" />
@@ -159,7 +165,7 @@ export function EventCardVisual({ event }: { event: PublicEvent }) {
   );
 }
 
-export function EventCarouselSection({ events, href, title }: EventCarouselSectionProps) {
+export function EventCarouselSection({ events, href, returnTo, title }: EventCarouselSectionProps) {
   const desktopScrollerRef = useRef<HTMLDivElement | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -217,7 +223,7 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
       </div>
       <div className="flex max-w-full snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain pb-4 [touch-action:pan-x_pan-y] [-webkit-overflow-scrolling:touch] md:hidden">
         {events.map((event) => (
-          <EventCardVisual event={event} key={event.id} />
+          <EventCardVisual event={event} key={event.id} returnTo={returnTo} />
         ))}
       </div>
 
@@ -251,7 +257,7 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
           className="flex w-full max-w-full snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain scroll-smooth pb-3 [touch-action:pan-x_pan-y] [-webkit-overflow-scrolling:touch]"
         >
           {events.map((event) => (
-            <EventCardVisual event={event} key={event.id} />
+            <EventCardVisual event={event} key={event.id} returnTo={returnTo} />
           ))}
         </div>
       </div>
@@ -259,7 +265,7 @@ export function EventCarouselSection({ events, href, title }: EventCarouselSecti
   );
 }
 
-function FacilitatorCardVisual({ facilitator }: { facilitator: FacilitatorCarouselCard }) {
+function FacilitatorCardVisual({ facilitator, returnTo }: { facilitator: FacilitatorCarouselCard; returnTo?: string | null }) {
   const primaryCategory = facilitator.categories[0];
   const primaryCategoryLabel =
     primaryCategory && facilitator.categories.length > 1
@@ -269,7 +275,7 @@ function FacilitatorCardVisual({ facilitator }: { facilitator: FacilitatorCarous
   return (
     <Link
       className="group block min-w-[72vw] max-w-[72vw] snap-start overflow-hidden rounded-[24px] bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[280px] sm:max-w-[280px] lg:min-w-[300px] lg:max-w-[300px]"
-              href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
+      href={withReturnTo(publicFacilitatorPath(facilitator.slug || facilitator.id), returnTo)}
     >
       <div className="relative aspect-[6/5] bg-sage-50">
         {facilitator.isExperiencedHost ? (
@@ -310,7 +316,7 @@ function FacilitatorCardVisual({ facilitator }: { facilitator: FacilitatorCarous
   );
 }
 
-export function FacilitatorCarouselSection({ facilitators, href, title }: FacilitatorCarouselSectionProps) {
+export function FacilitatorCarouselSection({ facilitators, href, returnTo, title }: FacilitatorCarouselSectionProps) {
   if (facilitators.length === 0) return null;
 
   return (
@@ -323,7 +329,7 @@ export function FacilitatorCarouselSection({ facilitators, href, title }: Facili
       </div>
       <div className="-mx-5 flex snap-x gap-4 overflow-x-auto px-5 pb-3 sm:-mx-8 sm:px-8">
         {facilitators.map((facilitator) => (
-          <FacilitatorCardVisual facilitator={facilitator} key={facilitator.id} />
+            <FacilitatorCardVisual facilitator={facilitator} key={facilitator.id} returnTo={returnTo} />
         ))}
       </div>
     </section>

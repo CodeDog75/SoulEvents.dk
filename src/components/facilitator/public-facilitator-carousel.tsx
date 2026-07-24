@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Search, Sparkles, UserRound } from "lucide-react";
 import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
 import { SoulEventsIdTag } from "@/components/facilitator/soulevents-id-tag";
+import { withReturnTo } from "@/lib/return-to";
 import { publicFacilitatorPath } from "@/lib/slug";
 
 type FacilitatorCard = {
@@ -80,7 +81,7 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
               return (
                 <Link
                   className="group min-w-[250px] max-w-[250px] snap-start overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[300px] sm:max-w-[300px]"
-                  href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
+                  href={withReturnTo(publicFacilitatorPath(facilitator.slug || facilitator.id), "/#facilitators")}
                   key={facilitator.id}
                 >
                   <div className="relative aspect-[5/4] bg-sage-50">

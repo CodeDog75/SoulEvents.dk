@@ -50,6 +50,7 @@ type PublicFacilitatorProfileProps = {
     url: string;
   };
   events: PublicEvent[];
+  eventReturnTo?: string | null;
   facilitatorId: string;
   facilitatorSlug?: string | null;
   galleryImages: GalleryImage[];
@@ -78,7 +79,7 @@ function SectionTitle({ eyebrow, title }: { eyebrow?: string; title: string }) {
   );
 }
 
-function FacilitatorEvents({ events }: { events: PublicEvent[] }) {
+function FacilitatorEvents({ events, returnTo }: { events: PublicEvent[]; returnTo?: string | null }) {
   if (events.length === 0) {
     return (
       <section className="rounded-[32px] border border-[#E8DEC9] bg-[#FFF9EC] p-6 shadow-[0_18px_45px_rgba(47,36,55,0.06)] sm:p-8">
@@ -111,7 +112,7 @@ function FacilitatorEvents({ events }: { events: PublicEvent[] }) {
       </div>
       <div className="mt-6 flex max-w-full snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain pb-3 [touch-action:pan-x_pan-y] [-webkit-overflow-scrolling:touch]">
         {visibleEvents.map((event) => (
-          <EventCardVisual event={event} key={event.id} />
+          <EventCardVisual event={event} key={event.id} returnTo={returnTo} />
         ))}
       </div>
     </section>
@@ -125,6 +126,7 @@ export function PublicFacilitatorProfile({
   contact,
   coverImage,
   events,
+  eventReturnTo,
   facilitatorId,
   facilitatorSlug,
   galleryImages,
@@ -196,7 +198,7 @@ export function PublicFacilitatorProfile({
 
           <PublicFacilitatorGallery images={galleryImages} />
 
-          <FacilitatorEvents events={events} />
+          <FacilitatorEvents events={events} returnTo={eventReturnTo} />
         </div>
 
         <aside className="grid content-start gap-5 lg:sticky lg:top-6">

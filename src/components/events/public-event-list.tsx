@@ -3,10 +3,13 @@ import Image from "next/image";
 import { ArrowRight, CalendarDays, Clock3, MapPinned, Ticket } from "lucide-react";
 import { CapacityBadge } from "@/components/events/capacity-badge";
 import { EventDateBox, EventImageStatusTag, formatEventTime } from "@/components/events/event-card-overlays";
+import { EventOrganizerChips } from "@/components/events/event-organizer-chips";
+import { withReturnTo } from "@/lib/return-to";
 import { publicEventPath } from "@/lib/slug";
 
 export type PublicEvent = {
   id: string;
+  organizer_role?: "primary" | "coOrganizer";
   slug?: string | null;
   status?: string | null;
   title: string;
@@ -23,6 +26,8 @@ export type PublicEvent = {
   facilitator_profiles:
     | {
         company_name: string | null;
+        id?: string | null;
+        slug?: string | null;
         profiles:
           | {
               full_name: string;
@@ -34,6 +39,8 @@ export type PublicEvent = {
       }
     | Array<{
         company_name: string | null;
+        id?: string | null;
+        slug?: string | null;
         profiles:
           | {
               full_name: string;
@@ -44,6 +51,38 @@ export type PublicEvent = {
           | null;
       }>
     | null;
+  event_co_organizers?: Array<{
+    created_at?: string | null;
+    status?: string | null;
+    facilitator_profiles:
+      | {
+          company_name?: string | null;
+          id?: string | null;
+          slug?: string | null;
+          profiles:
+            | {
+                full_name?: string | null;
+              }
+            | Array<{
+                full_name?: string | null;
+              }>
+            | null;
+        }
+      | Array<{
+          company_name?: string | null;
+          id?: string | null;
+          slug?: string | null;
+          profiles:
+            | {
+                full_name?: string | null;
+              }
+            | Array<{
+                full_name?: string | null;
+              }>
+            | null;
+        }>
+      | null;
+  }>;
   regions:
     | {
         name: string;
@@ -108,6 +147,7 @@ export type PublicEvent = {
 type PublicEventListProps = {
   events: PublicEvent[];
   layout?: "grid" | "stack";
+  returnTo?: string | null;
 };
 
 function uniqueEventsById<T extends { id: string }>(events: T[]) {
@@ -152,7 +192,7 @@ function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export function PublicEventList({ events, layout = "grid" }: PublicEventListProps) {
+export function PublicEventList({ events, layout = "grid", returnTo }: PublicEventListProps) {
   if (events.length === 0) {
     return (
       <section className="rounded-card bg-white p-8 text-center shadow-soft">
@@ -166,14 +206,7 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
   return (
     <section className={layout === "stack" ? "grid gap-4" : "grid gap-4 md:grid-cols-2 xl:grid-cols-3"}>
       {uniqueEventsById(events).map((event) => {
-        const facilitatorProfile = Array.isArray(event.facilitator_profiles)
-          ? event.facilitator_profiles[0]
-          : event.facilitator_profiles;
-        const facilitatorUser = Array.isArray(facilitatorProfile?.profiles)
-          ? facilitatorProfile?.profiles[0]
-          : facilitatorProfile?.profiles;
         const region = Array.isArray(event.regions) ? event.regions[0] : event.regions;
-        const facilitator = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør";
         const categories =
           event.event_categories
             ?.map((row) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
@@ -192,7 +225,7 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
 
         return (
           <Link
-            href={publicEventPath(event.slug || event.id)}
+            href={withReturnTo(publicEventPath(event.slug || event.id), returnTo)}
             className="group block overflow-hidden rounded-card border border-olive/10 bg-white shadow-soft transition hover:-translate-y-0.5 hover:border-sage-700/25 hover:shadow-lift"
             key={event.id}
           >
@@ -242,12 +275,17 @@ export function PublicEventList({ events, layout = "grid" }: PublicEventListProp
                 <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-ink/60 shadow-soft">
                   {formatEventFormat(event.event_format)}
                 </span>
+                {event.organizer_role === "coOrganizer" ? (
+                  <span className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7A5D91] shadow-soft">
+                    MEDARRANGØR
+                  </span>
+                ) : null}
               </div>
             </div>
 
             <div className="p-5">
               <h2 className="text-2xl font-medium leading-7 text-olive">{event.title}</h2>
-              <p className="mt-1 text-sm font-semibold text-sage-700">{facilitator}</p>
+              <EventOrganizerChips className="mt-2" event={event} />
               <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink/66">{event.short_description}</p>
 
               <div className="mt-4 grid gap-2 text-sm text-ink/70">

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapboxMap, Popup } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { CalendarDays, HeartHandshake, MapPinned } from "lucide-react";
+import { withReturnTo } from "@/lib/return-to";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 
 type MapEvent = {
@@ -37,6 +38,7 @@ type EventMapProps = {
   events: MapEvent[];
   mapboxToken: string;
   mapboxStyleUrl?: string;
+  returnTo?: string | null;
   serviceProviders?: MapServiceProvider[];
 };
 
@@ -185,7 +187,7 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;");
 }
 
-function eventPopupItem(event: MapEvent, isFirst: boolean, compact = false) {
+function eventPopupItem(event: MapEvent, isFirst: boolean, compact = false, returnTo?: string | null) {
   const title = escapeHtml(event.title);
   const facilitatorName = escapeHtml(event.facilitatorName);
   const categoryName = event.categoryName ? escapeHtml(event.categoryName) : "";
@@ -198,7 +200,7 @@ function eventPopupItem(event: MapEvent, isFirst: boolean, compact = false) {
     ? "<div style=\"display:inline-flex; width:max-content; max-width:100%; background:#7F9466; color:white; border-radius:999px; padding:5px 10px; font-size:11px; font-weight:700; margin-bottom:8px;\">" + categoryName + "</div>"
     : "";
 
-  const eventHref = publicEventPath(event.slug || event.id);
+  const eventHref = withReturnTo(publicEventPath(event.slug || event.id), returnTo);
 
   if (compact) {
     return [
@@ -230,9 +232,9 @@ function eventPopupItem(event: MapEvent, isFirst: boolean, compact = false) {
   ].join("");
 }
 
-function servicePopupHtml(provider: MapServiceProvider) {
+function servicePopupHtml(provider: MapServiceProvider, returnTo?: string | null) {
   const title = escapeHtml(provider.name);
-  const providerHref = publicFacilitatorPath(provider.slug || provider.id);
+  const providerHref = withReturnTo(publicFacilitatorPath(provider.slug || provider.id), returnTo);
   const serviceLabel = provider.serviceLabels[0] ? escapeHtml(provider.serviceLabels[0]) : "Tilbud og sessioner";
   const place = [provider.city, provider.area].filter(Boolean).map((value) => escapeHtml(String(value))).join(", ");
 
@@ -247,7 +249,7 @@ function servicePopupHtml(provider: MapServiceProvider) {
   ].join("");
 }
 
-function popupHtml(group: EventGroup) {
+function popupHtml(group: EventGroup, returnTo?: string | null) {
   const firstEvent = group.events[0];
   const image =
     group.events.length === 1 && firstEvent.imageUrl
@@ -265,7 +267,7 @@ function popupHtml(group: EventGroup) {
     image,
     heading,
     "<div style=\"padding:" + (group.events.length > 1 ? "6px 18px 10px" : "18px 18px 8px") + "; max-height:" + (group.events.length > 1 ? "185px" : "none") + "; overflow-y:" + (group.events.length > 1 ? "auto" : "visible") + ";\">",
-    group.events.map((event, index) => eventPopupItem(event, index === 0, group.events.length > 1)).join(""),
+    group.events.map((event, index) => eventPopupItem(event, index === 0, group.events.length > 1, returnTo)).join(""),
     "</div>",
     "</div>",
   ].join("");
@@ -302,7 +304,7 @@ function setMapLayerVisibility(map: MapboxMap, mode: MapViewMode) {
   }
 }
 
-export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders = [] }: EventMapProps) {
+export function EventMap({ events, mapboxToken, mapboxStyleUrl, returnTo, serviceProviders = [] }: EventMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const activePopupRef = useRef<Popup | null>(null);
@@ -563,7 +565,7 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
           const anchor = event.point.y < mapCanvas.clientHeight * 0.48 ? "top" : "bottom";
           const popup = new mapboxgl.Popup({ anchor, offset: 18, className: "soulevents-map-popup", maxWidth: "330px" })
             .setLngLat(coordinates)
-            .setHTML(popupHtml(selected))
+            .setHTML(popupHtml(selected, returnTo))
             .addTo(map);
           popup.on("close", () => {
             if (activePopupRef.current === popup) {
@@ -611,7 +613,7 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
           const coordinates = (feature.geometry as GeoJSON.Point).coordinates.slice() as [number, number];
           const popup = new mapboxgl.Popup({ offset: 16, className: "soulevents-map-popup", maxWidth: "300px" })
             .setLngLat(coordinates)
-            .setHTML(servicePopupHtml(selected))
+            .setHTML(servicePopupHtml(selected, returnTo))
             .addTo(map);
           popup.on("close", () => {
             if (activePopupRef.current === popup) {
@@ -675,7 +677,7 @@ export function EventMap({ events, mapboxToken, mapboxStyleUrl, serviceProviders
       loadedMap?.remove();
       mapRef.current = null;
     };
-  }, [mapboxToken, mapboxStyleUrl, shouldLoadMap, eventGroups, localServiceProviders]);
+  }, [mapboxToken, mapboxStyleUrl, shouldLoadMap, eventGroups, localServiceProviders, returnTo]);
 
   useEffect(() => {
     const map = mapRef.current;

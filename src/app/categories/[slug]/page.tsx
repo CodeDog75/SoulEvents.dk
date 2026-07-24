@@ -158,6 +158,10 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
       .filter((item: string) => allSubcategorySlugs.includes(item)) ?? [];
   const selectedArea = query?.area?.trim() ?? "";
   const selectedAreaOption = areaOptions.find((area) => area.value === selectedArea) ?? null;
+  const categoryReturnParams = new URLSearchParams();
+  if (query?.sub) categoryReturnParams.set("sub", query.sub);
+  if (selectedArea) categoryReturnParams.set("area", selectedArea);
+  const categoryReturnPath = "/categories/" + mainCategory.slug + (categoryReturnParams.size > 0 ? "?" + categoryReturnParams.toString() : "");
   const mainCategoryImageUrl = await getCategoryHeroImage(supabase, mainCategory.id, mainCategory.image_path);
   const nowIso = new Date().toISOString();
 
@@ -190,7 +194,7 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
   const { data: rawEvents } = await supabase
     .from("events")
     .select(
-      "id, slug, status, title, short_description, starts_at, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), regions(name, slug), event_categories(categories(name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug))",
+      "id, slug, status, title, short_description, starts_at, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), event_co_organizers(created_at, status, facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(id, slug, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))), regions(name, slug), event_categories(categories(name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug))",
     )
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
@@ -305,6 +309,7 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
           initialSelectedSlugs={requestedSubSlugs}
           mainCategoryName={mainCategory.name}
           partnerAds={partnerAds}
+          returnTo={categoryReturnPath}
           selectedArea={selectedArea}
           subcategories={subcategories}
         />

@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect, redirect } from "next/navigation";
-import { ArrowLeft, CalendarDays, CircleUserRound, Clock3, ExternalLink, Leaf, Mail, MapPinned, Phone, Ticket } from "lucide-react";
+import { ArrowLeft, CalendarDays, Clock3, Leaf, Mail, MapPinned, Phone, Ticket } from "lucide-react";
 import { TrackEventView } from "@/components/analytics/track-event-view";
 import { BrandLogo } from "@/components/brand-logo";
-import { OrganizerBadges } from "@/components/badges/organizer-badges";
 import { CapacityBadge } from "@/components/events/capacity-badge";
 import { BookingForm } from "@/components/events/detail/booking-form";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
-import { SoulEventsIdTag } from "@/components/facilitator/soulevents-id-tag";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { getUserFacingEventStatus, isEventPastEnd } from "@/lib/events/user-facing-status";
 import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
 import { buildEventJsonLd, buildEventMetadata } from "@/lib/seo/public-page-metadata";
+import { publicReturnLabel, safePublicReturnPath, withReturnTo } from "@/lib/return-to";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -84,6 +83,7 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
       id,
       slug,
       status,
+      facilitator_id,
       title,
       short_description,
       long_description,
@@ -132,6 +132,7 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
         id,
         slug,
         status,
+        facilitator_id,
         title,
         short_description,
         long_description,
@@ -309,10 +310,6 @@ function formatEventDuration(startsAt: string, endsAt: string | null) {
   return roundedDays === 1 ? "1 dag" : `${roundedDays} dage`;
 }
 
-function ensureUrl(url: string) {
-  return /^https?:\/\//i.test(url) ? url : "https://" + url;
-}
-
 function formatContactPhone(phone: string) {
   const digits = phone.replace(/\D/g, "");
 
@@ -321,6 +318,42 @@ function formatContactPhone(phone: string) {
   }
 
   return phone;
+}
+
+type EventOrganizerCardProps = {
+  href: string;
+  imageUrl?: string | null;
+  name: string;
+  role: "primary" | "coOrganizer";
+};
+
+function EventOrganizerCard({ href, imageUrl, name, role }: EventOrganizerCardProps) {
+  return (
+    <Link
+      className="group flex h-full min-w-0 flex-col overflow-hidden rounded-[24px] border border-[#E5D4F7] bg-white shadow-soft transition hover:-translate-y-0.5 hover:border-[#7A5D91] hover:shadow-lift"
+      href={href}
+    >
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img alt={`Profilbillede for ${name}`} className="aspect-[4/3] w-full object-cover" src={imageUrl} />
+      ) : (
+        <span className="grid aspect-[4/3] w-full place-items-center bg-[#F4F0F7] text-5xl font-semibold text-[#7A5D91]">
+          {name.slice(0, 1).toUpperCase()}
+        </span>
+      )}
+      <span className="flex min-w-0 flex-1 flex-col p-5">
+        <span className="w-fit rounded-full bg-[#F4F0F7] px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-[#7A5D91]">
+          {role === "primary" ? "Arrangør" : "Medarrangør"}
+        </span>
+        <span className="mt-3 min-w-0 break-words font-serif text-3xl font-semibold leading-tight text-midnight transition group-hover:text-[#7A4EAB]">{name}</span>
+        <span className="mt-auto pt-6">
+          <span className="inline-flex h-11 w-full items-center justify-center rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition group-hover:bg-sage-700">
+            Se profil
+          </span>
+        </span>
+      </span>
+    </Link>
+  );
 }
 
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
@@ -340,6 +373,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       id,
       slug,
       status,
+      facilitator_id,
       title,
       short_description,
       long_description,
@@ -372,6 +406,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         is_disabled,
         host_reference_id,
         company_name,
+        city,
         profile_image_path,
         short_description,
         specialties,
@@ -398,6 +433,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           is_disabled,
           host_reference_id,
           company_name,
+          city,
           profile_image_path,
           specialties,
           facilitator_categories(categories(name, color_hex, slug)),
@@ -430,6 +466,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         id,
         slug,
         status,
+        facilitator_id,
         title,
         short_description,
         long_description,
@@ -462,6 +499,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           is_disabled,
           host_reference_id,
           company_name,
+          city,
           profile_image_path,
           short_description,
           specialties,
@@ -488,6 +526,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             is_disabled,
             host_reference_id,
             company_name,
+            city,
             profile_image_path,
             specialties,
             facilitator_categories(categories(name, color_hex, slug)),
@@ -517,6 +556,26 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const facilitatorProfile = Array.isArray(event.facilitator_profiles)
     ? event.facilitator_profiles[0]
     : event.facilitator_profiles;
+  const { data: facilitatorUpcomingEvents } = await supabase
+    .from("events")
+    .select(
+      `
+      id,
+      slug,
+      title,
+      starts_at,
+      city,
+      event_format,
+      cover_image_path,
+      event_main_categories(main_categories(name, color_hex, image_path))
+    `,
+    )
+    .eq("facilitator_id", event.facilitator_id)
+    .in("status", ["active", "sold_out"])
+    .gt("starts_at", new Date().toISOString())
+    .neq("id", event.id)
+    .order("starts_at", { ascending: true })
+    .limit(4);
   const isPublishedEvent = ["active", "sold_out"].includes(event.status);
   const isSoldOut = event.status === "sold_out" || availableSeats <= 0;
   const userFacingStatus = getUserFacingEventStatus(event);
@@ -556,6 +615,12 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør";
   const isBookable = isPublicEvent && !isSoldOut && !isHeldEvent;
   const facilitatorReturn = safeFacilitatorReturnPath(returnTo) ?? (viewer?.id === facilitatorProfile?.profile_id ? "/facilitator" : null);
+  const eventReturnPath = withSearch(publicEventPath(event.slug || event.id), resolvedSearchParams);
+  const publicReturnLink = safePublicReturnPath(returnTo, eventReturnPath);
+  const publicBackLink = publicReturnLink
+    ? { href: publicReturnLink, label: publicReturnLabel(publicReturnLink) }
+    : { href: "/", label: "Tilbage til forsiden" };
+  const facilitatorProfileHref = withReturnTo(publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id), eventReturnPath);
   const facilitatorImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
@@ -589,22 +654,52 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const eventDescription = event.long_description?.trim() ?? "";
   const cancelledDateLabel = formatDanishDate(event.updated_at || event.starts_at);
 
-  const facilitatorLinks = [
-    facilitatorProfile?.website_url ? { label: "Hjemmeside", href: ensureUrl(facilitatorProfile.website_url) } : null,
-    facilitatorProfile?.facebook_url ? { label: "Facebook", href: ensureUrl(facilitatorProfile.facebook_url) } : null,
-    facilitatorProfile?.instagram_url ? { label: "Instagram", href: ensureUrl(facilitatorProfile.instagram_url) } : null,
-  ].filter((link): link is { label: string; href: string } => Boolean(link));
+  const otherUpcomingEvents = (facilitatorUpcomingEvents ?? []).slice(0, 3);
+  const hasMoreFacilitatorEvents = (facilitatorUpcomingEvents ?? []).length > 3;
+  const seenCoOrganizerIds = new Set<string>();
   const coOrganizers =
     event.event_co_organizers
       ?.filter((row: any) => row.status === "accepted")
       .map((row: any) => (Array.isArray(row.facilitator_profiles) ? row.facilitator_profiles[0] : row.facilitator_profiles))
-      .filter(
-        (coOrganizer: any) =>
-          coOrganizer &&
-          coOrganizer.status === "approved" &&
-          !coOrganizer.is_paused &&
-          !coOrganizer.is_disabled,
-      ) ?? [];
+      .filter((coOrganizer: any) => {
+        if (
+          !coOrganizer ||
+          coOrganizer.status !== "approved" ||
+          coOrganizer.is_paused ||
+          coOrganizer.is_disabled ||
+          coOrganizer.id === facilitatorProfile?.id ||
+          seenCoOrganizerIds.has(coOrganizer.id)
+        ) {
+          return false;
+        }
+
+        seenCoOrganizerIds.add(coOrganizer.id);
+        return true;
+      }) ?? [];
+  const eventOrganizers = [
+    {
+      href: facilitatorProfileHref,
+      id: facilitatorProfile?.id ?? "primary-organizer",
+      imageUrl: facilitatorImageUrl,
+      name: facilitatorName,
+      role: "primary" as const,
+    },
+    ...coOrganizers.map((coOrganizer: any) => {
+      const coOrganizerUser = Array.isArray(coOrganizer.profiles) ? coOrganizer.profiles[0] : coOrganizer.profiles;
+      const coOrganizerName = coOrganizer.company_name || coOrganizerUser?.full_name || "Arrangør";
+      const coOrganizerImageUrl = coOrganizer.profile_image_path
+        ? supabase.storage.from("media").getPublicUrl(coOrganizer.profile_image_path).data.publicUrl
+        : null;
+
+      return {
+        href: withReturnTo(publicFacilitatorPath(coOrganizer.slug || coOrganizer.id), eventReturnPath),
+        id: coOrganizer.id,
+        imageUrl: coOrganizerImageUrl,
+        name: coOrganizerName,
+        role: "coOrganizer" as const,
+      };
+    }),
+  ];
   const eventJsonLd = buildEventJsonLd({
     canonicalUrl: canonicalEventUrl,
     categories: [...mainCategories.map((category) => category.name), ...categories.map((category) => category.name)],
@@ -680,13 +775,13 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                   Tilbage til mine events
                 </Link>
               ) : null}
-              {!facilitatorReturn ? (
+              {!facilitatorReturn && !adminReturn ? (
                 <Link
                   className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
-                  href="/"
+                  href={publicBackLink.href}
                 >
                   <ArrowLeft className="size-4" aria-hidden="true" />
-                  Tilbage til forsiden
+                  {publicBackLink.label}
                 </Link>
               ) : null}
             </nav>
@@ -788,95 +883,69 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           )}
 
           <section className="rounded-card bg-white p-8 shadow-soft">
-            <h2 className="text-4xl font-medium text-olive">Arrangør</h2>
-            <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-start">
-              {facilitatorImageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  alt={`Profilbillede for ${facilitatorName}`}
-                  className="aspect-square size-28 shrink-0 rounded-[22px] object-cover shadow-soft"
-                  src={facilitatorImageUrl}
+            <h2 className="text-4xl font-medium text-olive">Arrangører</h2>
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {eventOrganizers.map((organizer) => (
+                <EventOrganizerCard
+                  href={organizer.href}
+                  imageUrl={organizer.imageUrl}
+                  key={organizer.id}
+                  name={organizer.name}
+                  role={organizer.role}
                 />
-              ) : (
-                <div className="grid aspect-square size-28 shrink-0 place-items-center rounded-[22px] bg-sage-50 text-sage-700">
-                  <CircleUserRound className="size-10" aria-hidden="true" />
-                </div>
-              )}
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Link className="font-semibold text-sage-700 transition hover:text-rose" href={publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id)}>{facilitatorName}</Link>
-                  <OrganizerBadges badges={[facilitatorProfile?.is_experienced_host ? "experienced" : null, facilitatorProfile?.is_active_host ? "active" : null].filter(Boolean) as never} />
-                </div>
-                <SoulEventsIdTag className="mt-2" hostReferenceId={facilitatorProfile?.host_reference_id} />
-                <p className="mt-2 text-sm leading-6 text-ink/66">
-                  {facilitatorProfile?.short_description || "Arrangørens profiltekst kommer snart."}
-                </p>
-                {facilitatorLinks.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {facilitatorLinks.map((link) => (
-                      <a
-                        className="inline-flex h-9 items-center gap-2 rounded-md border border-sage-700/20 bg-white px-3 text-sm font-semibold text-sage-700 transition hover:border-sage-700 hover:bg-sage-50"
-                        href={link.href}
-                        key={link.label}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        <ExternalLink className="size-4" aria-hidden="true" />
-                        {link.label}
-                      </a>
-                    ))}
-                  </div>
-                )}
-                <Link
-                  className="mt-4 inline-flex h-11 items-center justify-center rounded-button bg-olive px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-sage-700 hover:shadow-lift"
-                  href={publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id)}
-                >
-                  Se arrangørens profil
-                </Link>
-              </div>
+              ))}
             </div>
           </section>
 
-          {coOrganizers.length > 0 ? (
+          {otherUpcomingEvents.length > 0 ? (
             <section className="rounded-card bg-white p-8 shadow-soft">
-              <h2 className="text-4xl font-medium text-olive">Medarrangører</h2>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                {coOrganizers.map((coOrganizer: any) => {
-                  const coOrganizerUser = Array.isArray(coOrganizer.profiles) ? coOrganizer.profiles[0] : coOrganizer.profiles;
-                  const coOrganizerName = coOrganizer.company_name || coOrganizerUser?.full_name || "Arrangør";
-                  const coOrganizerImageUrl = coOrganizer.profile_image_path
-                    ? supabase.storage.from("media").getPublicUrl(coOrganizer.profile_image_path).data.publicUrl
-                    : null;
-                  const coOrganizerCategories =
-                    coOrganizer.facilitator_categories
-                      ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
-                      .filter((category: any) => Boolean(category?.name))
-                      .slice(0, 3) ?? [];
+              <h2 className="text-4xl font-medium text-olive">Andre kommende events fra {facilitatorName}</h2>
+              <div className="mt-5 grid gap-3">
+                {otherUpcomingEvents.map((upcomingEvent: any) => {
+                  const upcomingMainCategory = upcomingEvent.event_main_categories
+                    ?.map((row: any) => (Array.isArray(row.main_categories) ? row.main_categories[0] : row.main_categories))
+                    .find((category: any) => Boolean(category));
+                  const upcomingCoverPath = upcomingEvent.cover_image_path || upcomingMainCategory?.image_path || null;
+                  const upcomingCoverUrl = upcomingCoverPath ? supabase.storage.from("media").getPublicUrl(upcomingCoverPath).data.publicUrl : null;
+                  const upcomingLocation = upcomingEvent.event_format === "online" ? "Online" : upcomingEvent.city;
 
                   return (
                     <Link
-                      className="flex gap-4 rounded-[20px] border border-[#E5D4F7] bg-[#FAF8FC] p-4 transition hover:border-[#7A5D91]"
-                      href={publicFacilitatorPath(coOrganizer.slug || coOrganizer.id)}
-                      key={coOrganizer.id}
+                      className="grid gap-4 rounded-[20px] border border-[#E8E0D2] bg-[#FAF8FC] p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-[#D8C9E8] hover:shadow-soft sm:grid-cols-[7.5rem_1fr]"
+                      href={withReturnTo(publicEventPath(upcomingEvent.slug || upcomingEvent.id), eventReturnPath)}
+                      key={upcomingEvent.id}
                     >
-                      {coOrganizerImageUrl ? (
+                      {upcomingCoverUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img alt="" className="size-16 rounded-[18px] object-cover" src={coOrganizerImageUrl} />
+                        <img
+                          alt=""
+                          className="aspect-[4/3] w-full rounded-[16px] object-cover sm:h-24"
+                          src={upcomingCoverUrl}
+                        />
                       ) : (
-                        <span className="grid size-16 place-items-center rounded-[18px] bg-[#F4F0F7] text-lg font-semibold text-[#7A5D91]">
-                          {coOrganizerName.slice(0, 1).toUpperCase()}
+                        <span
+                          className="grid aspect-[4/3] w-full place-items-center rounded-[16px] text-sm font-semibold text-white sm:h-24"
+                          style={{ backgroundColor: upcomingMainCategory?.color_hex || "#7A5D91" }}
+                        >
+                          SoulEvents
                         </span>
                       )}
-                      <span className="min-w-0">
-                        <span className="block font-semibold text-midnight">{coOrganizerName}</span>
-                        <SoulEventsIdTag className="mt-2" hostReferenceId={coOrganizer.host_reference_id} />
-                        {coOrganizerCategories.length > 0 ? (
-                          <span className="mt-2 flex flex-wrap gap-1.5">
-                            {coOrganizerCategories.map((category: any) => (
-                              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-ink/64" key={category.name}>
-                                {category.name}
-                              </span>
-                            ))}
+                      <span className="min-w-0 py-1">
+                        <span className="line-clamp-2 text-lg font-semibold leading-snug text-midnight">{upcomingEvent.title}</span>
+                        <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-ink/64">
+                          <span className="inline-flex items-center gap-1.5">
+                            <CalendarDays className="size-4 text-[#7A5D91]" aria-hidden="true" />
+                            {formatDanishDate(upcomingEvent.starts_at)}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Clock3 className="size-4 text-[#7A5D91]" aria-hidden="true" />
+                            {formatDanishTime(upcomingEvent.starts_at)}
+                          </span>
+                        </span>
+                        {upcomingLocation ? (
+                          <span className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-sage-700">
+                            <MapPinned className="size-4" aria-hidden="true" />
+                            {upcomingLocation}
                           </span>
                         ) : null}
                       </span>
@@ -884,6 +953,14 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                   );
                 })}
               </div>
+              {hasMoreFacilitatorEvents ? (
+                <Link
+                  className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#7A4EAB] transition hover:text-[#6E5285]"
+                  href={facilitatorProfileHref}
+                >
+                  Se alle events fra {facilitatorName} →
+                </Link>
+              ) : null}
             </section>
           ) : null}
         </div>
@@ -1009,7 +1086,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               eventId={event.id}
               eventStartsAt={event.starts_at}
               eventTitle={event.title}
-              facilitatorProfileHref={publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id)}
+              facilitatorProfileHref={facilitatorProfileHref}
               message={message}
               messageVariant={messageVariant}
             />

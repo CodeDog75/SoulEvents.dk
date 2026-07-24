@@ -17,6 +17,7 @@ type CategoryEventExplorerProps = {
   initialSelectedSlugs: string[];
   mainCategoryName: string;
   partnerAds: PartnerAd[];
+  returnTo: string;
   selectedArea: string;
   subcategories: Subcategory[];
 };
@@ -68,11 +69,13 @@ export function CategoryEventExplorer({
   initialSelectedSlugs,
   mainCategoryName,
   partnerAds,
+  returnTo: initialReturnTo,
   selectedArea,
   subcategories,
 }: CategoryEventExplorerProps) {
   const initialSelection = initialSelectedSlugs.length > 0 ? initialSelectedSlugs : allSubcategorySlugs;
   const [selectedSlugs, setSelectedSlugs] = useState(initialSelection);
+  const [returnTo, setReturnTo] = useState(initialReturnTo);
   const selectedSet = new Set(selectedSlugs);
   const allSelected = selectedSlugs.length === allSubcategorySlugs.length;
   const filteredEvents = useMemo(
@@ -94,7 +97,9 @@ export function CategoryEventExplorer({
     }
 
     const query = params.toString();
-    window.history.replaceState(null, "", window.location.pathname + (query ? "?" + query : ""));
+    const nextPath = window.location.pathname + (query ? "?" + query : "");
+    window.history.replaceState(null, "", nextPath);
+    setReturnTo(nextPath);
   }
 
   function toggleSubcategory(slug: string) {
@@ -168,9 +173,9 @@ export function CategoryEventExplorer({
         </div>
         {filteredEvents.length > 0 ? (
           <div className="grid gap-8">
-            <PublicEventList events={eventsBeforeAd} />
+            <PublicEventList events={eventsBeforeAd} returnTo={returnTo} />
             {showPartnerAd && <PartnerAdCarousel ads={partnerAds} />}
-            {eventsAfterAd.length > 0 && <PublicEventList events={eventsAfterAd} />}
+            {eventsAfterAd.length > 0 && <PublicEventList events={eventsAfterAd} returnTo={returnTo} />}
           </div>
         ) : (
           <section className="rounded-card bg-white p-8 text-center shadow-soft">

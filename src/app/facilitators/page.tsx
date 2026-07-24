@@ -7,6 +7,7 @@ import { OrganizerImageBadge } from "@/components/badges/organizer-badges";
 import { FacilitatorLetterFilter, FacilitatorLetterResultsScroll } from "@/components/facilitator/facilitator-letter-filter";
 import { SoulEventsIdTag } from "@/components/facilitator/soulevents-id-tag";
 import { createPageMetadata } from "@/lib/open-graph";
+import { withReturnTo } from "@/lib/return-to";
 import { publicFacilitatorPath } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 
@@ -65,6 +66,12 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
     area: params.area ?? "",
     letter: params.letter ?? "",
   };
+  const returnParams = new URLSearchParams();
+  for (const key of ["q", "category", "area", "letter"] as const) {
+    const value = selected[key];
+    if (value) returnParams.set(key, value);
+  }
+  const directoryReturnPath = "/facilitators" + (returnParams.size > 0 ? "?" + returnParams.toString() : "");
   const supabase = await createClient();
 
   const [{ data: facilitators }, { data: categories }, { data: regions }, { data: events }] = await Promise.all([
@@ -210,7 +217,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
                   "group overflow-hidden rounded-card shadow-soft transition hover:-translate-y-1 hover:shadow-lift " +
                   (platformOwner ? "border border-[#D8C7EE] bg-[#F4F0FA]" : "bg-white")
                 }
-                href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
+                href={withReturnTo(publicFacilitatorPath(facilitator.slug || facilitator.id), directoryReturnPath)}
                 key={facilitator.id}
               >
                 <div className={"relative aspect-[5/4] " + (platformOwner ? "bg-[#EDE4F7]" : "bg-sage-50")}>

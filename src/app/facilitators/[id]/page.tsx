@@ -14,6 +14,7 @@ import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
 import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
 import { buildFacilitatorMetadata, buildProfilePageJsonLd } from "@/lib/seo/public-page-metadata";
 import { publicFacilitatorPath } from "@/lib/slug";
+import { publicReturnLabel, safePublicReturnPath } from "@/lib/return-to";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 type FacilitatorPageProps = {
   params: Promise<{ id?: string; slug?: string }>;
-  searchParams?: Promise<{ admin_return?: string; facilitator_return?: string; reminder_message?: string }>;
+  searchParams?: Promise<{ admin_return?: string; facilitator_return?: string; reminder_message?: string; return_to?: string }>;
 };
 
 function first<T>(value: T | T[] | null | undefined) {
@@ -132,6 +133,28 @@ const facilitatorSelectWithHero =
   "id, profile_id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 const facilitatorSelectLegacy =
   "id, profile_id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
+const publicEventSelect =
+  "id, slug, status, title, short_description, starts_at, ends_at, city, price_cents, capacity, event_format, cover_image_path, facilitator_profiles!inner(id, status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), event_co_organizers(created_at, status, facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(id, slug, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))), regions(name), event_categories(categories(name, color_hex)), event_main_categories(main_categories(name, color_hex, image_path))";
+
+function sortEventsByStartDate<T extends { starts_at: string }>(events: T[]) {
+  return [...events].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+}
+
+function uniqueProfileEvents(primaryEvents: any[], coOrganizerEvents: any[]) {
+  const byId = new Map<string, any>();
+
+  for (const event of primaryEvents) {
+    byId.set(event.id, { ...event, organizer_role: "primary" });
+  }
+
+  for (const event of coOrganizerEvents) {
+    if (!byId.has(event.id)) {
+      byId.set(event.id, { ...event, organizer_role: "coOrganizer" });
+    }
+  }
+
+  return sortEventsByStartDate([...byId.values()]);
+}
 
 export async function generateMetadata({ params }: FacilitatorPageProps): Promise<Metadata> {
   const identifier = facilitatorIdentifier(await params);
@@ -314,6 +337,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
         admin_return: resolvedSearchParams?.admin_return,
         facilitator_return: resolvedSearchParams?.facilitator_return,
         reminder_message: resolvedSearchParams?.reminder_message,
+        return_to: resolvedSearchParams?.return_to,
       }),
     );
   }
@@ -324,9 +348,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
 
   const { data: events } = await supabase
     .from("events")
-    .select(
-      "id, slug, status, title, short_description, starts_at, ends_at, city, price_cents, capacity, event_format, cover_image_path, facilitator_profiles!inner(status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), regions(name), event_categories(categories(name, color_hex)), event_main_categories(main_categories(name, color_hex, image_path))",
-    )
+    .select(publicEventSelect)
     .eq("facilitator_id", facilitatorData.id)
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
@@ -334,8 +356,27 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     .eq("facilitator_profiles.is_disabled", false)
     .gte("ends_at", new Date().toISOString())
     .order("starts_at", { ascending: true });
-  const availableSeatsByEventId = await getAvailableEventSeatsByEventId(createAdminClient(), events ?? []);
-  const eventsWithCapacity = (events ?? []).map((event: any) => ({
+  const { data: coOrganizerRows } = await supabase
+    .from("event_co_organizers")
+    .select(
+      "event_id, status, events!event_co_organizers_event_id_fkey!inner(" +
+        publicEventSelect +
+        ")",
+    )
+    .eq("co_organizer_profile_id", facilitatorData.id)
+    .eq("status", "accepted")
+    .in("events.status", ["active", "sold_out"])
+    .eq("events.facilitator_profiles.status", "approved")
+    .eq("events.facilitator_profiles.is_paused", false)
+    .eq("events.facilitator_profiles.is_disabled", false)
+    .gte("events.ends_at", new Date().toISOString());
+  const coOrganizerEvents =
+    coOrganizerRows
+      ?.map((row: any) => first(row.events))
+      .filter((event: any) => Boolean(event)) ?? [];
+  const profileEvents = uniqueProfileEvents(events ?? [], coOrganizerEvents);
+  const availableSeatsByEventId = await getAvailableEventSeatsByEventId(createAdminClient(), profileEvents);
+  const eventsWithCapacity = profileEvents.map((event: any) => ({
     ...event,
     available_seats: availableSeatsByEventId.get(event.id) ?? null,
   }));
@@ -384,7 +425,13 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     facilitatorData.tiktok_url ? { label: "TikTok", href: ensureUrl(facilitatorData.tiktok_url) } : null,
   ].filter((link): link is { label: string; href: string } => Boolean(link));
   const isOwnProfilePreview = viewer?.role === "facilitator" && viewer.id === facilitatorData.profile_id;
-  const backLink = adminReturnLink ?? facilitatorReturnLink ?? (isOwnProfilePreview ? { href: "/facilitator", label: "Tilbage til dashboard" } : getBackLink(referer, publicFacilitatorPath(facilitatorData.slug || facilitatorData.id)));
+  const currentProfilePath = publicFacilitatorPath(facilitatorData.slug || facilitatorData.id);
+  const publicReturnLink = safePublicReturnPath(resolvedSearchParams?.return_to, currentProfilePath);
+  const backLink =
+    adminReturnLink ??
+    facilitatorReturnLink ??
+    (publicReturnLink ? { href: publicReturnLink, label: publicReturnLabel(publicReturnLink) } : null) ??
+    (isOwnProfilePreview ? { href: "/facilitator", label: "Tilbage til dashboard" } : getBackLink(referer, currentProfilePath));
   const badges = organizerBadgesFromFlags({
     isActiveHost: facilitatorData.is_active_host,
     isExperiencedHost: facilitatorData.is_experienced_host,
@@ -443,6 +490,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
           region: region?.name,
         }}
         coverImage={coverImage}
+        eventReturnTo={currentProfilePath}
         events={eventsWithCapacity}
         facilitatorId={facilitatorData.id}
         facilitatorSlug={facilitatorData.slug}

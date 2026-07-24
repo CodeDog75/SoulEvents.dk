@@ -12,6 +12,7 @@ import { Fragment } from "react";
 import { PartnerAdCarousel } from "@/components/ads/partner-ad-carousel";
 import { BrandLogo } from "@/components/brand-logo";
 import { EventMap } from "@/components/events/event-map";
+import { getEventOrganizerNames } from "@/components/events/event-organizer-chips";
 import { EventCarouselSection, FacilitatorCarouselSection } from "@/components/events/event-carousel-section";
 import { HomeEventSearchForm } from "@/components/events/home-event-search-form";
 import { PublicEventList, type PublicEvent } from "@/components/events/public-event-list";
@@ -27,6 +28,7 @@ import type { FeedbackHomepageFrequency } from "@/lib/feedback";
 import { publicMediaUrl } from "@/lib/media/public-url";
 import { createPageMetadata, getHomepageOgImageUrl } from "@/lib/open-graph";
 import { getAreaOption } from "@/lib/regions/areas";
+import { withReturnTo } from "@/lib/return-to";
 import { publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -671,7 +673,7 @@ async function getSearchEvents(selected: {
   let query = supabase
     .from("events")
     .select(
-      "id, slug, status, title, short_description, starts_at, created_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, host_reference_id, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), regions(name), event_categories(categories(id, name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug)), event_tags(tag_id, tags(name))",
+      "id, slug, status, title, short_description, starts_at, created_at, latitude, longitude, city, price_cents, capacity, cover_image_path, event_format, facilitator_profiles!inner(id, status, host_reference_id, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), event_co_organizers(created_at, status, facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(id, slug, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))), regions(name), event_categories(categories(id, name, color_hex)), event_main_categories(main_category_id, main_categories(name, color_hex, image_path)), event_subcategories(subcategory_id, subcategories(name, slug)), event_tags(tag_id, tags(name))",
     )
     .in("status", ["active", "sold_out"])
     .eq("facilitator_profiles.status", "approved")
@@ -971,7 +973,7 @@ async function getLocalServiceProviders(selected: {
     });
 }
 
-function LocalServiceProviderSection({ providers }: { providers: LocalServiceProvider[] }) {
+function LocalServiceProviderSection({ providers, returnTo }: { providers: LocalServiceProvider[]; returnTo?: string | null }) {
   if (providers.length === 0) return null;
 
   return (
@@ -987,7 +989,7 @@ function LocalServiceProviderSection({ providers }: { providers: LocalServicePro
         {providers.slice(0, 3).map((provider) => (
           <Link
             className="group rounded-card border border-white bg-white p-4 shadow-soft transition hover:-translate-y-0.5 hover:border-[#D7C4F0]"
-            href={publicFacilitatorPath(provider.slug || provider.id)}
+            href={withReturnTo(publicFacilitatorPath(provider.slug || provider.id), returnTo)}
             key={provider.id}
           >
             <div className="flex items-start gap-3">
@@ -1275,6 +1277,14 @@ export default async function Home({ searchParams }: HomeProps) {
   };
   const selectedCollectionId = params.collection ?? "";
   const selectedHomepageView = params.view === "new" ? params.view : "";
+  const publicHomeReturnParams = new URLSearchParams();
+  for (const key of ["q", "area", "category_label", "date", "distance", "latitude", "longitude", "format", "country", "collection", "view", "facilitator_q"] as const) {
+    const value = params[key];
+    if (typeof value === "string" && value) publicHomeReturnParams.set(key, value);
+  }
+  const publicHomeReturnPath = "/" + (publicHomeReturnParams.size > 0 ? "?" + publicHomeReturnParams.toString() : "");
+  const eventsReturnPath = publicHomeReturnPath + "#events";
+  const mapReturnPath = publicHomeReturnPath + "#map";
   const hasSearch = Boolean(
     selected.q ||
       selected.area ||
@@ -1390,12 +1400,6 @@ export default async function Home({ searchParams }: HomeProps) {
   ];
   const mobileHiddenHomepageEventSections = new Set<string>();
   const mapEvents = mapSourceEvents.map((event) => {
-    const facilitatorProfile = Array.isArray(event.facilitator_profiles)
-      ? event.facilitator_profiles[0]
-      : event.facilitator_profiles;
-    const facilitatorUser = Array.isArray(facilitatorProfile?.profiles)
-      ? facilitatorProfile?.profiles[0]
-      : facilitatorProfile?.profiles;
     const firstCategoryRow = event.event_categories?.[0];
     const firstCategory = Array.isArray(firstCategoryRow?.categories)
       ? firstCategoryRow?.categories[0]
@@ -1408,7 +1412,7 @@ export default async function Home({ searchParams }: HomeProps) {
       priceCents: event.price_cents,
       latitude: event.latitude,
       longitude: event.longitude,
-      facilitatorName: facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør",
+      facilitatorName: getEventOrganizerNames(event).join(" | "),
       categoryName: firstCategory?.name ?? null,
       categoryColor: firstCategory?.color_hex ?? null,
       imageUrl: publicMediaUrl(event.cover_image_path),
@@ -1583,7 +1587,7 @@ export default async function Home({ searchParams }: HomeProps) {
               return (
                 <Fragment key={section.title}>
                   <div className={visibilityClass}>
-                    <EventCarouselSection events={section.events} href={section.href} title={section.title} />
+                    <EventCarouselSection events={section.events} href={section.href} returnTo="/#events" title={section.title} />
                   </div>
                   {index === 0 && homepageMiddleAds.length > 0 ? (
                     <PartnerAdCarousel ads={homepageMiddleAds} className="py-1" />
@@ -1649,8 +1653,8 @@ export default async function Home({ searchParams }: HomeProps) {
 
               {displayedSearchEvents.length > 0 ? (
                 <>
-                  <PublicEventList events={displayedSearchEvents as never} />
-                  <LocalServiceProviderSection providers={localServiceProviders} />
+                  <PublicEventList events={displayedSearchEvents as never} returnTo={eventsReturnPath} />
+                  <LocalServiceProviderSection providers={localServiceProviders} returnTo={eventsReturnPath} />
                 </>
               ) : (
                 <div className="grid gap-8">
@@ -1672,7 +1676,7 @@ export default async function Home({ searchParams }: HomeProps) {
                           {facilitatorCards.slice(0, 3).map((facilitator) => (
                             <Link
                               className="flex items-center justify-between gap-3 rounded-md border border-olive/10 bg-[#EDE4F7]/55 px-4 py-3 text-sm font-semibold text-[#2F2633] transition hover:border-sage-700"
-                              href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
+                              href={withReturnTo(publicFacilitatorPath(facilitator.slug || facilitator.id), eventsReturnPath)}
                               key={facilitator.id}
                             >
                               <span>{facilitator.name}</span>
@@ -1696,14 +1700,14 @@ export default async function Home({ searchParams }: HomeProps) {
             <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Danmarkskort</p>
             <h2 className="mt-1 text-3xl font-medium leading-tight text-[#2F2633] sm:text-5xl">Udforsk events på kort</h2>
           </div>
-          <EventMap events={mapEvents} mapboxStyleUrl={env.mapboxStyleUrl} mapboxToken={env.mapboxToken} serviceProviders={localServiceProviders} />
+          <EventMap events={mapEvents} mapboxStyleUrl={env.mapboxStyleUrl} mapboxToken={env.mapboxToken} returnTo={mapReturnPath} serviceProviders={localServiceProviders} />
         </div>
       </section>
 
       {!hasSearch && (
         <section className="bg-white py-12 sm:py-12" id="facilitators">
           <div className="mx-auto grid max-w-[1200px] gap-8 px-5 sm:px-8">
-            <FacilitatorCarouselSection facilitators={facilitatorCards} href="/facilitators" title="Mød arrangørerne" />
+            <FacilitatorCarouselSection facilitators={facilitatorCards} href="/facilitators" returnTo="/#facilitators" title="Mød arrangørerne" />
           </div>
         </section>
       )}
