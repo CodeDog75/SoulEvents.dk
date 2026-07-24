@@ -27,6 +27,9 @@ export function SiteFooterLogin() {
           <Link className="transition hover:text-rose" href="/legal/handelsbetingelser">
             Vilkår
           </Link>
+          <Link className="transition hover:text-rose" href="/legal/arrangoervilkaar">
+            Arrangørvilkår
+          </Link>
           <CookieSettingsButton />
           <Link className="transition hover:text-rose" href="/auth/login">
             Log ind
