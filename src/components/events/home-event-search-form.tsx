@@ -229,7 +229,9 @@ export function HomeEventSearchForm({
     <form
       action="/#events"
       aria-label="Find events"
+      autoComplete="off"
       className="w-full max-w-full min-w-0"
+      data-soulevents-gcr-cleanup-root="true"
       onSubmit={submitForm}
       ref={formRef}
     >
@@ -242,11 +244,16 @@ export function HomeEventSearchForm({
             <Search className="size-5 shrink-0 text-[#7A4EAB]" aria-hidden="true" />
             <span className="sr-only">Hvad søger du?</span>
             <input
+              autoCapitalize="none"
+              autoComplete="off"
+              autoCorrect="off"
               className="min-w-0 flex-1 bg-transparent text-base font-medium outline-none placeholder:text-[#2F2633]/68 md:text-[15px]"
+              inputMode="search"
               name="q"
               onChange={(event) => setQuery(event.currentTarget.value)}
               placeholder="Hvad søger du?"
               ref={searchInputRef}
+              spellCheck={false}
               type="search"
               value={query}
             />

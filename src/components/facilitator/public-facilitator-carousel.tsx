@@ -36,7 +36,11 @@ export function PublicFacilitatorCarousel({ facilitators, query }: PublicFacilit
             </p>
           </div>
 
-          <form action="/#facilitators" className="grid gap-3 rounded-card bg-white p-4 shadow-soft sm:grid-cols-[1fr_auto] sm:items-end">
+          <form
+            action="/#facilitators"
+            className="grid gap-3 rounded-card bg-white p-4 shadow-soft sm:grid-cols-[1fr_auto] sm:items-end"
+            data-soulevents-gcr-cleanup-root="true"
+          >
             <input name="scroll_to" type="hidden" value="facilitators" />
             <label className="grid gap-2 text-sm font-semibold text-[#2F2633]">
               Søg efter arrangør

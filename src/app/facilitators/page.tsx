@@ -145,20 +145,29 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
           kan du udforske arrangører, der skaber meningsfulde aktiviteter og fællesskaber for krop, sind og sjæl.
         </p>
 
-        <form className="mt-8 grid gap-3 rounded-card bg-white p-4 shadow-soft lg:grid-cols-[1.2fr_0.9fr_0.9fr_auto] lg:items-end">
+        <form
+          autoComplete="off"
+          className="mt-8 grid gap-3 rounded-card bg-white p-4 shadow-soft lg:grid-cols-[1.2fr_0.9fr_0.9fr_auto] lg:items-end"
+          data-soulevents-gcr-cleanup-root="true"
+        >
           <label className="grid gap-2 text-sm font-semibold text-olive">
             Søg
             <input
+              autoCapitalize="none"
+              autoComplete="off"
+              autoCorrect="off"
               className="h-12 rounded-input border border-olive/15 px-4 text-base font-normal outline-none transition focus:border-rose"
               defaultValue={selected.q}
+              inputMode="search"
               name="q"
               placeholder="Søg efter navn, profiltekst, kategori eller område..."
+              spellCheck={false}
               type="search"
             />
           </label>
           <label className="grid gap-2 text-sm font-semibold text-olive">
             Kategori
-            <select className="h-12 rounded-input border border-olive/15 bg-white px-4" defaultValue={selected.category} name="category">
+            <select autoComplete="off" className="h-12 rounded-input border border-olive/15 bg-white px-4" defaultValue={selected.category} name="category">
               <option value="">Alle kategorier</option>
               {(categories ?? []).map((category) => (
                 <option key={category.id} value={category.id}>{category.name}</option>
@@ -167,7 +176,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
           </label>
           <label className="grid gap-2 text-sm font-semibold text-olive">
             Område
-            <select className="h-12 rounded-input border border-olive/15 bg-white px-4" defaultValue={selected.area} name="area">
+            <select autoComplete="off" className="h-12 rounded-input border border-olive/15 bg-white px-4" defaultValue={selected.area} name="area">
               <option value="">Hele Danmark</option>
               {(regions ?? []).map((region) => (
                 <option key={region.slug} value={region.slug}>{region.name}</option>

@@ -275,7 +275,11 @@ export default async function MainCategoryPage({ params, searchParams }: Categor
           <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/64">
             Vælg et område, hvis du kun vil se oplevelser i en bestemt del af Danmark.
           </p>
-          <form className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]" action={"/categories/" + mainCategory.slug}>
+          <form
+            action={"/categories/" + mainCategory.slug}
+            className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]"
+            data-soulevents-gcr-cleanup-root="true"
+          >
             {requestedSubSlugs.length > 0 && <input name="sub" type="hidden" value={requestedSubSlugs.join(",")} />}
             <select
               className="h-12 rounded-input border border-[#7A4EAB]/15 bg-white px-4 text-base outline-none transition focus:border-[#7A4EAB]"

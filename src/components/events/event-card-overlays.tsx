@@ -11,17 +11,34 @@ type EventImageStatusTagProps = {
   status?: string | null;
 };
 
-const weekdayFormatter = new Intl.DateTimeFormat("da-DK", { weekday: "long" });
-const monthFormatter = new Intl.DateTimeFormat("da-DK", { month: "long" });
+const eventDateFormatter = new Intl.DateTimeFormat("da-DK", {
+  day: "numeric",
+  month: "long",
+  timeZone: "Europe/Copenhagen",
+  weekday: "long",
+  year: "numeric",
+});
+const eventTimeFormatter = new Intl.DateTimeFormat("da-DK", {
+  timeStyle: "short",
+  timeZone: "Europe/Copenhagen",
+});
+
+function eventDateParts(value: string) {
+  const parts = eventDateFormatter.formatToParts(new Date(value));
+  return {
+    day: parts.find((part) => part.type === "day")?.value ?? "",
+    month: parts.find((part) => part.type === "month")?.value ?? "",
+    weekday: parts.find((part) => part.type === "weekday")?.value ?? "",
+    year: parts.find((part) => part.type === "year")?.value ?? "",
+  };
+}
 
 export function formatEventTime(value: string) {
-  return new Intl.DateTimeFormat("da-DK", { timeStyle: "short" }).format(new Date(value));
+  return eventTimeFormatter.format(new Date(value));
 }
 
 export function EventDateBox({ startsAt }: EventDateBoxProps) {
-  const date = new Date(startsAt);
-  const weekday = weekdayFormatter.format(date);
-  const month = monthFormatter.format(date);
+  const { day, month, weekday, year } = eventDateParts(startsAt);
 
   return (
     <time
@@ -32,13 +49,13 @@ export function EventDateBox({ startsAt }: EventDateBoxProps) {
         {weekday}
       </span>
       <span className="mt-1 text-2xl font-semibold leading-none text-[#2F2633] sm:text-[1.7rem]">
-        {date.getDate()}
+        {day}
       </span>
       <span className="mt-0.5 max-w-full truncate text-xs font-semibold capitalize leading-none text-[#4F6849]">
         {month}
       </span>
       <span className="mt-1 text-[0.65rem] font-semibold leading-none text-[#6E6475]">
-        {date.getFullYear()}
+        {year}
       </span>
     </time>
   );

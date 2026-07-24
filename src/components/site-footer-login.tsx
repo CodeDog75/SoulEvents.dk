@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { BrandLogo } from "@/components/brand-logo";
 import { CookieSettingsButton } from "@/components/cookie-settings-button";
 
@@ -35,6 +36,24 @@ export function SiteFooterLogin() {
             Log ind
           </Link>
         </div>
+      </div>
+      <div className="mx-auto flex max-w-[1200px] flex-col items-center justify-center gap-2 px-5 pb-6 text-center text-xs font-medium text-ink/50 sm:flex-row sm:px-8">
+        <span>SoulEvents er udviklet og designet af</span>
+        <a
+          aria-label="StartupDesign.dk"
+          className="inline-flex items-center opacity-75 transition hover:opacity-55"
+          href="https://startupdesign.dk"
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          <Image
+            alt="StartupDesign.dk"
+            className="h-6 w-auto"
+            height={317}
+            src="/brand/startupdesign-logo.png"
+            width={788}
+          />
+        </a>
       </div>
       <p className="mx-auto mt-6 max-w-[1200px] px-5 pb-8 text-center text-xs text-ink/50 sm:px-8">
         © 2026 SoulEvents. Alle rettigheder forbeholdes.
