@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, FileText, ExternalLink } from "lucide-react";
 import { updateBecomeOrganizerPageContentAction } from "@/app/admin/content/bliv-arrangoer/actions";
+import { BecomeFacilitatorPresentationSectionCard } from "@/components/admin/become-facilitator-presentation-section-card";
 import { BecomeOrganizerImageFields } from "@/components/admin/become-organizer-image-fields";
 import { BecomeOrganizerSubmitButton } from "@/components/admin/become-organizer-submit-button";
 import { AuthMessage } from "@/components/auth/auth-message";
@@ -12,6 +13,10 @@ import {
   type BecomeOrganizerBenefit,
   type BecomeOrganizerFaqItem,
 } from "@/lib/become-organizer-page-content";
+import {
+  mergeBecomeFacilitatorPresentationSections,
+  publicSectionImageUrl,
+} from "@/lib/become-facilitator-presentation-sections";
 import { requireRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 
@@ -72,8 +77,15 @@ function padFaq(items: BecomeOrganizerFaqItem[]) {
 export default async function AdminBecomeOrganizerPage({ searchParams }: AdminBecomeOrganizerPageProps) {
   const [{ message }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = await createClient();
-  const { data: setting } = await supabase.from("site_settings").select("value").eq("key", becomeOrganizerPageSettingKey).maybeSingle();
+  const [{ data: setting }, { data: presentationRows }] = await Promise.all([
+    supabase.from("site_settings").select("value").eq("key", becomeOrganizerPageSettingKey).maybeSingle(),
+    supabase
+      .from("become_facilitator_sections")
+      .select("id,section_key,title,body,image_url,image_path,image_alt,sort_order,is_active")
+      .order("sort_order", { ascending: true }),
+  ]);
   const content = parseBecomeOrganizerPageContent(setting?.value);
+  const presentationSections = mergeBecomeFacilitatorPresentationSections(presentationRows);
 
   const hero = getBecomeOrganizerSection(content, "hero", "hero") ?? getBecomeOrganizerSection(defaultBecomeOrganizerPageContent, "hero", "hero");
   const introText =
@@ -287,6 +299,23 @@ export default async function AdminBecomeOrganizerPage({ searchParams }: AdminBe
             </div>
           </div>
         </form>
+
+        <section className="grid gap-4">
+          <div className="rounded-card border border-sage-700/15 bg-sage-50 p-5">
+            <h2 className="font-semibold text-midnight">Præsentationsafsnit</h2>
+            <p className="mt-2 text-sm leading-6 text-ink/70">
+              Rediger de tre billedkort under “Se fordelene ved SoulEvents”. Hvert afsnit gemmes for sig, og nye uploads får en ny URL, så gamle
+              cachede billeder ikke hænger fast.
+            </p>
+          </div>
+          {presentationSections.map((section) => (
+            <BecomeFacilitatorPresentationSectionCard
+              imageSrc={publicSectionImageUrl(supabase, section)}
+              key={section.sectionKey}
+              section={section}
+            />
+          ))}
+        </section>
       </section>
     </main>
   );

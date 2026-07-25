@@ -3,35 +3,23 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, ImageIcon, X } from "lucide-react";
+import { defaultBecomeFacilitatorPresentationSections } from "@/lib/become-facilitator-presentation-sections";
 
-type PresentationCard = {
+export type PresentationCard = {
   alt: string;
   description: string;
   imagePath: string;
   title: string;
 };
 
-const presentations: PresentationCard[] = [
-  {
-    title: "Bliv fundet af de rigtige deltagere",
-    description: "Se hvordan en arrangørprofil kan gøre dine events, ydelser og fællesskaber mere synlige på SoulEvents.",
-    imagePath: "/facilitator/arrangoer-praesentation-1.png",
-    alt: "Informationsgrafik om fordelene ved at blive arrangør på SoulEvents",
-  },
-  {
-    title: "Skab ro omkring dit eventflow",
-    description: "En enkel visning af hvordan SoulEvents samler profil, events, tilmeldinger og dialog ét sted.",
-    imagePath: "/facilitator/arrangoer-praesentation-2.png",
-    alt: "Informationsgrafik om arrangørens eventflow på SoulEvents",
-  },
-  {
-    title: "Derfor vælger arrangører SoulEvents",
-    description:
-      "Se, hvordan SoulEvents hjælper dig med at blive fundet, opbygge et publikum og skabe overblik – så du kan bruge mere tid på det, du brænder for.",
-    imagePath: "/facilitator/arrangoer-praesentation-3.png",
-    alt: "Informationsgrafik om hvorfor arrangører vælger SoulEvents",
-  },
-];
+const fallbackPresentations: PresentationCard[] = defaultBecomeFacilitatorPresentationSections
+  .filter((section) => section.isActive && section.imageUrl)
+  .map((section) => ({
+    title: section.title,
+    description: section.body,
+    imagePath: section.imageUrl ?? "",
+    alt: section.imageAlt,
+  }));
 
 function MissingImagePreview() {
   return (
@@ -67,7 +55,7 @@ function PresentationPreview({ card, priority }: { card: PresentationCard; prior
   );
 }
 
-export function OrganizerPresentationGallery() {
+export function OrganizerPresentationGallery({ presentations = fallbackPresentations }: { presentations?: PresentationCard[] }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [missingFullImage, setMissingFullImage] = useState(false);
   const triggerRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -102,6 +90,10 @@ export function OrganizerPresentationGallery() {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [activeCard, closeModal]);
+
+  if (presentations.length === 0) {
+    return null;
+  }
 
   return (
     <section className="rounded-[28px] bg-white p-6 shadow-soft sm:p-8">

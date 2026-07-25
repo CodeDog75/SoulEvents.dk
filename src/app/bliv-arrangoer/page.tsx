@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Play, Sparkles } from "lucide-react";
-import { OrganizerPresentationGallery } from "@/components/become-organizer/organizer-presentation-gallery";
+import { OrganizerPresentationGallery, type PresentationCard } from "@/components/become-organizer/organizer-presentation-gallery";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteFooterLogin } from "@/components/site-footer-login";
+import {
+  mergeBecomeFacilitatorPresentationSections,
+  publicSectionImageUrl,
+} from "@/lib/become-facilitator-presentation-sections";
 import {
   becomeOrganizerPageSettingKey,
   parseBecomeOrganizerPageContent,
@@ -13,16 +17,23 @@ import {
   type BecomeOrganizerSection,
 } from "@/lib/become-organizer-page-content";
 import { createPageMetadata, getHomepageOgImageUrl } from "@/lib/open-graph";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 async function getContent() {
   const supabase = await createClient();
+  const admin = createAdminClient();
   const { data: setting } = await supabase.from("site_settings").select("value").eq("key", becomeOrganizerPageSettingKey).maybeSingle();
+  const { data: presentationRows } = await admin
+    .from("become_facilitator_sections")
+    .select("id,section_key,title,body,image_url,image_path,image_alt,sort_order,is_active")
+    .order("sort_order", { ascending: true });
 
   return {
     content: parseBecomeOrganizerPageContent(setting?.value),
+    presentationSections: mergeBecomeFacilitatorPresentationSections(presentationRows).filter((section) => section.isActive),
     supabase,
   };
 }
@@ -301,8 +312,17 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function BecomeOrganizerPage() {
-  const { content, supabase } = await getContent();
+  const { content, presentationSections, supabase } = await getContent();
   const faqSection = content.sections.find((section): section is Extract<BecomeOrganizerSection, { type: "faq" }> => section.type === "faq" && section.isEnabled);
+  const presentationCards: PresentationCard[] = presentationSections
+    .map((section) => ({
+      title: section.title,
+      description: section.body,
+      imagePath: publicSectionImageUrl(supabase, section) ?? "",
+      alt: section.imageAlt,
+    }))
+    .filter((section) => section.imagePath)
+    .slice(0, 3);
 
   return (
     <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
@@ -310,7 +330,7 @@ export default async function BecomeOrganizerPage() {
         {content.sections.map((section) => (
           <SectionRenderer key={section.id} section={section} supabase={supabase} />
         ))}
-        <OrganizerPresentationGallery />
+        <OrganizerPresentationGallery presentations={presentationCards} />
       </section>
 
       {faqSection ? (

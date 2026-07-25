@@ -14,6 +14,10 @@ import {
   type BecomeOrganizerPageContent,
   type BecomeOrganizerSection,
 } from "@/lib/become-organizer-page-content";
+import {
+  defaultBecomeFacilitatorPresentationSections,
+  type BecomeFacilitatorSectionKey,
+} from "@/lib/become-facilitator-presentation-sections";
 import { requireRole } from "@/lib/auth/roles";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -77,7 +81,7 @@ async function ensureSiteContentBucket(supabase: ReturnType<typeof createAdminCl
   return null;
 }
 
-async function uploadBecomeOrganizerImage(file: FormDataEntryValue | null, key: BecomeOrganizerImageKey, currentPath: string | null) {
+async function uploadBecomeOrganizerImage(file: FormDataEntryValue | null, key: BecomeOrganizerImageKey | string, currentPath: string | null) {
   if (!(file instanceof File) || file.size === 0) {
     return { path: currentPath };
   }
@@ -120,6 +124,10 @@ async function uploadBecomeOrganizerImage(file: FormDataEntryValue | null, key: 
   }
 
   return { path: imagePath };
+}
+
+function isPresentationSectionKey(value: string): value is BecomeFacilitatorSectionKey {
+  return value === "section_1" || value === "section_2" || value === "section_3";
 }
 
 function checked(formData: FormData, key: string, fallback: boolean) {
@@ -312,4 +320,70 @@ export async function updateBecomeOrganizerPageContentAction(formData: FormData)
   }
 
   go("Bliv arrangør-siden er gemt.");
+}
+
+export async function updateBecomeFacilitatorPresentationSectionAction(formData: FormData) {
+  const profile = await requireRole("admin");
+  const sectionKey = getString(formData, "sectionKey");
+
+  if (!isPresentationSectionKey(sectionKey)) {
+    go("Præsentationsafsnittet kunne ikke genkendes.");
+  }
+
+  const fallback = defaultBecomeFacilitatorPresentationSections.find((section) => section.sectionKey === sectionKey);
+  if (!fallback) {
+    go("Præsentationsafsnittet kunne ikke indlæses.");
+  }
+
+  const supabase = createAdminClient();
+  const { data: currentRow } = await supabase
+    .from("become_facilitator_sections")
+    .select("image_path,image_url")
+    .eq("section_key", sectionKey)
+    .maybeSingle();
+
+  const currentPath = getOptionalString(formData, "imagePath") ?? currentRow?.image_path ?? fallback.imagePath;
+  const currentUrl = getOptionalString(formData, "imageUrl") ?? currentRow?.image_url ?? fallback.imageUrl;
+  const removeImage = getString(formData, "removeImage") === "1";
+  const uploadedImage = await uploadBecomeOrganizerImage(
+    formData.get("imageFile"),
+    `presentation-${sectionKey}`,
+    removeImage ? null : currentPath,
+  );
+
+  if (uploadedImage.error) {
+    go(`${fallback.title}: ${uploadedImage.error}`);
+  }
+
+  const hasNewUpload = uploadedImage.path && uploadedImage.path !== currentPath;
+  const sortOrder = Number.parseInt(getString(formData, "sortOrder"), 10);
+  const payload = {
+    section_key: sectionKey,
+    title: getString(formData, "title") || fallback.title,
+    body: getString(formData, "body") || fallback.body,
+    image_alt: getString(formData, "imageAlt") || fallback.imageAlt,
+    image_path: uploadedImage.path,
+    image_url: removeImage || hasNewUpload ? null : currentUrl,
+    sort_order: Number.isFinite(sortOrder) ? sortOrder : fallback.sortOrder,
+    is_active: checked(formData, "isActive", fallback.isActive),
+    updated_by: profile.id,
+  };
+
+  const { error } = await supabase
+    .from("become_facilitator_sections")
+    .upsert(payload, { onConflict: "section_key" });
+
+  if (error) {
+    console.error("Become facilitator presentation section save failed", {
+      code: error.code,
+      details: error.details,
+      message: error.message,
+      sectionKey,
+    });
+    go("Præsentationsafsnittet kunne ikke gemmes. Prøv igen.");
+  }
+
+  revalidatePath("/bliv-arrangoer");
+  revalidatePath("/admin/content/bliv-arrangoer");
+  go(`Afsnit ${sectionKey.replace("section_", "")} er gemt.`);
 }

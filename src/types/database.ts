@@ -26,6 +26,7 @@ export type FeedbackHomepageFrequency = "once" | "after_30_days" | "every_visit"
 export type FeedbackQuestionType = "rating" | "free_text" | "yes_no" | "multiple_choice";
 export type FeedbackAnswerType = FeedbackQuestionType | "final_text";
 export type FeedbackResponseSource = "homepage" | "direct";
+export type BecomeFacilitatorSectionKey = "section_1" | "section_2" | "section_3";
 
 type Row<T> = T;
 type Insert<T> = Partial<T>;
@@ -488,6 +489,25 @@ export type Database = {
         }>;
         Insert: Insert<Database["public"]["Tables"]["site_settings"]["Row"]>;
         Update: Update<Database["public"]["Tables"]["site_settings"]["Row"]>;
+        Relationships: [];
+      };
+      become_facilitator_sections: {
+        Row: Row<{
+          id: string;
+          section_key: BecomeFacilitatorSectionKey;
+          title: string;
+          body: string;
+          image_url: string | null;
+          image_path: string | null;
+          image_alt: string;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+          updated_by: string | null;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["become_facilitator_sections"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["become_facilitator_sections"]["Row"]>;
         Relationships: [];
       };
       analytics_events: {
