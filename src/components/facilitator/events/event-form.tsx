@@ -3082,7 +3082,7 @@ export function EventForm({
                     <div className="flex flex-wrap items-center gap-3">
                       <Link
                         className="inline-flex h-11 items-center justify-center rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(122,78,171,0.22)] focus:outline-none focus:ring-4 focus:ring-[#CDB4EA]"
-                        href="/facilitator#beskeder-admin"
+                        href="/facilitator/settings/payment"
                       >
                         Opsæt standardbetaling
                       </Link>

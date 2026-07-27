@@ -11,8 +11,12 @@ function getText(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function go(message: string): never {
-  redirect("/facilitator?message=" + encodeURIComponent(message));
+function safeFacilitatorReturnTo(value: string) {
+  return value === "/facilitator/messages" ? value : "/facilitator";
+}
+
+function go(message: string, returnTo = "/facilitator"): never {
+  redirect(safeFacilitatorReturnTo(returnTo) + "?message=" + encodeURIComponent(message));
 }
 
 async function getFacilitatorForCurrentUser() {
@@ -34,9 +38,10 @@ async function getFacilitatorForCurrentUser() {
 export async function sendFacilitatorAdminMessageAction(formData: FormData) {
   const subject = getText(formData, "subject") || "Besked fra arrangør";
   const message = getText(formData, "message");
+  const returnTo = safeFacilitatorReturnTo(getText(formData, "return_to"));
 
   if (!message || message.length > 500) {
-    go("Skriv en besked på højst 500 tegn.");
+    go("Skriv en besked på højst 500 tegn.", returnTo);
   }
 
   const { admin, profile, facilitator } = await getFacilitatorForCurrentUser();
@@ -51,13 +56,14 @@ export async function sendFacilitatorAdminMessageAction(formData: FormData) {
 
   if (error) {
     console.error("sendFacilitatorAdminMessageAction failed", error);
-    go("Beskeden kunne ikke sendes. Prøv igen.");
+    go("Beskeden kunne ikke sendes. Prøv igen.", returnTo);
   }
 
   revalidatePath("/facilitator");
+  revalidatePath("/facilitator/messages");
   revalidatePath("/admin");
   revalidatePath("/admin/messages");
-  go("Beskeden er sendt til admin.");
+  go("Beskeden er sendt til admin.", returnTo);
 }
 
 export async function requestFacilitatorProfileClosureAction(formData: FormData) {
@@ -173,18 +179,128 @@ export async function sendFacilitatorProfileToReviewAction() {
 }
 
 export async function markFacilitatorAdminMessagesReadAction() {
-  const { admin, facilitator } = await getFacilitatorForCurrentUser();
+  const result = await markCurrentFacilitatorAdminMessagesRead();
 
-  await admin
+  if (result.error) {
+    redirect("/facilitator/messages?message=" + encodeURIComponent("Beskederne kunne ikke markeres som læst. Prøv igen."));
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/messages");
+  redirect("/facilitator/messages?message=" + encodeURIComponent("Beskederne er markeret som læst."));
+}
+
+export async function markCurrentFacilitatorAdminMessagesRead() {
+  const { admin, facilitator } = await getFacilitatorForCurrentUser();
+  const readAt = new Date().toISOString();
+  const { data, error } = await admin
     .from("facilitator_admin_messages")
     .update({
-      facilitator_read_at: new Date().toISOString(),
+      facilitator_read_at: readAt,
       status: "read",
     })
     .eq("facilitator_id", facilitator.id)
     .eq("type", "admin_reply")
-    .eq("status", "unread");
+    .eq("status", "unread")
+    .is("facilitator_hidden_at", null)
+    .select("id");
+
+  if (error) {
+    console.error(
+      "[facilitator-messages] mark-as-read failed",
+      JSON.stringify(
+        {
+          code: error.code,
+          details: error.details,
+          facilitatorId: facilitator.id,
+          hint: error.hint,
+          message: error.message,
+        },
+        null,
+        2,
+      ),
+    );
+
+    return {
+      error: {
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        message: error.message,
+      },
+      markedCount: 0,
+    };
+  }
+
+  return {
+    markedCount: data?.length ?? 0,
+  };
+}
+
+export async function hideFacilitatorAdminMessageAction(formData: FormData) {
+  const messageId = getText(formData, "message_id");
+
+  if (!messageId) {
+    go("Beskeden kunne ikke findes.", "/facilitator/messages");
+  }
+
+  const { admin, facilitator } = await getFacilitatorForCurrentUser();
+  const hiddenAt = new Date().toISOString();
+  const { data, error } = await admin
+    .from("facilitator_admin_messages")
+    .update({
+      facilitator_hidden_at: hiddenAt,
+    })
+    .eq("id", messageId)
+    .eq("facilitator_id", facilitator.id)
+    .is("facilitator_hidden_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    console.error("hideFacilitatorAdminMessageAction failed", {
+      code: error.code,
+      details: error.details,
+      facilitatorId: facilitator.id,
+      hint: error.hint,
+      message: error.message,
+      messageId,
+    });
+    go("Beskeden kunne ikke fjernes. Prøv igen.", "/facilitator/messages");
+  }
+
+  if (!data) {
+    go("Beskeden kunne ikke findes i dit Beskedcenter.", "/facilitator/messages");
+  }
 
   revalidatePath("/facilitator");
-  redirect("/facilitator?messages=open&message=" + encodeURIComponent("Beskederne er markeret som læst.") + "#beskeder-admin");
+  revalidatePath("/facilitator/messages");
+  go("Beskeden er fjernet fra dit Beskedcenter.", "/facilitator/messages");
+}
+
+export async function clearFacilitatorAdminMessagesAction() {
+  const { admin, facilitator } = await getFacilitatorForCurrentUser();
+  const hiddenAt = new Date().toISOString();
+  const { error } = await admin
+    .from("facilitator_admin_messages")
+    .update({
+      facilitator_hidden_at: hiddenAt,
+    })
+    .eq("facilitator_id", facilitator.id)
+    .is("facilitator_hidden_at", null);
+
+  if (error) {
+    console.error("clearFacilitatorAdminMessagesAction failed", {
+      code: error.code,
+      details: error.details,
+      facilitatorId: facilitator.id,
+      hint: error.hint,
+      message: error.message,
+    });
+    go("Beskedcenter kunne ikke ryddes. Prøv igen.", "/facilitator/messages");
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/messages");
+  go("Beskedcenter er ryddet.", "/facilitator/messages");
 }

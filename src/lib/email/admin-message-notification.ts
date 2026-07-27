@@ -65,7 +65,7 @@ export async function sendAdminMessageNotificationEmail(input: AdminMessageNotif
     input.unreadCount && input.unreadCount > 1
       ? `Du har ${input.unreadCount} ulæste beskeder fra SoulEvents.`
       : "Du har modtaget en ny besked fra SoulEvents.";
-  const messageCenterUrl = appUrl() + "/facilitator#beskeder-admin";
+  const messageCenterUrl = appUrl() + "/facilitator/messages";
   const html = await renderEmailLayout({
     title: "Du har modtaget en ny besked fra SoulEvents",
     children: [

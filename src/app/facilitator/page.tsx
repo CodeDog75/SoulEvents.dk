@@ -3,17 +3,14 @@ import {
   Bell,
   CalendarDays,
   CalendarPlus,
-  ChevronDown,
   CheckCircle2,
   Clock3,
   Copy,
   Eye,
   Inbox,
   Leaf,
-  Mail,
   PauseCircle,
   PencilLine,
-  Settings,
   Ticket,
   XCircle,
 } from "lucide-react";
@@ -21,18 +18,13 @@ import {
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
-  activateFacilitatorProfileAction,
   markFacilitatorAdminMessagesReadAction,
-  requestFacilitatorProfileClosureAction,
-  sendFacilitatorAdminMessageAction,
   sendFacilitatorProfileToReviewAction,
 } from "@/app/facilitator/actions";
 import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { DashboardGreeting } from "@/components/facilitator/dashboard-greeting";
 import { CancelEventAction } from "@/components/facilitator/events/cancel-event-action";
-import { LoginSecuritySection } from "@/components/facilitator/login-security-section";
-import { PaymentSettingsCard } from "@/components/facilitator/payment-settings-card";
 import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireRole } from "@/lib/auth/roles";
@@ -45,6 +37,7 @@ import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onbo
 import { parseProfileChangeRequest, type ProfileChangeRequest } from "@/lib/facilitators/profile-change-request";
 import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
 import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
+import { getFacilitatorUnreadAdminMessageCount } from "@/lib/facilitator/dashboard-data";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -54,7 +47,6 @@ export const revalidate = 0;
 type FacilitatorPageProps = {
   searchParams: Promise<{
     message?: string;
-    messages?: string;
   }>;
 };
 
@@ -91,16 +83,6 @@ type DashboardAction = {
   label: string;
   title: string;
 };
-
-type FacilitatorPaymentSettings = {
-  bank_account_name?: string | null;
-  bank_account_number?: string | null;
-  bank_registration_number?: string | null;
-  deadline_days?: number | null;
-  external_url?: string | null;
-  instructions?: string | null;
-  mobilepay_number?: string | null;
-} | null;
 
 const statusStyles: Record<string, string> = {
   draft: "bg-[#E9E6E1] text-[#6A6258]",
@@ -188,73 +170,6 @@ function isOlderThanMonths(value: Date, now: Date, months: number) {
 
 function normalizeSpecialtyText(input: string | null | undefined) {
   return (input ?? "").replace(/\s+/g, " ").trim();
-}
-
-type AuthProviderIdentity = {
-  created_at?: string | null;
-  last_sign_in_at?: string | null;
-  provider?: string | null;
-  updated_at?: string | null;
-};
-
-const knownOauthProviders = new Set(["facebook", "google"]);
-
-function isKnownOauthProvider(provider: string | null | undefined) {
-  return Boolean(provider && knownOauthProviders.has(provider));
-}
-
-function timeDistance(first: string | null | undefined, second: string | null | undefined) {
-  if (!first || !second) return Number.POSITIVE_INFINITY;
-  const firstTime = new Date(first).getTime();
-  const secondTime = new Date(second).getTime();
-  if (!Number.isFinite(firstTime) || !Number.isFinite(secondTime)) return Number.POSITIVE_INFINITY;
-  return Math.abs(firstTime - secondTime);
-}
-
-function resolveCurrentOauthProvider(input: {
-  appProvider?: string | null;
-  appProviders?: string[] | null;
-  identities?: AuthProviderIdentity[] | null;
-  lastSignInAt?: string | null;
-}) {
-  const oauthIdentities = (input.identities ?? []).filter((identity) => isKnownOauthProvider(identity.provider));
-  const uniqueOauthProviders = Array.from(new Set(oauthIdentities.map((identity) => identity.provider).filter(Boolean)));
-
-  if (uniqueOauthProviders.length === 1) {
-    return uniqueOauthProviders[0] ?? null;
-  }
-
-  if (uniqueOauthProviders.length > 1) {
-    const rankedIdentities = oauthIdentities
-      .map((identity) => ({
-        provider: identity.provider,
-        distance: Math.min(
-          timeDistance(identity.updated_at, input.lastSignInAt),
-          timeDistance(identity.last_sign_in_at, input.lastSignInAt),
-          timeDistance(identity.created_at, input.lastSignInAt),
-        ),
-      }))
-      .filter((identity): identity is { distance: number; provider: string } => Boolean(identity.provider) && Number.isFinite(identity.distance))
-      .sort((firstIdentity, secondIdentity) => firstIdentity.distance - secondIdentity.distance);
-    const [bestMatch, nextMatch] = rankedIdentities;
-
-    if (bestMatch && bestMatch.distance <= 5 * 60 * 1000 && bestMatch.distance !== nextMatch?.distance) {
-      return bestMatch.provider;
-    }
-
-    return null;
-  }
-
-  if (isKnownOauthProvider(input.appProvider)) {
-    return input.appProvider ?? null;
-  }
-
-  const appOauthProviders = (input.appProviders ?? []).filter(isKnownOauthProvider);
-  if (appOauthProviders.length === 1) {
-    return appOauthProviders[0] ?? null;
-  }
-
-  return null;
 }
 
 function getProfileReadiness({
@@ -489,8 +404,52 @@ function DashboardSupportAside() {
     </aside>
   );
 }
-function BookingAttentionCard({ pendingCount, pendingHref }: { pendingCount: number; pendingHref: string }) {
+function BookingAttentionCard({
+  hasActiveEvents,
+  hasCompletedEvents,
+  pendingCount,
+  pendingHref,
+}: {
+  hasActiveEvents: boolean;
+  hasCompletedEvents: boolean;
+  pendingCount: number;
+  pendingHref: string;
+}) {
   const hasPending = pendingCount > 0;
+
+  if (!hasPending && !hasActiveEvents) {
+    const title = hasCompletedEvents
+      ? "Du er klar til at oprette dit næste event."
+      : "Du er klar til at oprette dit første event.";
+    const description = hasCompletedEvents
+      ? "Når du er klar til at samle mennesker igen, kan du oprette dit næste event på SoulEvents."
+      : "Din profil er nu klar og kan findes på SoulEvents. Opret dit første event, når du er klar til at invitere deltagere med på din oplevelse.";
+
+    return (
+      <section className="rounded-[32px] border border-[#D8CBE4] bg-white p-5 shadow-[0_18px_45px_rgba(47,36,55,0.08)] sm:p-6">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 gap-3">
+            <span className="mt-0.5 grid size-11 shrink-0 place-items-center rounded-full bg-[#F1EAF5] text-[#7A5D91]">
+              <CalendarPlus className="size-5" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 className="text-xl font-semibold text-[#2F2437]">{title}</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6E6475]">
+                {description}
+              </p>
+            </div>
+          </div>
+          <Link
+            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-6 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285]"
+            href="/facilitator/events"
+          >
+            Opret nyt event
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -853,20 +812,6 @@ function EventGrid({
   );
 }
 
-function MessageStatusLabel({ status, type }: { status: string; type?: string }) {
-  if (type === "admin_reply" && status === "unread") {
-    return "Ny besked";
-  }
-
-  const labels: Record<string, string> = {
-    handled: "Behandlet",
-    read: "Set af administrationen",
-    unread: "Afventer svar",
-  };
-
-  return labels[status] ?? status;
-}
-
 function AdminMessageCta({ unreadCount }: { unreadCount: number }) {
   if (unreadCount === 0) {
     return null;
@@ -903,153 +848,8 @@ function AdminMessageCta({ unreadCount }: { unreadCount: number }) {
   );
 }
 
-function SettingsPanel({
-  adminMessages,
-  authProviders,
-  currentEmail,
-  isOpen,
-  isPaused,
-  oauthProvider,
-  passwordLoginAvailable,
-  paymentSettings,
-  pendingEmailChange,
-  unreadMessageCount,
-}: {
-  adminMessages: any[];
-  authProviders: string[];
-  currentEmail: string;
-  isOpen: boolean;
-  isPaused: boolean;
-  oauthProvider?: string | null;
-  passwordLoginAvailable: boolean;
-  paymentSettings: FacilitatorPaymentSettings;
-  pendingEmailChange?: { expires_at: string; new_email: string } | null;
-  unreadMessageCount: number;
-}) {
-
-  return (
-    <details className="rounded-[32px] border border-[#E5DDEA] bg-white shadow-[0_18px_45px_rgba(47,36,55,0.08)]" id="beskeder-admin" open={isOpen}>
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-[#2F2437] transition hover:text-[#7A5D91] sm:px-6">
-        <span className="inline-flex items-center gap-2">
-          <Settings className="size-4 text-[#7A5D91]" aria-hidden="true" />
-          Hjælp og profilindstillinger
-        </span>
-        <ChevronDown className="size-4 text-[#A08BB4]" aria-hidden="true" />
-      </summary>
-      <div className="grid gap-4 border-t border-[#E5DDEA] p-5 lg:grid-cols-2">
-        <div className="lg:col-span-2">
-          <LoginSecuritySection
-            authProviders={authProviders}
-            currentEmail={currentEmail}
-            oauthProvider={oauthProvider}
-            passwordLoginAvailable={passwordLoginAvailable}
-            pendingEmailChange={pendingEmailChange}
-          />
-        </div>
-
-        <div className="lg:col-span-2">
-          <PaymentSettingsCard paymentSettings={paymentSettings} />
-        </div>
-
-        <form action={sendFacilitatorAdminMessageAction} className="rounded-[20px] border border-[#E5DDEA] bg-[#FAF7F2] p-5">
-          <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Kontakt</p>
-          <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Skriv til SoulEvents administration</h2>
-          <p className="mt-2 text-sm leading-6 text-[#6E6475]">Send en kort besked direkte til SoulEvents.dk. Maks. 500 tegn.</p>
-          <p className="mt-2 text-sm leading-6 text-[#6E6475]">
-            Dine beskeder gemmes i op til 3 måneder og slettes derefter automatisk.
-          </p>
-          <label className="mt-4 grid gap-2 text-sm font-semibold text-[#2F2437]">
-            Emne
-            <input className="h-11 rounded-md border border-[#E5DDEA] px-3 outline-none focus:border-[#7A5D91]" maxLength={80} name="subject" placeholder="Fx spørgsmål til min profil" />
-          </label>
-          <label className="mt-4 grid gap-2 text-sm font-semibold text-[#2F2437]">
-            Besked
-            <textarea className="min-h-28 rounded-md border border-[#E5DDEA] p-3 outline-none focus:border-[#7A5D91]" maxLength={500} name="message" placeholder="Skriv højst 500 tegn..." required />
-          </label>
-          <button className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white" type="submit">
-            <Mail className="size-4" aria-hidden="true" />
-            Send besked
-          </button>
-        </form>
-
-        {isPaused ? (
-          <form action={activateFacilitatorProfileAction} className="rounded-[20px] border border-[#D7E4D1] bg-[#F3F7F0] p-5">
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#5F7A55]">Aktivér</p>
-            <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Aktivér profil igen</h2>
-            <p className="mt-2 text-sm leading-6 text-[#6E6475]">
-              Når du aktiverer profilen igen, kan din offentlige profil og dine aktive events vises på SoulEvents efter de eksisterende regler.
-            </p>
-            <button className="mt-4 inline-flex h-11 items-center justify-center rounded-full bg-[#5F7A55] px-5 text-sm font-semibold text-white" type="submit">
-              Aktivér profil igen
-            </button>
-          </form>
-        ) : (
-          <form action={requestFacilitatorProfileClosureAction} className="rounded-[20px] border border-[#E9CED6] bg-[#FFF8FA] p-5">
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Pause</p>
-            <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Sæt profil på pause</h2>
-            <p className="mt-2 text-sm leading-6 text-[#6E6475]">
-              Har du brug for en pause, kan du midlertidigt skjule din profil på SoulEvents.
-            </p>
-            <p className="mt-2 text-sm leading-6 text-[#6E6475]">
-              Din offentlige profil og dine kommende events bliver skjult. Du kan selv aktivere profilen igen, når du ønsker at vende tilbage.
-            </p>
-            <p className="mt-2 text-sm leading-6 text-[#6E6475]">
-              Ønsker du i stedet at få slettet din profil og dine data, kan du skrive det i kommentarfeltet nedenfor.
-            </p>
-            <label className="mt-4 grid gap-2 text-sm font-semibold text-[#2F2437]">
-              Kommentar (valgfri)
-              <textarea className="min-h-24 rounded-md border border-[#E5DDEA] bg-white p-3 outline-none focus:border-[#7A5D91]" maxLength={500} name="reason" placeholder="Skriv gerne hvorfor du ønsker pause. Hvis du ønsker datasletning, så skriv det her." />
-            </label>
-            <label className="mt-4 flex items-start gap-3 text-sm font-semibold text-[#2F2437]">
-              <input className="mt-1 size-4 accent-[#7A5D91]" name="confirm_closure" type="checkbox" />
-              Jeg er sikker på, at jeg ønsker at sætte min arrangørprofil på pause.
-            </label>
-            <button className="mt-4 inline-flex h-11 items-center justify-center rounded-full border border-[#7A5D91] bg-white px-5 text-sm font-semibold text-[#7A5D91]" type="submit">
-              Sæt profil på pause
-            </button>
-          </form>
-        )}
-      </div>
-
-      {adminMessages.length > 0 ? (
-        <section className="mt-5 rounded-[20px] bg-[#F4F0F7] p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-semibold text-[#2F2437]">Dine seneste beskeder med SoulEvents administration</h2>
-              <p className="mt-1 text-sm leading-6 text-[#6E6475]">
-                Dine seneste beskeder og svar fra SoulEvents administration. Dine beskeder gemmes i op til 3 måneder og slettes derefter automatisk.
-              </p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3">
-            {adminMessages.map((item) => (
-              <article className="rounded-[16px] bg-white p-4 text-sm" key={item.id}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    {item.type === "admin_reply" ? (
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#7A5D91]">SoulEvents Team</p>
-                    ) : null}
-                    <p className="mt-1 font-semibold text-[#2F2437]">{item.subject}</p>
-                  </div>
-                  <span className="rounded-full bg-[#FAF7F2] px-3 py-1 text-xs font-semibold text-[#6E6475]">
-                    <MessageStatusLabel status={item.status} type={item.type} />
-                  </span>
-                </div>
-                <p className="mt-1 text-xs font-semibold text-[#8B7F93]">
-                  Sendt {formatDateTime(item.created_at)}
-                </p>
-                <p className="mt-2 leading-6 text-[#6E6475]">{item.message}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-    </details>
-  );
-}
-
 export default async function FacilitatorPage({ searchParams }: FacilitatorPageProps) {
-  const [{ message, messages }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const [{ message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
   const supabase = createAdminClient();
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
@@ -1099,25 +899,13 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   });
   const profileSpecialty = normalizeSpecialtyText(facilitatorProfile?.specialties);
   const profilePlace = facilitatorProfile?.city || null;
-  const { data: authUserData, error: authUserError } = await supabase.auth.admin.getUserById(profile.id);
-  const authProviders = authUserData.user?.identities?.map((identity) => identity.provider).filter(Boolean) ?? [];
-  const passwordLoginAvailable = !authUserError && (authProviders.length === 0 || authProviders.includes("email"));
-  const primaryOauthProvider = resolveCurrentOauthProvider({
-    appProvider: authUserData.user?.app_metadata?.provider,
-    appProviders: authUserData.user?.app_metadata?.providers,
-    identities: authUserData.user?.identities,
-    lastSignInAt: authUserData.user?.last_sign_in_at,
-  });
   const now = new Date();
   const [
     { data: events },
-    { data: adminMessages },
-    { count: unreadAdminMessageCount },
+    unreadAdminMessageCount,
     { data: pendingBookingRows },
     { data: coOrganizerInvitations },
     { data: latestChangeRequest },
-    { data: pendingEmailChange },
-    { data: paymentSettings },
   ] =
     facilitatorProfile
       ? await Promise.all([
@@ -1126,18 +914,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .select("id, slug, title, status, starts_at, ends_at, created_at, updated_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), bookings(id)")
             .eq("facilitator_id", facilitatorProfile.id)
             .order("starts_at", { ascending: false }),
-          supabase
-            .from("facilitator_admin_messages")
-            .select("id, subject, message, type, status, created_at, facilitator_read_at")
-            .eq("facilitator_id", facilitatorProfile.id)
-            .order("created_at", { ascending: false })
-            .limit(3),
-          supabase
-            .from("facilitator_admin_messages")
-            .select("id", { count: "exact", head: true })
-            .eq("facilitator_id", facilitatorProfile.id)
-            .eq("type", "admin_reply")
-            .eq("status", "unread"),
+          getFacilitatorUnreadAdminMessageCount(facilitatorProfile.id),
           supabase
             .from("bookings")
             .select("id, event_id, events!inner(id, facilitator_id, starts_at, ends_at, status)")
@@ -1159,23 +936,8 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
-          supabase
-            .from("email_change_requests")
-            .select("new_email, expires_at")
-            .eq("profile_id", profile.id)
-            .eq("status", "pending")
-            .order("requested_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-          supabase
-            .from("facilitator_payment_settings")
-            .select(
-              "mobilepay_number, bank_registration_number, bank_account_number, bank_account_name, external_url, instructions, deadline_days",
-            )
-            .eq("facilitator_id", facilitatorProfile.id)
-            .maybeSingle(),
         ])
-      : [{ data: [] }, { data: [] }, { count: 0 }, { data: [] }, { data: [] }, { data: null }, { data: null }, { data: null }];
+      : [{ data: [] }, 0, { data: [] }, { data: [] }, { data: null }];
 
   const eventRows = (events ?? []) as any[];
   const currentPendingBookingRows = ((pendingBookingRows ?? []) as Array<{
@@ -1193,12 +955,11 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const limitStatus = facilitatorProfile
     ? await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id)
     : { activeCount: 0, draftCount: 0, maxActiveEvents: 10, maxDraftEvents: 5 };
-  const messageRows = (adminMessages ?? []) as any[];
   const coOrganizerRows = (coOrganizerInvitations ?? []) as any[];
   const currentCoOrganizerRows = coOrganizerRows.filter((row) => isCurrentPublicCoOrganizerEvent(first(row.events), now));
   const pendingCoOrganizerInvitations = currentCoOrganizerRows.filter((row) => row.status === "pending");
   const acceptedCoOrganizerInvitations = currentCoOrganizerRows.filter((row) => row.status === "accepted");
-  const unreadMessageCount = unreadAdminMessageCount ?? 0;
+  const unreadMessageCount = unreadAdminMessageCount;
   const activeEvents = eventRows.filter((event) => {
     const userStatus = getUserFacingEventStatus(event, now);
     return userStatus === "active" || userStatus === "sold_out";
@@ -1239,58 +1000,60 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
       : defaultPrimaryAction;
   return (
     <main className="min-h-screen bg-[#FAF8F4] text-[#2F2437]">
-      <header className="border-b border-[#E5DDEA] bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <Link className="inline-flex items-center gap-2 text-sm font-semibold text-[#6E6475] transition hover:text-[#7A5D91]" href="/">
-            SoulEvents.dk
-          </Link>
-          <div className="flex items-center gap-3">
-            {unreadMessageCount > 0 ? (
-              <form action={markFacilitatorAdminMessagesReadAction}>
-                <button className="inline-flex h-10 items-center gap-2 rounded-full border border-[#D8CBE4] bg-white px-3 text-sm font-semibold text-[#2F2437] transition hover:border-[#7A5D91]" type="submit">
-                  <Mail className="size-4 text-[#7A5D91]" aria-hidden="true" />
-                  Beskeder
-                  <span className="grid size-5 place-items-center rounded-full bg-[#B56F8A] text-[11px] font-bold text-white">{unreadMessageCount}</span>
-                </button>
-              </form>
-            ) : null}
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
-
-      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="space-y-6">
           <AuthMessage message={message} />
 
           <DashboardGreetingIntro name={profile.full_name} profileReadiness={profileReadiness} />
 
-          <ProfileIdentityHeader
-            actions={<DashboardHeaderActions fullProfileHref={fullProfileHref} primaryAction={primaryAction} />}
-            categories={categoryNames.map((category) => ({
-              colorHex: category.color_hex,
-              name: category.name,
-            }))}
-            coverImage={heroImage}
-            hostReferenceId={facilitatorProfile.host_reference_id}
-            name={profileName}
-            place={profilePlace}
-            profileImageUrl={profileImageUrl}
-            specialty={profileSpecialty}
-          />
-
           <AdminMessageCta unreadCount={unreadMessageCount} />
-
-          <MoodImageStrip isUsingFallbackMoodImage={moodImageFallback.isUsingFallback} moodImages={visibleMoodImages} />
-
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="min-w-0 space-y-6">
 
           {onboardingState === "changes_requested" ? (
             <ProfileChangesRequestedCard canSubmit={profileReadiness.isComplete} request={profileChangeRequest} />
           ) : null}
 
-          {profileReadiness.isComplete ? <BookingAttentionCard pendingCount={pendingBookingCount ?? 0} pendingHref={pendingBookingsHref} /> : null}
+          {profileReadiness.isComplete ? (
+            <BookingAttentionCard
+              hasActiveEvents={activeEvents.length > 0}
+              hasCompletedEvents={visibleCompletedEvents.length > 0}
+              pendingCount={pendingBookingCount ?? 0}
+              pendingHref={pendingBookingsHref}
+            />
+          ) : null}
+
+          <section className="grid gap-3 rounded-[28px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Hurtige genveje</p>
+                <h2 className="mt-1 text-xl font-semibold text-[#2F2437]">Hvad vil du arbejde med?</h2>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {activeEvents.length > 0 ? (
+                <Link className="rounded-[20px] border border-[#7A5D91] bg-[#7A5D91] p-4 font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285]" href="/facilitator/events">
+                  Opret nyt event
+                </Link>
+              ) : null}
+              {activeEvents.length > 0 ? (
+                <Link className="rounded-[20px] border border-[#D8CBE4] bg-white p-4 font-semibold text-[#2F2437] transition hover:-translate-y-0.5 hover:shadow-soft" href="/facilitator/bookings">
+                  Se tilmeldinger
+                </Link>
+              ) : null}
+              <Link className="rounded-[20px] border border-[#D8CBE4] bg-white p-4 font-semibold text-[#2F2437] transition hover:-translate-y-0.5 hover:shadow-soft" href="/facilitator/profile">
+                Rediger profil
+              </Link>
+              {activeEvents.length === 0 && visibleCompletedEvents.length > 0 ? (
+                <Link className="rounded-[20px] border border-[#D8CBE4] bg-white p-4 font-semibold text-[#2F2437] transition hover:-translate-y-0.5 hover:shadow-soft" href="/facilitator#tidligere-events">
+                  Se tidligere events
+                </Link>
+              ) : null}
+              {activeEvents.length === 0 ? (
+                <Link className="rounded-[20px] border border-[#D8CBE4] bg-white p-4 font-semibold text-[#2F2437] transition hover:-translate-y-0.5 hover:shadow-soft" href="/facilitator/messages">
+                  Beskedcenter
+                </Link>
+              ) : null}
+            </div>
+          </section>
 
           {pendingCoOrganizerInvitations.length > 0 ? (
             <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
@@ -1382,57 +1145,28 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
               </div>
               <div className="mt-6 grid gap-8 border-t border-[#EFE8F2] pt-6">
                 <EventGrid
-                  events={draftEvents}
-                  facilitatorStatus={facilitatorProfile?.status}
-                  id="kladder"
-                  title="Kladder"
-                  variant="draft"
-                />
-                <EventGrid
-                  events={activeEvents}
+                  events={activeEvents.slice(0, 6)}
                   facilitatorStatus={facilitatorProfile?.status}
                   id="aktive-events"
-                  title="Aktive events"
+                  title="Mine kommende events"
                   variant="active"
                 />
-                {visibleCompletedEvents.length > 0 ? (
-                  <details className="rounded-[24px] border border-[#E5DDEA] bg-[#FAF8F4] p-4">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-[#2F2437]">
-                      Se tidligere events ({visibleCompletedEvents.length})
-                      <ChevronDown className="size-4 text-[#A08BB4]" aria-hidden="true" />
-                    </summary>
-                    <div className="mt-5 border-t border-[#E5DDEA] pt-5">
-                      <EventGrid
-                        events={visibleCompletedEvents.slice(0, 12)}
-                        facilitatorStatus={facilitatorProfile?.status}
-                        id="tidligere-events"
-                        title="Tidligere events"
-                        variant="completed"
-                      />
-                    </div>
-                  </details>
+                {activeEvents.length > 0 && visibleCompletedEvents.length > 0 ? (
+                  <Link className="inline-flex h-11 items-center justify-center justify-self-start rounded-full border border-[#D8CBE4] bg-white px-5 text-sm font-semibold text-[#7A5D91] transition hover:border-[#7A5D91]" href="/facilitator#tidligere-events">
+                    Se tidligere events
+                  </Link>
                 ) : null}
+                <EventGrid
+                  events={visibleCompletedEvents.slice(0, 6)}
+                  facilitatorStatus={facilitatorProfile?.status}
+                  id="tidligere-events"
+                  title="Tidligere events"
+                  variant="completed"
+                />
               </div>
             </section>
           ) : null}
 
-            </div>
-
-            <DashboardSupportAside />
-          </div>
-
-          <SettingsPanel
-            adminMessages={messageRows}
-            authProviders={authProviders}
-            currentEmail={profile.email}
-            isOpen={unreadMessageCount > 0 || messages === "open"}
-            isPaused={Boolean(facilitatorProfile?.is_paused)}
-            oauthProvider={primaryOauthProvider}
-            passwordLoginAvailable={passwordLoginAvailable}
-            paymentSettings={paymentSettings as FacilitatorPaymentSettings}
-            pendingEmailChange={pendingEmailChange}
-            unreadMessageCount={unreadMessageCount}
-          />
         </div>
       </section>
     </main>

@@ -207,7 +207,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       .from("facilitator_admin_messages")
       .select("id", { count: "exact", head: true })
       .in("type", ["message", "closure_request"])
-      .in("status", ["unread", "read"]),
+      .in("status", ["unread", "read"])
+      .is("admin_hidden_at", null),
   ]);
 
   const stats = [

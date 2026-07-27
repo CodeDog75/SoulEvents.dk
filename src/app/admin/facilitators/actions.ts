@@ -247,7 +247,8 @@ export async function sendAdminMessageToFacilitatorAction(formData: FormData) {
     .select("id", { count: "exact", head: true })
     .eq("facilitator_id", facilitator.id)
     .eq("type", "admin_reply")
-    .eq("status", "unread");
+    .eq("status", "unread")
+    .is("facilitator_hidden_at", null);
   const notificationSent = await sendAdminMessageNotificationEmail({
     facilitatorId: facilitator.id,
     firstName: profile?.first_name || profile?.full_name?.split(/\s+/)[0] || null,
@@ -264,6 +265,7 @@ export async function sendAdminMessageToFacilitatorAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/messages");
   revalidatePath("/facilitator");
+  revalidatePath("/facilitator/messages");
   adminMessageReturnRedirect("Beskeden er sendt til arrangøren.", returnTo);
 }
 
@@ -310,7 +312,8 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
     .select("id", { count: "exact", head: true })
     .eq("facilitator_id", facilitator.id)
     .eq("type", "admin_reply")
-    .eq("status", "unread");
+    .eq("status", "unread")
+    .is("facilitator_hidden_at", null);
   const notificationSent = await sendAdminMessageNotificationEmail({
     facilitatorId: facilitator.id,
     firstName: profile?.first_name || profile?.full_name?.split(/\s+/)[0] || null,
@@ -332,6 +335,7 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/messages");
   revalidatePath("/facilitator");
+  revalidatePath("/facilitator/messages");
   adminMessageRedirect("Svaret er sendt til arrangøren.");
 }
 
@@ -357,6 +361,86 @@ export async function archiveFacilitatorAdminMessageAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/messages");
   adminMessageRedirect("Beskeden er arkiveret.");
+}
+
+export async function hideAdminMessageFromAdminInboxAction(formData: FormData) {
+  await requireRole("admin");
+
+  const messageId = getString(formData, "message_id");
+  const returnTo = getString(formData, "return_to") || "/admin/messages";
+
+  if (!messageId) {
+    adminMessageReturnRedirect("Beskeden kunne ikke findes.", returnTo);
+  }
+
+  const supabase = createAdminClient();
+  const hiddenAt = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("facilitator_admin_messages")
+    .update({ admin_hidden_at: hiddenAt })
+    .eq("id", messageId)
+    .is("admin_hidden_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    console.error("hideAdminMessageFromAdminInboxAction failed", {
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      message: error.message,
+      messageId,
+    });
+    adminMessageReturnRedirect("Beskeden kunne ikke fjernes fra adminens Beskedcenter.", returnTo);
+  }
+
+  if (!data) {
+    adminMessageReturnRedirect("Beskeden findes ikke længere i adminens Beskedcenter.", returnTo);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/messages");
+  adminMessageReturnRedirect("Beskeden er fjernet fra adminens Beskedcenter.", returnTo);
+}
+
+export async function clearAdminConversationFromAdminInboxAction(formData: FormData) {
+  await requireRole("admin");
+
+  const facilitatorId = getString(formData, "facilitator_id");
+  const returnTo = getString(formData, "return_to") || "/admin/messages";
+
+  if (!facilitatorId) {
+    adminMessageReturnRedirect("Samtalen kunne ikke findes.", returnTo);
+  }
+
+  const supabase = createAdminClient();
+  const { facilitator } = await getFacilitatorMessageRecipient(supabase, facilitatorId);
+
+  if (!facilitator?.id) {
+    adminMessageReturnRedirect("Arrangøren kunne ikke findes.", returnTo);
+  }
+
+  const hiddenAt = new Date().toISOString();
+  const { error } = await supabase
+    .from("facilitator_admin_messages")
+    .update({ admin_hidden_at: hiddenAt })
+    .eq("facilitator_id", facilitator.id)
+    .is("admin_hidden_at", null);
+
+  if (error) {
+    console.error("clearAdminConversationFromAdminInboxAction failed", {
+      code: error.code,
+      details: error.details,
+      facilitatorId: facilitator.id,
+      hint: error.hint,
+      message: error.message,
+    });
+    adminMessageReturnRedirect("Samtalen kunne ikke ryddes fra adminens Beskedcenter.", returnTo);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/messages");
+  adminMessageReturnRedirect("Samtalen er ryddet fra adminens Beskedcenter.", returnTo);
 }
 
 export async function updateFacilitatorStatusAction(formData: FormData) {

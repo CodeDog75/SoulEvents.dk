@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 type GalleryImage = {
@@ -12,19 +12,23 @@ type GalleryImage = {
 };
 
 type PublicFacilitatorGalleryProps = {
+  actions?: ReactNode;
   images: GalleryImage[];
 };
 
-function GalleryTitle() {
+function GalleryTitle({ actions }: { actions?: ReactNode }) {
   return (
-    <div>
-      <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#7A5D91]">Stemninger</p>
-      <h2 className="mt-2 font-serif text-3xl font-semibold leading-tight text-[#2F2437] sm:text-4xl">Galleri</h2>
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#7A5D91]">Stemninger</p>
+        <h2 className="mt-2 font-serif text-3xl font-semibold leading-tight text-[#2F2437] sm:text-4xl">Galleri</h2>
+      </div>
+      {actions}
     </div>
   );
 }
 
-export function PublicFacilitatorGallery({ images }: PublicFacilitatorGalleryProps) {
+export function PublicFacilitatorGallery({ actions, images }: PublicFacilitatorGalleryProps) {
   const visibleImages = images.slice(0, 3);
   const desktopSlots = Array.from({ length: 3 }, (_, index) => visibleImages[index] ?? null);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -61,9 +65,9 @@ export function PublicFacilitatorGallery({ images }: PublicFacilitatorGalleryPro
 
   return (
     <section className="rounded-[32px] border border-[#E5DDEA] bg-white/82 p-6 shadow-[0_18px_45px_rgba(47,36,55,0.06)] sm:p-8">
-      <GalleryTitle />
+      <GalleryTitle actions={actions} />
 
-      <div className="mt-6 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 md:hidden">
+      <div className="-mx-6 mt-6 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-px-6 px-6 pb-2 md:hidden">
         {visibleImages.map((image, index) => (
           <button
             aria-label={`Åbn stemningsbillede ${index + 1}`}

@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
+import Image from "next/image";
 import { Archive, ArrowLeft, Inbox, Search, Send } from "lucide-react";
 import {
   archiveFacilitatorAdminMessageAction,
-  replyToFacilitatorAdminMessageAction,
   sendAdminMessageToFacilitatorAction,
 } from "@/app/admin/facilitators/actions";
+import { AdminClearConversationAction, AdminMessageRemoveAction } from "@/components/admin/admin-message-actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -33,6 +34,21 @@ function formatDateTime(value: string | null | undefined) {
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+function normalizeSearchValue(value: string | number | boolean | null | undefined) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}@.]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function mailboxHref(box: Mailbox, queryText: string) {
   const params = new URLSearchParams();
   if (box !== "inbox") params.set("box", box);
@@ -41,9 +57,15 @@ function mailboxHref(box: Mailbox, queryText: string) {
   return "/admin/messages" + (queryString ? "?" + queryString : "");
 }
 
+function selectedFacilitatorHref(facilitatorId: string, queryText?: string) {
+  const params = new URLSearchParams({ facilitator: facilitatorId });
+  if (queryText?.trim()) params.set("q", queryText.trim());
+  return "/admin/messages?" + params.toString();
+}
+
 function messageTypeLabel(type: string) {
   if (type === "closure_request") return "Lukning";
-  if (type === "admin_reply") return "Sendt svar";
+  if (type === "admin_reply") return "Sendt";
   return "Besked";
 }
 
@@ -64,43 +86,110 @@ function matchesSearch(item: any, queryText: string) {
 
   const facilitator = item.facilitator_profiles;
   const profile = item.profiles;
-  return [
+  const searchableText = [
     item.subject,
     item.message,
     item.type,
     item.status,
     facilitator?.company_name,
     facilitator?.host_reference_id,
+    facilitator?.city,
+    facilitator?.id,
+    facilitator?.profile_id,
     profile?.full_name,
     profile?.email,
   ]
     .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-    .includes(queryText);
+    .join(" ");
+  return normalizeSearchValue(searchableText).includes(queryText);
+}
+
+function facilitatorName(facilitator: any, profile?: any) {
+  return facilitator?.company_name || profile?.full_name || "Arrangør";
+}
+
+function avatarUrl(supabase: ReturnType<typeof createAdminClient>, facilitator: any) {
+  return facilitator?.profile_image_path
+    ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
+    : null;
+}
+
+function messagePreview(message: string | null | undefined) {
+  const text = (message ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return "Ingen beskedtekst";
+  return text.length > 90 ? text.slice(0, 90) + "..." : text;
+}
+
+function messageTone(item: any) {
+  if (item.type === "closure_request") return "bg-red-100 text-red-800";
+  if (item.type === "admin_reply") return "bg-sage-50 text-sage-700";
+  return "bg-[#F6EFFF] text-[#7A4EAB]";
+}
+
+async function searchFacilitatorIds(supabase: ReturnType<typeof createAdminClient>, queryText: string) {
+  if (!queryText) return [] as string[];
+
+  const sanitizedQuery = queryText.replace(/[(),]/g, " ").trim();
+  if (!sanitizedQuery) return [] as string[];
+
+  const likeQuery = "%" + sanitizedQuery + "%";
+  const [profileResult, facilitatorResult] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id")
+      .or(`full_name.ilike.${likeQuery},email.ilike.${likeQuery}`)
+      .limit(20),
+    supabase
+      .from("facilitator_profiles")
+      .select("id")
+      .or(`company_name.ilike.${likeQuery},city.ilike.${likeQuery},host_reference_id.ilike.${likeQuery}`)
+      .limit(20),
+  ]);
+
+  const profileIds = (profileResult.data ?? []).map((profile: any) => profile.id).filter(Boolean);
+  const profileFacilitatorResult = profileIds.length
+    ? await supabase.from("facilitator_profiles").select("id").in("profile_id", profileIds).limit(20)
+    : { data: [] as any[] };
+  const exactIds = isUuid(queryText) ? [queryText] : [];
+
+  return [
+    ...new Set([
+      ...(facilitatorResult.data ?? []).map((facilitator: any) => facilitator.id),
+      ...(profileFacilitatorResult.data ?? []).map((facilitator: any) => facilitator.id),
+      ...exactIds,
+    ].filter(Boolean)),
+  ];
 }
 
 export default async function AdminMessagesPage({ searchParams }: AdminMessagesPageProps) {
   const [{ body, box, facilitator, message, q, return_to: returnTo, subject }] = await Promise.all([searchParams, requireRole("admin")]);
   const selectedBox = normalizeMailbox(box);
   const selectedFacilitatorId = facilitator ?? "";
-  const queryText = (q ?? "").trim().toLowerCase();
+  const rawQueryText = (q ?? "").trim();
+  const queryText = normalizeSearchValue(rawQueryText);
   const safeReturnTo = returnTo?.startsWith("/admin/users") ? returnTo : "";
   const prefilledBody = (body ?? "").slice(0, 500);
   const prefilledSubject = (subject ?? "").slice(0, 120);
   const supabase = createAdminClient();
 
-  const { data: messageRows, error: messagesError } = await supabase
-    .from("facilitator_admin_messages")
-    .select("id, facilitator_id, profile_id, subject, message, type, status, created_at, read_at")
-    .order("created_at", { ascending: false });
+  const [{ data: messageRows, error: messagesError }, searchIds] = await Promise.all([
+    supabase
+      .from("facilitator_admin_messages")
+      .select("id, facilitator_id, profile_id, subject, message, type, status, created_at, read_at")
+      .is("admin_hidden_at", null)
+      .order("created_at", { ascending: false }),
+    searchFacilitatorIds(supabase, queryText),
+  ]);
 
   const rows = (messageRows ?? []) as any[];
-  const facilitatorIds = [...new Set([...rows.map((item) => item.facilitator_id), selectedFacilitatorId].filter(Boolean))];
+  const facilitatorIds = [...new Set([...rows.map((item) => item.facilitator_id), selectedFacilitatorId, ...searchIds].filter(Boolean))];
   const directProfileIds = rows.map((item) => item.profile_id).filter(Boolean);
 
   const { data: facilitators } = facilitatorIds.length
-    ? await supabase.from("facilitator_profiles").select("id, profile_id, company_name, host_reference_id").in("id", facilitatorIds)
+    ? await supabase
+        .from("facilitator_profiles")
+        .select("id, profile_id, company_name, host_reference_id, city, profile_image_path")
+        .in("id", facilitatorIds)
     : { data: [] as any[] };
 
   const facilitatorById = new Map((facilitators ?? []).map((facilitator: any) => [facilitator.id, facilitator]));
@@ -115,15 +204,34 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
     : { data: [] as any[] };
   const profileById = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
   const enrichedRows = rows.map((item) => {
-    const facilitator = facilitatorById.get(item.facilitator_id) ?? null;
+    const currentFacilitator = facilitatorById.get(item.facilitator_id) ?? null;
     return {
       ...item,
-      facilitator_profiles: facilitator,
-      profiles: profileById.get(facilitator?.profile_id ?? item.profile_id) ?? null,
+      facilitator_profiles: currentFacilitator,
+      profiles: profileById.get(currentFacilitator?.profile_id ?? item.profile_id) ?? null,
     };
   });
   const selectedFacilitator = selectedFacilitatorId ? facilitatorById.get(selectedFacilitatorId) : null;
   const selectedProfile = selectedFacilitator ? profileById.get(selectedFacilitator.profile_id) : null;
+  const searchResults = rawQueryText
+    ? (facilitators ?? [])
+        .filter((item: any) => {
+          const profile = profileById.get(item.profile_id);
+          const searchableText = [
+            item.company_name,
+            item.host_reference_id,
+            item.city,
+            item.id,
+            item.profile_id,
+            profile?.full_name,
+            profile?.email,
+          ]
+            .filter(Boolean)
+            .join(" ");
+          return normalizeSearchValue(searchableText).includes(queryText);
+        })
+        .slice(0, 10)
+    : [];
   const rowsByMailbox: Record<Mailbox, any[]> = {
     inbox: enrichedRows.filter((item) => mailboxFilter(item, "inbox")).filter((item) => matchesSearch(item, queryText)),
     sent: enrichedRows.filter((item) => mailboxFilter(item, "sent")).filter((item) => matchesSearch(item, queryText)),
@@ -135,7 +243,38 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
     archive: rowsByMailbox.archive.length,
   };
   const messages = rowsByMailbox[selectedBox];
+  const conversationMap = new Map<string, { facilitator: any; hasUnread: boolean; latest: any; messages: any[]; profile: any }>();
+
+  for (const item of enrichedRows) {
+    if (!item.facilitator_id) continue;
+    const currentFacilitator = item.facilitator_profiles ?? facilitatorById.get(item.facilitator_id);
+    const currentProfile = profileById.get(currentFacilitator?.profile_id ?? item.profile_id) ?? null;
+    const existing = conversationMap.get(item.facilitator_id);
+    if (!existing) {
+      conversationMap.set(item.facilitator_id, {
+        facilitator: currentFacilitator,
+        hasUnread: item.type !== "admin_reply" && item.status === "unread",
+        latest: item,
+        messages: [item],
+        profile: currentProfile,
+      });
+    } else {
+      existing.hasUnread = existing.hasUnread || (item.type !== "admin_reply" && item.status === "unread");
+      existing.messages.push(item);
+    }
+  }
+
+  const conversations = Array.from(conversationMap.values()).sort((first, second) => {
+    if (first.hasUnread !== second.hasUnread) return first.hasUnread ? -1 : 1;
+    return new Date(second.latest.created_at ?? 0).getTime() - new Date(first.latest.created_at ?? 0).getTime();
+  });
+  const selectedConversationMessages = selectedFacilitatorId
+    ? enrichedRows.filter((item) => item.facilitator_id === selectedFacilitatorId)
+    : [];
   const errorMessage = messagesError?.message;
+  const selectedConversationReturnTo = selectedFacilitatorId
+    ? selectedFacilitatorHref(selectedFacilitatorId, rawQueryText)
+    : "/admin/messages";
 
   return (
     <main className="min-h-screen bg-[#fbfaf7]">
@@ -159,106 +298,251 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
         <AuthMessage message={message} />
         <AuthMessage message={errorMessage ? "Beskeder kunne ikke hentes: " + errorMessage : undefined} variant="error" />
 
-        {selectedFacilitator ? (
-          <section className="rounded-[26px] border border-midnight/10 bg-white p-5 shadow-soft">
-            <div className="grid gap-4 lg:grid-cols-[1fr_minmax(320px,460px)]">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Ny besked</p>
-                <h2 className="mt-2 font-serif text-3xl font-semibold text-midnight">
-                  Besked til {selectedFacilitator.company_name || selectedProfile?.full_name || "arrangør"}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-ink/64">
-                  Beskeden sendes direkte til den valgte arrangør og kan efterfølgende findes under Sendte.
-                </p>
-                {safeReturnTo ? (
-                  <Link className="mt-4 inline-flex text-sm font-semibold text-sage-700 hover:text-terracotta" href={safeReturnTo}>
-                    Tilbage til arrangøroversigten
-                  </Link>
-                ) : null}
-              </div>
-
-              <form action={sendAdminMessageToFacilitatorAction} className="grid gap-3 rounded-[18px] border border-[#E5D4F7] bg-[#FAF7F2] p-3">
-                <input name="facilitator_id" type="hidden" value={selectedFacilitatorId} />
-                <input name="return_to" type="hidden" value={safeReturnTo || "/admin/messages?box=sent"} />
-                <label className="grid gap-2 text-xs font-semibold text-ink/68">
-                  Emne
-                  <input
-                    className="h-10 rounded-md border border-midnight/10 bg-white px-3 text-sm font-normal text-ink outline-none transition focus:border-[#7A4EAB]"
-                    maxLength={120}
-                    name="subject"
-                    required
-                    defaultValue={prefilledSubject || "Besked fra SoulEvents administration"}
-                  />
-                </label>
-                <label className="grid gap-2 text-xs font-semibold text-ink/68">
-                  Besked
-                  <textarea
-                    className="min-h-28 rounded-md border border-midnight/10 bg-white p-3 text-sm font-normal leading-6 text-ink outline-none transition focus:border-[#7A4EAB]"
-                    maxLength={500}
-                    name="message"
-                    placeholder="Skriv en kort besked til arrangøren."
-                    required
-                    defaultValue={prefilledBody}
-                  />
-                </label>
-                <div className="flex justify-end">
-                  <button className="inline-flex h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#62408D]" type="submit">
-                    Send besked
-                  </button>
-                </div>
-              </form>
-            </div>
-          </section>
-        ) : null}
-
-        <section className="rounded-[26px] border border-midnight/10 bg-white p-5 shadow-soft">
-          <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Mailindbakke</p>
-              <h2 className="mt-2 font-serif text-3xl font-semibold text-midnight">Beskeder fra og til arrangører</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/64">
-                Få overblik over nye henvendelser, sendte svar og arkiverede beskeder uden at blande dem ind i dashboardets forside.
-                Dine beskeder gemmes i op til 3 måneder og slettes derefter automatisk.
-              </p>
-            </div>
-            <form action="/admin/messages" className="grid gap-2 sm:min-w-80">
-              {selectedBox !== "inbox" && <input name="box" type="hidden" value={selectedBox} />}
-              <label className="text-sm font-semibold text-midnight" htmlFor="admin-message-search">
-                Søg beskeder
+        <section className="grid min-h-[640px] overflow-hidden rounded-[26px] border border-midnight/10 bg-white shadow-soft lg:grid-cols-[360px_minmax(0,1fr)]">
+          <aside className="border-b border-midnight/10 bg-[#FAF7F2] p-4 lg:border-b-0 lg:border-r">
+            <form action="/admin/messages" className="grid gap-2">
+              <label className="text-sm font-semibold text-midnight" htmlFor="admin-facilitator-search">
+                Søg efter arrangør
               </label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink/45" aria-hidden="true" />
                 <input
                   className="h-11 w-full rounded-md border border-midnight/15 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-sage-700"
                   defaultValue={q ?? ""}
-                  id="admin-message-search"
+                  id="admin-facilitator-search"
                   name="q"
-                  placeholder="Søg arrangør, emne, e-mail eller tekst"
+                  placeholder="Navn, e-mail, by, ID..."
                 />
               </div>
             </form>
-          </div>
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            {mailboxes.map((item) => {
-              const active = item.value === selectedBox;
-              return (
-                <Link
-                  className={
-                    active
-                      ? "inline-flex items-center gap-2 rounded-full bg-midnight px-4 py-2 text-sm font-semibold text-white"
-                      : "inline-flex items-center gap-2 rounded-full border border-midnight/10 bg-white px-4 py-2 text-sm font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta"
-                  }
-                  href={mailboxHref(item.value, q ?? "")}
-                  key={item.value}
-                >
-                  <item.icon className="size-4" aria-hidden="true" />
-                  {item.label}
-                  <span className={active ? "text-white/75" : "text-ink/45"}>{counts[item.value]}</span>
-                </Link>
-              );
-            })}
-          </div>
+            {rawQueryText ? (
+              <section className="mt-5">
+                <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#7A4EAB]">Søgeresultater</h2>
+                <div className="mt-2 grid gap-2">
+                  {searchResults.length > 0 ? (
+                    searchResults.map((item: any) => {
+                      const profile = profileById.get(item.profile_id);
+                      const imageUrl = avatarUrl(supabase, item);
+                      return (
+                        <Link
+                          className="flex gap-3 rounded-[16px] border border-midnight/10 bg-white p-3 transition hover:border-[#7A4EAB]"
+                          href={selectedFacilitatorHref(item.id, rawQueryText)}
+                          key={item.id}
+                        >
+                          <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-[14px] bg-[#F0E9E0] text-sm font-bold text-[#7A4EAB]">
+                            {imageUrl ? (
+                              <Image alt="" className="size-full object-cover" height={48} src={imageUrl} unoptimized width={48} />
+                            ) : (
+                              facilitatorName(item, profile).slice(0, 1)
+                            )}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold text-midnight">{facilitatorName(item, profile)}</span>
+                            <span className="mt-0.5 block truncate text-xs text-ink/55">{profile?.email ?? "E-mail mangler"}</span>
+                            <span className="mt-0.5 block truncate text-xs text-ink/45">
+                              {[item.city, item.host_reference_id].filter(Boolean).join(" · ") || item.id}
+                            </span>
+                          </span>
+                        </Link>
+                      );
+                    })
+                  ) : (
+                    <p className="rounded-[16px] bg-white p-3 text-sm text-ink/60">Ingen arrangører matcher søgningen.</p>
+                  )}
+                </div>
+              </section>
+            ) : null}
+
+            <section className="mt-5">
+              <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#7A4EAB]">Seneste samtaler</h2>
+              <div className="mt-2 grid gap-2">
+                {conversations.length > 0 ? (
+                  conversations.map((conversation) => {
+                    const facilitatorId = conversation.facilitator?.id ?? conversation.latest.facilitator_id;
+                    const active = facilitatorId === selectedFacilitatorId;
+                    const imageUrl = avatarUrl(supabase, conversation.facilitator);
+                    return (
+                      <Link
+                        className={
+                          active
+                            ? "flex gap-3 rounded-[16px] border border-[#7A4EAB] bg-white p-3 shadow-soft"
+                            : "flex gap-3 rounded-[16px] border border-midnight/10 bg-white p-3 transition hover:border-[#7A4EAB]"
+                        }
+                        href={selectedFacilitatorHref(facilitatorId, rawQueryText)}
+                        key={facilitatorId}
+                      >
+                        <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-[14px] bg-[#F0E9E0] text-sm font-bold text-[#7A4EAB]">
+                          {imageUrl ? (
+                            <Image alt="" className="size-full object-cover" height={48} src={imageUrl} unoptimized width={48} />
+                          ) : (
+                            facilitatorName(conversation.facilitator, conversation.profile).slice(0, 1)
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-semibold text-midnight">
+                              {facilitatorName(conversation.facilitator, conversation.profile)}
+                            </span>
+                            {conversation.hasUnread ? <span className="size-2 shrink-0 rounded-full bg-[#B56F8A]" /> : null}
+                          </span>
+                          <span className="mt-0.5 block truncate text-xs text-ink/55">{messagePreview(conversation.latest.message)}</span>
+                          <span className="mt-0.5 block text-xs text-ink/40">{formatDateTime(conversation.latest.created_at)}</span>
+                        </span>
+                      </Link>
+                    );
+                  })
+                ) : (
+                  <p className="rounded-[16px] bg-white p-3 text-sm text-ink/60">Der er endnu ingen samtaler.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="mt-5">
+              <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[#7A4EAB]">Filtre</h2>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {mailboxes.map((item) => {
+                  const active = item.value === selectedBox;
+                  return (
+                    <Link
+                      className={
+                        active
+                          ? "inline-flex items-center gap-2 rounded-full bg-midnight px-3 py-1.5 text-xs font-semibold text-white"
+                          : "inline-flex items-center gap-2 rounded-full border border-midnight/10 bg-white px-3 py-1.5 text-xs font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta"
+                      }
+                      href={mailboxHref(item.value, q ?? "")}
+                      key={item.value}
+                    >
+                      <item.icon className="size-3.5" aria-hidden="true" />
+                      {item.label}
+                      <span className={active ? "text-white/75" : "text-ink/45"}>{counts[item.value]}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+          </aside>
+
+          <section className="grid min-h-[640px] grid-rows-[auto_1fr_auto] bg-white">
+            {selectedFacilitator ? (
+              <>
+                <header className="border-b border-midnight/10 p-5">
+                  <Link className="mb-4 inline-flex text-sm font-semibold text-[#7A4EAB] lg:hidden" href="/admin/messages">
+                    Tilbage til beskeder
+                  </Link>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Samtale</p>
+                      <h2 className="mt-1 font-serif text-3xl font-semibold text-midnight">
+                        {facilitatorName(selectedFacilitator, selectedProfile)}
+                      </h2>
+                      <p className="mt-1 text-sm text-ink/55">
+                        {[selectedProfile?.email, selectedFacilitator.city, selectedFacilitator.host_reference_id].filter(Boolean).join(" · ")}
+                      </p>
+                    </div>
+                    {safeReturnTo ? (
+                      <Link className="inline-flex text-sm font-semibold text-sage-700 hover:text-terracotta" href={safeReturnTo}>
+                        Tilbage til arrangøroversigten
+                      </Link>
+                    ) : null}
+                    {selectedConversationMessages.length > 0 ? (
+                      <AdminClearConversationAction facilitatorId={selectedFacilitatorId} returnTo="/admin/messages" />
+                    ) : null}
+                  </div>
+                </header>
+
+                <div className="space-y-3 overflow-y-auto p-5">
+                  {selectedConversationMessages.length > 0 ? (
+                    selectedConversationMessages.map((item: any) => {
+                      const isAdminMessage = item.type === "admin_reply";
+                      return (
+                        <article
+                          className={
+                            isAdminMessage
+                              ? "ml-auto max-w-3xl rounded-[20px] border border-sage-700/10 bg-sage-50 p-4"
+                              : "max-w-3xl rounded-[20px] border border-[#E5D4F7] bg-[#FAF7F2] p-4"
+                          }
+                          key={item.id}
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={"rounded-full px-3 py-1 text-xs font-semibold " + messageTone(item)}>
+                              {messageTypeLabel(item.type)}
+                            </span>
+                            <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-ink/55">
+                              {item.status}
+                            </span>
+                          </div>
+                          <h3 className="mt-3 text-base font-semibold text-midnight">{item.subject}</h3>
+                          <p className="mt-1 text-xs font-semibold text-ink/50">
+                            {isAdminMessage ? "Sendt " : "Modtaget "}
+                            {formatDateTime(item.created_at)}
+                          </p>
+                          <p className="mt-3 whitespace-pre-line text-sm leading-6 text-ink/72">{item.message}</p>
+                          <div className="mt-3 flex flex-wrap items-start gap-2">
+                            {!isAdminMessage && item.status !== "handled" ? (
+                              <form action={archiveFacilitatorAdminMessageAction}>
+                                <input name="message_id" type="hidden" value={item.id} />
+                                <button className="inline-flex h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-4 text-sm font-semibold text-ink/65 transition hover:border-terracotta hover:text-terracotta" type="submit">
+                                  Arkivér
+                                </button>
+                              </form>
+                            ) : null}
+                            <AdminMessageRemoveAction messageId={item.id} returnTo={selectedConversationReturnTo} />
+                          </div>
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-[22px] border border-dashed border-midnight/15 bg-[#FAF7F2] p-6">
+                      <h3 className="text-lg font-semibold text-midnight">Ingen tidligere beskeder</h3>
+                      <p className="mt-2 text-sm leading-6 text-ink/64">Skriv den første besked til arrangøren nedenfor.</p>
+                    </div>
+                  )}
+                </div>
+
+                <form action={sendAdminMessageToFacilitatorAction} className="grid gap-3 border-t border-midnight/10 bg-[#FAF7F2] p-4">
+                  <input name="facilitator_id" type="hidden" value={selectedFacilitatorId} />
+                  <input name="return_to" type="hidden" value={"/admin/messages?facilitator=" + selectedFacilitatorId} />
+                  <label className="grid gap-2 text-xs font-semibold text-ink/68">
+                    Emne
+                    <input
+                      className="h-10 rounded-md border border-midnight/10 bg-white px-3 text-sm font-normal text-ink outline-none transition focus:border-[#7A4EAB]"
+                      maxLength={120}
+                      name="subject"
+                      required
+                      defaultValue={prefilledSubject || "Besked fra SoulEvents administration"}
+                    />
+                  </label>
+                  <label className="grid gap-2 text-xs font-semibold text-ink/68">
+                    Besked
+                    <textarea
+                      className="min-h-28 rounded-md border border-midnight/10 bg-white p-3 text-sm font-normal leading-6 text-ink outline-none transition focus:border-[#7A4EAB]"
+                      maxLength={500}
+                      name="message"
+                      placeholder="Skriv en kort besked til arrangøren."
+                      required
+                      defaultValue={prefilledBody}
+                    />
+                  </label>
+                  <div className="flex justify-end">
+                    <button className="inline-flex h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#62408D]" type="submit">
+                      Send besked
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <div className="grid place-items-center p-8 text-center">
+                <div className="max-w-md">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Vælg en samtale</p>
+                  <h2 className="mt-2 font-serif text-3xl font-semibold text-midnight">Søg eller vælg en arrangør</h2>
+                  <p className="mt-3 text-sm leading-6 text-ink/64">
+                    Brug søgningen til at starte en ny samtale, eller vælg en eksisterende samtale i venstre side.
+                  </p>
+                </div>
+              </div>
+            )}
+          </section>
         </section>
 
         <section className="overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
@@ -270,73 +554,34 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
               {messages.length ? `${messages.length} besked${messages.length === 1 ? "" : "er"} vises.` : "Der er ingen beskeder i denne visning."}
             </p>
           </div>
-
           <div className="divide-y divide-midnight/10">
-            {messages.map((item: any) => {
-              const facilitator = item.facilitator_profiles;
-              const profile = item.profiles;
-              const isIncoming = item.type !== "admin_reply";
+            {messages.slice(0, 20).map((item: any) => {
+              const currentFacilitator = item.facilitator_profiles;
+              const currentProfile = item.profiles;
               return (
-                <article className="grid gap-4 bg-white p-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]" key={item.id}>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={item.type === "closure_request" ? "rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800" : item.type === "admin_reply" ? "rounded-full bg-sage-50 px-3 py-1 text-xs font-semibold text-sage-700" : "rounded-full bg-[#F6EFFF] px-3 py-1 text-xs font-semibold text-[#7A4EAB]"}>
+                <Link
+                  className="grid gap-2 bg-white p-4 transition hover:bg-[#FAF7F2] sm:grid-cols-[1fr_auto]"
+                  href={selectedFacilitatorHref(item.facilitator_id ?? "", rawQueryText)}
+                  key={item.id}
+                >
+                  <span>
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className={"rounded-full px-3 py-1 text-xs font-semibold " + messageTone(item)}>
                         {messageTypeLabel(item.type)}
                       </span>
                       <span className="rounded-full bg-[#FAF6EF] px-3 py-1 text-xs font-semibold text-ink/55">
                         {item.status}
                       </span>
-                    </div>
-                    <h3 className="mt-3 text-lg font-semibold text-midnight">{item.subject}</h3>
-                    <p className="mt-1 text-sm text-ink/55">
-                      {facilitator?.company_name || profile?.full_name || "Arrangør"}
-                      {facilitator?.host_reference_id ? " · " + facilitator.host_reference_id : ""}
-                      {profile?.email ? " · " + profile.email : ""}
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-ink/50">
-                      {item.type === "admin_reply" ? "Sendt " : "Modtaget "}
-                      {formatDateTime(item.created_at)}
-                    </p>
-                    <p className="mt-3 whitespace-pre-line text-sm leading-6 text-ink/72">{item.message}</p>
-                  </div>
-
-                  {isIncoming && selectedBox !== "archive" ? (
-                    <div className="rounded-[18px] border border-[#E5D4F7] bg-[#FAF7F2] p-3">
-                      <form action={replyToFacilitatorAdminMessageAction}>
-                        <input name="message_id" type="hidden" value={item.id} />
-                        <input name="facilitator_id" type="hidden" value={item.facilitator_id ?? ""} />
-                        <input name="subject" type="hidden" value={item.subject ?? "Besked fra arrangør"} />
-                        <label className="grid gap-2 text-xs font-semibold text-ink/68">
-                          Svar til arrangøren
-                          <textarea
-                            className="min-h-28 rounded-md border border-midnight/10 bg-white p-3 text-sm font-normal leading-6 text-ink outline-none transition focus:border-[#7A4EAB]"
-                            maxLength={500}
-                            name="message"
-                            placeholder="Skriv et kort svar. Arrangøren ser det på sit dashboard."
-                            required
-                          />
-                        </label>
-                        <div className="mt-3 flex flex-wrap justify-end gap-2">
-                          <button className="inline-flex h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#62408D]" type="submit">
-                            Send svar
-                          </button>
-                        </div>
-                      </form>
-                      <form action={archiveFacilitatorAdminMessageAction} className="mt-3 flex justify-end">
-                        <input name="message_id" type="hidden" value={item.id} />
-                        <button className="inline-flex h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-4 text-sm font-semibold text-ink/65 transition hover:border-terracotta hover:text-terracotta" type="submit">
-                          Arkivér
-                        </button>
-                      </form>
-                    </div>
-                  ) : (
-                    <div className="rounded-[18px] bg-[#FAF6EF] p-4 text-sm leading-6 text-ink/64">
-                      {selectedBox === "archive"
-                        ? "Beskeden er arkiveret og bevares som historik."
-                        : "Dette er et sendt svar fra SoulEvents administration."}
-                    </div>
-                  )}
-                </article>
+                    </span>
+                    <span className="mt-2 block font-semibold text-midnight">{item.subject}</span>
+                    <span className="mt-1 block text-sm text-ink/55">
+                      {facilitatorName(currentFacilitator, currentProfile)}
+                      {currentFacilitator?.host_reference_id ? " · " + currentFacilitator.host_reference_id : ""}
+                      {currentProfile?.email ? " · " + currentProfile.email : ""}
+                    </span>
+                  </span>
+                  <span className="text-sm font-semibold text-ink/50">{formatDateTime(item.created_at)}</span>
+                </Link>
               );
             })}
           </div>

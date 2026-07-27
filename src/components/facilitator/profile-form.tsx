@@ -19,10 +19,13 @@ import {
   Info,
   Leaf,
   Link2,
+  Mail,
+  MapPinned,
   Moon,
   Music,
   PartyPopper,
   PencilLine,
+  Phone,
   Sparkles,
   Sun,
   Upload,
@@ -34,7 +37,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type ChangeEvent, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { type ChangeEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { resolveNameParts } from "@/lib/auth/names";
 import {
   autosaveFacilitatorProfileAction,
@@ -44,7 +47,8 @@ import {
 } from "@/app/facilitator/profile/actions";
 import { imageUploadAccept, prepareImageFileForUpload } from "@/lib/images/client-image-upload";
 import { OnboardingShell as SharedOnboardingShell } from "@/components/onboarding/onboarding-shell";
-import { SoulEventsIdTag } from "@/components/facilitator/soulevents-id-tag";
+import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
+import { PublicFacilitatorGallery } from "@/components/facilitator/public-facilitator-gallery";
 import type { BrandLogoSources } from "@/lib/brand-logo";
 import {
   defaultFacilitatorHeroKey,
@@ -156,6 +160,8 @@ type PrototypeStep =
   | "approval"
   | "complete";
 
+type ImageSectionTarget = "profile" | "mood" | "banner";
+
 type MoodImage = {
   fileName: string;
   path: string;
@@ -240,7 +246,7 @@ const steps: Array<{
   {
     eyebrow: "Din fortælling",
     id: "story",
-    text: "Fortæl lidt mere om dig, din baggrund og det, du ønsker at skabe for dine deltagere. Din fortælling hjælper nye besøgende med at lære dig at kende og føle sig trygge ved at vælge dig. En personlig og fyldig tekst giver samtidig søgemaskiner og AI et bedre grundlag for at forstå din profil og kan derfor styrke din synlighed.",
+    text: "Fortæl kort om dig, din baggrund og det, du ønsker at skabe for dine deltagere. En personlig fortælling hjælper nye besøgende med at lære dig at kende og føle sig trygge ved at vælge dig.",
     title: "Din fortælling · Obligatorisk",
   },
   {
@@ -325,11 +331,10 @@ function inputClass(extra = "") {
   return "min-h-14 w-full rounded-[18px] border border-midnight/10 bg-white px-5 text-lg text-midnight shadow-soft outline-none transition duration-200 placeholder:text-ink/35 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/10 " + extra;
 }
 
-function workAreaClass(selected: boolean, isLong = false) {
+function workAreaClass(selected: boolean, _isLong = false) {
   return (
     "flex min-h-16 items-center justify-between gap-3 rounded-[22px] border px-3.5 py-3 text-left text-base font-semibold shadow-soft transition duration-200 hover:scale-[1.01] hover:border-sage-700 sm:px-4 " +
-    (selected ? "border-sage-700/25 bg-sage-50 text-sage-700" : "border-midnight/10 bg-white text-midnight") +
-    (isLong ? " md:col-span-2" : "")
+    (selected ? "border-sage-700/25 bg-sage-50 text-sage-700" : "border-midnight/10 bg-white text-midnight")
   );
 }
 
@@ -490,13 +495,39 @@ function displayLink(input: string) {
   return input.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/$/, "");
 }
 
-function ReviewJump({
+function ProfilePreviewEditButton({
+  className = "",
+  label,
+  onClick,
+}: {
+  className?: string;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-label={label}
+      className={
+        "inline-grid size-11 place-items-center rounded-full border border-white/75 bg-white/90 text-[#6E5285] shadow-soft backdrop-blur transition hover:-translate-y-0.5 hover:bg-white hover:text-[#2F2437] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A4EAB] " +
+        className
+      }
+      onClick={onClick}
+      type="button"
+    >
+      <PencilLine className="size-4" aria-hidden="true" />
+    </button>
+  );
+}
+
+function EditablePublicSection({
+  actions,
   children,
   className = "",
   label,
   onClick,
 }: {
-  children: React.ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
   className?: string;
   label: string;
   onClick: () => void;
@@ -505,33 +536,25 @@ function ReviewJump({
     <section
       aria-label={label}
       className={
-        "group relative block w-full min-w-0 cursor-pointer rounded-[24px] text-left transition hover:bg-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 " +
+        "group relative cursor-pointer rounded-[32px] border border-[#E8DEC9] bg-[#FFFDF8] p-7 shadow-[0_18px_45px_rgba(47,36,55,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_54px_rgba(47,36,55,0.1)] focus-within:shadow-[0_24px_54px_rgba(47,36,55,0.1)] sm:p-10 " +
         className
       }
       onClick={onClick}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onClick();
-        }
-      }}
-      role="button"
-      tabIndex={0}
     >
-      <EditIndicator />
+      <div className="absolute right-4 top-4 z-10">
+        {actions ?? <ProfilePreviewEditButton label={label} onClick={onClick} />}
+      </div>
       {children}
     </section>
   );
 }
 
-function EditIndicator() {
+function ProfilePreviewSectionTitle({ eyebrow, title }: { eyebrow?: string; title: string }) {
   return (
-    <span
-      className="pointer-events-none absolute right-3 top-3 z-10 grid size-11 place-items-center rounded-full border border-white/70 bg-white/70 text-ink/55 opacity-80 shadow-soft backdrop-blur-md transition group-hover:bg-white/88 group-hover:text-midnight group-hover:opacity-100 group-focus-visible:bg-white group-focus-visible:text-midnight group-focus-visible:opacity-100 sm:size-10"
-      aria-hidden="true"
-    >
-      <PencilLine className="size-4" />
-    </span>
+    <div>
+      {eyebrow ? <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#7A5D91]">{eyebrow}</p> : null}
+      <h2 className="mt-2 font-serif text-3xl font-semibold leading-tight text-[#2F2437] sm:text-4xl">{title}</h2>
+    </div>
   );
 }
 
@@ -684,52 +707,59 @@ function OnboardingShell({
     );
   }
 
+  const editingBackNavigation = hideBackNavigation ? null : isFirst ? (
+    <Link
+      className="inline-flex min-h-11 items-center justify-center rounded-full border border-midnight/10 bg-white px-4 text-sm font-semibold text-sage-700 shadow-soft transition hover:border-sage-700/35 hover:bg-sage-50"
+      href={backHref}
+    >
+      {backLabel}
+    </Link>
+  ) : (
+    <button
+      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-midnight/10 bg-white px-4 text-sm font-semibold text-sage-700 shadow-soft transition hover:border-sage-700/35 hover:bg-sage-50"
+      onClick={onBack}
+      type="button"
+    >
+      <ArrowLeft className="size-4" aria-hidden="true" />
+      Tilbage
+    </button>
+  );
+
   return (
     <div
-      className="fixed inset-0 z-[80] overflow-y-auto bg-[#fbfaf7] px-4 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:px-6 lg:overflow-hidden lg:bg-[#E7DDE7] lg:px-8 lg:py-6 xl:py-8"
+      className="fixed inset-0 z-[80] overflow-y-auto bg-[#fbfaf7] px-4 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:px-6 lg:bg-[#F4F0E9] lg:px-8 lg:py-6 xl:py-8"
       ref={shellRef}
     >
-      <div className="mx-auto grid min-h-[calc(100svh-3rem)] w-full max-w-[620px] content-between gap-8 lg:h-[calc(100dvh-48px)] lg:min-h-0 lg:max-w-[1040px] lg:grid-cols-[42%_58%] lg:content-stretch lg:gap-0 lg:overflow-hidden lg:rounded-[34px] lg:bg-[#fbfaf7] lg:shadow-[0_24px_70px_rgba(47,36,55,0.16)] xl:h-[calc(100dvh-64px)] xl:max-w-[1120px]">
-        <div className="relative hidden h-full overflow-hidden bg-sage-700 lg:block" aria-hidden="true">
-          <Image
-            alt=""
-            className="object-cover"
-            fill
-            priority
-            sizes="(min-width: 1024px) 520px, 0px"
-            src="/facilitator/onboarding-nature.png"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(47,36,55,0.18),rgba(47,36,55,0.38)),linear-gradient(90deg,rgba(151,161,132,0.16),rgba(231,221,231,0.12))]" />
-        </div>
+      <div className="mx-auto grid min-h-[calc(100svh-3rem)] w-full max-w-[680px] content-between gap-6 lg:min-h-[calc(100dvh-48px)] lg:max-w-[1180px] xl:min-h-[calc(100dvh-64px)] xl:max-w-[1280px]">
+        <div className="grid gap-5 lg:min-h-0">
+          <div className="flex min-h-11 items-center justify-between gap-4">
+            {presentationMode === "editing" ? (
+              <span className="hidden rounded-full bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-sage-700 shadow-soft sm:inline-flex">
+                Rediger profil
+              </span>
+            ) : (
+              <span aria-hidden="true" />
+            )}
+            <div className="ml-auto">{editingBackNavigation}</div>
+          </div>
 
-        <div className="grid min-h-[calc(100svh-3rem)] content-between gap-8 lg:h-full lg:min-h-0 lg:grid-rows-[minmax(0,1fr)_auto] lg:gap-5 lg:overflow-hidden lg:px-6 lg:py-6 xl:px-8 xl:py-7">
-          <div className="grid gap-8 lg:min-h-0 lg:gap-5 lg:overflow-y-auto lg:pr-1" ref={contentScrollRef}>
-            <div className="min-h-8">
-              {hideBackNavigation ? null : isFirst ? (
-                <Link className="text-sm font-semibold text-ink/55 underline-offset-4 hover:text-sage-700 hover:underline" href={backHref}>
-                  {backLabel}
-                </Link>
-              ) : (
-                <button className="inline-flex items-center gap-2 text-sm font-semibold text-ink/55 transition hover:text-sage-700" onClick={onBack} type="button">
-                  <ArrowLeft className="size-4" aria-hidden="true" />
-                  Tilbage
-                </button>
-              )}
-            </div>
-
-            <div className="rounded-[30px] bg-white px-5 py-8 shadow-soft transition-all duration-200 sm:px-8 sm:py-10 lg:rounded-none lg:bg-transparent lg:px-4 lg:py-5 lg:shadow-none xl:px-5 xl:py-6">
+          <div
+            className="rounded-[30px] bg-white px-5 py-8 shadow-soft transition-all duration-200 sm:px-8 sm:py-10 lg:px-8 lg:py-8 xl:px-10 xl:py-10"
+            ref={contentScrollRef}
+          >
+            <div className="min-w-0">
               {children}
             </div>
           </div>
-
-          {hidePrimaryAction ? null : (
-            <div className="pb-2">
-              {footerLeading}
-              {footer}
-              {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
-            </div>
-          )}
         </div>
+
+        {hidePrimaryAction ? null : (
+          <div className="sticky bottom-0 rounded-t-[28px] bg-[#fbfaf7]/92 pb-2 pt-3 backdrop-blur lg:static lg:rounded-[28px] lg:bg-white/85 lg:p-4 lg:shadow-soft">
+            {footerLeading}
+            {footer}
+            {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -871,6 +901,10 @@ export function ProfileForm({
   const [profileImageSubmissionError, setProfileImageSubmissionError] = useState(false);
   const [storySubmissionError, setStorySubmissionError] = useState(false);
   const continueInProgressRef = useRef(false);
+  const pendingImageSectionTargetRef = useRef<ImageSectionTarget | null>(null);
+  const profileImageSectionRef = useRef<HTMLElement | null>(null);
+  const moodImageSectionRef = useRef<HTMLElement | null>(null);
+  const bannerImageSectionRef = useRef<HTMLElement | null>(null);
   const [, startImageTransition] = useTransition();
   const [firstName, setFirstName] = useState(names.firstName);
   const [lastName, setLastName] = useState(names.lastName);
@@ -938,13 +972,6 @@ export function ProfileForm({
   const hasWorkArea = selectedExperiences.length > 0;
   const specialtyText = normalizeSpecialtyText(specialties);
   const hasIndividualServicesDescription = offersIndividualServices && serviceDescription.trim().length > 0;
-  const hasPaymentDefaults = Boolean(
-    paymentMobilepayNumber.trim() ||
-      paymentBankRegistrationNumber.trim() ||
-      paymentBankAccountNumber.trim() ||
-      paymentExternalUrl.trim() ||
-      paymentInstructions.trim(),
-  );
   const facebookValidation = validateSocialProfileLink(facebook, "facebook");
   const instagramValidation = validateSocialProfileLink(instagram, "instagram");
   const facebookError = facebook.trim() && !facebookValidation.ok ? facebookValidation.message : null;
@@ -971,6 +998,24 @@ export function ProfileForm({
       window.localStorage.setItem(onboardingDraftStepStorageKey, currentStep.id);
     }
   }, [currentStep.id, onboardingDraftStepStorageKey, presentationMode]);
+
+  useEffect(() => {
+    if (currentStep.id !== "profile-image") return;
+
+    const target = pendingImageSectionTargetRef.current;
+    if (!target) return;
+
+    pendingImageSectionTargetRef.current = null;
+    const targetElement =
+      target === "profile"
+        ? profileImageSectionRef.current
+        : target === "mood"
+          ? moodImageSectionRef.current
+          : bannerImageSectionRef.current;
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    targetElement?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+  }, [currentStep.id]);
 
   const contactValues = {
     company_name: publicProfileName,
@@ -1227,6 +1272,11 @@ export function ProfileForm({
     goToStep(step);
   }
 
+  function editImagesFromReview(target: ImageSectionTarget) {
+    pendingImageSectionTargetRef.current = target;
+    editFromReview("profile-image");
+  }
+
   function goToMissingItem(item: { label: string; step: PrototypeStep }) {
     if (item.step === "profile-image" && item.label.includes("profilbillede")) {
       setProfileImageSubmissionError(true);
@@ -1315,11 +1365,12 @@ export function ProfileForm({
     });
   }
 
+  const profileImageAdded = Boolean(profileImageUrl);
   const profileImageTile = (
     <UploadTile
-      className="lg:max-w-[240px] xl:max-w-[260px]"
+      className="lg:max-w-none"
       imageUrl={profileImageUrl}
-      label="Vælg profilbillede"
+      label={profileImageAdded ? "Udskift profilbillede" : "Vælg profilbillede"}
       onSelect={(file, previewUrl) => {
         setProfileImageSubmissionError(false);
         setProfileImageFile(file);
@@ -1327,7 +1378,6 @@ export function ProfileForm({
       }}
     />
   );
-  const profileImageAdded = Boolean(profileImageUrl);
 
   const heroPreview = resolveFacilitatorHero({
     heroKey: selectedHeroKey,
@@ -1338,6 +1388,8 @@ export function ProfileForm({
     })),
     preferCustomWhenUnset: false,
   });
+  const selectedMoodHeroNumber = isMoodHeroKey(selectedHeroKey) ? Number(selectedHeroKey.replace("mood_", "")) : null;
+  const selectedHeroDisplayLabel = selectedMoodHeroNumber ? `Stemningsbillede ${selectedMoodHeroNumber}` : heroPreview.label;
   const reviewCategories = categories
     .filter((category) => selectedExperiences.includes(category.id))
     .map((category) => ({ name: category.name }));
@@ -1346,6 +1398,20 @@ export function ProfileForm({
   const reviewPlace = isOnlineFacilitator
     ? "Online arrangør"
     : [city, country].filter(Boolean).join(", ") || null;
+  const previewGalleryImages = moodImages
+    .filter((image) => Boolean(image.previewUrl))
+    .map((image, index) => ({
+      altText: `Stemningsbillede ${index + 1}`,
+      imagePath: image.path || `preview-mood-${index + 1}`,
+      url: image.previewUrl,
+    }));
+  const previewContactLinks = [
+    website.trim() ? { href: website.trim(), label: "Hjemmeside" } : null,
+    facebook.trim() ? { href: facebook.trim(), label: "Facebook" } : null,
+    instagram.trim() ? { href: instagram.trim(), label: "Instagram" } : null,
+    youtube.trim() ? { href: youtube.trim(), label: "YouTube" } : null,
+  ].filter((link): link is { href: string; label: string } => Boolean(link));
+  const hasPreviewContact = Boolean(reviewPlace || profile.email || phone.trim() || previewContactLinks.length > 0);
   const fullProfileHref = facilitatorProfile.id
     ? publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id) +
       (adminReturnTo
@@ -1413,7 +1479,13 @@ export function ProfileForm({
         <span className="grid content-center gap-1 p-3">
           <span className="flex items-center justify-between gap-2">
             <span className="text-sm font-semibold text-midnight">{option.label}</span>
-            <Circle className={selected ? "size-4 shrink-0 fill-sage-700/15 text-sage-700" : "size-4 shrink-0 text-sage-700/45"} aria-hidden="true" />
+            {selected ? (
+              <span className="rounded-full bg-sage-700 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white">
+                Valgt
+              </span>
+            ) : (
+              <Circle className="size-4 shrink-0 text-sage-700/45" aria-hidden="true" />
+            )}
           </span>
           <span className="text-xs leading-5 text-ink/55">{option.description}</span>
         </span>
@@ -1422,86 +1494,112 @@ export function ProfileForm({
   }
 
   const heroPicker = (
-    <section className="grid gap-4">
-      <div>
-        <p className="text-sm font-semibold text-midnight">Vælg banner til din offentlige profil</p>
-        <p className="mt-1 text-sm leading-6 text-ink/55">
-          Vælg et SoulEvents-naturbanner eller et af dine egne stemningsbilleder. Naturbannerne er tilpasset profilens brede format.
-        </p>
-      </div>
+    <>
+      <section
+        className="grid scroll-mt-24 gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6"
+        id="profile-banner-section"
+        ref={bannerImageSectionRef}
+      >
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">3. Dit valgte banner</p>
+          <p className="mt-2 text-lg font-semibold text-midnight">Vælg banner til din profil</p>
+          <p className="mt-1 text-sm leading-6 text-ink/55">
+            Banneret er det brede billede øverst på din offentlige profil. Du kan vælge et af dine egne stemningsbilleder eller et af SoulEvents’ naturbannere.
+          </p>
+        </div>
 
-      <div className="overflow-hidden rounded-[24px] bg-midnight shadow-soft">
-        <div className="relative aspect-[16/7] min-h-[180px]">
-          <Image
-            alt={heroPreview.altText}
-            className="object-cover"
-            fill
-            sizes="(min-width: 768px) 640px, 100vw"
-            src={heroPreview.url}
-            unoptimized
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(44,51,35,0.78)_0%,rgba(69,56,82,0.38)_54%,rgba(69,56,82,0.08)_100%)]" />
-          <div className="relative z-10 flex h-full max-w-sm flex-col justify-end p-5 text-white sm:p-6">
-            <span className="text-xs font-bold uppercase tracking-[0.22em] text-white/78">Sådan vises banneret på din profil</span>
-            <p className="mt-2 font-serif text-3xl font-semibold leading-tight">{heroPreview.label}</p>
+        <div className="overflow-hidden rounded-[24px] bg-midnight shadow-soft">
+          <div className="relative aspect-[16/7] min-h-[180px]">
+            <Image
+              alt={heroPreview.altText}
+              className="object-cover"
+              fill
+              sizes="(min-width: 768px) 640px, 100vw"
+              src={heroPreview.url}
+              unoptimized
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(44,51,35,0.78)_0%,rgba(69,56,82,0.38)_54%,rgba(69,56,82,0.08)_100%)]" />
+            <div className="relative z-10 flex h-full max-w-sm flex-col justify-end p-5 text-white sm:p-6">
+              <span className="w-fit rounded-full bg-white/18 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
+                Valgt som banner
+              </span>
+              <span className="mt-3 text-xs font-bold uppercase tracking-[0.22em] text-white/78">Dit nuværende banner</span>
+              <p className="mt-2 font-serif text-3xl font-semibold leading-tight">{selectedHeroDisplayLabel}</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="grid gap-3">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">SoulEvents naturbannere</p>
+        <div className="grid gap-3">
+          <div>
+            <p className="text-sm font-semibold text-midnight">Vælg blandt dine stemningsbilleder</p>
+            <p className="mt-1 text-sm leading-6 text-ink/55">Dine egne billeder vises først, så profilen kan få dit personlige udtryk.</p>
+          </div>
+          {moodHeroOptions.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {moodHeroOptions.map(renderHeroOption)}
+            </div>
+          ) : (
+            <p className="rounded-[18px] bg-white/70 px-4 py-3 text-sm leading-6 text-ink/55">
+              Tilføj et stemningsbillede ovenfor, eller vælg et SoulEvents-naturbanner nedenfor.
+            </p>
+          )}
+        </div>
+      </section>
+
+      <section className="grid gap-3 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">4. SoulEvents-naturbannere</p>
+          <p className="mt-2 text-lg font-semibold text-midnight">Naturbannere som reservevalg</p>
+          <p className="mt-1 text-sm leading-6 text-ink/55">Har du endnu ikke et egnet stemningsbillede, kan du vælge et af SoulEvents’ bannere.</p>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {souleventsHeroOptions.map(renderHeroOption)}
         </div>
-      </div>
-
-      <div className="grid gap-3">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Dine stemningsbilleder</p>
-        {moodHeroOptions.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {moodHeroOptions.map(renderHeroOption)}
-          </div>
-        ) : (
-          <p className="rounded-[18px] bg-white/70 px-4 py-3 text-sm leading-6 text-ink/55">
-            Upload stemningsbilleder ovenfor, hvis du vil bruge et af dine egne billeder som banner.
-          </p>
-        )}
-      </div>
+      </section>
 
       {isMoodHeroKey(selectedHeroKey) && !moodImages[Number(selectedHeroKey.replace("mood_", "")) - 1]?.previewUrl ? (
         <p className="rounded-[18px] bg-[#FFF7DE] px-4 py-3 text-sm font-semibold leading-6 text-[#715C21]">
           Det valgte stemningsbillede findes ikke længere. Vælg et nyt banner, før du gemmer.
         </p>
       ) : null}
-    </section>
+    </>
   );
 
   const moodImageTiles = (
     <>
-      {moodImages.map((image, index) => (
-        <div className="grid gap-2" key={`mood-slot-${index + 1}`}>
-          <div className="relative">
-            <UploadTile
-              className="lg:max-w-[180px] xl:max-w-[200px]"
-              createPreview={false}
-              helperText={"JPG, PNG eller WebP\nMaks. 15 MB"}
-              imageUrl={image.previewUrl}
-              label={moodImageStatuses[index]?.status === "saving" ? "Gemmer billede..." : `Vælg stemningsbillede ${index + 1}`}
-              maxFileSizeBytes={moodImageMaxFileSize}
-              onError={(message) => setMoodImageStatus(index, { message, status: "error" })}
-              onSelect={(file) => saveMoodImage(index, file)}
-            />
-            {image.path ? (
-              <button
-                aria-label={`Fjern stemningsbillede ${index + 1}`}
-                className="absolute right-3 top-3 grid size-10 place-items-center rounded-full bg-white/85 text-ink/55 shadow-soft transition hover:bg-white hover:text-midnight focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
-                onClick={() => removeMoodImage(index)}
-                type="button"
-              >
-                <X className="size-4" aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
+      {moodImages.map((image, index) => {
+        const selectedAsBanner = selectedHeroKey === (`mood_${index + 1}` as FacilitatorHeroKey);
+
+        return (
+          <div className="grid min-w-[82%] snap-start gap-2 sm:min-w-0" key={`mood-slot-${index + 1}`}>
+            <p className="text-sm font-semibold text-midnight">Stemningsbillede {index + 1}</p>
+            <div className="relative">
+              <UploadTile
+                className={selectedAsBanner ? "ring-2 ring-sage-700/45 ring-offset-2 ring-offset-white" : ""}
+                createPreview={false}
+                helperText={"JPG, PNG eller WebP\nMaks. 15 MB"}
+                imageUrl={image.previewUrl}
+                label={moodImageStatuses[index]?.status === "saving" ? "Gemmer billede..." : `Vælg stemningsbillede ${index + 1}`}
+                maxFileSizeBytes={moodImageMaxFileSize}
+                onError={(message) => setMoodImageStatus(index, { message, status: "error" })}
+                onSelect={(file) => saveMoodImage(index, file)}
+              />
+              {selectedAsBanner && image.previewUrl ? (
+                <span className="absolute bottom-3 left-3 rounded-full bg-sage-700 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white shadow-soft">
+                  Valgt som banner
+                </span>
+              ) : null}
+              {image.path ? (
+                <button
+                  aria-label={`Fjern stemningsbillede ${index + 1}`}
+                  className="absolute right-3 top-3 grid size-10 place-items-center rounded-full bg-white/85 text-ink/55 shadow-soft transition hover:bg-white hover:text-midnight focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
+                  onClick={() => removeMoodImage(index)}
+                  type="button"
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
           {moodImageStatuses[index]?.message ? (
             <p
               className={
@@ -1516,30 +1614,48 @@ export function ProfileForm({
               {moodImageStatuses[index]?.message}
             </p>
           ) : null}
-        </div>
-      ))}
+          </div>
+        );
+      })}
     </>
   );
 
   const imageOverview = (
     <div className="grid gap-6">
-      <section className="grid gap-5 lg:grid-cols-[minmax(220px,260px)_minmax(0,1fr)] lg:items-center">
-        {profileImageTile}
+      <section
+        className="grid scroll-mt-24 gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6 lg:grid-cols-[minmax(260px,340px)_minmax(0,480px)] lg:items-center lg:justify-start"
+        id="profile-image-section"
+        ref={profileImageSectionRef}
+      >
+        <div className="grid gap-3">
+          <div className="relative">
+            {profileImageTile}
+            {profileImageAdded ? (
+              <span className="absolute inset-x-3 bottom-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-midnight/78 px-4 py-2 text-sm font-bold text-white shadow-soft backdrop-blur transition group-hover:bg-midnight/86">
+                <Camera className="size-4" aria-hidden="true" />
+                Udskift profilbillede
+              </span>
+            ) : null}
+          </div>
+          {profileImageAdded ? (
+            <p className="text-center text-xs font-semibold text-ink/45">Klik på billedet for at udskifte det.</p>
+          ) : null}
+        </div>
         <div className="rounded-[24px] bg-sage-50 p-5 text-sm leading-6 text-ink/65">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">1. Profilbillede</p>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold text-midnight">Profilbillede · Obligatorisk</p>
+            <p className="font-semibold text-midnight">Profilbillede</p>
             <span
               className={
                 "rounded-full px-3 py-1 text-xs font-bold " +
                 (profileImageAdded ? "bg-white text-sage-700" : "bg-white text-[#7A4EAB]")
               }
             >
-              {profileImageAdded ? "Profilbillede tilføjet" : "Tilføj et profilbillede"}
+              {profileImageAdded ? "Profilbillede tilføjet" : "Obligatorisk"}
             </span>
           </div>
           <p className="mt-2">
-            Tilføj et billede af dig selv eller et billede, der tydeligt viser det, du tilbyder. Profilbilledet vises
-            på din offentlige arrangørprofil og skal tilføjes, før profilen kan sendes til SoulEvents.
+            Dit profilbillede vises tydeligt på din offentlige profil og hjælper gæsterne med at lære dig at kende.
           </p>
           <p className="mt-2 text-ink/55">
             Det må gerne være et portræt, logo eller et billede af en behandling, aktivitet eller stemning, der tydeligt
@@ -1553,9 +1669,19 @@ export function ProfileForm({
         </div>
       </section>
 
-      <section className="grid gap-3">
-        <p className="text-sm font-semibold text-midnight">Stemningsbilleder (1-3)</p>
-        <div className="grid gap-4 sm:grid-cols-3">
+      <section
+        className="grid scroll-mt-24 gap-4 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6"
+        id="profile-mood-images-section"
+        ref={moodImageSectionRef}
+      >
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">2. Dine stemningsbilleder</p>
+          <p className="mt-2 text-lg font-semibold text-midnight">Tilføj op til tre billeder, der viser dit univers</p>
+          <p className="mt-1 text-sm leading-6 text-ink/55">
+            Tilføj op til tre billeder, der viser stemningen i det, du tilbyder. Ét af billederne kan også vælges som banner på din profil.
+          </p>
+        </div>
+        <div className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0">
           {moodImageTiles}
         </div>
       </section>
@@ -1580,7 +1706,7 @@ export function ProfileForm({
           : currentStep.id === "review"
             ? "Gem ændringer"
             : returnToReview
-              ? "Tilbage til gennemse"
+              ? "Gem ændringer"
               : undefined
       }
       ctaHelper={
@@ -1591,14 +1717,14 @@ export function ProfileForm({
       footerLeading={
         currentStep.id === "review" && fullProfileHref ? (
           <div className="mb-3 grid gap-2 text-center">
-            <p className="text-sm font-medium text-ink/55">Se hvordan hele profilen vises for gæster</p>
+            <p className="text-sm font-medium text-ink/55">Klik på den del af profilen, du vil ændre.</p>
             <Link
               className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-sage-700/20 bg-white px-5 text-sm font-semibold text-sage-700 shadow-soft transition hover:border-sage-700/40 hover:bg-sage-50"
               href={fullProfileHref}
               rel="noreferrer"
               target="_blank"
             >
-              Se fuld profilvisning
+              Se som gæst
               <ExternalLink className="size-4" aria-hidden="true" />
             </Link>
           </div>
@@ -1782,9 +1908,9 @@ export function ProfileForm({
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mit univers</p>
           </div>
           <div className="rounded-[22px] bg-[#FBF5E9] p-4 text-sm leading-6 text-ink/65">
-            <p className="font-semibold text-midnight">Din fortælling hjælper deltagere med at mærke, hvem du er.</p>
+            <p className="font-semibold text-midnight">Fortæl, hvem du er, og hvad deltagerne kan forvente.</p>
             <p className="mt-1">
-              Kladder må gerne være tomme eller korte. Den behøver først være klar, når profilen sendes til SoulEvents.
+              Du kan gemme en kort kladde, men teksten skal være færdig, før profilen sendes til SoulEvents.
             </p>
           </div>
           <div className="relative">
@@ -1833,7 +1959,7 @@ export function ProfileForm({
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mailadresse</p>
             <p className="mt-2 break-all text-base font-semibold text-midnight">{profile.email}</p>
             <p className="mt-2 text-sm leading-6 text-ink/55">Mailadressen bruges til login og vigtige beskeder.</p>
-            <Link className="mt-3 inline-flex text-sm font-semibold text-[#7A4EAB] hover:text-sage-700" href="/facilitator?messages=open#beskeder-admin">
+            <Link className="mt-3 inline-flex text-sm font-semibold text-[#7A4EAB] hover:text-sage-700" href="/facilitator/settings">
               Skift mailadresse under Login og sikkerhed
             </Link>
           </section>
@@ -1995,246 +2121,168 @@ export function ProfileForm({
       )}
 
       {currentStep.id === "review" && (
-        <div className="rounded-[34px] border border-midnight/5 bg-[#F4F0E9] p-4 shadow-soft sm:p-6">
-          <div className="grid gap-5 [&>*+*]:border-t [&>*+*]:border-midnight/10 [&>*+*]:pt-5">
-            <ReviewJump
-              label="Rediger profilbanner"
-              onClick={() => editFromReview("profile-image")}
-              className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
-            >
-              <section className="grid gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Dit valgte profilbanner</p>
-                  <p className="mt-1 text-sm leading-6 text-ink/60">
-                    Banneret bruges øverst på din offentlige profil. Hele profilvisningen åbnes separat.
-                  </p>
-                </div>
+        <div className="grid gap-6">
+          <div className="rounded-[34px] bg-[#FAF8F4] p-3 shadow-soft sm:p-5 lg:p-6">
+            <ProfileIdentityHeader
+              badges={[]}
+              categories={reviewCategories}
+              coverImage={{
+                altText: heroPreview.altText,
+                isFallback: false,
+                objectPositionDesktop: heroPreview.objectPositionDesktop,
+                objectPositionMobile: heroPreview.objectPositionMobile,
+                url: heroPreview.url,
+              }}
+              editActions={{
+                banner: <ProfilePreviewEditButton label="Rediger bannerbillede" onClick={() => editImagesFromReview("banner")} />,
+                categories: <ProfilePreviewEditButton label="Rediger arbejdsområder og speciale" onClick={() => editFromReview("experiences")} />,
+                identity: <ProfilePreviewEditButton label="Rediger navn og grundoplysninger" onClick={() => editFromReview("person")} />,
+                profileImage: <ProfilePreviewEditButton label="Rediger profilbillede" onClick={() => editImagesFromReview("profile")} />,
+              }}
+              hostReferenceId={facilitatorProfile.host_reference_id}
+              name={publicProfileName || "Profilnavn mangler"}
+              place={reviewPlace}
+              profileImageUrl={profileImageUrl}
+              specialty={specialtyText}
+            />
 
-                <div className="overflow-hidden rounded-[28px] bg-midnight shadow-soft transition group-hover:shadow-lift">
-                  <div className="relative aspect-[16/7] max-h-[220px] min-h-[160px] sm:min-h-[190px] lg:max-h-[240px]">
-                    <Image
-                      alt={heroPreview.altText}
-                      className="object-cover"
-                      fill
-                      sizes="(min-width: 1024px) 560px, 100vw"
-                      src={heroPreview.url}
-                      style={{ objectPosition: heroPreview.objectPositionDesktop ?? "center center" }}
-                      unoptimized
-                    />
-                  </div>
-                </div>
-
-                <p className="text-sm font-semibold text-ink/60">Valgt banner: {heroPreview.label}</p>
-              </section>
-            </ReviewJump>
-
-            <section className="grid gap-3 rounded-[26px] bg-white/70 p-4 sm:grid-cols-[112px_minmax(0,1fr)] sm:p-5">
-              <ReviewJump label="Rediger profilbillede" onClick={() => editFromReview("profile-image")}>
-                <div className="aspect-square overflow-hidden rounded-[24px] bg-sage-50 text-sage-700 transition group-hover:ring-2 group-hover:ring-sage-700/25">
-                  {profileImageUrl ? (
-                    <img alt="" className="h-full w-full object-cover transition group-hover:scale-[1.02]" src={profileImageUrl} />
+            <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="grid gap-8">
+                <EditablePublicSection label="Rediger fortælling" onClick={() => editFromReview("story")}>
+                  <ProfilePreviewSectionTitle eyebrow="Mød arrangøren" title="Mit univers" />
+                  {normalizedStory ? (
+                    <div className="mt-6 max-w-3xl whitespace-pre-line text-base leading-8 text-[#5E5662]">{story}</div>
                   ) : (
-                    <span className="grid h-full place-items-center">
-                      <Camera className="size-8" aria-hidden="true" />
-                    </span>
-                  )}
-                </div>
-              </ReviewJump>
-              <ReviewJump label="Rediger profilnavn og lokation" onClick={() => editFromReview("person")} className="p-2 pr-14">
-                <span className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Profilnavn</span>
-                <span className="mt-2 block break-words font-serif text-3xl font-semibold leading-tight text-midnight">{publicProfileName || "Profilnavn mangler"}</span>
-                {reviewPlace ? <span className="mt-2 block text-sm font-semibold text-ink/55">{reviewPlace}</span> : null}
-                <SoulEventsIdTag className="mt-3" hostReferenceId={facilitatorProfile.host_reference_id} />
-              </ReviewJump>
-            </section>
-
-            <ReviewJump
-              label="Rediger arbejdsområder og speciale"
-              onClick={() => editFromReview("experiences")}
-              className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
-            >
-              <div className="grid gap-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Arbejdsområder</p>
-                  {reviewCategories.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {reviewCategories.map((category) => (
-                        <span className="rounded-full bg-[#EDF3EA] px-3 py-1.5 text-xs font-semibold text-[#4F6849]" key={category.name}>
-                          {category.name}
-                        </span>
-                      ))}
+                    <div className="mt-6 rounded-[22px] bg-[#FFF7DE] p-4 text-sm font-semibold leading-6 text-[#715C21]">
+                      Fortæl lidt om dig og de begivenheder, du skaber.
                     </div>
-                  ) : (
-                    <p className="mt-2 rounded-[18px] bg-[#FFF7DE] px-4 py-3 text-sm font-semibold leading-6 text-[#715C21]">
-                      Vælg mindst ét arbejdsområde.
-                    </p>
                   )}
-                </div>
-                {specialtyText ? (
-                  <div className="grid gap-2">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Beskrivelse af speciale</p>
-                    <p className="rounded-[18px] bg-[#F1EAF5] px-4 py-3 text-sm font-semibold leading-6 text-[#2F2437] [overflow-wrap:anywhere]">
-                      {specialtyText}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            </ReviewJump>
+                </EditablePublicSection>
 
-            <ReviewJump
-              label="Rediger stemningsbilleder"
-              onClick={() => editFromReview("profile-image")}
-              className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
-            >
-              <div className="grid gap-3">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Stemningsbilleder</p>
-                <div className="grid grid-cols-3 gap-2">
-                {moodImages.map((image, index) => (
-                  <div
-                    className="aspect-square overflow-hidden rounded-[18px] bg-white/45 text-sage-700/45"
-                    key={`review-mood-slot-${index + 1}`}
+                {offersIndividualServices || presentationMode !== "onboarding" ? (
+                  <EditablePublicSection
+                    className="border-[#D8CBE4] bg-[#F4F0F7]"
+                    label="Rediger individuelle ydelser"
+                    onClick={() => editFromReview("services")}
                   >
-                    {image.previewUrl ? (
-                      <img alt="" className="h-full w-full object-cover" src={image.previewUrl} />
+                    <ProfilePreviewSectionTitle eyebrow="Individuelle ydelser" title="Mine ydelser" />
+                    {hasIndividualServicesDescription ? (
+                      <p className="mt-5 max-w-3xl whitespace-pre-line text-base leading-8 text-[#5E5662]">{serviceDescription}</p>
                     ) : (
-                      <span className="grid h-full place-items-center">
-                        <ImagePlus className="size-5" aria-hidden="true" />
-                      </span>
-                    )}
-                  </div>
-                ))}
-                </div>
-              </div>
-            </ReviewJump>
-
-            <ReviewJump
-              label="Rediger om mig"
-              onClick={() => editFromReview("story")}
-              className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
-            >
-              <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mit univers</p>
-              {normalizedStory ? (
-                <p className="min-w-0 whitespace-pre-line text-base leading-8 text-ink/72">{story}</p>
-              ) : (
-                <div className="rounded-[22px] bg-[#FFF7DE] p-4 text-sm font-semibold leading-6 text-[#715C21]">
-                  Fortæl lidt om dig og de begivenheder, du skaber.
-                </div>
-              )}
-            </ReviewJump>
-
-            {offersIndividualServices || presentationMode !== "onboarding" ? (
-              <ReviewJump
-                label="Rediger individuelle ydelser"
-                onClick={() => editFromReview("services")}
-                className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
-              >
-                <div className="grid gap-3">
-                  <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Tilbyder du også individuelle ydelser?</p>
-                  {hasIndividualServicesDescription ? (
-                    <p className="whitespace-pre-line text-base leading-7 text-ink/72">{serviceDescription}</p>
-                  ) : offersIndividualServices ? (
-                    <p className="text-sm leading-6 text-ink/55">
-                      Så kan du blive vist på SoulEvents under “Ydelser”, så deltagere også kan finde og kontakte dig uden for dine events.
-                    </p>
-                  ) : (
-                    <div className="rounded-[22px] bg-[#FBF5E9] p-4">
-                      <p className="text-sm font-semibold leading-6 text-midnight">Tilbyder du også individuelle ydelser?</p>
-                      <p className="mt-1 text-sm leading-6 text-ink/60">
+                      <p className="mt-5 max-w-3xl text-base leading-8 text-[#5E5662]">
                         Så kan du blive vist på SoulEvents under “Ydelser”, så deltagere også kan finde og kontakte dig uden for dine events.
                       </p>
-                      <span className="mt-3 inline-flex h-10 w-fit items-center rounded-full bg-sage-700 px-4 text-sm font-semibold text-white shadow-soft">
-                        Tilføj ydelse
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </ReviewJump>
-            ) : null}
-
-            {presentationMode !== "onboarding" ? (
-              <Link
-                aria-label="Gå til betaling under Hjælp og profilindstillinger"
-                className="relative block rounded-[26px] bg-white/70 p-4 pr-14 text-left shadow-soft transition hover:-translate-y-0.5 hover:bg-white sm:p-5 sm:pr-14"
-                href="/facilitator?messages=open#betaling"
-              >
-                <div className="grid gap-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Standardbetaling</p>
-                  {hasPaymentDefaults ? (
-                    <div className="flex flex-wrap gap-2 text-sm font-semibold text-sage-700">
-                      {paymentMobilepayNumber.trim() ? <span className="rounded-full bg-sage-50 px-3 py-1">MobilePay</span> : null}
-                      {paymentBankRegistrationNumber.trim() || paymentBankAccountNumber.trim() ? (
-                        <span className="rounded-full bg-sage-50 px-3 py-1">Bankoverførsel</span>
-                      ) : null}
-                      {paymentExternalUrl.trim() ? <span className="rounded-full bg-sage-50 px-3 py-1">Betalingslink</span> : null}
-                      {paymentInstructions.trim() ? <span className="rounded-full bg-sage-50 px-3 py-1">Instruktioner</span> : null}
-                    </div>
-                  ) : (
-                    <p className="text-sm leading-6 text-ink/55">
-                      Ikke angivet endnu. Du kan stadig skrive betalingsoplysninger direkte på et event.
-                    </p>
-                  )}
-                  <p className="text-xs leading-5 text-ink/55">
-                    Sendes først til deltageren, når du bekræfter en betalt tilmelding.
-                  </p>
-                </div>
-                <ArrowRight className="absolute right-4 top-1/2 size-5 -translate-y-1/2 text-sage-700" aria-hidden="true" />
-              </Link>
-            ) : null}
-
-            <ReviewJump
-              label="Rediger kontaktoplysninger"
-              onClick={() => editFromReview("links")}
-              className="rounded-[26px] bg-white/70 p-4 pr-14 sm:p-5 sm:pr-14"
-            >
-              <div className="grid gap-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Kontaktoplysninger</p>
-                  <div className="mt-3 grid gap-3 text-sm leading-6 text-midnight">
-                    <div className="border-b border-midnight/10 pb-3">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-ink/45">Mailadresse</p>
-                      <p className="mt-1 break-all font-semibold">{profile.email}</p>
-                      <p className="mt-1 text-ink/55">Mailadressen bruges til login og vigtige beskeder.</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-ink/45">Telefonnummer</p>
-                      <p className="mt-1 font-semibold">{phone.trim() || "Ikke angivet"}</p>
-                    </div>
-                    <Link
-                      className="w-fit font-semibold text-[#7A4EAB] hover:text-sage-700"
-                      href="/facilitator?messages=open#beskeder-admin"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      Skift mailadresse under Login og sikkerhed
-                    </Link>
-                  </div>
-                </div>
-                {hasLinks ? <LinkRows facebook={facebook} instagram={instagram} website={website} youtube={youtube} /> : null}
-              </div>
-              </ReviewJump>
-
-            {missingRequired.length > 0 ? (
-              <div className="rounded-[24px] bg-[#FFF7DE] p-5">
-                <p className="text-sm font-semibold text-[#715C21]">Du mangler stadig nogle oplysninger</p>
-                {!storyMeetsMinimum ? (
-                  <p className="mt-2 text-sm leading-6 text-[#715C21]">
-                    {storyMissingMessage}
-                  </p>
+                    )}
+                  </EditablePublicSection>
                 ) : null}
-                <div className="mt-3 grid gap-2">
-                  {missingRequired.map((item) => (
-                    <button
-                      className="inline-flex min-h-10 items-center justify-between rounded-full bg-white px-4 text-sm font-semibold text-midnight shadow-soft"
-                      key={item.label}
-                      onClick={() => goToMissingItem(item)}
-                      type="button"
-                    >
-                      {item.label}
-                      <ArrowRight className="size-4 text-sage-700" aria-hidden="true" />
-                    </button>
-                  ))}
-                </div>
+
+                {previewGalleryImages.length > 0 ? (
+                  <PublicFacilitatorGallery
+                    actions={<ProfilePreviewEditButton label="Rediger stemningsbilleder" onClick={() => editImagesFromReview("mood")} />}
+                    images={previewGalleryImages}
+                  />
+                ) : (
+                  <EditablePublicSection
+                    className="border-[#E5DDEA] bg-white/82"
+                    label="Rediger stemningsbilleder"
+                    onClick={() => editImagesFromReview("mood")}
+                  >
+                    <ProfilePreviewSectionTitle eyebrow="Stemninger" title="Galleri" />
+                    <div className="mt-6 grid gap-3 md:grid-cols-3">
+                      {moodImages.map((image, index) => (
+                        <div
+                          className="grid aspect-[4/3] place-items-center rounded-xl border-2 border-[#E5DDEA] bg-[#F4F0F7] text-[#7A5D91]"
+                          key={"empty-gallery-preview-" + (index + 1)}
+                        >
+                          {image.previewUrl ? (
+                            <img alt="" className="h-full w-full rounded-xl object-cover" src={image.previewUrl} />
+                          ) : (
+                            <ImagePlus className="size-6" aria-hidden="true" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </EditablePublicSection>
+                )}
+
+                {missingRequired.length > 0 ? (
+                  <div className="rounded-[24px] bg-[#FFF7DE] p-5">
+                    <p className="text-sm font-semibold text-[#715C21]">Du mangler stadig nogle oplysninger</p>
+                    {!storyMeetsMinimum ? (
+                      <p className="mt-2 text-sm leading-6 text-[#715C21]">
+                        {storyMissingMessage}
+                      </p>
+                    ) : null}
+                    <div className="mt-3 grid gap-2">
+                      {missingRequired.map((item) => (
+                        <button
+                          className="inline-flex min-h-10 items-center justify-between rounded-full bg-white px-4 text-sm font-semibold text-midnight shadow-soft"
+                          key={item.label}
+                          onClick={() => goToMissingItem(item)}
+                          type="button"
+                        >
+                          {item.label}
+                          <ArrowRight className="size-4 text-sage-700" aria-hidden="true" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
-            ) : null}
+
+              <aside className="grid content-start gap-5 lg:sticky lg:top-6">
+                {hasPreviewContact ? (
+                  <EditablePublicSection
+                    className="border-[#E5DDEA] bg-white/86 p-6 sm:p-6"
+                    label="Rediger kontaktoplysninger"
+                    onClick={() => editFromReview("links")}
+                  >
+                    <h2 className="font-serif text-3xl font-semibold text-[#2F2437]">Kontakt</h2>
+                    <div className="mt-5 grid gap-3 pr-12 text-sm text-[#6E6475]">
+                      {reviewPlace ? (
+                        <div className="flex gap-2">
+                          <MapPinned className="mt-0.5 size-4 shrink-0 text-[#7A5D91]" aria-hidden="true" />
+                          <span>{reviewPlace}</span>
+                        </div>
+                      ) : null}
+                      {profile.email ? (
+                        <a
+                          className="inline-flex items-center gap-2 font-semibold text-[#6E5285] transition hover:text-[#B56F8A]"
+                          href={"mailto:" + profile.email}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <Mail className="size-4" aria-hidden="true" />
+                          {profile.email}
+                        </a>
+                      ) : null}
+                      {phone.trim() ? (
+                        <a
+                          className="inline-flex items-center gap-2 font-semibold text-[#6E5285] transition hover:text-[#B56F8A]"
+                          href={"tel:" + phone.trim()}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <Phone className="size-4" aria-hidden="true" />
+                          {phone.trim()}
+                        </a>
+                      ) : null}
+                      {previewContactLinks.map((link) => (
+                        <a
+                          className="inline-flex items-center gap-2 font-semibold text-[#6E5285] transition hover:text-[#B56F8A]"
+                          href={link.href}
+                          key={link.label}
+                          onClick={(event) => event.stopPropagation()}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <ExternalLink className="size-4" aria-hidden="true" />
+                          {link.label}
+                        </a>
+                      ))}
+                    </div>
+                  </EditablePublicSection>
+                ) : null}
+              </aside>
+            </div>
           </div>
         </div>
       )}
