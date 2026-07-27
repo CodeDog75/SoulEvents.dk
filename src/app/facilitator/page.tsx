@@ -25,6 +25,7 @@ import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction
 import { AuthMessage } from "@/components/auth/auth-message";
 import { DashboardGreeting } from "@/components/facilitator/dashboard-greeting";
 import { CancelEventAction } from "@/components/facilitator/events/cancel-event-action";
+import { DashboardEventVisibilityAction } from "@/components/facilitator/events/dashboard-event-visibility-action";
 import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireRole } from "@/lib/auth/roles";
@@ -579,11 +580,13 @@ type DashboardEventVariant = "draft" | "active" | "completed" | "cancelled";
 function EventCard({
   event,
   facilitatorStatus,
+  isHidden = false,
   isExpiringSoon = false,
   variant,
 }: {
   event: any;
   facilitatorStatus?: string | null;
+  isHidden?: boolean;
   isExpiringSoon?: boolean;
   variant: DashboardEventVariant;
 }) {
@@ -679,6 +682,15 @@ function EventCard({
             >
               Se detaljer
             </Link>
+            {isHidden ? (
+              <Link
+                className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-[#E5DDEA] bg-white px-4 text-sm font-semibold text-[#2F2437] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
+                href={"/facilitator/events?draft=" + event.id}
+              >
+                <PencilLine className="size-4" aria-hidden="true" />
+                Rediger
+              </Link>
+            ) : null}
             {isCopyableAsDraft ? (
               <form action={copyEventAsDraftAction}>
                 <input name="event_id" type="hidden" value={event.id} />
@@ -688,6 +700,11 @@ function EventCard({
                 </button>
               </form>
             ) : null}
+            <DashboardEventVisibilityAction
+              eventId={event.id}
+              eventTitle={event.title || "Event uden titel"}
+              mode={isHidden ? "restore" : "hide"}
+            />
           </div>
         ) : isDraft || isPendingReview ? (
           <>
@@ -762,6 +779,13 @@ function EventCard({
             </div>
           </>
         )}
+        {isHidden && !isHeld && !isCancelled ? (
+          <DashboardEventVisibilityAction
+            eventId={event.id}
+            eventTitle={event.title || "Event uden titel"}
+            mode="restore"
+          />
+        ) : null}
       </div>
     </article>
   );
@@ -780,12 +804,14 @@ function EventGrid({
   events,
   facilitatorStatus,
   id,
+  isHidden = false,
   title,
   variant,
 }: {
   events: any[];
   facilitatorStatus?: string | null;
   id?: string;
+  isHidden?: boolean;
   title: string;
   variant: DashboardEventVariant;
 }) {
@@ -801,6 +827,7 @@ function EventGrid({
             <EventCard
               event={event}
               facilitatorStatus={facilitatorStatus}
+              isHidden={isHidden}
               isExpiringSoon={variant === "completed" && isOlderThanMonths(eventEndDate(event), new Date(), 11)}
               key={event.id}
               variant={eventVariant}
@@ -911,7 +938,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
       ? await Promise.all([
           supabase
             .from("events")
-            .select("id, slug, title, status, starts_at, ends_at, created_at, updated_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), bookings(id)")
+            .select("id, slug, title, status, starts_at, ends_at, created_at, updated_at, dashboard_hidden_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), bookings(id)")
             .eq("facilitator_id", facilitatorProfile.id)
             .order("starts_at", { ascending: false }),
           getFacilitatorUnreadAdminMessageCount(facilitatorProfile.id),
@@ -960,13 +987,15 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const pendingCoOrganizerInvitations = currentCoOrganizerRows.filter((row) => row.status === "pending");
   const acceptedCoOrganizerInvitations = currentCoOrganizerRows.filter((row) => row.status === "accepted");
   const unreadMessageCount = unreadAdminMessageCount;
-  const activeEvents = eventRows.filter((event) => {
+  const hiddenEvents = eventRows.filter((event) => event.dashboard_hidden_at);
+  const visibleEventRows = eventRows.filter((event) => !event.dashboard_hidden_at);
+  const activeEvents = visibleEventRows.filter((event) => {
     const userStatus = getUserFacingEventStatus(event, now);
     return userStatus === "active" || userStatus === "sold_out";
   });
-  const completedEvents = eventRows.filter((event) => isPastEvent(event, now));
+  const completedEvents = visibleEventRows.filter((event) => isPastEvent(event, now));
   const visibleCompletedEvents = completedEvents.filter((event) => !isOlderThanMonths(eventEndDate(event), now, 12));
-  const draftEvents = eventRows.filter((event) => event.status === "draft" || event.status === "pending_review");
+  const draftEvents = visibleEventRows.filter((event) => event.status === "draft" || event.status === "pending_review");
   const profileReadiness = getProfileReadiness({
     categoryCount: categoryNames.length,
     facilitatorProfile,
@@ -1123,17 +1152,18 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                 <div className="min-w-0 lg:flex-1">
                   <h2 className="text-2xl font-semibold text-[#2F2437]">Mine events</h2>
                   <p className="mt-1 text-sm leading-6 text-[#6E6475]">
-                    {draftEvents.length + activeEvents.length + visibleCompletedEvents.length > 0
-                      ? "Her finder du dine kladder, kommende events og tidligere events."
+                    {draftEvents.length + activeEvents.length + visibleCompletedEvents.length + hiddenEvents.length > 0
+                      ? "Her finder du dine kladder, kommende events og dit eventarkiv."
                       : "Hvert event begynder med en idé. Når du opretter dit første event, bliver det synligt for mennesker over hele Danmark, som søger netop den oplevelse, du skaber."}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <EventCountPill label="Kladder" value={draftEvents.length} />
                     <EventCountPill label="Aktive" value={activeEvents.length} />
                     <EventCountPill label="Afsluttede" value={visibleCompletedEvents.length} />
+                    <EventCountPill label="Skjulte" value={hiddenEvents.length} />
                   </div>
                 </div>
-                {draftEvents.length + activeEvents.length + visibleCompletedEvents.length === 0 ? (
+                {draftEvents.length + activeEvents.length + visibleCompletedEvents.length + hiddenEvents.length === 0 ? (
                   <Link
                     className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285] sm:w-auto lg:min-w-[210px] lg:shrink-0"
                     href="/facilitator/events"
@@ -1153,16 +1183,33 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                 />
                 {activeEvents.length > 0 && visibleCompletedEvents.length > 0 ? (
                   <Link className="inline-flex h-11 items-center justify-center justify-self-start rounded-full border border-[#D8CBE4] bg-white px-5 text-sm font-semibold text-[#7A5D91] transition hover:border-[#7A5D91]" href="/facilitator#tidligere-events">
-                    Se tidligere events
+                    Se eventarkiv
                   </Link>
                 ) : null}
                 <EventGrid
                   events={visibleCompletedEvents.slice(0, 6)}
                   facilitatorStatus={facilitatorProfile?.status}
                   id="tidligere-events"
-                  title="Tidligere events"
+                  title="Eventarkiv"
                   variant="completed"
                 />
+                {hiddenEvents.length > 0 ? (
+                  <details className="rounded-[24px] border border-[#E5DDEA] bg-[#FAF8F4] p-4">
+                    <summary className="cursor-pointer text-lg font-semibold text-[#2F2437]">
+                      Skjulte events ({hiddenEvents.length})
+                    </summary>
+                    <div className="mt-4">
+                      <EventGrid
+                        events={hiddenEvents}
+                        facilitatorStatus={facilitatorProfile?.status}
+                        id="skjulte-events"
+                        isHidden
+                        title="Skjulte events"
+                        variant="completed"
+                      />
+                    </div>
+                  </details>
+                ) : null}
               </div>
             </section>
           ) : null}

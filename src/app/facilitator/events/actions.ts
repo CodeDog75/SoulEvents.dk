@@ -12,7 +12,7 @@ import { sendCoOrganizerInvitationEmail, sendCoOrganizerRemovedEmail, sendCoOrga
 import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
-import { getUserFacingEventStatus } from "@/lib/events/user-facing-status";
+import { getUserFacingEventStatus, isEventPastEnd } from "@/lib/events/user-facing-status";
 import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
 import { getFacilitatorPublicEligibility } from "@/lib/facilitators/public-eligibility";
 import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
@@ -1882,6 +1882,101 @@ export async function updateEventStatusAction(formData: FormData) {
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/events");
   facilitatorOverviewRedirect(status === "cancelled" ? "Eventet er aflyst." : "Eventstatus er opdateret.");
+}
+
+function canHideEventFromDashboard(event: { ends_at?: string | null; starts_at: string; status: string }, now = new Date()) {
+  const userFacingStatus = getUserFacingEventStatus(event, now);
+  return userFacingStatus === "held" || userFacingStatus === "cancelled" || isEventPastEnd(event);
+}
+
+export async function hideEventFromDashboardAction(formData: FormData) {
+  const profile = await requireRole("facilitator");
+  const eventId = getString(formData, "event_id");
+
+  if (!eventId) {
+    facilitatorOverviewRedirect("Eventet kunne ikke findes.");
+  }
+
+  const supabase = createAdminClient();
+  const { data: facilitatorProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .maybeSingle();
+
+  if (!facilitatorProfile) {
+    facilitatorOverviewRedirect("Arrangørprofilen mangler.");
+  }
+
+  const { data: event, error: eventError } = await supabase
+    .from("events")
+    .select("id, facilitator_id, status, starts_at, ends_at")
+    .eq("id", eventId)
+    .eq("facilitator_id", facilitatorProfile.id)
+    .maybeSingle();
+
+  if (eventError || !event) {
+    facilitatorOverviewRedirect("Eventet kunne ikke findes.");
+  }
+
+  if (!canHideEventFromDashboard(event)) {
+    facilitatorOverviewRedirect("Kun afholdte eller aflyste events kan skjules fra dashboardet.");
+  }
+
+  const { error } = await supabase
+    .from("events")
+    .update({ dashboard_hidden_at: new Date().toISOString() })
+    .eq("id", event.id)
+    .eq("facilitator_id", facilitatorProfile.id);
+
+  if (error) {
+    facilitatorOverviewRedirect("Eventet kunne ikke skjules fra dashboardet.");
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/events");
+  facilitatorOverviewRedirect("Eventet er skjult fra dashboardet.");
+}
+
+export async function restoreEventToDashboardAction(formData: FormData) {
+  const profile = await requireRole("facilitator");
+  const eventId = getString(formData, "event_id");
+
+  if (!eventId) {
+    facilitatorOverviewRedirect("Eventet kunne ikke findes.");
+  }
+
+  const supabase = createAdminClient();
+  const { data: facilitatorProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .maybeSingle();
+
+  if (!facilitatorProfile) {
+    facilitatorOverviewRedirect("Arrangørprofilen mangler.");
+  }
+
+  const { data, error } = await supabase
+    .from("events")
+    .update({ dashboard_hidden_at: null })
+    .eq("id", eventId)
+    .eq("facilitator_id", facilitatorProfile.id)
+    .not("dashboard_hidden_at", "is", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    facilitatorOverviewRedirect("Eventet kunne ikke vises på dashboardet igen.");
+  }
+
+  if (!data) {
+    facilitatorOverviewRedirect("Eventet findes ikke blandt dine skjulte events.");
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/events");
+  facilitatorOverviewRedirect("Eventet vises på dashboardet igen.");
 }
 
 export async function publishDraftEventAction(formData: FormData) {
