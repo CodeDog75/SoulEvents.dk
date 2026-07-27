@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState, useTransition } from "react";
 import { ArchiveX, RotateCcw } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   hideEventFromDashboardAction,
   restoreEventToDashboardAction,
@@ -19,7 +20,34 @@ export function DashboardEventVisibilityAction({
   mode,
 }: DashboardEventVisibilityActionProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
   const isRestore = mode === "restore";
+
+  function closeDialog() {
+    if (isPending) return;
+    setErrorMessage(null);
+    setIsOpen(false);
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    setErrorMessage(null);
+
+    startTransition(async () => {
+      const result = await (isRestore ? restoreEventToDashboardAction(formData) : hideEventFromDashboardAction(formData));
+
+      if (!result.ok) {
+        setErrorMessage(result.message);
+        return;
+      }
+
+      setIsOpen(false);
+      router.refresh();
+    });
+  }
 
   return (
     <>
@@ -49,21 +77,28 @@ export function DashboardEventVisibilityAction({
             <div className="mt-6 flex flex-wrap justify-end gap-2">
               <button
                 className="inline-flex h-9 items-center justify-center rounded-full border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
-                onClick={() => setIsOpen(false)}
+                disabled={isPending}
+                onClick={closeDialog}
                 type="button"
               >
                 Annuller
               </button>
-              <form action={isRestore ? restoreEventToDashboardAction : hideEventFromDashboardAction}>
+              <form onSubmit={handleSubmit}>
                 <input name="event_id" type="hidden" value={eventId} />
                 <button
-                  className="inline-flex h-9 items-center justify-center rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E5285]"
+                  className="inline-flex h-9 items-center justify-center rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white transition hover:bg-[#6E5285] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isPending}
                   type="submit"
                 >
-                  {isRestore ? "Vis event" : "Skjul event"}
+                  {isPending ? (isRestore ? "Viser..." : "Skjuler...") : isRestore ? "Vis event" : "Skjul event"}
                 </button>
               </form>
             </div>
+            {errorMessage ? (
+              <p className="mt-4 rounded-[16px] border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-800">
+                {errorMessage}
+              </p>
+            ) : null}
           </section>
         </div>
       ) : null}

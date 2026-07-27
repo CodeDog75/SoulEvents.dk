@@ -1889,12 +1889,25 @@ function canHideEventFromDashboard(event: { ends_at?: string | null; starts_at: 
   return userFacingStatus === "held" || userFacingStatus === "cancelled" || isEventPastEnd(event);
 }
 
-export async function hideEventFromDashboardAction(formData: FormData) {
+type DashboardVisibilityActionResult = {
+  message: string;
+  ok: boolean;
+};
+
+function dashboardVisibilityResult(ok: boolean, message: string): DashboardVisibilityActionResult {
+  return { message, ok };
+}
+
+function isMissingDashboardVisibilityColumn(error: { code?: string; message?: string } | null) {
+  return error?.code === "42703" || Boolean(error?.message?.includes("dashboard_hidden_at"));
+}
+
+export async function hideEventFromDashboardAction(formData: FormData): Promise<DashboardVisibilityActionResult> {
   const profile = await requireRole("facilitator");
   const eventId = getString(formData, "event_id");
 
   if (!eventId) {
-    facilitatorOverviewRedirect("Eventet kunne ikke findes.");
+    return dashboardVisibilityResult(false, "Eventet kunne ikke findes.");
   }
 
   const supabase = createAdminClient();
@@ -1905,7 +1918,7 @@ export async function hideEventFromDashboardAction(formData: FormData) {
     .maybeSingle();
 
   if (!facilitatorProfile) {
-    facilitatorOverviewRedirect("Arrangørprofilen mangler.");
+    return dashboardVisibilityResult(false, "Arrangørprofilen mangler.");
   }
 
   const { data: event, error: eventError } = await supabase
@@ -1916,34 +1929,59 @@ export async function hideEventFromDashboardAction(formData: FormData) {
     .maybeSingle();
 
   if (eventError || !event) {
-    facilitatorOverviewRedirect("Eventet kunne ikke findes.");
+    if (eventError) {
+      console.error("[facilitator-events] Dashboard event visibility lookup failed", {
+        code: eventError.code,
+        details: eventError.details,
+        eventId,
+        hint: eventError.hint,
+        message: eventError.message,
+      });
+    }
+    return dashboardVisibilityResult(false, "Eventet kunne ikke findes.");
   }
 
   if (!canHideEventFromDashboard(event)) {
-    facilitatorOverviewRedirect("Kun afholdte eller aflyste events kan skjules fra dashboardet.");
+    return dashboardVisibilityResult(false, "Kun afholdte eller aflyste events kan skjules fra dashboardet.");
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("events")
     .update({ dashboard_hidden_at: new Date().toISOString() })
     .eq("id", event.id)
-    .eq("facilitator_id", facilitatorProfile.id);
+    .eq("facilitator_id", facilitatorProfile.id)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
-    facilitatorOverviewRedirect("Eventet kunne ikke skjules fra dashboardet.");
+    console.error("[facilitator-events] Dashboard event hide failed", {
+      code: error.code,
+      details: error.details,
+      eventId: event.id,
+      hint: error.hint,
+      message: error.message,
+    });
+    if (isMissingDashboardVisibilityColumn(error)) {
+      return dashboardVisibilityResult(false, "Databasen mangler den nyeste dashboard-opdatering. Kør migrationen, og prøv igen.");
+    }
+    return dashboardVisibilityResult(false, "Eventet kunne ikke skjules fra dashboardet. Prøv igen.");
+  }
+
+  if (!data) {
+    return dashboardVisibilityResult(false, "Eventet kunne ikke skjules fra dashboardet. Prøv igen.");
   }
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/events");
-  facilitatorOverviewRedirect("Eventet er skjult fra dashboardet.");
+  return dashboardVisibilityResult(true, "Eventet er skjult fra dashboardet.");
 }
 
-export async function restoreEventToDashboardAction(formData: FormData) {
+export async function restoreEventToDashboardAction(formData: FormData): Promise<DashboardVisibilityActionResult> {
   const profile = await requireRole("facilitator");
   const eventId = getString(formData, "event_id");
 
   if (!eventId) {
-    facilitatorOverviewRedirect("Eventet kunne ikke findes.");
+    return dashboardVisibilityResult(false, "Eventet kunne ikke findes.");
   }
 
   const supabase = createAdminClient();
@@ -1954,7 +1992,7 @@ export async function restoreEventToDashboardAction(formData: FormData) {
     .maybeSingle();
 
   if (!facilitatorProfile) {
-    facilitatorOverviewRedirect("Arrangørprofilen mangler.");
+    return dashboardVisibilityResult(false, "Arrangørprofilen mangler.");
   }
 
   const { data, error } = await supabase
@@ -1967,16 +2005,26 @@ export async function restoreEventToDashboardAction(formData: FormData) {
     .maybeSingle();
 
   if (error) {
-    facilitatorOverviewRedirect("Eventet kunne ikke vises på dashboardet igen.");
+    console.error("[facilitator-events] Dashboard event restore failed", {
+      code: error.code,
+      details: error.details,
+      eventId,
+      hint: error.hint,
+      message: error.message,
+    });
+    if (isMissingDashboardVisibilityColumn(error)) {
+      return dashboardVisibilityResult(false, "Databasen mangler den nyeste dashboard-opdatering. Kør migrationen, og prøv igen.");
+    }
+    return dashboardVisibilityResult(false, "Eventet kunne ikke vises på dashboardet igen. Prøv igen.");
   }
 
   if (!data) {
-    facilitatorOverviewRedirect("Eventet findes ikke blandt dine skjulte events.");
+    return dashboardVisibilityResult(false, "Eventet findes ikke blandt dine skjulte events.");
   }
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/events");
-  facilitatorOverviewRedirect("Eventet vises på dashboardet igen.");
+  return dashboardVisibilityResult(true, "Eventet vises på dashboardet igen.");
 }
 
 export async function publishDraftEventAction(formData: FormData) {

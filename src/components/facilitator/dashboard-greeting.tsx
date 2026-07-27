@@ -7,7 +7,7 @@ function greetingForHour(hour: number) {
   if (hour === 11) return "God formiddag";
   if (hour >= 12 && hour <= 16) return "God eftermiddag";
   if (hour >= 17 && hour <= 23) return "God aften";
-  return "Velkommen tilbage";
+  return "God nat";
 }
 
 function preferredName(name: string | null) {

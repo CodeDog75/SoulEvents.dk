@@ -60,8 +60,48 @@ textarea {
   }
 }
 
+@keyframes souleventsMoonBreathe {
+  0%,
+  100% {
+    opacity: 0.98;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.012);
+  }
+}
+
+@keyframes souleventsMoonGlow {
+  0%,
+  100% {
+    opacity: 0.14;
+    transform: scale(0.96);
+  }
+
+  50% {
+    opacity: 0.21;
+    transform: scale(1.02);
+  }
+}
+
+.soulevents-moon-glow {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.64) 0%, rgba(255, 255, 255, 0.18) 32%, rgba(255, 255, 255, 0) 72%);
+  filter: blur(18px);
+  opacity: 0.14;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .soulevents-fade-in {
     animation: souleventsFadeIn 700ms ease-out both;
+  }
+
+  .soulevents-moon-body {
+    animation: souleventsMoonBreathe 16s ease-in-out infinite;
+  }
+
+  .soulevents-moon-glow {
+    animation: souleventsMoonGlow 18s ease-in-out infinite;
   }
 }

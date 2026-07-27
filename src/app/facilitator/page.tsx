@@ -23,6 +23,7 @@ import {
 } from "@/app/facilitator/actions";
 import { updateEventStatusAction, copyEventAsDraftAction, deleteDraftEventAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
+import { MoonPhase } from "@/components/dashboard/moon-phase";
 import { DashboardGreeting } from "@/components/facilitator/dashboard-greeting";
 import { CancelEventAction } from "@/components/facilitator/events/cancel-event-action";
 import { DashboardEventVisibilityAction } from "@/components/facilitator/events/dashboard-event-visibility-action";
@@ -41,6 +42,7 @@ import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
 import { getFacilitatorUnreadAdminMessageCount } from "@/lib/facilitator/dashboard-data";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getMoonData, type MoonData } from "@/lib/weather/moon-data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -85,6 +87,12 @@ type DashboardAction = {
   title: string;
 };
 
+const dashboardEventSelect =
+  "id, slug, title, status, starts_at, ends_at, created_at, updated_at, dashboard_hidden_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), bookings(id)";
+
+const dashboardEventSelectWithoutVisibility =
+  "id, slug, title, status, starts_at, ends_at, created_at, updated_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), bookings(id)";
+
 const statusStyles: Record<string, string> = {
   draft: "bg-[#E9E6E1] text-[#6A6258]",
   pending_review: "bg-[#FFF7E8] text-[#8A6A2E]",
@@ -99,6 +107,58 @@ const statusStyles: Record<string, string> = {
 
 function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function isMissingDashboardVisibilityColumn(error: { code?: string; message?: string } | null) {
+  return error?.code === "42703" || Boolean(error?.message?.includes("dashboard_hidden_at"));
+}
+
+async function getDashboardEvents(supabase: ReturnType<typeof createAdminClient>, facilitatorId: string) {
+  const eventQuery = (select: string) =>
+    supabase
+      .from("events")
+      .select(select)
+      .eq("facilitator_id", facilitatorId)
+      .order("starts_at", { ascending: false });
+
+  const result = await eventQuery(dashboardEventSelect);
+
+  if (!result.error) {
+    return result.data ?? [];
+  }
+
+  if (!isMissingDashboardVisibilityColumn(result.error)) {
+    console.error("[facilitator-dashboard] Events could not be loaded", {
+      code: result.error.code,
+      details: result.error.details,
+      facilitatorId,
+      hint: result.error.hint,
+      message: result.error.message,
+    });
+    return [];
+  }
+
+  console.warn("[facilitator-dashboard] dashboard_hidden_at is missing; showing legacy dashboard events", {
+    facilitatorId,
+  });
+
+  const fallback = await eventQuery(dashboardEventSelectWithoutVisibility);
+
+  if (fallback.error) {
+    console.error("[facilitator-dashboard] Legacy events could not be loaded", {
+      code: fallback.error.code,
+      details: fallback.error.details,
+      facilitatorId,
+      hint: fallback.error.hint,
+      message: fallback.error.message,
+    });
+    return [];
+  }
+
+  return ((fallback.data ?? []) as any[]).map((event) => ({
+    ...event,
+    dashboard_hidden_at: null,
+  }));
 }
 
 function formatDate(value: string) {
@@ -116,6 +176,14 @@ function statusClass(status: string) {
 
 function isPastEvent(event: { ends_at?: string | null; starts_at: string; status: string }, now: Date) {
   return getUserFacingEventStatus(event, now) === "held" || event.status === "cancelled";
+}
+
+function isHeldArchiveEvent(event: { ends_at?: string | null; starts_at: string; status: string }, now: Date) {
+  return event.status !== "cancelled" && getUserFacingEventStatus(event, now) === "held";
+}
+
+function isCancelledArchiveEvent(event: { status: string }) {
+  return event.status === "cancelled";
 }
 
 function isCurrentPublicCoOrganizerEvent(
@@ -291,22 +359,174 @@ function getDashboardAction({
   };
 }
 
-function DashboardGreetingIntro({ name, profileReadiness }: { name: string | null; profileReadiness: ProfileReadiness }) {
+const dashboardHeroMessages = [
+  "Tak fordi du skaber rum for nærvær og personlig udvikling.",
+  "Dit arbejde gør det lettere for mennesker at finde ro og fællesskab.",
+  "Små rum med nærvær kan betyde meget for dem, der træder ind.",
+  "Du bygger oplevelser, hvor mennesker kan lande lidt blødere.",
+  "Når du samler mennesker, skaber du mere end et event.",
+  "Din energi og dit håndværk gør SoulEvents mere levende.",
+  "Tak fordi du deler det, du brænder for, med andre.",
+  "Et godt event begynder ofte med et stille, klart fokus.",
+  "Du er med til at gøre lokale oplevelser lettere at finde.",
+  "Nærvær bliver stærkere, når det får et sted at blive delt.",
+  "Dine events kan blive begyndelsen på nye forbindelser.",
+  "Her kan du samle trådene og gøre plads til det vigtige.",
+  "Et roligt overblik giver mere energi til deltagerne.",
+  "Din profil og dine events hjælper flere med at finde vej til dig.",
+  "Tak fordi du skaber oplevelser med omtanke og hjerte.",
+  "Det, du inviterer til, kan give andre et vigtigt pusterum.",
+  "SoulEvents er dit arbejdsrum til at dele nærvær med flere.",
+  "Din næste oplevelse kan allerede være på vej til de rette mennesker.",
+  "Når rammerne er enkle, bliver der mere plads til indholdet.",
+  "Du skaber steder, hvor mennesker kan mødes med mere ro.",
+  "Tak fordi du gør dit virke synligt og tilgængeligt.",
+  "Overblik i dag giver mere nærvær, når deltagerne ankommer.",
+  "Dine erfaringer fortjener en rolig og professionel ramme.",
+  "Hver invitation er en mulighed for at samle de rigtige mennesker.",
+  "Det personlige møde begynder længe før eventdagen.",
+  "Du gør det lettere for deltagere at vælge med tillid.",
+  "Dit dashboard er her for at støtte det arbejde, du allerede gør.",
+  "Et klart næste skridt kan skabe mere ro i hele eventflowet.",
+  "Tak fordi du er med til at forme SoulEvents fra begyndelsen.",
+  "Dine events hjælper mennesker med at finde oplevelser, der passer til dem.",
+];
+
+const dashboardHeroQuotes = [
+  "Små møder kan skabe store forandringer.",
+  "Ro er også en måde at bevæge sig fremad på.",
+  "Det vigtigste begynder ofte i det enkle.",
+  "Nærvær vokser, når der er plads til det.",
+  "Et trygt rum kan åbne nye veje.",
+  "Gode oplevelser starter med klarhed.",
+  "Fællesskab begynder med en invitation.",
+  "Det rolige overblik giver mere mod.",
+  "Mennesker finder vej, når døren står åben.",
+  "Et øjebliks nærvær kan række langt.",
+  "Det du deler, kan lande hos den rette.",
+  "Omsorg kan mærkes i detaljerne.",
+  "Et event er også en fortælling om tillid.",
+  "Det levende fællesskab bygges ét møde ad gangen.",
+  "Din tydelighed hjælper andre med at vælge.",
+  "Der er kraft i det, der føles enkelt.",
+  "Et varmt rum begynder med en klar intention.",
+  "Når noget er let at finde, kan flere deltage.",
+  "Din praksis får mere liv, når den bliver delt.",
+  "Det næste skridt må gerne være roligt.",
+  "God energi trives i gode rammer.",
+  "Nye begyndelser kan være helt stille.",
+  "Et nærværende event bliver husket i kroppen.",
+  "Når du samler mennesker, skaber du mulighed.",
+  "Det professionelle kan godt føles varmt.",
+  "Mere overskud giver bedre møder.",
+  "Det rette rum kan gøre en stor forskel.",
+  "Deltagere mærker, når rammen er tryg.",
+  "En klar invitation gør valget lettere.",
+  "Der er skønhed i det enkle overblik.",
+  "Gode rammer giver plads til dybde.",
+  "Det, du skaber, kan blive et vendepunkt.",
+  "Mennesker søger steder, hvor de kan lande.",
+  "Et fællesskab starter ofte med én tilmelding.",
+  "Tydelighed er en gave til deltageren.",
+  "Din ro kan smitte hele eventflowet.",
+  "Det små kan være det mest virkningsfulde.",
+  "Et varmt velkommen kan mærkes længe.",
+  "Din synlighed hjælper de rette mennesker.",
+  "Overblik er en form for omsorg.",
+  "Når arbejdet er samlet, bliver hjertet friere.",
+  "Nærvær kræver ikke støj for at blive set.",
+  "Et enkelt valg kan åbne en ny dør.",
+  "Det, du tilbyder, kan være præcis det nogen søger.",
+  "Gode oplevelser fortjener gode rammer.",
+  "Din invitation kan blive en andens pause.",
+  "Tillid vokser, når rammen er tydelig.",
+  "Mere ro i systemet giver mere liv i mødet.",
+  "Et event kan være starten på noget større.",
+  "SoulEvents vokser med de rum, du skaber.",
+];
+
+const heroImagesByPeriod = {
+  afternoon: "/facilitator/onboarding-nature.png",
+  evening: "/facilitator/onboarding-nature.png",
+  morning: "/facilitator/onboarding-nature.png",
+  night: "/facilitator/onboarding-nature.png",
+  noon: "/facilitator/onboarding-nature.png",
+} as const;
+
+function dashboardPeriodForHour(hour: number) {
+  if (hour >= 5 && hour <= 10) return "morning";
+  if (hour === 11) return "noon";
+  if (hour >= 12 && hour <= 16) return "afternoon";
+  if (hour >= 17 && hour <= 23) return "evening";
+  return "night";
+}
+
+function deterministicIndex(date: Date, length: number, salt = 0) {
+  const startOfYear = new Date(date.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((date.getTime() - startOfYear.getTime()) / 86_400_000);
+  return Math.abs(dayOfYear + salt) % length;
+}
+
+function DashboardGreetingIntro({
+  moonData,
+  name,
+  profileReadiness,
+}: {
+  moonData: MoonData;
+  name: string | null;
+  profileReadiness: ProfileReadiness;
+}) {
+  const today = new Date();
+  const heroImage = heroImagesByPeriod[dashboardPeriodForHour(today.getHours())];
+  const heroMessage = dashboardHeroMessages[deterministicIndex(today, dashboardHeroMessages.length)];
+  const heroQuote = dashboardHeroQuotes[deterministicIndex(today, dashboardHeroQuotes.length, 17)];
+
   return (
-    <section className="rounded-[28px] border border-[#E5DDEA] bg-white/72 px-5 py-4 shadow-[0_14px_36px_rgba(47,36,55,0.06)] sm:px-6">
-      <h1 className="font-serif text-3xl font-semibold leading-tight text-[#2F2437] sm:text-4xl">
-        <DashboardGreeting name={name} />
-      </h1>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6E6475] sm:text-base">
-        {profileReadiness.isComplete
-          ? "Det er en smuk dag til at samle mennesker."
-          : "Velkommen til dit lille hjørne af SoulEvents. Næste skridt er at gøre profilen klar."}
-      </p>
-      {profileReadiness.missingItems.length > 0 ? (
-        <p className="mt-3 max-w-3xl rounded-[18px] border border-[#D8CBE4] bg-[#F1EAF5] px-4 py-3 text-sm font-semibold leading-6 text-[#6E5285]">
-          Mangler: {profileReadiness.missingItems.join(", ")}
-        </p>
-      ) : null}
+    <section
+      className="relative overflow-hidden rounded-[32px] border border-white/20 bg-[#2F2437] px-6 py-8 text-white shadow-[0_24px_70px_rgba(47,36,55,0.16)] sm:px-8 sm:py-9 lg:px-10 lg:py-10"
+      style={{
+        backgroundImage:
+          "linear-gradient(105deg, rgba(32,24,42,0.9) 0%, rgba(64,47,58,0.72) 48%, rgba(83,64,54,0.2) 76%, rgba(137,103,69,0.08) 100%), radial-gradient(circle at 82% 34%, rgba(255,229,181,0.18), transparent 34%), url('" +
+          heroImage +
+          "')",
+        backgroundPosition: "center 42%",
+        backgroundSize: "cover",
+      }}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(47,36,55,0.1))]" />
+      <div className="relative z-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-center">
+        <div className="max-w-2xl">
+          <div>
+            <h1 className="max-w-3xl font-serif text-3xl font-medium leading-[1.1] text-white drop-shadow-sm sm:text-[2.65rem]">
+              <DashboardGreeting name={name} />
+            </h1>
+            <p className="mt-5 max-w-xl text-sm font-normal leading-7 text-white/80 sm:text-base">{heroMessage}</p>
+            <p className="mt-7 max-w-lg text-sm font-light italic leading-7 text-white/68 sm:text-[0.95rem]">
+              {heroQuote}
+            </p>
+            {!profileReadiness.isComplete && profileReadiness.missingItems.length > 0 ? (
+              <p className="mt-7 max-w-2xl rounded-[18px] border border-white/12 bg-white/10 px-4 py-3 text-sm font-semibold leading-6 text-white/86 backdrop-blur-md">
+                Mangler: {profileReadiness.missingItems.join(", ")}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <aside className="text-center text-white">
+          <p className="text-sm font-medium text-white/62">Månen i nat</p>
+          <MoonPhase className="mt-5 [--moon-size:132px] sm:[--moon-size:150px] lg:[--moon-size:188px]" illumination={moonData.illumination} phase={moonData.phase} size={156} />
+          <div className="mt-5 grid gap-1 text-center text-sm text-white/68">
+            <p className="font-semibold text-white">{moonData.phaseDanish}</p>
+            <p className="text-white/78">
+              <span className="font-semibold text-white">{moonData.illumination} %</span> oplyst
+            </p>
+            <p className="text-xs text-white/56">
+              Op {moonData.moonrise ?? "ikke synlig"}
+              {moonData.moonset ? " · Ned " + moonData.moonset : ""}
+            </p>
+          </div>
+        </aside>
+      </div>
     </section>
   );
 }
@@ -927,8 +1147,9 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const profileSpecialty = normalizeSpecialtyText(facilitatorProfile?.specialties);
   const profilePlace = facilitatorProfile?.city || null;
   const now = new Date();
+  const moonDataPromise = getMoonData(now);
   const [
-    { data: events },
+    events,
     unreadAdminMessageCount,
     { data: pendingBookingRows },
     { data: coOrganizerInvitations },
@@ -936,11 +1157,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   ] =
     facilitatorProfile
       ? await Promise.all([
-          supabase
-            .from("events")
-            .select("id, slug, title, status, starts_at, ends_at, created_at, updated_at, dashboard_hidden_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), bookings(id)")
-            .eq("facilitator_id", facilitatorProfile.id)
-            .order("starts_at", { ascending: false }),
+          getDashboardEvents(supabase, facilitatorProfile.id),
           getFacilitatorUnreadAdminMessageCount(facilitatorProfile.id),
           supabase
             .from("bookings")
@@ -964,9 +1181,10 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .limit(1)
             .maybeSingle(),
         ])
-      : [{ data: [] }, 0, { data: [] }, { data: [] }, { data: null }];
+      : [[], 0, { data: [] }, { data: [] }, { data: null }];
+  const moonData = await moonDataPromise;
 
-  const eventRows = (events ?? []) as any[];
+  const eventRows = events as any[];
   const currentPendingBookingRows = ((pendingBookingRows ?? []) as Array<{
     event_id?: string | null;
     events?: { ends_at?: string | null; starts_at?: string | null } | Array<{ ends_at?: string | null; starts_at?: string | null }> | null;
@@ -993,8 +1211,11 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     const userStatus = getUserFacingEventStatus(event, now);
     return userStatus === "active" || userStatus === "sold_out";
   });
-  const completedEvents = visibleEventRows.filter((event) => isPastEvent(event, now));
-  const visibleCompletedEvents = completedEvents.filter((event) => !isOlderThanMonths(eventEndDate(event), now, 12));
+  const heldEvents = visibleEventRows.filter((event) => isHeldArchiveEvent(event, now));
+  const cancelledEvents = visibleEventRows.filter((event) => isCancelledArchiveEvent(event));
+  const visibleHeldEvents = heldEvents.filter((event) => !isOlderThanMonths(eventEndDate(event), now, 12));
+  const visibleCancelledEvents = cancelledEvents.filter((event) => !isOlderThanMonths(eventEndDate(event), now, 12));
+  const visibleArchivedEventCount = visibleHeldEvents.length + visibleCancelledEvents.length;
   const draftEvents = visibleEventRows.filter((event) => event.status === "draft" || event.status === "pending_review");
   const profileReadiness = getProfileReadiness({
     categoryCount: categoryNames.length,
@@ -1033,7 +1254,11 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
         <div className="space-y-6">
           <AuthMessage message={message} />
 
-          <DashboardGreetingIntro name={profile.full_name} profileReadiness={profileReadiness} />
+          <DashboardGreetingIntro
+            moonData={moonData}
+            name={profile.full_name}
+            profileReadiness={profileReadiness}
+          />
 
           <AdminMessageCta unreadCount={unreadMessageCount} />
 
@@ -1044,7 +1269,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           {profileReadiness.isComplete ? (
             <BookingAttentionCard
               hasActiveEvents={activeEvents.length > 0}
-              hasCompletedEvents={visibleCompletedEvents.length > 0}
+              hasCompletedEvents={visibleArchivedEventCount > 0}
               pendingCount={pendingBookingCount ?? 0}
               pendingHref={pendingBookingsHref}
             />
@@ -1071,7 +1296,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
               <Link className="rounded-[20px] border border-[#D8CBE4] bg-white p-4 font-semibold text-[#2F2437] transition hover:-translate-y-0.5 hover:shadow-soft" href="/facilitator/profile">
                 Rediger profil
               </Link>
-              {activeEvents.length === 0 && visibleCompletedEvents.length > 0 ? (
+              {activeEvents.length === 0 && visibleArchivedEventCount > 0 ? (
                 <Link className="rounded-[20px] border border-[#D8CBE4] bg-white p-4 font-semibold text-[#2F2437] transition hover:-translate-y-0.5 hover:shadow-soft" href="/facilitator#tidligere-events">
                   Se tidligere events
                 </Link>
@@ -1152,18 +1377,19 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                 <div className="min-w-0 lg:flex-1">
                   <h2 className="text-2xl font-semibold text-[#2F2437]">Mine events</h2>
                   <p className="mt-1 text-sm leading-6 text-[#6E6475]">
-                    {draftEvents.length + activeEvents.length + visibleCompletedEvents.length + hiddenEvents.length > 0
+                    {draftEvents.length + activeEvents.length + visibleArchivedEventCount + hiddenEvents.length > 0
                       ? "Her finder du dine kladder, kommende events og dit eventarkiv."
                       : "Hvert event begynder med en idé. Når du opretter dit første event, bliver det synligt for mennesker over hele Danmark, som søger netop den oplevelse, du skaber."}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <EventCountPill label="Kladder" value={draftEvents.length} />
                     <EventCountPill label="Aktive" value={activeEvents.length} />
-                    <EventCountPill label="Afsluttede" value={visibleCompletedEvents.length} />
+                    <EventCountPill label="Afholdte" value={visibleHeldEvents.length} />
+                    <EventCountPill label="Aflyste" value={visibleCancelledEvents.length} />
                     <EventCountPill label="Skjulte" value={hiddenEvents.length} />
                   </div>
                 </div>
-                {draftEvents.length + activeEvents.length + visibleCompletedEvents.length + hiddenEvents.length === 0 ? (
+                {draftEvents.length + activeEvents.length + visibleArchivedEventCount + hiddenEvents.length === 0 ? (
                   <Link
                     className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285] sm:w-auto lg:min-w-[210px] lg:shrink-0"
                     href="/facilitator/events"
@@ -1181,18 +1407,27 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                   title="Mine kommende events"
                   variant="active"
                 />
-                {activeEvents.length > 0 && visibleCompletedEvents.length > 0 ? (
+                {activeEvents.length > 0 && visibleArchivedEventCount > 0 ? (
                   <Link className="inline-flex h-11 items-center justify-center justify-self-start rounded-full border border-[#D8CBE4] bg-white px-5 text-sm font-semibold text-[#7A5D91] transition hover:border-[#7A5D91]" href="/facilitator#tidligere-events">
                     Se eventarkiv
                   </Link>
                 ) : null}
-                <EventGrid
-                  events={visibleCompletedEvents.slice(0, 6)}
-                  facilitatorStatus={facilitatorProfile?.status}
-                  id="tidligere-events"
-                  title="Eventarkiv"
-                  variant="completed"
-                />
+                {visibleArchivedEventCount > 0 ? (
+                  <section id="tidligere-events" className="grid gap-8">
+                    <EventGrid
+                      events={visibleHeldEvents.slice(0, 6)}
+                      facilitatorStatus={facilitatorProfile?.status}
+                      title="Afholdte events"
+                      variant="completed"
+                    />
+                    <EventGrid
+                      events={visibleCancelledEvents.slice(0, 6)}
+                      facilitatorStatus={facilitatorProfile?.status}
+                      title="Aflyste events"
+                      variant="cancelled"
+                    />
+                  </section>
+                ) : null}
                 {hiddenEvents.length > 0 ? (
                   <details className="rounded-[24px] border border-[#E5DDEA] bg-[#FAF8F4] p-4">
                     <summary className="cursor-pointer text-lg font-semibold text-[#2F2437]">
