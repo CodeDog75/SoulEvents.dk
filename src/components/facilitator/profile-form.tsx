@@ -135,7 +135,6 @@ type ProfileFormProps = {
     phone: string | null;
   };
   presentationMode?: "admin" | "editing" | "onboarding";
-  showEmailConfirmedStep?: boolean;
   facilitatorProfile: FacilitatorProfile;
   regions: Region[];
   categories: Category[];
@@ -148,6 +147,7 @@ type ProfileFormProps = {
 type PrototypeStep =
   | "welcome"
   | "account"
+  | "profile"
   | "person"
   | "location"
   | "profile-image"
@@ -220,6 +220,12 @@ const steps: Array<{
     title: "Din e-mail er bekræftet.",
   },
   {
+    eyebrow: "Din profil",
+    id: "profile",
+    text: "Udfyld de samme profiloplysninger, som du senere kan redigere under Profilindstillinger. Du kan gemme som kladde og fortsætte senere.",
+    title: "Fortæl deltagerne, hvem de møder.",
+  },
+  {
     eyebrow: "Navn",
     id: "person",
     text: "Dit rigtige navn er kun synligt for SoulEvents. Som udgangspunkt vises dit rigtige navn på din offentlige profil, men du kan vælge et andet profilnavn.",
@@ -287,7 +293,7 @@ const steps: Array<{
   },
 ];
 
-const onboardingStepIds: PrototypeStep[] = ["person", "location", "profile-image", "experiences", "story", "links", "services", "review", "approval", "complete"];
+const onboardingStepIds: PrototypeStep[] = ["welcome", "profile", "approval", "complete"];
 const editingStepIds: PrototypeStep[] = ["review", "person", "location", "profile-image", "experiences", "story", "links", "services"];
 const onboardingDraftStepStorageKeyBase = "soulevents:onboarding:last-step";
 const specialtyMaxLength = 180;
@@ -318,11 +324,8 @@ function resolveInitialStepIndex({
     return 0;
   }
 
-  const url = new URL(window.location.href);
-  const requestedStep = url.searchParams.get("prototypeStep");
   const storedStep = window.localStorage.getItem(storageKey);
-  const candidate = requestedStep || storedStep;
-  const nextIndex = candidate ? activeStepIds.indexOf(candidate as PrototypeStep) : -1;
+  const nextIndex = storedStep ? activeStepIds.indexOf(storedStep as PrototypeStep) : -1;
 
   return nextIndex >= 0 && activeStepIds[nextIndex] !== "complete" ? nextIndex : 0;
 }
@@ -866,7 +869,6 @@ export function ProfileForm({
   backHref = "/facilitator",
   backLabel = "Tilbage",
   presentationMode = "onboarding",
-  showEmailConfirmedStep = false,
   profile,
   facilitatorProfile,
   categories,
@@ -883,9 +885,7 @@ export function ProfileForm({
   });
   const activeSteps =
     presentationMode === "onboarding"
-      ? (showEmailConfirmedStep ? ["account", ...onboardingStepIds] : onboardingStepIds)
-          .map((stepId) => steps.find((step) => step.id === stepId))
-          .filter((step): step is (typeof steps)[number] => Boolean(step))
+      ? onboardingStepIds.map((stepId) => steps.find((step) => step.id === stepId)).filter((step): step is (typeof steps)[number] => Boolean(step))
       : editingStepIds.map((stepId) => steps.find((step) => step.id === stepId)).filter((step): step is (typeof steps)[number] => Boolean(step));
   const activeStepIds = activeSteps.map((step) => step.id);
   const onboardingDraftStepStorageKey = `${onboardingDraftStepStorageKeyBase}:${facilitatorProfile.id ?? profile.email}`;
@@ -957,6 +957,7 @@ export function ProfileForm({
   const [stepSaveStatus, setStepSaveStatus] = useState<SlotStatus>({ message: "", status: "idle" });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const currentStep = activeSteps[stepIndex] ?? activeSteps[0] ?? steps[0];
+  const isProfileOverviewStep = currentStep.id === "profile";
   const shellBackHref = presentationMode === "onboarding" ? "/auth/login" : backHref;
   const activeDesktopLogoSrc = logoSources?.desktop ?? "/brand/soulevents-logo.png";
   const displayedStep =
@@ -1027,6 +1028,91 @@ export function ProfileForm({
     short_description: story.trim().slice(0, 300),
   };
 
+  async function saveProfileOverviewStep() {
+    const contactResult = await autosaveFacilitatorProfileAction({
+      section: "contact",
+      values: contactValues,
+    });
+
+    if (!contactResult.ok) return contactResult;
+
+    const locationResult = await autosaveFacilitatorProfileAction({
+      section: "location",
+      values: {
+        address_line: addressLine,
+        city,
+        country,
+        is_online_facilitator: presentationMode === "onboarding" ? Boolean(facilitatorProfile.is_online_facilitator) : isOnlineFacilitator,
+        postal_code: postalCode,
+      },
+    });
+
+    if (!locationResult.ok) return locationResult;
+
+    if (profileImageFile) {
+      const formData = new FormData();
+      formData.set("image_file", profileImageFile);
+      const result = await saveFacilitatorProfileImageAction(formData);
+
+      if (result.status === "error") {
+        return { message: result.message, ok: false };
+      }
+
+      setProfileImageFile(null);
+      setProfileImageUrl(publicImageUrl(result.path));
+    }
+
+    const imageResult = await autosaveFacilitatorProfileAction({
+      adminTargetFacilitatorId: adminTargetFacilitatorId ?? null,
+      section: "images",
+      values: { facilitator_hero_key: selectedHeroKey },
+    });
+
+    if (!imageResult.ok) return imageResult;
+
+    if (selectedExperiences.length > 0) {
+      const categoryResult = await autosaveFacilitatorProfileAction({
+        adminTargetFacilitatorId: adminTargetFacilitatorId ?? null,
+        section: "categories",
+        values: { category_ids: selectedExperiences, specialties },
+      });
+
+      if (!categoryResult.ok) return categoryResult;
+    }
+
+    if (!facebookValidation.ok) return { message: facebookValidation.message, ok: false };
+    if (!instagramValidation.ok) return { message: instagramValidation.message, ok: false };
+
+    const socialResult = await autosaveFacilitatorProfileAction({
+      adminTargetFacilitatorId: adminTargetFacilitatorId ?? null,
+      section: "social",
+      values: {
+        facebook_url: facebook,
+        instagram_url: instagram,
+        public_email: facilitatorProfile.public_email ?? "",
+        public_phone: facilitatorProfile.public_phone ?? "",
+        tiktok_url: facilitatorProfile.tiktok_url ?? "",
+        website_url: website,
+        youtube_url: youtube,
+      },
+    });
+
+    if (!socialResult.ok) return socialResult;
+
+    const servicesResult = await autosaveFacilitatorProfileAction({
+      section: "services",
+      values: {
+        offers_services: offersIndividualServices,
+        service_description: serviceDescription,
+        show_in_local_service_results: offersIndividualServices,
+      },
+    });
+
+    if (!servicesResult.ok) return servicesResult;
+
+    return { message: "Din profil er gemt.", ok: true };
+  }
+
   async function saveCurrentStep({ submitForReview = true }: { submitForReview?: boolean } = {}) {
     const shouldPersistAdminCategories = presentationMode === "admin" && currentStep.id === "experiences";
     const shouldPersistAdminImages = presentationMode === "admin" && currentStep.id === "profile-image";
@@ -1037,6 +1123,10 @@ export function ProfileForm({
     }
 
     setStepSaveStatus({ message: "Gemmer...", status: "saving" });
+
+    if (currentStep.id === "profile") {
+      return saveProfileOverviewStep();
+    }
 
     if (currentStep.id === "person") {
       const result = await autosaveFacilitatorProfileAction({
@@ -1283,6 +1373,10 @@ export function ProfileForm({
     }
     if (item.step === "story") {
       setStorySubmissionError(true);
+    }
+    if (presentationMode === "onboarding") {
+      goToStep("profile");
+      return;
     }
     goToStep(item.step);
   }
@@ -1700,8 +1794,10 @@ export function ProfileForm({
         presentationMode === "onboarding"
           ? currentStep.id === "approval"
             ? "Send profil til SoulEvents"
-            : stepIndex === 0
-              ? "Fortsæt"
+            : currentStep.id === "welcome"
+              ? "Kom i gang"
+              : currentStep.id === "profile"
+                ? "Gennemse og afslut"
               : undefined
           : currentStep.id === "review"
             ? "Gem ændringer"
@@ -1736,7 +1832,7 @@ export function ProfileForm({
       logoSources={logoSources}
       onBack={goBack}
       onContinue={continueFlow}
-      onSaveDraft={presentationMode === "onboarding" && currentStep.id !== "complete" ? saveDraftAndExit : undefined}
+      onSaveDraft={presentationMode === "onboarding" && currentStep.id !== "welcome" && currentStep.id !== "complete" ? saveDraftAndExit : undefined}
       presentationMode={presentationMode}
     >
       {currentStep.id === "welcome" ? (
@@ -1761,8 +1857,14 @@ export function ProfileForm({
         </p>
       ) : null}
 
-      {currentStep.id === "person" && (
-        <div className="grid gap-5">
+      {(currentStep.id === "person" || isProfileOverviewStep) && (
+        <div className={isProfileOverviewStep ? "mb-6 grid gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6" : "grid gap-5"}>
+          {isProfileOverviewStep ? (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Grundoplysninger</p>
+              <p className="mt-1 text-sm leading-6 text-ink/55">Dit navn og det profilnavn, deltagerne møder på SoulEvents.</p>
+            </div>
+          ) : null}
           <div className="grid gap-4">
             <ClearableInput label="Dit fornavn" onChange={setFirstName} placeholder="Dit fornavn" value={firstName} />
             <ClearableInput label="Dit efternavn" onChange={setLastName} placeholder="Dit efternavn" value={lastName} />
@@ -1804,29 +1906,37 @@ export function ProfileForm({
         </div>
       )}
 
-      {currentStep.id === "location" && (
-        <div className="grid gap-5">
-          <button
-            aria-pressed={isOnlineFacilitator}
-            className="flex min-h-20 items-center justify-between gap-4 rounded-[24px] border border-midnight/10 bg-white px-4 text-left shadow-soft transition hover:border-sage-700"
-            onClick={() => setIsOnlineFacilitator((current) => !current)}
-            type="button"
-          >
-            <span className="flex items-start gap-3">
-              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-lavender/15 text-lavender">
-                <Video className="size-5" aria-hidden="true" />
-              </span>
-              <span>
-                <span className="block text-sm font-semibold leading-6 text-midnight">Jeg tilbyder også online forløb eller events.</span>
-                <span className="mt-1 block text-sm leading-6 text-ink/55">
-                  Slå til, hvis deltagere må finde dig som online arrangør.
+      {(currentStep.id === "location" || isProfileOverviewStep) && (
+        <div className={isProfileOverviewStep ? "mb-6 grid gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6" : "grid gap-5"}>
+          {isProfileOverviewStep ? (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Lokation</p>
+              <p className="mt-1 text-sm leading-6 text-ink/55">Fortæl hvor du holder til, så profilen kan placeres i det rigtige område.</p>
+            </div>
+          ) : null}
+          {presentationMode !== "onboarding" ? (
+            <button
+              aria-pressed={isOnlineFacilitator}
+              className="flex min-h-20 items-center justify-between gap-4 rounded-[24px] border border-midnight/10 bg-white px-4 text-left shadow-soft transition hover:border-sage-700"
+              onClick={() => setIsOnlineFacilitator((current) => !current)}
+              type="button"
+            >
+              <span className="flex items-start gap-3">
+                <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-lavender/15 text-lavender">
+                  <Video className="size-5" aria-hidden="true" />
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold leading-6 text-midnight">Jeg tilbyder også online forløb eller events.</span>
+                  <span className="mt-1 block text-sm leading-6 text-ink/55">
+                    Slå til, hvis deltagere må finde dig som online arrangør.
+                  </span>
                 </span>
               </span>
-            </span>
-            <span className={isOnlineFacilitator ? "flex h-10 w-[4.5rem] shrink-0 items-center justify-end rounded-full bg-sage-700 p-1" : "flex h-10 w-[4.5rem] shrink-0 items-center justify-start rounded-full bg-midnight/15 p-1"}>
-              <span className="size-8 rounded-full bg-white shadow-soft" />
-            </span>
-          </button>
+              <span className={isOnlineFacilitator ? "flex h-10 w-[4.5rem] shrink-0 items-center justify-end rounded-full bg-sage-700 p-1" : "flex h-10 w-[4.5rem] shrink-0 items-center justify-start rounded-full bg-midnight/15 p-1"}>
+                <span className="size-8 rounded-full bg-white shadow-soft" />
+              </span>
+            </button>
+          ) : null}
 
           <ClearableInput label="Adresse (valgfri)" onChange={setAddressLine} placeholder="Gade og nummer" value={addressLine} />
 
@@ -1847,12 +1957,18 @@ export function ProfileForm({
         </div>
       )}
 
-      {currentStep.id === "profile-image" && (
-        imageOverview
+      {(currentStep.id === "profile-image" || isProfileOverviewStep) && (
+        isProfileOverviewStep ? <div className="mb-6">{imageOverview}</div> : imageOverview
       )}
 
-      {currentStep.id === "experiences" && (
-        <div className="grid gap-5">
+      {(currentStep.id === "experiences" || isProfileOverviewStep) && (
+        <div className={isProfileOverviewStep ? "mb-6 grid gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6" : "grid gap-5"}>
+          {isProfileOverviewStep ? (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Arbejdsområder og speciale</p>
+              <p className="mt-1 text-sm leading-6 text-ink/55">Vælg de områder, der bedst beskriver dit arbejde.</p>
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {sortFacilitatorWorkAreas(categories).map((category) => {
               const selected = selectedExperiences.includes(category.id);
@@ -1901,8 +2017,8 @@ export function ProfileForm({
         </div>
       )}
 
-      {currentStep.id === "story" && (
-        <div className="grid gap-5">
+      {(currentStep.id === "story" || isProfileOverviewStep) && (
+        <div className={isProfileOverviewStep ? "mb-6 grid gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6" : "grid gap-5"}>
           <div className="flex items-center gap-2 border-b border-midnight/10 pb-3">
             <PencilLine className="size-4 text-sage-700" aria-hidden="true" />
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mit univers</p>
@@ -1953,8 +2069,14 @@ export function ProfileForm({
         </div>
       )}
 
-      {currentStep.id === "links" && (
-        <div className="grid gap-4">
+      {(currentStep.id === "links" || isProfileOverviewStep) && (
+        <div className={isProfileOverviewStep ? "mb-6 grid gap-4 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6" : "grid gap-4"}>
+          {isProfileOverviewStep ? (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Kontakt og links</p>
+              <p className="mt-1 text-sm leading-6 text-ink/55">Loginmailen vises kun her. Links og telefon kan udfyldes, hvis deltagerne må bruge dem.</p>
+            </div>
+          ) : null}
           <section className="rounded-[22px] border border-midnight/10 bg-white/75 p-4">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mailadresse</p>
             <p className="mt-2 break-all text-base font-semibold text-midnight">{profile.email}</p>
@@ -2053,8 +2175,14 @@ export function ProfileForm({
         </div>
       )}
 
-      {currentStep.id === "services" && (
-        <div className="grid gap-5">
+      {(currentStep.id === "services" || isProfileOverviewStep) && (
+        <div className={isProfileOverviewStep ? "mb-6 grid gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6" : "grid gap-5"}>
+          {isProfileOverviewStep ? (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Individuelle ydelser</p>
+              <p className="mt-1 text-sm leading-6 text-ink/55">Valgfrit: fortæl om ydelser uden for events.</p>
+            </div>
+          ) : null}
           <p className="text-base leading-7 text-ink/65">
             Så kan du blive vist på SoulEvents under “Ydelser”, så deltagere også kan finde og kontakte dig uden for dine events.
           </p>
@@ -2381,7 +2509,7 @@ export function ProfileForm({
               className="inline-flex min-h-16 w-full items-center justify-center gap-2 rounded-[999px] bg-midnight px-6 text-lg font-semibold text-white shadow-soft transition duration-200 hover:bg-sage-700 lg:min-h-12 lg:text-base xl:min-h-14"
               href="/facilitator/events"
             >
-              Opret dit første event
+              Opret mit første event
               <ArrowRight className="size-5" aria-hidden="true" />
             </Link>
             <Link

@@ -79,13 +79,28 @@ type FacilitatorEventsPageProps = {
     draft?: string;
     event?: string;
     message?: string;
+    prefill_date?: string;
+    prefill_source?: string;
+    prefill_title?: string;
+    returnTo?: string;
     step?: string;
     receipt?: "published" | "review";
   }>;
 };
 
+const allowedReturnPaths = new Set(["/facilitator", "/facilitator/events", "/facilitator/year-rhythm"]);
+
+function safeEventFormReturnPath(value?: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("://")) {
+    return "/facilitator";
+  }
+
+  return allowedReturnPaths.has(value) ? value : "/facilitator";
+}
+
 export default async function FacilitatorEventsPage({ searchParams }: FacilitatorEventsPageProps) {
-  const [{ draft, event: receiptEventId, message, step, receipt }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const [{ draft, event: receiptEventId, message, prefill_date: prefillDate, prefill_source: prefillSource, prefill_title: prefillTitle, returnTo, step, receipt }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const returnHref = safeEventFormReturnPath(returnTo);
   const supabase = await createClient();
   const admin = createAdminClient();
 
@@ -221,7 +236,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
           </div>
           <Link
             className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-xs font-semibold text-midnight transition hover:border-terracotta hover:text-terracotta sm:h-10 sm:text-sm"
-            href="/facilitator"
+            href={returnHref}
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
             Tilbage
@@ -309,6 +324,12 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
             activeLimitMessage={hasReachedActiveLimit && limitStatus ? activeLimitMessage(limitStatus.maxActiveEvents) : null}
             initialStep={initialStep}
             message={eventFormMessage}
+            key={[prefillSource, prefillDate, prefillTitle].filter(Boolean).join(":") || "event-form"}
+            prefill={{
+              date: prefillDate,
+              source: prefillSource,
+              title: prefillTitle,
+            }}
             requiresOrganizerAcceptance={missingOrganizerAcceptances.length > 0}
             notificationLogs={(notificationLogs ?? []).map((log: any) => {
               const actorProfile = Array.isArray(log.profiles) ? log.profiles[0] : log.profiles;

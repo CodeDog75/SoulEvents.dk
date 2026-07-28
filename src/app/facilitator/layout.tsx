@@ -2,6 +2,7 @@ import { FacilitatorDashboardShell } from "@/components/facilitator/facilitator-
 import { requireProfile } from "@/lib/auth/roles";
 import { getFacilitatorUnreadAdminMessageCount } from "@/lib/facilitator/dashboard-data";
 import { createClient } from "@/lib/supabase/server";
+import { getNextMoonRhythmMenuStatus } from "@/lib/year-rhythm";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,14 @@ export default async function FacilitatorLayout({ children }: { children: React.
     const eventEndsAt = event?.ends_at ?? event?.starts_at;
     return eventEndsAt ? new Date(eventEndsAt) >= now : false;
   }).length;
+  let yearRhythmMenuStatus: string | null = null;
+
+  try {
+    yearRhythmMenuStatus = getNextMoonRhythmMenuStatus(now);
+  } catch (error) {
+    console.error("[year-rhythm] Menu status could not be calculated", error);
+  }
+
   const facilitatorImageUrl = facilitatorProfile.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;
@@ -53,6 +62,7 @@ export default async function FacilitatorLayout({ children }: { children: React.
       }}
       pendingBookingsCount={pendingBookingsCount}
       unreadMessagesCount={unreadMessagesCount}
+      yearRhythmMenuStatus={yearRhythmMenuStatus}
     >
       {children}
     </FacilitatorDashboardShell>

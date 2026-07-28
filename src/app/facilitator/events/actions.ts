@@ -12,7 +12,7 @@ import { sendCoOrganizerInvitationEmail, sendCoOrganizerRemovedEmail, sendCoOrga
 import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
-import { getUserFacingEventStatus, isEventPastEnd } from "@/lib/events/user-facing-status";
+import { getUserFacingEventStatus } from "@/lib/events/user-facing-status";
 import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
 import { getFacilitatorPublicEligibility } from "@/lib/facilitators/public-eligibility";
 import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
@@ -296,6 +296,32 @@ function toDateTime(date: string, time: string) {
     second: 0,
     year: Number(dateMatch[1]),
   }).toISOString();
+}
+
+function defaultDraftDateTimes(now = new Date()) {
+  const todayParts = getDanishDateTimeParts(now);
+  const targetDate = addDanishCalendarDays(todayParts, 1);
+  const startsAt = utcFromDanishLocalTime({
+    ...targetDate,
+    hour: 19,
+    minute: 0,
+    second: 0,
+  });
+  const endsAt = utcFromDanishLocalTime({
+    ...targetDate,
+    hour: 21,
+    minute: 0,
+    second: 0,
+  });
+
+  return {
+    endsAt: endsAt.toISOString(),
+    startsAt: startsAt.toISOString(),
+  };
+}
+
+function endDateTimeAfterStart(startsAt: string) {
+  return new Date(new Date(startsAt).getTime() + 2 * 60 * 60 * 1000).toISOString();
 }
 
 function getDanishDateTimeParts(value: Date) {
@@ -1180,8 +1206,11 @@ export async function createEventAction(formData: FormData) {
   const shortDescription = eventDescription.slice(0, 220);
   const longDescription = eventDescription;
   const currentCoverImagePath = getOptionalString(formData, "current_cover_image_path") ?? existingEventCoverImagePath;
-  const startsAt = toDateTime(getString(formData, "start_date"), getString(formData, "start_time"));
-  const endsAt = toDateTime(getString(formData, "end_date"), getString(formData, "end_time"));
+  const submittedStartsAt = toDateTime(getString(formData, "start_date"), getString(formData, "start_time"));
+  const submittedEndsAt = toDateTime(getString(formData, "end_date"), getString(formData, "end_time"));
+  const draftDateTimes = isDraft ? defaultDraftDateTimes() : null;
+  const startsAt = submittedStartsAt || draftDateTimes?.startsAt || "";
+  let endsAt = submittedEndsAt || (submittedStartsAt ? endDateTimeAfterStart(submittedStartsAt) : draftDateTimes?.endsAt) || "";
   const addressLine = getOptionalString(formData, "address_line");
   const postalCode = getOptionalString(formData, "postal_code");
   const city = getOptionalString(formData, "city");
@@ -1277,6 +1306,10 @@ export async function createEventAction(formData: FormData) {
 
   if ((status === "active" || status === "sold_out") && !currentCoverImagePath && !hasSubmittedEventCoverImage(formData)) {
     eventsRedirect(missingCoverPublishMessage);
+  }
+
+  if (isDraft && startsAt && (!endsAt || new Date(endsAt) <= new Date(startsAt))) {
+    endsAt = endDateTimeAfterStart(startsAt);
   }
 
   if (!startsAt || !endsAt || new Date(endsAt) <= new Date(startsAt)) {
@@ -1606,7 +1639,7 @@ export async function createEventAction(formData: FormData) {
     }
 
     if (isDraft) {
-      redirect("/facilitator/events?draft=" + existingEventId + "&step=" + safeStep + "&message=" + encodeURIComponent("Kladde er opdateret og gemt."));
+      redirect("/facilitator?tab=drafts&message=" + encodeURIComponent("Eventet er gemt som kladde") + "#mine-events");
     }
 
     if (shouldPreservePublishedStatus) {
@@ -1755,7 +1788,7 @@ export async function createEventAction(formData: FormData) {
   revalidatePath("/facilitator/events");
 
   if (isDraft) {
-    redirect("/facilitator/events?draft=" + event.id + "&step=" + safeStep + "&message=" + encodeURIComponent("Kladde er gemt."));
+    redirect("/facilitator?tab=drafts&message=" + encodeURIComponent("Eventet er gemt som kladde") + "#mine-events");
   }
 
   if (wasPublishedDirectly) {
@@ -1884,9 +1917,8 @@ export async function updateEventStatusAction(formData: FormData) {
   facilitatorOverviewRedirect(status === "cancelled" ? "Eventet er aflyst." : "Eventstatus er opdateret.");
 }
 
-function canHideEventFromDashboard(event: { ends_at?: string | null; starts_at: string; status: string }, now = new Date()) {
-  const userFacingStatus = getUserFacingEventStatus(event, now);
-  return userFacingStatus === "held" || userFacingStatus === "cancelled" || isEventPastEnd(event);
+function canArchiveEventFromDashboard(event: { id?: string | null }) {
+  return Boolean(event.id);
 }
 
 type DashboardVisibilityActionResult = {
@@ -1941,8 +1973,8 @@ export async function hideEventFromDashboardAction(formData: FormData): Promise<
     return dashboardVisibilityResult(false, "Eventet kunne ikke findes.");
   }
 
-  if (!canHideEventFromDashboard(event)) {
-    return dashboardVisibilityResult(false, "Kun afholdte eller aflyste events kan skjules fra dashboardet.");
+  if (!canArchiveEventFromDashboard(event)) {
+    return dashboardVisibilityResult(false, "Eventet kunne ikke arkiveres.");
   }
 
   const { data, error } = await supabase
@@ -1964,16 +1996,16 @@ export async function hideEventFromDashboardAction(formData: FormData): Promise<
     if (isMissingDashboardVisibilityColumn(error)) {
       return dashboardVisibilityResult(false, "Databasen mangler den nyeste dashboard-opdatering. Kør migrationen, og prøv igen.");
     }
-    return dashboardVisibilityResult(false, "Eventet kunne ikke skjules fra dashboardet. Prøv igen.");
+    return dashboardVisibilityResult(false, "Eventet kunne ikke arkiveres. Prøv igen.");
   }
 
   if (!data) {
-    return dashboardVisibilityResult(false, "Eventet kunne ikke skjules fra dashboardet. Prøv igen.");
+    return dashboardVisibilityResult(false, "Eventet kunne ikke arkiveres. Prøv igen.");
   }
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/events");
-  return dashboardVisibilityResult(true, "Eventet er skjult fra dashboardet.");
+  return dashboardVisibilityResult(true, "Eventet er arkiveret.");
 }
 
 export async function restoreEventToDashboardAction(formData: FormData): Promise<DashboardVisibilityActionResult> {
@@ -2015,16 +2047,16 @@ export async function restoreEventToDashboardAction(formData: FormData): Promise
     if (isMissingDashboardVisibilityColumn(error)) {
       return dashboardVisibilityResult(false, "Databasen mangler den nyeste dashboard-opdatering. Kør migrationen, og prøv igen.");
     }
-    return dashboardVisibilityResult(false, "Eventet kunne ikke vises på dashboardet igen. Prøv igen.");
+    return dashboardVisibilityResult(false, "Eventet kunne ikke gendannes fra arkiv. Prøv igen.");
   }
 
   if (!data) {
-    return dashboardVisibilityResult(false, "Eventet findes ikke blandt dine skjulte events.");
+    return dashboardVisibilityResult(false, "Eventet findes ikke blandt dine arkiverede events.");
   }
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/events");
-  return dashboardVisibilityResult(true, "Eventet vises på dashboardet igen.");
+  return dashboardVisibilityResult(true, "Eventet er gendannet fra arkiv.");
 }
 
 export async function publishDraftEventAction(formData: FormData) {

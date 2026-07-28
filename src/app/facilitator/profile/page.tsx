@@ -20,7 +20,6 @@ export const dynamic = "force-dynamic";
 type FacilitatorProfilePageProps = {
   searchParams: Promise<{
     errorSection?: string;
-    confirmed?: string;
     message?: string;
     ready?: string;
     saved?: string;
@@ -28,7 +27,7 @@ type FacilitatorProfilePageProps = {
 };
 
 export default async function FacilitatorProfilePage({ searchParams }: FacilitatorProfilePageProps) {
-  const [{ confirmed, errorSection, message, ready, saved }, profile] = await Promise.all([searchParams, requireProfile()]);
+  const [{ errorSection, message, ready, saved }, profile] = await Promise.all([searchParams, requireProfile()]);
   const supabase = await createClient();
   const admin = createAdminClient();
   const isSavedMessage = message?.startsWith("Ændringer gemt");
@@ -293,7 +292,6 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
           regions={regions ?? []}
           savedSection={saved ?? null}
           selectedCategoryIds={selectedCategoryIds}
-          showEmailConfirmedStep={confirmed === "1"}
         />
       </section>
     </main>

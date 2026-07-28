@@ -57,21 +57,21 @@ export function DashboardEventVisibilityAction({
         type="button"
       >
         {isRestore ? <RotateCcw className="size-3.5" aria-hidden="true" /> : <ArchiveX className="size-3.5" aria-hidden="true" />}
-        {isRestore ? "Vis på dashboard igen" : "Skjul fra dashboard"}
+        {isRestore ? "Gendan fra arkiv" : "Arkivér event"}
       </button>
 
       {isOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-midnight/35 px-4 py-6">
           <section className="w-full max-w-md rounded-card bg-white p-5 shadow-lift sm:p-6" role="dialog" aria-modal="true" aria-labelledby="dashboard-event-visibility-title">
             <h2 className="text-xl font-semibold text-midnight" id="dashboard-event-visibility-title">
-              {isRestore ? "Vis event på dashboard igen?" : "Skjul event fra dashboard?"}
+              {isRestore ? "Gendan event fra arkiv?" : "Arkivér event?"}
             </h2>
             <div className="mt-3 grid gap-2 text-sm leading-6 text-ink/72">
               <p>Event: “{eventTitle || "Event uden titel"}”.</p>
               <p>
                 {isRestore
-                  ? "Eventet vises igen i dit dashboard."
-                  : "Eventet slettes ikke og kan altid vises igen under Skjulte events."}
+                  ? "Eventet flyttes tilbage til den relevante fane i dit dashboard."
+                  : "Eventet slettes ikke og kan altid gendannes fra Arkiverede events."}
               </p>
             </div>
             <div className="mt-6 flex flex-wrap justify-end gap-2">
@@ -90,7 +90,7 @@ export function DashboardEventVisibilityAction({
                   disabled={isPending}
                   type="submit"
                 >
-                  {isPending ? (isRestore ? "Viser..." : "Skjuler...") : isRestore ? "Vis event" : "Skjul event"}
+                  {isPending ? (isRestore ? "Gendanner..." : "Arkiverer...") : isRestore ? "Gendan event" : "Arkivér event"}
                 </button>
               </form>
             </div>

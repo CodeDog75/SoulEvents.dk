@@ -50,6 +50,7 @@ export const revalidate = 0;
 type FacilitatorPageProps = {
   searchParams: Promise<{
     message?: string;
+    tab?: string;
   }>;
 };
 
@@ -87,6 +88,49 @@ type DashboardAction = {
   title: string;
 };
 
+type EventTab = "drafts" | "active" | "held" | "cancelled" | "hidden";
+
+const eventTabs: Array<{ emptyText: string; key: EventTab; label: string; title: string }> = [
+  {
+    emptyText: "Du har ingen kladder endnu.",
+    key: "drafts",
+    label: "Kladder",
+    title: "Kladder",
+  },
+  {
+    emptyText: "Du har ingen aktive events lige nu.",
+    key: "active",
+    label: "Aktive",
+    title: "Mine kommende events",
+  },
+  {
+    emptyText: "Du har ingen afholdte events endnu.",
+    key: "held",
+    label: "Afholdte",
+    title: "Afholdte events",
+  },
+  {
+    emptyText: "Du har ingen aflyste events.",
+    key: "cancelled",
+    label: "Aflyste",
+    title: "Aflyste events",
+  },
+  {
+    emptyText: "Du har ingen arkiverede events.",
+    key: "hidden",
+    label: "Arkiverede",
+    title: "Arkiverede events",
+  },
+];
+
+function normalizeEventTab(value?: string | null): EventTab {
+  return eventTabs.some((tab) => tab.key === value) ? (value as EventTab) : "active";
+}
+
+function eventTabHref(tab: EventTab) {
+  return `/facilitator?tab=${tab}#mine-events`;
+}
+
 const dashboardEventSelect =
   "id, slug, title, status, starts_at, ends_at, created_at, updated_at, dashboard_hidden_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), bookings(id)";
 
@@ -101,7 +145,7 @@ const statusStyles: Record<string, string> = {
   sold_out: "bg-[#F4F0F7] text-[#6E5A86]",
   cancelled: "bg-red-50 text-red-800",
   completed: "bg-[#F7F1EA] text-[#756758]",
-  archived: "bg-stone-100 text-stone-600",
+  archived: "bg-stone-500 text-white",
   held: "bg-[#F7F1EA] text-[#756758]",
 };
 
@@ -446,12 +490,22 @@ const dashboardHeroQuotes = [
 ];
 
 const heroImagesByPeriod = {
-  afternoon: "/facilitator/onboarding-nature.png",
-  evening: "/facilitator/onboarding-nature.png",
-  morning: "/facilitator/onboarding-nature.png",
-  night: "/facilitator/onboarding-nature.png",
-  noon: "/facilitator/onboarding-nature.png",
+  afternoon: "/images/facilitator-heroes/soulevents-lotus.svg",
+  evening: "/images/facilitator-heroes/soulevents-fire.svg",
+  morning: "/images/facilitator-heroes/soulevents-sunrise.svg",
+  night: "/images/facilitator-heroes/soulevents-forest.svg",
+  noon: "/images/facilitator-heroes/soulevents-meadow.svg",
 } as const;
+
+function getCopenhagenHour(date: Date) {
+  const hour = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Copenhagen",
+  }).format(date);
+
+  return Number(hour);
+}
 
 function dashboardPeriodForHour(hour: number) {
   if (hour >= 5 && hour <= 10) return "morning";
@@ -477,7 +531,8 @@ function DashboardGreetingIntro({
   profileReadiness: ProfileReadiness;
 }) {
   const today = new Date();
-  const heroImage = heroImagesByPeriod[dashboardPeriodForHour(today.getHours())];
+  const period = dashboardPeriodForHour(getCopenhagenHour(today));
+  const heroImage = heroImagesByPeriod[period];
   const heroMessage = dashboardHeroMessages[deterministicIndex(today, dashboardHeroMessages.length)];
   const heroQuote = dashboardHeroQuotes[deterministicIndex(today, dashboardHeroQuotes.length, 17)];
 
@@ -514,7 +569,7 @@ function DashboardGreetingIntro({
 
         <aside className="text-center text-white">
           <p className="text-sm font-medium text-white/62">Månen i nat</p>
-          <MoonPhase className="mt-5 [--moon-size:132px] sm:[--moon-size:150px] lg:[--moon-size:188px]" illumination={moonData.illumination} phase={moonData.phase} size={156} />
+          <MoonPhase className={"mt-5 [--moon-size:132px] sm:[--moon-size:150px] lg:[--moon-size:188px] " + (period === "night" || period === "evening" ? "opacity-100" : "opacity-82")} illumination={moonData.illumination} phase={moonData.phase} size={156} />
           <div className="mt-5 grid gap-1 text-center text-sm text-white/68">
             <p className="font-semibold text-white">{moonData.phaseDanish}</p>
             <p className="text-white/78">
@@ -627,49 +682,17 @@ function DashboardSupportAside() {
 }
 function BookingAttentionCard({
   hasActiveEvents,
-  hasCompletedEvents,
   pendingCount,
   pendingHref,
 }: {
   hasActiveEvents: boolean;
-  hasCompletedEvents: boolean;
   pendingCount: number;
   pendingHref: string;
 }) {
   const hasPending = pendingCount > 0;
 
   if (!hasPending && !hasActiveEvents) {
-    const title = hasCompletedEvents
-      ? "Du er klar til at oprette dit næste event."
-      : "Du er klar til at oprette dit første event.";
-    const description = hasCompletedEvents
-      ? "Når du er klar til at samle mennesker igen, kan du oprette dit næste event på SoulEvents."
-      : "Din profil er nu klar og kan findes på SoulEvents. Opret dit første event, når du er klar til at invitere deltagere med på din oplevelse.";
-
-    return (
-      <section className="rounded-[32px] border border-[#D8CBE4] bg-white p-5 shadow-[0_18px_45px_rgba(47,36,55,0.08)] sm:p-6">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 gap-3">
-            <span className="mt-0.5 grid size-11 shrink-0 place-items-center rounded-full bg-[#F1EAF5] text-[#7A5D91]">
-              <CalendarPlus className="size-5" aria-hidden="true" />
-            </span>
-            <div>
-              <h2 className="text-xl font-semibold text-[#2F2437]">{title}</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6E6475]">
-                {description}
-              </p>
-            </div>
-          </div>
-          <Link
-            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-6 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285]"
-            href="/facilitator/events"
-          >
-            Opret nyt event
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </Link>
-        </div>
-      </section>
-    );
+    return null;
   }
 
   return (
@@ -866,9 +889,16 @@ function EventCard({
     <article className={"relative overflow-hidden rounded-[28px] border p-5 shadow-[0_16px_38px_rgba(47,36,55,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_48px_rgba(47,36,55,0.12)] " + currentStyle.card}>
       <div className={"absolute inset-x-0 top-0 h-1.5 " + currentStyle.accent} />
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <span className={"rounded-full px-3 py-1 text-xs font-semibold " + statusClass(userFacingStatus)}>
-          {getUserFacingEventStatusLabel(userFacingStatus)}
-        </span>
+        <div className="flex flex-wrap gap-2">
+          {isHidden ? (
+            <span className={"rounded-full px-3 py-1 text-xs font-semibold " + statusClass("archived")}>
+              Arkiveret
+            </span>
+          ) : null}
+          <span className={"rounded-full px-3 py-1 text-xs font-semibold " + statusClass(userFacingStatus)}>
+            {getUserFacingEventStatusLabel(userFacingStatus)}
+          </span>
+        </div>
         {event.event_reference_id ? <span className="text-xs font-semibold text-[#8B7F93]">Ref. {event.event_reference_id}</span> : null}
       </div>
       <h3 className="mt-4 text-xl font-semibold leading-tight text-[#2F2437]">{event.title || "Event uden titel"}</h3>
@@ -890,7 +920,7 @@ function EventCard({
         <div className={"mt-5 rounded-[18px] border px-4 py-3 text-sm font-semibold leading-6 " + (draftReadiness?.canPublish ? variantStyles.active.note : currentStyle.note)}>
           {draftReadiness?.canPublish ? "✓ " : ""}
           {statusMessage}
-          {isExpiringSoon ? <p className="mt-1 text-xs font-medium">Dette event fjernes fra dashboardet om cirka en måned.</p> : null}
+          {isExpiringSoon ? <p className="mt-1 text-xs font-medium">Dette event kan flyttes til arkivet, når du ikke længere ønsker det i oversigten.</p> : null}
         </div>
       ) : null}
       <div className="mt-5 grid gap-3">
@@ -1011,12 +1041,39 @@ function EventCard({
   );
 }
 
-function EventCountPill({ label, value }: { label: string; value: number }) {
+function EventCountPill({
+  href,
+  isActive,
+  label,
+  tone = "default",
+  value,
+}: {
+  href: string;
+  isActive: boolean;
+  label: string;
+  tone?: "archive" | "default";
+  value: number;
+}) {
+  const isArchive = tone === "archive";
+
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-[#E5DDEA] bg-[#FAF8F4] px-3 py-1.5 text-xs font-semibold text-[#6E6475]">
+    <Link
+      aria-current={isActive ? "page" : undefined}
+      className={
+        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A5D91] " +
+        (isArchive
+          ? isActive
+            ? "border-stone-600 bg-stone-500 text-white"
+            : "border-stone-400 bg-stone-500 text-white hover:bg-stone-600"
+          : isActive
+          ? "border-[#7A5D91] bg-[#F4F0F7] text-[#2F2437]"
+          : "border-[#E5DDEA] bg-[#FAF8F4] text-[#6E6475] hover:border-[#7A5D91] hover:text-[#7A5D91]")
+      }
+      href={href}
+    >
       {label}
-      <span className="rounded-full bg-white px-2 py-0.5 text-[#7A5D91]">{value}</span>
-    </span>
+      <span className={"rounded-full px-2 py-0.5 " + (isArchive ? "bg-white/18 text-white" : "bg-white text-[#7A5D91]")}>{value}</span>
+    </Link>
   );
 }
 
@@ -1039,8 +1096,8 @@ function EventGrid({
 
   return (
     <section id={id}>
-      <h3 className="text-lg font-semibold text-[#2F2437]">{title}</h3>
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      {title ? <h3 className="text-lg font-semibold text-[#2F2437]">{title}</h3> : null}
+      <div className={title ? "mt-4 grid gap-4 lg:grid-cols-2" : "grid gap-4 lg:grid-cols-2"}>
         {events.map((event) => {
           const eventVariant = event.status === "cancelled" ? "cancelled" : variant;
           return (
@@ -1056,6 +1113,14 @@ function EventGrid({
         })}
       </div>
     </section>
+  );
+}
+
+function EmptyEventTabState({ text }: { text: string }) {
+  return (
+    <div className="rounded-[24px] border border-dashed border-[#D8CBE4] bg-[#FAF8F4] px-5 py-8 text-sm font-semibold text-[#6E6475]">
+      {text}
+    </div>
   );
 }
 
@@ -1096,7 +1161,8 @@ function AdminMessageCta({ unreadCount }: { unreadCount: number }) {
 }
 
 export default async function FacilitatorPage({ searchParams }: FacilitatorPageProps) {
-  const [{ message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const [{ message, tab }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const activeEventTab = normalizeEventTab(tab);
   const supabase = createAdminClient();
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
@@ -1217,6 +1283,30 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const visibleCancelledEvents = cancelledEvents.filter((event) => !isOlderThanMonths(eventEndDate(event), now, 12));
   const visibleArchivedEventCount = visibleHeldEvents.length + visibleCancelledEvents.length;
   const draftEvents = visibleEventRows.filter((event) => event.status === "draft" || event.status === "pending_review");
+  const eventTabEvents: Record<EventTab, any[]> = {
+    active: activeEvents,
+    cancelled: visibleCancelledEvents,
+    drafts: draftEvents,
+    held: visibleHeldEvents,
+    hidden: hiddenEvents,
+  };
+  const eventTabCounts: Record<EventTab, number> = {
+    active: activeEvents.length,
+    cancelled: visibleCancelledEvents.length,
+    drafts: draftEvents.length,
+    held: visibleHeldEvents.length,
+    hidden: hiddenEvents.length,
+  };
+  const selectedEventTab = eventTabs.find((eventTab) => eventTab.key === activeEventTab) ?? eventTabs[1];
+  const selectedEventTabEvents = eventTabEvents[activeEventTab];
+  const selectedEventTabVariant: DashboardEventVariant =
+    activeEventTab === "drafts"
+      ? "draft"
+      : activeEventTab === "cancelled"
+        ? "cancelled"
+        : activeEventTab === "active"
+          ? "active"
+          : "completed";
   const profileReadiness = getProfileReadiness({
     categoryCount: categoryNames.length,
     facilitatorProfile,
@@ -1269,45 +1359,10 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           {profileReadiness.isComplete ? (
             <BookingAttentionCard
               hasActiveEvents={activeEvents.length > 0}
-              hasCompletedEvents={visibleArchivedEventCount > 0}
               pendingCount={pendingBookingCount ?? 0}
               pendingHref={pendingBookingsHref}
             />
           ) : null}
-
-          <section className="grid gap-3 rounded-[28px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Hurtige genveje</p>
-                <h2 className="mt-1 text-xl font-semibold text-[#2F2437]">Hvad vil du arbejde med?</h2>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {activeEvents.length > 0 ? (
-                <Link className="rounded-[20px] border border-[#7A5D91] bg-[#7A5D91] p-4 font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285]" href="/facilitator/events">
-                  Opret nyt event
-                </Link>
-              ) : null}
-              {activeEvents.length > 0 ? (
-                <Link className="rounded-[20px] border border-[#D8CBE4] bg-white p-4 font-semibold text-[#2F2437] transition hover:-translate-y-0.5 hover:shadow-soft" href="/facilitator/bookings">
-                  Se tilmeldinger
-                </Link>
-              ) : null}
-              <Link className="rounded-[20px] border border-[#D8CBE4] bg-white p-4 font-semibold text-[#2F2437] transition hover:-translate-y-0.5 hover:shadow-soft" href="/facilitator/profile">
-                Rediger profil
-              </Link>
-              {activeEvents.length === 0 && visibleArchivedEventCount > 0 ? (
-                <Link className="rounded-[20px] border border-[#D8CBE4] bg-white p-4 font-semibold text-[#2F2437] transition hover:-translate-y-0.5 hover:shadow-soft" href="/facilitator#tidligere-events">
-                  Se tidligere events
-                </Link>
-              ) : null}
-              {activeEvents.length === 0 ? (
-                <Link className="rounded-[20px] border border-[#D8CBE4] bg-white p-4 font-semibold text-[#2F2437] transition hover:-translate-y-0.5 hover:shadow-soft" href="/facilitator/messages">
-                  Beskedcenter
-                </Link>
-              ) : null}
-            </div>
-          </section>
 
           {pendingCoOrganizerInvitations.length > 0 ? (
             <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
@@ -1378,15 +1433,20 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                   <h2 className="text-2xl font-semibold text-[#2F2437]">Mine events</h2>
                   <p className="mt-1 text-sm leading-6 text-[#6E6475]">
                     {draftEvents.length + activeEvents.length + visibleArchivedEventCount + hiddenEvents.length > 0
-                      ? "Her finder du dine kladder, kommende events og dit eventarkiv."
+                      ? "Her finder du dine kladder, aktive og tidligere events. Events, du ikke længere ønsker i oversigten, kan flyttes til arkivet."
                       : "Hvert event begynder med en idé. Når du opretter dit første event, bliver det synligt for mennesker over hele Danmark, som søger netop den oplevelse, du skaber."}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <EventCountPill label="Kladder" value={draftEvents.length} />
-                    <EventCountPill label="Aktive" value={activeEvents.length} />
-                    <EventCountPill label="Afholdte" value={visibleHeldEvents.length} />
-                    <EventCountPill label="Aflyste" value={visibleCancelledEvents.length} />
-                    <EventCountPill label="Skjulte" value={hiddenEvents.length} />
+                    {eventTabs.map((eventTab) => (
+                      <EventCountPill
+                        href={eventTabHref(eventTab.key)}
+                        isActive={activeEventTab === eventTab.key}
+                        key={eventTab.key}
+                        label={eventTab.label}
+                        tone={eventTab.key === "hidden" ? "archive" : "default"}
+                        value={eventTabCounts[eventTab.key]}
+                      />
+                    ))}
                   </div>
                 </div>
                 {draftEvents.length + activeEvents.length + visibleArchivedEventCount + hiddenEvents.length === 0 ? (
@@ -1400,51 +1460,28 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                 ) : null}
               </div>
               <div className="mt-6 grid gap-8 border-t border-[#EFE8F2] pt-6">
-                <EventGrid
-                  events={activeEvents.slice(0, 6)}
-                  facilitatorStatus={facilitatorProfile?.status}
-                  id="aktive-events"
-                  title="Mine kommende events"
-                  variant="active"
-                />
-                {activeEvents.length > 0 && visibleArchivedEventCount > 0 ? (
-                  <Link className="inline-flex h-11 items-center justify-center justify-self-start rounded-full border border-[#D8CBE4] bg-white px-5 text-sm font-semibold text-[#7A5D91] transition hover:border-[#7A5D91]" href="/facilitator#tidligere-events">
-                    Se eventarkiv
-                  </Link>
-                ) : null}
-                {visibleArchivedEventCount > 0 ? (
-                  <section id="tidligere-events" className="grid gap-8">
-                    <EventGrid
-                      events={visibleHeldEvents.slice(0, 6)}
-                      facilitatorStatus={facilitatorProfile?.status}
-                      title="Afholdte events"
-                      variant="completed"
-                    />
-                    <EventGrid
-                      events={visibleCancelledEvents.slice(0, 6)}
-                      facilitatorStatus={facilitatorProfile?.status}
-                      title="Aflyste events"
-                      variant="cancelled"
-                    />
-                  </section>
-                ) : null}
-                {hiddenEvents.length > 0 ? (
-                  <details className="rounded-[24px] border border-[#E5DDEA] bg-[#FAF8F4] p-4">
-                    <summary className="cursor-pointer text-lg font-semibold text-[#2F2437]">
-                      Skjulte events ({hiddenEvents.length})
-                    </summary>
-                    <div className="mt-4">
-                      <EventGrid
-                        events={hiddenEvents}
-                        facilitatorStatus={facilitatorProfile?.status}
-                        id="skjulte-events"
-                        isHidden
-                        title="Skjulte events"
-                        variant="completed"
-                      />
-                    </div>
-                  </details>
-                ) : null}
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
+                  <h3 className="text-lg font-semibold text-[#2F2437]">
+                    {selectedEventTab.title} ({selectedEventTabEvents.length})
+                  </h3>
+                  {activeEventTab === "active" && visibleArchivedEventCount > 0 ? (
+                    <Link className="text-sm font-semibold text-[#7A5D91] transition hover:text-[#6E5285]" href={eventTabHref("held")}>
+                      Se eventarkiv
+                    </Link>
+                  ) : null}
+                </div>
+                {selectedEventTabEvents.length > 0 ? (
+                  <EventGrid
+                    events={selectedEventTabEvents}
+                    facilitatorStatus={facilitatorProfile?.status}
+                    id={`${activeEventTab}-events`}
+                    isHidden={activeEventTab === "hidden"}
+                    title=""
+                    variant={selectedEventTabVariant}
+                  />
+                ) : (
+                  <EmptyEventTabState text={selectedEventTab.emptyText} />
+                )}
               </div>
             </section>
           ) : null}

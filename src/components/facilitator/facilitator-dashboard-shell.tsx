@@ -16,6 +16,7 @@ import {
   X,
   Mail,
   Menu,
+  MoonStar,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
@@ -27,6 +28,7 @@ type FacilitatorDashboardShellProps = {
   facilitatorIdentity?: FacilitatorIdentity | null;
   pendingBookingsCount: number;
   unreadMessagesCount: number;
+  yearRhythmMenuStatus?: string | null;
 };
 
 type FacilitatorIdentity = {
@@ -42,6 +44,7 @@ type NavigationItem = {
   icon: React.ElementType;
   isPrimary?: boolean;
   label: string;
+  secondaryLabel?: string | null;
 };
 
 function isActivePath(pathname: string, href: string) {
@@ -104,7 +107,10 @@ function NavLink({ item, onNavigate, pathname }: { item: NavigationItem; onNavig
   const Icon = item.icon;
   const active = isActivePath(pathname, item.href);
   const className = item.isPrimary
-    ? "flex min-h-11 items-center gap-3 rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285] focus:outline-none focus:ring-4 focus:ring-[#D8CBE4]"
+    ? "flex min-h-11 items-center gap-3 rounded-[16px] border px-3 text-sm font-semibold transition focus:outline-none focus:ring-4 focus:ring-[#E5DDEA] " +
+      (active
+        ? "border-[#BFA9CF] bg-[#F7F1FA] text-[#5F4777]"
+        : "border-[#D8CBE4] bg-white/35 text-[#6E5285] hover:border-[#C8B8D7] hover:bg-[#F7F1FA]/70")
     : "flex min-h-11 items-center gap-3 rounded-[16px] px-3 text-sm font-semibold transition " +
       (active ? "bg-[#F1EAF5] text-[#6E5285]" : "text-[#6E6475] hover:bg-white hover:text-[#2F2437]");
 
@@ -115,7 +121,14 @@ function NavLink({ item, onNavigate, pathname }: { item: NavigationItem; onNavig
       onClick={onNavigate}
     >
       <Icon className="size-4 shrink-0" aria-hidden="true" />
-      <span className="min-w-0 truncate">{item.label}</span>
+      <span className="min-w-0">
+        <span className="block truncate">{item.label}</span>
+        {item.secondaryLabel ? (
+          <span className={"mt-0.5 block truncate text-[11px] font-semibold leading-4 " + (active ? "text-[#8E76A2]" : "text-[#9A8FA0]")}>
+            {item.secondaryLabel}
+          </span>
+        ) : null}
+      </span>
       <Badge value={item.badge} />
     </Link>
   );
@@ -126,6 +139,7 @@ export function FacilitatorDashboardShell({
   facilitatorIdentity,
   pendingBookingsCount,
   unreadMessagesCount,
+  yearRhythmMenuStatus,
 }: FacilitatorDashboardShellProps) {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -136,6 +150,7 @@ export function FacilitatorDashboardShell({
     { href: "/facilitator#mine-events", icon: CalendarDays, label: "Mine events" },
     { badge: pendingBookingsCount, href: "/facilitator/bookings", icon: Inbox, label: "Tilmeldinger" },
     { badge: unreadMessagesCount, href: "/facilitator/messages", icon: Mail, label: "Beskedcenter" },
+    { href: "/facilitator/year-rhythm", icon: MoonStar, label: "Årets rytme", secondaryLabel: yearRhythmMenuStatus },
   ];
   const secondaryItems: NavigationItem[] = [
     { href: "/facilitator/profile", icon: UserRound, label: "Profilindstillinger" },
@@ -284,7 +299,10 @@ export function FacilitatorDashboardShell({
           const Icon = item.icon;
           const active = isActivePath(pathname, item.href);
           const itemClassName = item.isPrimary
-            ? "relative grid min-h-14 place-items-center gap-1 rounded-[18px] bg-[#7A5D91] px-1 text-[11px] font-semibold text-white shadow-soft transition hover:bg-[#6E5285]"
+            ? "relative grid min-h-14 place-items-center gap-1 rounded-[16px] border px-1 text-[11px] font-semibold transition " +
+              (active
+                ? "border-[#BFA9CF] bg-[#F7F1FA] text-[#5F4777]"
+                : "border-[#D8CBE4] bg-transparent text-[#6E5285] hover:bg-[#F7F1FA]/70")
             : "relative grid min-h-14 place-items-center gap-1 rounded-[16px] text-[11px] font-semibold " + (active ? "text-[#7A5D91]" : "text-[#6E6475]");
           return (
             <Link

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import NextImage from "next/image";
 import type { ReactNode } from "react";
 import {
   ArrowLeft,
@@ -126,6 +127,11 @@ type EventFormProps = {
   draftEvent?: DraftEvent | null;
   initialStep?: number;
   message?: string;
+  prefill?: {
+    date?: string | null;
+    source?: string | null;
+    title?: string | null;
+  };
   requiresOrganizerAcceptance?: boolean;
   notificationLogs?: Array<{
     actorName?: string | null;
@@ -194,16 +200,16 @@ function softTagColor(index: number) {
 function MainCategoryCard({
   category,
   checked,
+  priority = false,
   onChange,
 }: {
   category: MainCategory;
   checked: boolean;
+  priority?: boolean;
   onChange: (checked: boolean) => void;
 }) {
   const color = category.colorHex || "#7A5D91";
-  const categoryBackground = category.imageUrl
-    ? "linear-gradient(135deg, rgba(47,36,55,0.48), rgba(122,93,145,0.22)), url(" + category.imageUrl + ") center/cover"
-    : "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.76), transparent 42%), linear-gradient(135deg, " + color + "33, #F8F3FF)";
+  const fallbackBackground = "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.76), transparent 42%), linear-gradient(135deg, " + color + "33, #F8F3FF)";
 
   return (
     <label
@@ -213,7 +219,7 @@ function MainCategoryCard({
           ? "-translate-y-0.5 border-[3px] border-[#7A5D91] opacity-100 shadow-[0_0_0_4px_rgba(122,93,145,0.15)]"
           : "border border-transparent opacity-100 shadow-soft")
       }
-      style={{ background: categoryBackground }}
+      style={{ background: fallbackBackground }}
     >
       <input
         checked={checked}
@@ -223,6 +229,19 @@ function MainCategoryCard({
         type="checkbox"
         value={category.id}
       />
+      {category.imageUrl ? (
+        <>
+          <NextImage
+            alt=""
+            className="object-cover transition duration-300 group-hover:scale-[1.03]"
+            fill
+            priority={priority}
+            sizes="(max-width: 639px) calc(100vw - 2rem), (max-width: 1023px) calc((100vw - 3rem) / 2), 320px"
+            src={category.imageUrl}
+          />
+          <span className="absolute inset-0 bg-gradient-to-br from-[#2F2437]/50 to-[#7A5D91]/22" aria-hidden="true" />
+        </>
+      ) : null}
       {checked ? (
         <span className="absolute right-4 top-4 z-10 grid size-9 place-items-center rounded-full bg-[#7A5D91] text-base font-bold text-white shadow-soft">
           {"✓"}
@@ -806,6 +825,7 @@ export function EventForm({
   draftEvent = null,
   initialStep = 0,
   message,
+  prefill,
   requiresOrganizerAcceptance = false,
   notificationLogs = [],
   facilitator,
@@ -817,7 +837,10 @@ export function EventForm({
   const tomorrow = formatLocalDateInputValue(tomorrowDate);
   const draftStart = draftEvent?.starts_at ? new Date(draftEvent.starts_at) : null;
   const draftEnd = draftEvent?.ends_at ? new Date(draftEvent.ends_at) : null;
-  const draftStartDate = draftStart ? formatLocalDateInputValue(draftStart) : tomorrow;
+  const prefillDate = !draftEvent && prefill?.date && /^\d{4}-\d{2}-\d{2}$/.test(prefill.date) ? prefill.date : null;
+  const prefillTitle = !draftEvent ? value(prefill?.title).slice(0, 120) : "";
+  const shouldUsePrefillAsSource = !draftEvent && prefill?.source === "year-rhythm" && Boolean(prefillDate || prefillTitle);
+  const draftStartDate = draftStart ? formatLocalDateInputValue(draftStart) : prefillDate ?? tomorrow;
   const draftEndDate = draftEnd ? formatLocalDateInputValue(draftEnd) : draftStartDate;
   const draftStartTime = draftStart ? formatLocalTimeInputValue(draftStart) : "19:00";
   const draftEndTime = draftEnd ? formatLocalTimeInputValue(draftEnd) : "21:00";
@@ -931,7 +954,7 @@ export function EventForm({
   const isDanishPhysicalEvent = showAddress && !isForeignLocation;
   const selectedRegionName = regions.find((region) => region.id === regionId)?.name ?? "";
   const currentCoverImageUrl = coverPreviewUrl || draftEvent?.coverImageUrl || "";
-  const [titleValue, setTitleValue] = useState(value(draftEvent?.title));
+  const [titleValue, setTitleValue] = useState(value(draftEvent?.title) || prefillTitle);
   const [coOrganizerSearchOpen, setCoOrganizerSearchOpen] = useState(false);
   const [coOrganizerSearchQuery, setCoOrganizerSearchQuery] = useState("");
   const [coOrganizerCandidates, setCoOrganizerCandidates] = useState<CoOrganizerCandidate[]>([]);
@@ -2006,6 +2029,12 @@ export function EventForm({
       return;
     }
 
+    if (shouldUsePrefillAsSource) {
+      window.localStorage.removeItem(draftStorageKey);
+      window.setTimeout(refreshFormValidationState, 0);
+      return;
+    }
+
     const hasDraft = Boolean(window.localStorage.getItem(draftStorageKey));
     window.localStorage.removeItem(legacyEventDraftStorageKey);
     window.setTimeout(() => {
@@ -2542,8 +2571,8 @@ export function EventForm({
               Start her
             </div>
             <TextInput
-              autoFocus={!draftEvent?.title}
-              defaultValue={value(draftEvent?.title)}
+              autoFocus={!titleValue}
+              defaultValue={titleValue}
               help="Giv eventet et kort og tydeligt navn. Det bliver deltagernes første indtryk."
               highlightWhenEmpty
               id="event-title-input"
@@ -3258,12 +3287,13 @@ export function EventForm({
         {mainCategories.length > 0 && (
           <div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {mainCategories.map((category) => (
+              {mainCategories.map((category, index) => (
                 <MainCategoryCard
                   category={category}
                   checked={selectedMainCategoryIds.includes(category.id)}
                   key={category.id}
                   onChange={(checked) => updateMainCategory(category.id, checked)}
+                  priority={index < 3}
                 />
               ))}
             </div>
