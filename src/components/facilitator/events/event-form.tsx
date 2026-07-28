@@ -23,7 +23,9 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { cancelCoOrganizerInvitationAction, createEventAction, resendCoOrganizerInvitationAction, searchCoOrganizerCandidatesAction } from "@/app/facilitator/events/actions";
+import { sortTagsByDanishLabel } from "@/lib/events/tags";
 import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
+import { fetchDanishPostalCity, getLocalDanishPostalCity } from "@/lib/locations/danish-postal-codes";
 
 type Region = {
   id: string;
@@ -499,48 +501,6 @@ function TimeSelect({
   );
 }
 
-const postalCodeCities: Record<string, string> = {
-  "2100": "København Ø",
-  "2200": "København N",
-  "2300": "København S",
-  "2400": "København NV",
-  "2500": "Valby",
-  "2610": "Rødovre",
-  "2620": "Albertslund",
-  "2630": "Taastrup",
-  "2800": "Kongens Lyngby",
-  "3000": "Helsingør",
-  "3400": "Hillerød",
-  "3700": "Rønne",
-  "4000": "Roskilde",
-  "4100": "Ringsted",
-  "4200": "Slagelse",
-  "4300": "Holbæk",
-  "4400": "Kalundborg",
-  "4700": "Næstved",
-  "4800": "Nykøbing F",
-  "5000": "Odense C",
-  "6000": "Kolding",
-  "6100": "Haderslev",
-  "6200": "Aabenraa",
-  "6400": "Sønderborg",
-  "6700": "Esbjerg",
-  "7100": "Vejle",
-  "7400": "Herning",
-  "8000": "Aarhus C",
-  "8200": "Aarhus N",
-  "8210": "Aarhus V",
-  "8230": "Åbyhøj",
-  "8260": "Viby J",
-  "8600": "Silkeborg",
-  "8800": "Viborg",
-  "9000": "Aalborg",
-  "9200": "Aalborg SV",
-  "9210": "Aalborg SØ",
-  "9220": "Aalborg Øst",
-  "9400": "Nørresundby",
-};
-
 function regionSlugFromPostalCode(postalCode: string) {
   const numberValue = Number(postalCode);
 
@@ -919,6 +879,7 @@ export function EventForm({
   const [paymentDeadlineDays, setPaymentDeadlineDays] = useState(initialPaymentDeadlineDays);
   const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState<string[]>(draftEvent?.mainCategoryIds ?? []);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>((draftEvent?.tagIds ?? []).slice(0, maxEventTags));
+  const sortedTags = useMemo(() => sortTagsByDanishLabel(tags), [tags]);
   const [categoryLimitMessage, setCategoryLimitMessage] = useState("");
   const [capacityValue, setCapacityValue] = useState(String(draftEvent?.capacity ?? 12));
   const [highlightedMissingKey, setHighlightedMissingKey] = useState("");
@@ -1482,23 +1443,15 @@ export function EventForm({
   }
 
   async function fetchPostalCodeCity(nextPostalCode: string) {
-    try {
-      const response = await fetch("https://api.dataforsyningen.dk/postnumre/" + nextPostalCode);
+    const result = await fetchDanishPostalCity(nextPostalCode);
 
-      if (!response.ok) {
-        setPostalCodeMessage("Postnummeret kunne ikke valideres. Tjek at det består af 4 tal.");
-        return;
-      }
-
-      const data = (await response.json()) as { navn?: string };
-
-      if (data.navn) {
-        setCity(data.navn);
-        setPostalCodeMessage("By er opdateret ud fra postnummeret.");
-      }
-    } catch {
-      setPostalCodeMessage("By er foreslået lokalt. Tjek gerne at adressen passer.");
+    if (result.ok) {
+      setCity(result.city);
+      setPostalCodeMessage("By er opdateret ud fra postnummeret.");
+      return;
     }
+
+    setPostalCodeMessage("Postnummeret kunne ikke valideres. Tjek at det består af 4 tal.");
   }
 
   function handlePostalCodeChange(nextValue: string) {
@@ -1517,7 +1470,7 @@ export function EventForm({
       return;
     }
 
-    const localCity = postalCodeCities[normalizedPostalCode];
+    const localCity = getLocalDanishPostalCity(normalizedPostalCode);
 
     if (localCity) {
       setCity(localCity);
@@ -1582,7 +1535,7 @@ export function EventForm({
     const categoryNames = mainCategories
       .filter((category) => selectedCategoryIds.includes(category.id))
       .map((category) => category.name);
-    const tagNames = tags
+    const tagNames = sortedTags
       .filter((tag) => selectedTagIds.includes(tag.id))
       .map((tag) => tag.name);
     const title = String(data.get("title") ?? "").trim() || "Eventtitel mangler";
@@ -3299,7 +3252,7 @@ export function EventForm({
             </div>
           </div>
         )}
-        {tags.length > 0 && (
+        {sortedTags.length > 0 && (
           <details className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4">
             <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full bg-[#7A5D91] px-4 py-2 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285] [&::-webkit-details-marker]:hidden">
               <Tags className="size-4" aria-hidden="true" />
@@ -3309,7 +3262,7 @@ export function EventForm({
               Tags er valgfrie ekstra filtre som begynder, gratis, weekend, udendørs eller online.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
-              {tags.map((tag) => (
+              {sortedTags.map((tag) => (
                 <TagPill
                   checked={selectedTagIds.includes(tag.id)}
                   key={tag.id}

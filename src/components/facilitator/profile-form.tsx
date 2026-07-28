@@ -5,9 +5,12 @@ import {
   ArrowRight,
   Brain,
   Camera,
+  Check,
   Circle,
   CreditCard,
+  Droplets,
   Dumbbell,
+  Eye,
   ExternalLink,
   Flame,
   Flower2,
@@ -20,7 +23,9 @@ import {
   Leaf,
   Link2,
   Mail,
+  MapPin,
   MapPinned,
+  MessageCircle,
   Moon,
   Music,
   PartyPopper,
@@ -29,6 +34,8 @@ import {
   Sparkles,
   Sun,
   Upload,
+  User,
+  Users,
   Video,
   Waves,
   X,
@@ -37,7 +44,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type ChangeEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { type ChangeEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { resolveNameParts } from "@/lib/auth/names";
 import {
   autosaveFacilitatorProfileAction,
@@ -46,6 +53,21 @@ import {
   submitFacilitatorProfileForReviewAction,
 } from "@/app/facilitator/profile/actions";
 import { imageUploadAccept, prepareImageFileForUpload } from "@/lib/images/client-image-upload";
+import {
+  fetchDanishPostalCity,
+  getLocalDanishPostalCity,
+  normalizeDanishPostalCode,
+  splitDanishPostalCity,
+} from "@/lib/locations/danish-postal-codes";
+import {
+  isDanishProfileCountry,
+  inferProfileCountryCode,
+  isOtherProfileCountry,
+  normalizeInternationalPostalCode,
+  normalizeProfileCountryCode,
+  profileCountryName,
+  supportedProfileCountries,
+} from "@/lib/locations/countries";
 import { OnboardingShell as SharedOnboardingShell } from "@/components/onboarding/onboarding-shell";
 import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
 import { PublicFacilitatorGallery } from "@/components/facilitator/public-facilitator-gallery";
@@ -58,6 +80,12 @@ import {
   resolveFacilitatorHero,
   type FacilitatorHeroKey,
 } from "@/lib/facilitators/hero-collection";
+import {
+  individualServiceOptions,
+  maxIndividualServiceTypes,
+  normalizeIndividualServiceTypes,
+  type IndividualServiceType,
+} from "@/lib/facilitators/individual-services";
 import { facilitatorStoryMinLength, normalizeFacilitatorStory } from "@/lib/facilitators/profile-readiness";
 import { facilitatorWorkAreas, sortFacilitatorWorkAreas } from "@/lib/facilitators/work-areas";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
@@ -98,8 +126,10 @@ type FacilitatorProfile = {
   postal_code: string | null;
   city: string | null;
   country?: string | null;
+  country_name?: string | null;
   is_online_facilitator?: boolean | null;
   region_id: string | null;
+  region_text?: string | null;
   payment_mobilepay_number?: string | null;
   payment_bank_registration_number?: string | null;
   payment_bank_account_number?: string | null;
@@ -107,10 +137,52 @@ type FacilitatorProfile = {
   payment_external_url?: string | null;
   payment_instructions?: string | null;
   payment_deadline_days?: number | null;
+  individual_service_other_title?: string | null;
+  individual_service_types?: string[] | null;
   offers_services?: boolean | null;
   service_description?: string | null;
   specialties?: string | null;
   show_in_local_service_results?: boolean | null;
+};
+
+const individualServiceIconMap: Record<IndividualServiceType, LucideIcon> = {
+  community: Users,
+  conversation: MessageCircle,
+  energy: Sparkles,
+  fire_ceremony: Flame,
+  hands: HandHeart,
+  heart: Heart,
+  lotus: Flower2,
+  meditation: Brain,
+  moon: Moon,
+  nature: Leaf,
+  other: Waves,
+  reflection: Eye,
+  sound: Music,
+  sun: Sun,
+  teaching: PencilLine,
+  treatment: HeartHandshake,
+  water: Droplets,
+};
+
+const individualServiceToneMap: Record<IndividualServiceType, string> = {
+  community: "bg-[#F2EDF7]",
+  conversation: "bg-sky-50",
+  energy: "bg-[#F4EAF8]",
+  fire_ceremony: "bg-[#F8EDE7]",
+  hands: "bg-sage-50",
+  heart: "bg-rose-50",
+  lotus: "bg-[#F6EEF4]",
+  meditation: "bg-[#F2F0FA]",
+  moon: "bg-[#EEF1F7]",
+  nature: "bg-[#EEF5EA]",
+  other: "bg-[#F5F1EA]",
+  reflection: "bg-[#F4F0F7]",
+  sound: "bg-[#F1EDF7]",
+  sun: "bg-[#FFF4D8]",
+  teaching: "bg-[#F8F2E8]",
+  treatment: "bg-[#F1F6EF]",
+  water: "bg-[#EAF5F7]",
 };
 
 type GalleryImage = {
@@ -234,7 +306,7 @@ const steps: Array<{
   {
     eyebrow: "Lokation",
     id: "location",
-    text: "Skriv postnummer og by, så SoulEvents kan placere din profil i det rigtige område. Regionen vælges automatisk ud fra postnummeret.",
+    text: "Skriv dit postnummer, så finder SoulEvents automatisk byen og placerer din profil i det rigtige område.",
     title: "Hvor holder du til?",
   },
   {
@@ -331,7 +403,7 @@ function resolveInitialStepIndex({
 }
 
 function inputClass(extra = "") {
-  return "min-h-14 w-full rounded-[18px] border border-midnight/10 bg-white px-5 text-lg text-midnight shadow-soft outline-none transition duration-200 placeholder:text-ink/35 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/10 " + extra;
+  return "min-h-14 w-full rounded-[18px] border border-[#D8D0C1] bg-white px-5 text-lg text-midnight shadow-[0_8px_22px_rgba(47,36,55,0.045)] outline-none transition duration-200 placeholder:text-ink/48 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/12 " + extra;
 }
 
 function workAreaClass(selected: boolean, _isLong = false) {
@@ -439,7 +511,7 @@ function ClearableInput({
   if (!label) return input;
 
   return (
-    <label className="grid gap-2 text-sm font-semibold text-ink/65">
+    <label className="grid gap-2 text-sm font-semibold text-midnight/82">
       {label}
       {input}
     </label>
@@ -655,6 +727,7 @@ function OnboardingShell({
   const footer = hidePrimaryAction ? null : (
     <button
       className="inline-flex min-h-16 w-full items-center justify-center gap-2 rounded-[999px] bg-midnight px-6 text-lg font-semibold text-white shadow-soft transition duration-200 hover:bg-sage-700 disabled:cursor-not-allowed disabled:opacity-45 lg:min-h-12 lg:w-auto lg:min-w-56 lg:text-base xl:min-h-14"
+      aria-disabled={isBusy || !canContinue}
       disabled={isBusy || !canContinue}
       onClick={onContinue}
       type="button"
@@ -780,6 +853,26 @@ function StepIntro({ eyebrow, text, title }: { eyebrow: string; text: string; ti
   );
 }
 
+function SectionHeading({
+  description,
+  Icon,
+  title,
+}: {
+  description?: string;
+  Icon: LucideIcon;
+  title: string;
+}) {
+  return (
+    <div>
+      <p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-sage-700">
+        <Icon className="size-4 shrink-0" aria-hidden="true" />
+        {title}
+      </p>
+      {description ? <p className="mt-1 text-sm leading-6 text-ink/64">{description}</p> : null}
+    </div>
+  );
+}
+
 function UploadTile({
   className = "",
   createPreview = true,
@@ -890,20 +983,21 @@ export function ProfileForm({
       ? onboardingStepIds.map((stepId) => steps.find((step) => step.id === stepId)).filter((step): step is (typeof steps)[number] => Boolean(step))
       : editingStepIds.map((stepId) => steps.find((step) => step.id === stepId)).filter((step): step is (typeof steps)[number] => Boolean(step));
   const activeStepIds = activeSteps.map((step) => step.id);
+  const activeStepIdsKey = activeStepIds.join("|");
   const onboardingDraftStepStorageKey = `${onboardingDraftStepStorageKeyBase}:${facilitatorProfile.id ?? profile.email}`;
-  const [stepIndex, setStepIndex] = useState(() =>
-    resolveInitialStepIndex({
-      activeStepIds,
-      presentationMode,
-      storageKey: onboardingDraftStepStorageKey,
-    }),
-  );
+  const [stepIndex, setStepIndex] = useState(0);
   const [isBusy, setIsBusy] = useState(false);
   const [returnToReview, setReturnToReview] = useState(false);
   const [profileImageSubmissionError, setProfileImageSubmissionError] = useState(false);
   const [storySubmissionError, setStorySubmissionError] = useState(false);
   const continueInProgressRef = useRef(false);
+  const hasResolvedInitialOnboardingStepRef = useRef(presentationMode !== "onboarding");
+  const latestPostalCodeLookupRef = useRef("");
   const pendingImageSectionTargetRef = useRef<ImageSectionTarget | null>(null);
+  const locationSectionRef = useRef<HTMLDivElement | null>(null);
+  const countryNameInputRef = useRef<HTMLInputElement | null>(null);
+  const postalCodeInputRef = useRef<HTMLInputElement | null>(null);
+  const cityInputRef = useRef<HTMLInputElement | null>(null);
   const profileImageSectionRef = useRef<HTMLElement | null>(null);
   const moodImageSectionRef = useRef<HTMLElement | null>(null);
   const bannerImageSectionRef = useRef<HTMLElement | null>(null);
@@ -915,9 +1009,30 @@ export function ProfileForm({
   const [useCustomProfileName, setUseCustomProfileName] = useState(() => Boolean(initialProfileName && initialProfileName !== fullPublicName));
   const [profileName, setProfileName] = useState(initialProfileName);
   const [addressLine, setAddressLine] = useState(value(facilitatorProfile.address_line));
-  const [postalCode, setPostalCode] = useState(value(facilitatorProfile.postal_code));
-  const [city, setCity] = useState(value(facilitatorProfile.city));
-  const [country, setCountry] = useState(value(facilitatorProfile.country) || "Danmark");
+  const initialPostalLocation = splitDanishPostalCity(facilitatorProfile.postal_code);
+  const initialCityLocation = splitDanishPostalCity(facilitatorProfile.city);
+  const initialPostalCode = initialPostalLocation.postalCode || initialCityLocation.postalCode;
+  const initialCity =
+    initialCityLocation.city ||
+    (initialCityLocation.postalCode ? "" : value(facilitatorProfile.city)) ||
+    initialPostalLocation.city ||
+    value(getLocalDanishPostalCity(initialPostalCode));
+  const initialCountryCode = inferProfileCountryCode({
+    city: facilitatorProfile.city,
+    country: facilitatorProfile.country,
+    postalCode: facilitatorProfile.postal_code,
+  });
+  const initialCustomCountryName =
+    initialCountryCode === "OTHER"
+      ? value(facilitatorProfile.country_name || facilitatorProfile.country)
+      : value(facilitatorProfile.country_name);
+  const [postalCode, setPostalCode] = useState(initialPostalCode);
+  const [city, setCity] = useState(initialCity);
+  const [postalCodeMessage, setPostalCodeMessage] = useState(initialPostalCode && !initialCity ? "Indtast postnummer, så finder vi automatisk byen." : "");
+  const [country, setCountry] = useState(initialCountryCode);
+  const [countryName, setCountryName] = useState(initialCustomCountryName);
+  const [regionText, setRegionText] = useState(value(facilitatorProfile.region_text));
+  const [locationSubmissionError, setLocationSubmissionError] = useState(false);
   const [isOnlineFacilitator, setIsOnlineFacilitator] = useState(Boolean(facilitatorProfile.is_online_facilitator));
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [profileImageUrl, setProfileImageUrl] = useState(facilitatorProfile.profile_image_path ? publicImageUrl(facilitatorProfile.profile_image_path) : "");
@@ -953,6 +1068,10 @@ export function ProfileForm({
   const [paymentInstructions, setPaymentInstructions] = useState(value(facilitatorProfile.payment_instructions));
   const [paymentDeadlineDays, setPaymentDeadlineDays] = useState(String(facilitatorProfile.payment_deadline_days ?? 14));
   const [offersIndividualServices, setOffersIndividualServices] = useState(Boolean(facilitatorProfile.offers_services));
+  const [individualServiceTypes, setIndividualServiceTypes] = useState<IndividualServiceType[]>(() =>
+    normalizeIndividualServiceTypes(facilitatorProfile.individual_service_types),
+  );
+  const [individualServiceOtherTitle, setIndividualServiceOtherTitle] = useState(value(facilitatorProfile.individual_service_other_title));
   const [serviceDescription, setServiceDescription] = useState(value(facilitatorProfile.service_description));
   const [specialties, setSpecialties] = useState(value(facilitatorProfile.specialties));
   const [openAreaInfoId, setOpenAreaInfoId] = useState<string | null>(null);
@@ -960,6 +1079,7 @@ export function ProfileForm({
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const currentStep = activeSteps[stepIndex] ?? activeSteps[0] ?? steps[0];
   const isProfileOverviewStep = currentStep.id === "profile";
+  const isApprovalStep = currentStep.id === "approval";
   const shellBackHref = presentationMode === "onboarding" ? "/auth/login" : backHref;
   const activeDesktopLogoSrc = logoSources?.desktop ?? "/brand/soulevents-logo.png";
   const displayedStep =
@@ -975,6 +1095,13 @@ export function ProfileForm({
   const hasWorkArea = selectedExperiences.length > 0;
   const specialtyText = normalizeSpecialtyText(specialties);
   const hasIndividualServicesDescription = offersIndividualServices && serviceDescription.trim().length > 0;
+  const hasOtherIndividualServiceType = individualServiceTypes.includes("other");
+  const selectedIndividualServiceDisplays = individualServiceOptions
+    .filter((option) => individualServiceTypes.includes(option.id))
+    .map((option) => ({
+      id: option.id,
+      label: option.id === "other" && individualServiceOtherTitle.trim() ? individualServiceOtherTitle.trim() : option.label,
+    }));
   const facebookValidation = validateSocialProfileLink(facebook, "facebook");
   const instagramValidation = validateSocialProfileLink(instagram, "instagram");
   const facebookError = facebook.trim() && !facebookValidation.ok ? facebookValidation.message : null;
@@ -983,16 +1110,218 @@ export function ProfileForm({
   const normalizedStory = normalizeFacilitatorStory(story);
   const storyMeetsMinimum = normalizedStory.length >= facilitatorStoryMinLength;
   const storyMissingMessage = "Skriv gerne lidt mere om dig selv, før profilen sendes til SoulEvents.";
+  const isDanishLocation = isDanishProfileCountry(country);
+  const isOtherCountry = isOtherProfileCountry(country);
+  const normalizedLocationPostalCode = postalCode.trim();
+  const normalizedLocationCity = city.trim();
+  const normalizedCountryName = countryName.trim();
+  const locationCountryNameMissing = isOtherCountry && !normalizedCountryName;
+  const locationPostalCodeMissingOrInvalid =
+    !locationCountryNameMissing && (!normalizedLocationPostalCode || (isDanishLocation && !/^\d{4}$/.test(normalizedLocationPostalCode)));
+  const locationCityMissing = !locationCountryNameMissing && Boolean(normalizedLocationPostalCode) && !normalizedLocationCity;
+  const locationIsComplete = isDanishLocation
+    ? /^\d{4}$/.test(normalizedLocationPostalCode) && Boolean(normalizedLocationCity)
+    : Boolean(normalizedLocationPostalCode) && Boolean(normalizedLocationCity) && (!isOtherCountry || Boolean(normalizedCountryName));
+  const locationValidationMessage = isDanishLocation
+    ? !normalizedLocationPostalCode
+      ? "Indtast postnummer, så finder vi automatisk byen."
+      : !/^\d{4}$/.test(normalizedLocationPostalCode)
+        ? "Dansk postnummer skal bestå af fire cifre."
+        : !normalizedLocationCity
+          ? "Vi kunne ikke finde en by til dette postnummer."
+          : ""
+    : locationCountryNameMissing
+      ? "Skriv landets navn."
+    : !normalizedLocationPostalCode || !normalizedLocationCity
+      ? "Postnummer og by skal udfyldes."
+      : "";
   const missingRequired = [
     !firstName.trim() || !lastName.trim() ? { label: "Dit navn", step: "person" as PrototypeStep } : null,
     !publicProfileName ? { label: "Profilnavn", step: "person" as PrototypeStep } : null,
+    !locationIsComplete ? { label: locationCountryNameMissing ? "Skriv landets navn" : "Udfyld postnummer og by", step: "location" as PrototypeStep } : null,
     !profileImageUrl ? { label: "Tilføj profilbillede", step: "profile-image" as PrototypeStep } : null,
     moodImages.every((image) => !image.previewUrl) ? { label: "Tilføj mindst ét stemningsbillede", step: "profile-image" as PrototypeStep } : null,
     !hasWorkArea ? { label: "Vælg mindst ét arbejdsområde", step: "experiences" as PrototypeStep } : null,
     !storyMeetsMinimum ? { label: "Gå til fortælling", step: "story" as PrototypeStep } : null,
   ].filter((item): item is { label: string; step: PrototypeStep } => Boolean(item));
+  const missingStepIds = new Set(missingRequired.map((item) => item.step));
+  const shouldShowApprovalPersonEditor = isApprovalStep && missingStepIds.has("person");
+  const shouldShowApprovalImageEditor = isApprovalStep && missingStepIds.has("profile-image");
+  const shouldShowApprovalExperiencesEditor = isApprovalStep && missingStepIds.has("experiences");
+  const shouldShowApprovalStoryEditor = isApprovalStep && missingStepIds.has("story");
+  const shouldUseEmbeddedProfileSection = isProfileOverviewStep || isApprovalStep;
+  const profileIsReadyForSubmission = missingRequired.length === 0;
+  const approvalReadyForSubmit = profileIsReadyForSubmission && acceptedTerms;
+  const approvalCtaLabel = profileIsReadyForSubmission
+    ? acceptedTerms
+      ? "Send profil til SoulEvents"
+      : "Acceptér vilkår først"
+    : "Profilen mangler oplysninger";
+  const approvalHelper = approvalReadyForSubmit
+    ? "Din profil er klar til indsendelse."
+    : "Udfyld de markerede oplysninger og acceptér vilkårene, før profilen kan sendes.";
+
+  function toggleIndividualServiceType(serviceType: IndividualServiceType) {
+    setIndividualServiceTypes((current) =>
+      current.includes(serviceType)
+        ? current.filter((item) => item !== serviceType)
+        : current.length >= maxIndividualServiceTypes
+          ? current
+          : [...current, serviceType],
+    );
+  }
+
+  async function lookupPostalCodeCity(nextPostalCode: string) {
+    latestPostalCodeLookupRef.current = nextPostalCode;
+    setPostalCodeMessage("Finder by ud fra postnummer...");
+
+    const result = await fetchDanishPostalCity(nextPostalCode);
+
+    if (latestPostalCodeLookupRef.current !== nextPostalCode) return;
+
+    if (result.ok) {
+      setCity(result.city);
+      setPostalCodeMessage(`${result.city} blev fundet automatisk.`);
+      return;
+    }
+
+    setPostalCodeMessage("Vi kunne ikke finde en by til dette postnummer.");
+  }
+
+  function handlePostalCodeChange(nextValue: string) {
+    if (!isDanishLocation) {
+      const normalizedPostalCode = normalizeInternationalPostalCode(nextValue);
+      setPostalCode(normalizedPostalCode);
+      setPostalCodeMessage("");
+      return;
+    }
+
+    const normalizedPostalCode = normalizeDanishPostalCode(nextValue);
+    setPostalCode(normalizedPostalCode);
+
+    if (!normalizedPostalCode) {
+      latestPostalCodeLookupRef.current = "";
+      setCity("");
+      setPostalCodeMessage("Indtast postnummer, så finder vi automatisk byen.");
+      return;
+    }
+
+    if (normalizedPostalCode.length < 4) {
+      latestPostalCodeLookupRef.current = normalizedPostalCode;
+      setCity("");
+      setPostalCodeMessage("");
+      return;
+    }
+
+    const localCity = getLocalDanishPostalCity(normalizedPostalCode);
+
+    if (localCity) {
+      latestPostalCodeLookupRef.current = normalizedPostalCode;
+      setCity(localCity);
+      setPostalCodeMessage(`${localCity} blev fundet automatisk.`);
+      return;
+    }
+
+    void lookupPostalCodeCity(normalizedPostalCode);
+  }
+
+  function handleCountryChange(nextCountry: string) {
+    const nextCountryCode = normalizeProfileCountryCode(nextCountry);
+    const nextIsDanishLocation = isDanishProfileCountry(nextCountryCode);
+    const currentIsDanishLocation = isDanishProfileCountry(country);
+
+    setCountry(nextCountryCode);
+    setLocationSubmissionError(false);
+
+    if (!isOtherProfileCountry(nextCountryCode)) {
+      setCountryName("");
+    }
+
+    if (!nextIsDanishLocation && currentIsDanishLocation) {
+      latestPostalCodeLookupRef.current = "";
+      setCity("");
+      setRegionText("");
+      setPostalCodeMessage("");
+      return;
+    }
+
+    if (nextIsDanishLocation && !currentIsDanishLocation) {
+      const normalizedPostalCode = normalizeDanishPostalCode(postalCode);
+      setPostalCode(normalizedPostalCode);
+      setCity("");
+      setRegionText("");
+
+      if (!normalizedPostalCode) {
+        setPostalCodeMessage("Indtast postnummer, så finder vi automatisk byen.");
+        return;
+      }
+
+      if (normalizedPostalCode.length < 4) {
+        setPostalCodeMessage("");
+        return;
+      }
+
+      const localCity = getLocalDanishPostalCity(normalizedPostalCode);
+
+      if (localCity) {
+        latestPostalCodeLookupRef.current = normalizedPostalCode;
+        setCity(localCity);
+        setRegionText("");
+        setPostalCodeMessage(`${localCity} blev fundet automatisk.`);
+        return;
+      }
+
+      void lookupPostalCodeCity(normalizedPostalCode);
+    }
+  }
 
   useEffect(() => {
+    if (!isDanishLocation || postalCode.length !== 4 || city) return;
+
+    let cancelled = false;
+    latestPostalCodeLookupRef.current = postalCode;
+
+    fetchDanishPostalCity(postalCode).then((result) => {
+      if (cancelled || latestPostalCodeLookupRef.current !== postalCode) return;
+
+      if (result.ok) {
+        setCity(result.city);
+        setRegionText("");
+        setPostalCodeMessage(`${result.city} blev fundet automatisk.`);
+        return;
+      }
+
+      setPostalCodeMessage("Vi kunne ikke finde en by til dette postnummer.");
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [city, isDanishLocation, postalCode]);
+
+  useEffect(() => {
+    if (presentationMode !== "onboarding") {
+      hasResolvedInitialOnboardingStepRef.current = true;
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const resolvedStepIndex = resolveInitialStepIndex({
+        activeStepIds: activeStepIdsKey.split("|") as PrototypeStep[],
+        presentationMode,
+        storageKey: onboardingDraftStepStorageKey,
+      });
+
+      hasResolvedInitialOnboardingStepRef.current = true;
+      setStepIndex(resolvedStepIndex);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeStepIdsKey, onboardingDraftStepStorageKey, presentationMode]);
+
+  useEffect(() => {
+    if (presentationMode === "onboarding" && !hasResolvedInitialOnboardingStepRef.current) return;
+
     const url = new URL(window.location.href);
     url.searchParams.delete("confirmed");
     url.searchParams.set("prototypeStep", currentStep.id);
@@ -1001,6 +1330,26 @@ export function ProfileForm({
       window.localStorage.setItem(onboardingDraftStepStorageKey, currentStep.id);
     }
   }, [currentStep.id, onboardingDraftStepStorageKey, presentationMode]);
+
+  const scrollToLocationError = useCallback(() => {
+    const reducedMotion =
+      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    locationSectionRef.current?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+
+  window.requestAnimationFrame(() => {
+    if (isOtherCountry && !normalizedCountryName) {
+      countryNameInputRef.current?.focus();
+      return;
+    }
+
+    if (!normalizedLocationPostalCode || (isDanishLocation && !/^\d{4}$/.test(normalizedLocationPostalCode))) {
+      postalCodeInputRef.current?.focus();
+      return;
+      }
+
+      cityInputRef.current?.focus();
+    });
+}, [isDanishLocation, isOtherCountry, normalizedCountryName, normalizedLocationPostalCode]);
 
   useEffect(() => {
     if (currentStep.id !== "profile-image") return;
@@ -1020,6 +1369,11 @@ export function ProfileForm({
     targetElement?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
   }, [currentStep.id]);
 
+  useEffect(() => {
+    if (!locationSubmissionError || (currentStep.id !== "profile" && currentStep.id !== "location")) return;
+    scrollToLocationError();
+  }, [currentStep.id, locationSubmissionError, scrollToLocationError]);
+
   const contactValues = {
     company_name: publicProfileName,
     first_name: firstName,
@@ -1031,6 +1385,12 @@ export function ProfileForm({
   };
 
   async function saveProfileOverviewStep() {
+    if (!locationIsComplete) {
+      setLocationSubmissionError(true);
+      scrollToLocationError();
+      return { message: locationValidationMessage || "Postnummer og by skal udfyldes.", ok: false };
+    }
+
     const contactResult = await autosaveFacilitatorProfileAction({
       section: "contact",
       values: contactValues,
@@ -1044,8 +1404,10 @@ export function ProfileForm({
         address_line: addressLine,
         city,
         country,
+        country_name: countryName,
         is_online_facilitator: presentationMode === "onboarding" ? Boolean(facilitatorProfile.is_online_facilitator) : isOnlineFacilitator,
         postal_code: postalCode,
+        region_text: regionText,
       },
     });
 
@@ -1105,6 +1467,8 @@ export function ProfileForm({
       section: "services",
       values: {
         offers_services: offersIndividualServices,
+        individual_service_other_title: individualServiceOtherTitle,
+        individual_service_types: individualServiceTypes,
         service_description: serviceDescription,
         show_in_local_service_results: offersIndividualServices,
       },
@@ -1146,8 +1510,10 @@ export function ProfileForm({
           address_line: addressLine,
           city,
           country,
+          country_name: countryName,
           is_online_facilitator: isOnlineFacilitator,
           postal_code: postalCode,
+          region_text: regionText,
         },
       });
 
@@ -1251,6 +1617,8 @@ export function ProfileForm({
         section: "services",
         values: {
           offers_services: offersIndividualServices,
+          individual_service_other_title: individualServiceOtherTitle,
+          individual_service_types: individualServiceTypes,
           service_description: serviceDescription,
           show_in_local_service_results: offersIndividualServices,
         },
@@ -1260,8 +1628,20 @@ export function ProfileForm({
     }
 
     if (currentStep.id === "approval") {
+      const saveResult = await saveProfileOverviewStep();
+
+      if (!saveResult.ok) return saveResult;
+
       if (!submitForReview) {
         return { message: "Din profilkladde er gemt.", ok: true };
+      }
+
+      if (missingRequired.length > 0) {
+        return { message: "Udfyld de markerede oplysninger, før profilen kan sendes til SoulEvents.", ok: false };
+      }
+
+      if (!acceptedTerms) {
+        return { message: "Du skal acceptere vilkårene, før profilen kan sendes til SoulEvents.", ok: false };
       }
 
       const result = await submitFacilitatorProfileForReviewAction({ acceptedTerms });
@@ -1333,7 +1713,7 @@ export function ProfileForm({
     }
 
     window.localStorage.setItem(onboardingDraftStepStorageKey, currentStep.id);
-    router.push("/facilitator?message=" + encodeURIComponent("Din profilkladde er gemt. Du kan fortsætte senere."));
+    router.replace("/facilitator/profile/draft");
   }
 
   function goBack() {
@@ -1370,6 +1750,9 @@ export function ProfileForm({
   }
 
   function goToMissingItem(item: { label: string; step: PrototypeStep }) {
+    if (item.step === "location") {
+      setLocationSubmissionError(true);
+    }
     if (item.step === "profile-image" && item.label.includes("profilbillede")) {
       setProfileImageSubmissionError(true);
     }
@@ -1489,11 +1872,11 @@ export function ProfileForm({
   const reviewCategories = categories
     .filter((category) => selectedExperiences.includes(category.id))
     .map((category) => ({ name: category.name }));
-  const inferredRegionSlug = inferRegionSlug({ city, postalCode });
+  const inferredRegionSlug = isDanishLocation ? inferRegionSlug({ city, postalCode }) : null;
   const inferredRegionName = inferredRegionSlug ? regions.find((region) => region.slug === inferredRegionSlug)?.name : null;
   const reviewPlace = isOnlineFacilitator
     ? "Online arrangør"
-    : [city, country].filter(Boolean).join(", ") || null;
+    : [city, profileCountryName(country, countryName)].filter(Boolean).join(", ") || null;
   const previewGalleryImages = moodImages
     .filter((image) => Boolean(image.previewUrl))
     .map((image, index) => ({
@@ -1592,7 +1975,7 @@ export function ProfileForm({
   const heroPicker = (
     <>
       <section
-        className="grid scroll-mt-24 gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6"
+        className="grid scroll-mt-24 gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
         id="profile-banner-section"
         ref={bannerImageSectionRef}
       >
@@ -1642,7 +2025,7 @@ export function ProfileForm({
         </div>
       </section>
 
-      <section className="grid gap-3 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6">
+      <section className="grid gap-3 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">4. SoulEvents-naturbannere</p>
           <p className="mt-2 text-lg font-semibold text-midnight">Naturbannere som reservevalg</p>
@@ -1719,11 +2102,38 @@ export function ProfileForm({
   const imageOverview = (
     <div className="grid gap-6">
       <section
-        className="grid scroll-mt-24 gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6 lg:grid-cols-[minmax(260px,340px)_minmax(0,480px)] lg:items-center lg:justify-start"
+        className="grid scroll-mt-24 gap-4 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
         id="profile-image-section"
         ref={profileImageSectionRef}
       >
-        <div className="grid gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <SectionHeading Icon={Camera} title="1. Profilbillede" />
+            <span
+              className={
+                "rounded-full px-3 py-1 text-xs font-bold shadow-soft " +
+                (profileImageAdded ? "bg-white text-sage-700" : "bg-white text-[#7A4EAB]")
+              }
+            >
+              {profileImageAdded ? "Profilbillede tilføjet" : "Obligatorisk"}
+            </span>
+          </div>
+          <p className="mt-2 text-lg font-semibold text-midnight">
+            Vælg et profilbillede, der tydeligt repræsenterer dig
+          </p>
+          <p className="mt-1 text-sm leading-6 text-ink/55">
+            Dit profilbillede vises tydeligt på din offentlige profil og hjælper gæsterne med at lære dig at kende.
+          </p>
+          <p className="mt-1 text-sm leading-6 text-ink/55">
+            Det kan være et portræt, et logo eller et billede af en behandling, aktivitet eller stemning, der repræsenterer dit virke.
+          </p>
+          {profileImageSubmissionError && !profileImageAdded ? (
+            <p className="mt-3 rounded-[18px] border border-[#E3B6B6] bg-[#FFF7F7] px-4 py-3 font-semibold text-[#A51D1D]">
+              Du skal tilføje et profilbillede, før profilen kan sendes til SoulEvents.
+            </p>
+          ) : null}
+        </div>
+        <div className="grid max-w-[420px] gap-3">
           <div className="relative">
             {profileImageTile}
             {profileImageAdded ? (
@@ -1737,41 +2147,15 @@ export function ProfileForm({
             <p className="text-center text-xs font-semibold text-ink/45">Klik på billedet for at udskifte det.</p>
           ) : null}
         </div>
-        <div className="rounded-[24px] bg-sage-50 p-5 text-sm leading-6 text-ink/65">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">1. Profilbillede</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold text-midnight">Profilbillede</p>
-            <span
-              className={
-                "rounded-full px-3 py-1 text-xs font-bold " +
-                (profileImageAdded ? "bg-white text-sage-700" : "bg-white text-[#7A4EAB]")
-              }
-            >
-              {profileImageAdded ? "Profilbillede tilføjet" : "Obligatorisk"}
-            </span>
-          </div>
-          <p className="mt-2">
-            Dit profilbillede vises tydeligt på din offentlige profil og hjælper gæsterne med at lære dig at kende.
-          </p>
-          <p className="mt-2 text-ink/55">
-            Det må gerne være et portræt, logo eller et billede af en behandling, aktivitet eller stemning, der tydeligt
-            repræsenterer dit virke.
-          </p>
-          {profileImageSubmissionError && !profileImageAdded ? (
-            <p className="mt-3 rounded-[18px] border border-[#E3B6B6] bg-[#FFF7F7] px-4 py-3 font-semibold text-[#A51D1D]">
-              Du skal tilføje et profilbillede, før profilen kan sendes til SoulEvents.
-            </p>
-          ) : null}
-        </div>
       </section>
 
       <section
-        className="grid scroll-mt-24 gap-4 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6"
+        className="grid scroll-mt-24 gap-4 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
         id="profile-mood-images-section"
         ref={moodImageSectionRef}
       >
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">2. Dine stemningsbilleder</p>
+          <SectionHeading Icon={ImagePlus} title="Dine stemningsbilleder" />
           <p className="mt-2 text-lg font-semibold text-midnight">Tilføj op til tre billeder, der viser dit univers</p>
           <p className="mt-1 text-sm leading-6 text-ink/55">
             Tilføj op til tre billeder, der viser stemningen i det, du tilbyder. Ét af billederne kan også vælges som banner på din profil.
@@ -1790,12 +2174,12 @@ export function ProfileForm({
     <OnboardingShell
       backHref={shellBackHref}
       backLabel={backLabel}
-      canContinue={currentStep.id !== "approval" || (acceptedTerms && missingRequired.length === 0)}
+      canContinue={currentStep.id !== "approval" || approvalReadyForSubmit}
       currentIndex={stepIndex}
       ctaLabel={
         presentationMode === "onboarding"
           ? currentStep.id === "approval"
-            ? "Send profil til SoulEvents"
+            ? approvalCtaLabel
             : currentStep.id === "welcome"
               ? "Kom i gang"
               : currentStep.id === "profile"
@@ -1809,7 +2193,7 @@ export function ProfileForm({
       }
       ctaHelper={
         presentationMode === "onboarding" && currentStep.id === "approval"
-          ? "Din profil sendes til gennemgang og bliver ikke offentlig, før den er godkendt."
+          ? approvalHelper
           : undefined
       }
       footerLeading={
@@ -1859,13 +2243,14 @@ export function ProfileForm({
         </p>
       ) : null}
 
-      {(currentStep.id === "person" || isProfileOverviewStep) && (
-        <div className={isProfileOverviewStep ? "mb-6 grid gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6" : "grid gap-5"}>
-          {isProfileOverviewStep ? (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Grundoplysninger</p>
-              <p className="mt-1 text-sm leading-6 text-ink/55">Dit navn og det profilnavn, deltagerne møder på SoulEvents.</p>
-            </div>
+      {(currentStep.id === "person" || isProfileOverviewStep || shouldShowApprovalPersonEditor) && (
+        <div className={shouldUseEmbeddedProfileSection ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6" : "grid gap-5"}>
+          {shouldUseEmbeddedProfileSection ? (
+            <SectionHeading
+              description="Dit navn og det profilnavn, deltagerne møder på SoulEvents."
+              Icon={User}
+              title="Grundoplysninger"
+            />
           ) : null}
           <div className="grid gap-4 lg:grid-cols-2">
             <ClearableInput label="Dit fornavn" onChange={setFirstName} placeholder="Dit fornavn" value={firstName} />
@@ -1874,7 +2259,7 @@ export function ProfileForm({
 
           <button
             aria-pressed={useCustomProfileName}
-            className="flex min-h-20 items-center justify-between gap-4 rounded-[24px] border border-midnight/10 bg-white px-4 text-left shadow-soft transition hover:border-sage-700"
+            className="flex min-h-20 items-center justify-between gap-4 rounded-[24px] border border-[#D8D0C1] bg-white px-4 text-left shadow-[0_8px_22px_rgba(47,36,55,0.045)] transition hover:border-sage-700"
             onClick={() => setUseCustomProfileName((current) => !current)}
             type="button"
           >
@@ -1887,7 +2272,7 @@ export function ProfileForm({
           </button>
 
           {useCustomProfileName ? (
-            <label className="grid gap-2 text-sm font-semibold text-ink/65">
+            <label className="grid gap-2 text-sm font-semibold text-midnight/82">
               Profilnavn
               <ClearableInput
                 className="text-xl font-semibold"
@@ -1895,7 +2280,7 @@ export function ProfileForm({
                 placeholder="Skriv et kaldenavn eller virksomhedsnavn"
                 value={profileName}
               />
-              <span className="text-sm font-normal leading-6 text-ink/55">
+              <span className="text-sm font-normal leading-6 text-ink/64">
                 Det kan eksempelvis være dit kunstnernavn, virksomhedsnavn, studionavn eller et andet navn, deltagerne kender dig under.
               </span>
             </label>
@@ -1909,17 +2294,22 @@ export function ProfileForm({
       )}
 
       {(currentStep.id === "location" || isProfileOverviewStep) && (
-        <div className={isProfileOverviewStep ? "mb-6 grid gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6" : "grid gap-5"}>
-          {isProfileOverviewStep ? (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Lokation</p>
-              <p className="mt-1 text-sm leading-6 text-ink/55">Fortæl hvor du holder til, så profilen kan placeres i det rigtige område.</p>
-            </div>
+        <div
+          className={shouldUseEmbeddedProfileSection ? "mb-6 grid scroll-mt-24 gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6" : "grid scroll-mt-24 gap-5"}
+          id="profile-location-section"
+          ref={locationSectionRef}
+        >
+          {shouldUseEmbeddedProfileSection ? (
+            <SectionHeading
+              description="Fortæl hvor du holder til, så profilen kan placeres i det rigtige område."
+              Icon={MapPin}
+              title="Lokation"
+            />
           ) : null}
           {presentationMode !== "onboarding" ? (
             <button
               aria-pressed={isOnlineFacilitator}
-              className="flex min-h-20 items-center justify-between gap-4 rounded-[24px] border border-midnight/10 bg-white px-4 text-left shadow-soft transition hover:border-sage-700"
+              className="flex min-h-20 items-center justify-between gap-4 rounded-[24px] border border-[#D8D0C1] bg-white px-4 text-left shadow-[0_8px_22px_rgba(47,36,55,0.045)] transition hover:border-sage-700"
               onClick={() => setIsOnlineFacilitator((current) => !current)}
               type="button"
             >
@@ -1940,36 +2330,153 @@ export function ProfileForm({
             </button>
           ) : null}
 
-          <ClearableInput label="Adresse (valgfri)" onChange={setAddressLine} placeholder="Gade og nummer" value={addressLine} />
+          <label className="grid gap-2 text-sm font-semibold text-midnight/82">
+            Land
+            <select
+              className={inputClass("appearance-none")}
+              onChange={(event) => handleCountryChange(event.target.value)}
+              value={country}
+            >
+              {supportedProfileCountries.map((option) => (
+                <option key={option.code} value={option.code}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <ClearableInput label="Postnummer" maxLength={20} onChange={setPostalCode} placeholder="4300" value={postalCode} />
-            <ClearableInput label="By" maxLength={80} onChange={setCity} placeholder="Holbæk" value={city} />
+          {isOtherCountry ? (
+            <label className="grid gap-2 text-sm font-semibold text-midnight/82">
+              Skriv landets navn
+              <input
+                autoComplete="country-name"
+                aria-invalid={locationSubmissionError && !normalizedCountryName}
+                className={inputClass(locationSubmissionError && !normalizedCountryName ? "border-[#D97A7A] bg-[#FFF8F8]" : "")}
+                maxLength={80}
+                onChange={(event) => {
+                  setLocationSubmissionError(false);
+                  setCountryName(event.target.value.slice(0, 80));
+                }}
+                placeholder="Skriv landets navn"
+                ref={countryNameInputRef}
+                required
+                value={countryName}
+              />
+              <span className="min-h-5 text-xs font-medium leading-5 text-ink/64">
+                {locationSubmissionError && !normalizedCountryName ? (
+                  <span className="font-semibold text-[#A51D1D]">Skriv landets navn.</span>
+                ) : (
+                  "Brug det navn, deltagerne normalt vil genkende."
+                )}
+              </span>
+            </label>
+          ) : null}
+
+          <ClearableInput label="Adresse og husnummer (valgfrit)" onChange={setAddressLine} placeholder="Indtast adresse og husnummer" value={addressLine} />
+
+          <div className="grid gap-4 md:grid-cols-2 md:items-start">
+            <label className="grid grid-rows-[auto_auto_minmax(2.75rem,auto)] gap-2 text-sm font-semibold text-midnight/82">
+              Postnummer
+              <input
+                autoComplete="postal-code"
+                aria-invalid={locationSubmissionError && Boolean(locationValidationMessage) && locationPostalCodeMissingOrInvalid}
+                className={inputClass(
+                  (isDanishLocation && postalCode.length > 0 && postalCode.length < 4) ||
+                    (locationSubmissionError && Boolean(locationValidationMessage) && locationPostalCodeMissingOrInvalid)
+                    ? "border-[#D97A7A] bg-[#FFF8F8]"
+                    : "",
+                )}
+                inputMode={isDanishLocation ? "numeric" : "text"}
+                maxLength={isDanishLocation ? 4 : 16}
+                onChange={(event) => {
+                  setLocationSubmissionError(false);
+                  handlePostalCodeChange(event.target.value);
+                }}
+                pattern={isDanishLocation ? "[0-9]{4}" : "[A-Za-z0-9 -]{1,16}"}
+                placeholder="Indtast dit postnummer"
+                ref={postalCodeInputRef}
+                required
+                value={postalCode}
+              />
+              <span className="min-h-11 text-xs font-medium leading-5 text-ink/64">
+                {locationSubmissionError && Boolean(locationValidationMessage) && locationPostalCodeMissingOrInvalid ? (
+                  <span className="font-semibold text-[#A51D1D]">{locationValidationMessage}</span>
+                ) : postalCodeMessage && isDanishLocation ? (
+                  <span className={"font-semibold " + (postalCode.length === 4 && !city ? "text-[#A51D1D]" : "text-sage-700")}>
+                    {postalCodeMessage}
+                  </span>
+                ) : isDanishLocation ? (
+                  "Indtast postnummer, så finder vi automatisk byen."
+                ) : (
+                  "Indtast postnummer og by, som de skrives i det valgte land."
+                )}
+              </span>
+            </label>
+            <label className="grid grid-rows-[auto_auto_minmax(2.75rem,auto)] gap-2 text-sm font-semibold text-midnight/82">
+              By
+              <input
+                autoComplete="address-level2"
+                aria-invalid={locationSubmissionError && Boolean(locationValidationMessage) && locationCityMissing}
+                className={inputClass(locationSubmissionError && Boolean(locationValidationMessage) && locationCityMissing ? "border-[#D97A7A] bg-[#FFF8F8]" : "")}
+                maxLength={80}
+                onChange={(event) => {
+                  if (!isDanishLocation) {
+                    setLocationSubmissionError(false);
+                    setCity(event.target.value.slice(0, 80));
+                  }
+                }}
+                placeholder={isDanishLocation ? "Udfyldes automatisk" : "By"}
+                ref={cityInputRef}
+                readOnly={isDanishLocation}
+                required
+                value={city}
+              />
+              <span className="min-h-11 text-xs font-medium leading-5 text-ink/64">
+                {locationSubmissionError && Boolean(locationValidationMessage) && locationCityMissing ? (
+                  <span className="font-semibold text-[#A51D1D]">{locationValidationMessage}</span>
+                ) : isDanishLocation ? (
+                  "Byen udfyldes automatisk ud fra postnummeret."
+                ) : (
+                  "Skriv byen, som den bruges lokalt."
+                )}
+              </span>
+            </label>
           </div>
 
-          <ClearableInput label="Land" maxLength={80} onChange={setCountry} placeholder="Danmark" value={country} />
+          {!isDanishLocation ? (
+            <ClearableInput
+              label="Region / område"
+              maxLength={80}
+              onChange={setRegionText}
+              placeholder="Skriv region eller område"
+              value={regionText}
+            />
+          ) : null}
 
           <div className="flex items-start gap-3 rounded-[22px] bg-sage-50 p-4 text-sm leading-6 text-sage-700">
             <Globe className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
             <p>
-              Område vælges automatisk ud fra postnummer og by.
+              {isDanishLocation
+                ? "Område vælges automatisk ud fra postnummer og by."
+                : "Danske områdefiltre bruges ikke for udenlandske profiler."}
               {inferredRegionName ? <span className="block font-semibold">Aktuelt område: {inferredRegionName}</span> : null}
             </p>
           </div>
         </div>
       )}
 
-      {(currentStep.id === "profile-image" || isProfileOverviewStep) && (
-        isProfileOverviewStep ? <div className="mb-6">{imageOverview}</div> : imageOverview
+      {(currentStep.id === "profile-image" || isProfileOverviewStep || shouldShowApprovalImageEditor) && (
+        shouldUseEmbeddedProfileSection ? <div className="mb-6">{imageOverview}</div> : imageOverview
       )}
 
-      {(currentStep.id === "experiences" || isProfileOverviewStep) && (
-        <div className={isProfileOverviewStep ? "mb-6 grid gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6" : "grid gap-5"}>
-          {isProfileOverviewStep ? (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Arbejdsområder og speciale</p>
-              <p className="mt-1 text-sm leading-6 text-ink/55">Vælg de områder, der bedst beskriver dit arbejde.</p>
-            </div>
+      {(currentStep.id === "experiences" || isProfileOverviewStep || shouldShowApprovalExperiencesEditor) && (
+        <div className={shouldUseEmbeddedProfileSection ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6" : "grid gap-5"}>
+          {shouldUseEmbeddedProfileSection ? (
+            <SectionHeading
+              description="Vælg de områder, der bedst beskriver dit arbejde."
+              Icon={HandHeart}
+              title="Arbejdsområder og speciale"
+            />
           ) : null}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {sortFacilitatorWorkAreas(categories).map((category) => {
@@ -1996,16 +2503,19 @@ export function ProfileForm({
               );
             })}
           </div>
-          <div className="rounded-[24px] bg-[#FBF5E9] p-4">
-            <p className="text-sm font-semibold leading-6 text-[#695A3C]">
-              Beskriv dit speciale
+          <div className="rounded-[24px] border border-sage-700/15 bg-sage-50 p-4">
+            <p className="inline-flex items-center gap-2 text-sm font-semibold leading-6 text-sage-700">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white text-sage-700 shadow-soft">
+                <Sparkles className="size-4" aria-hidden="true" />
+              </span>
+              Hvad er du særligt god til?
             </p>
-            <p className="mt-2 text-xs leading-5 text-ink/55">
-              Uddyb kort dit speciale, og skriv gerne siden hvornår du har arbejdet med området. Eksempel: &quot;Traumeterapeut med speciale i børn – siden 2018&quot;. Maks. 180 tegn.
+            <p className="mt-3 text-xs leading-5 text-ink/60">
+              Hjælp deltagerne med hurtigt at forstå, hvad du er særligt kendt for. Fortæl om din baggrund, erfaring og den måde, du arbejder på.
             </p>
             <div className="mt-3">
               <ClearableTextarea
-                className="bg-white text-base"
+                className="bg-white text-base focus:border-sage-700 focus:ring-sage-700/10"
                 maxLength={specialtyMaxLength}
                 onChange={setSpecialties}
                 placeholder="Beskriv kort dit speciale eller det, du brænder for"
@@ -2015,15 +2525,18 @@ export function ProfileForm({
                 {specialties.length} / {specialtyMaxLength} tegn
               </p>
             </div>
+            <p className="mt-3 inline-flex items-start gap-2 rounded-[18px] bg-white/70 px-3 py-2 text-xs font-semibold leading-5 text-sage-700 shadow-soft">
+              <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              Et godt speciale gør det lettere at blive fundet og skaber tillid hos deltagerne.
+            </p>
           </div>
         </div>
       )}
 
-      {(currentStep.id === "story" || isProfileOverviewStep) && (
-        <div className={isProfileOverviewStep ? "mb-6 grid gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6" : "grid gap-5"}>
-          <div className="flex items-center gap-2 border-b border-midnight/10 pb-3">
-            <PencilLine className="size-4 text-sage-700" aria-hidden="true" />
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mit univers</p>
+      {(currentStep.id === "story" || isProfileOverviewStep || shouldShowApprovalStoryEditor) && (
+        <div className={shouldUseEmbeddedProfileSection ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6" : "grid gap-5"}>
+          <div className="border-b border-midnight/10 pb-3">
+            <SectionHeading Icon={PencilLine} title="Mit univers" />
           </div>
           <div className="rounded-[22px] bg-[#FBF5E9] p-4 text-sm leading-6 text-ink/65">
             <p className="font-semibold text-midnight">Fortæl, hvem du er, og hvad deltagerne kan forvente.</p>
@@ -2033,7 +2546,7 @@ export function ProfileForm({
           </div>
           <div className="relative">
             <textarea
-              className="min-h-64 w-full rounded-[24px] border border-midnight/10 bg-white p-5 pr-12 text-lg leading-8 text-midnight shadow-soft outline-none transition duration-200 placeholder:text-ink/35 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/10"
+              className="min-h-64 w-full rounded-[24px] border border-[#D8D0C1] bg-white p-5 pr-12 text-lg leading-8 text-midnight shadow-[0_8px_22px_rgba(47,36,55,0.045)] outline-none transition duration-200 placeholder:text-ink/48 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/12"
               onChange={(event) => {
                 setStory(event.target.value);
                 if (normalizeFacilitatorStory(event.target.value).length >= facilitatorStoryMinLength) {
@@ -2072,14 +2585,15 @@ export function ProfileForm({
       )}
 
       {(currentStep.id === "links" || isProfileOverviewStep) && (
-        <div className={isProfileOverviewStep ? "mb-6 grid gap-4 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6" : "grid gap-4"}>
-          {isProfileOverviewStep ? (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Kontakt og links</p>
-              <p className="mt-1 text-sm leading-6 text-ink/55">Loginmailen vises kun her. Links og telefon kan udfyldes, hvis deltagerne må bruge dem.</p>
-            </div>
+        <div className={shouldUseEmbeddedProfileSection ? "mb-6 grid gap-4 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6" : "grid gap-4"}>
+          {shouldUseEmbeddedProfileSection ? (
+            <SectionHeading
+              description="Loginmailen vises kun her. Links og telefon kan udfyldes, hvis deltagerne må bruge dem."
+              Icon={Link2}
+              title="Kontakt og links"
+            />
           ) : null}
-          <section className="rounded-[22px] border border-midnight/10 bg-white/75 p-4">
+          <section className="rounded-[22px] border border-[#E5DCCB] bg-white p-4 shadow-[0_8px_22px_rgba(47,36,55,0.035)]">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mailadresse</p>
             <p className="mt-2 break-all text-base font-semibold text-midnight">{profile.email}</p>
             <p className="mt-2 text-sm leading-6 text-ink/55">Mailadressen bruges til login og vigtige beskeder.</p>
@@ -2148,7 +2662,7 @@ export function ProfileForm({
             />
           </div>
 
-          <label className="grid gap-2 text-sm font-semibold text-ink/65">
+          <label className="grid gap-2 text-sm font-semibold text-midnight/82">
             Standard betalingsfrist
             <input
               className={inputClass("max-w-44")}
@@ -2164,7 +2678,7 @@ export function ProfileForm({
             </span>
           </label>
 
-          <label className="grid gap-2 text-sm font-semibold text-ink/65">
+          <label className="grid gap-2 text-sm font-semibold text-midnight/82">
             Betalingsinstruktioner
             <ClearableTextarea
               maxLength={800}
@@ -2180,12 +2694,13 @@ export function ProfileForm({
       )}
 
       {(currentStep.id === "services" || isProfileOverviewStep) && (
-        <div className={isProfileOverviewStep ? "mb-6 grid gap-5 rounded-[28px] border border-midnight/10 bg-white/85 p-5 shadow-soft sm:p-6" : "grid gap-5"}>
-          {isProfileOverviewStep ? (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Individuelle ydelser</p>
-              <p className="mt-1 text-sm leading-6 text-ink/55">Valgfrit: fortæl om ydelser uden for events.</p>
-            </div>
+        <div className={shouldUseEmbeddedProfileSection ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6" : "grid gap-5"}>
+          {shouldUseEmbeddedProfileSection ? (
+            <SectionHeading
+              description="Valgfrit: fortæl om ydelser uden for events."
+              Icon={HeartHandshake}
+              title="Individuelle ydelser"
+            />
           ) : null}
           <p className="text-base leading-7 text-ink/65">
             Så kan du blive vist på SoulEvents under “Ydelser”, så deltagere også kan finde og kontakte dig uden for dine events.
@@ -2219,20 +2734,18 @@ export function ProfileForm({
           </div>
 
           {offersIndividualServices ? (
-            <div className="rounded-[24px] bg-[#FBF5E9] p-4">
-              <div className="rounded-[24px] bg-white p-4 shadow-soft">
-                <p className="text-sm font-semibold leading-6 text-midnight">
-                  Hvad tilbyder du?
-                </p>
-                <p className="mt-3 text-xs leading-5 text-ink/55">
-                  Beskriv kort, hvad man kan booke hos dig individuelt.
+            <div className="grid gap-4 rounded-[24px] bg-sage-50/65 p-4">
+              <div className="rounded-[24px] bg-white p-4 shadow-soft sm:p-5">
+                <p className="text-sm font-semibold leading-6 text-midnight">Hvad tilbyder du?</p>
+                <p className="mt-2 text-xs leading-5 text-ink/55">
+                  Beskriv kort de individuelle ydelser eller forløb, man kan booke hos dig.
                 </p>
                 <div className="relative mt-3">
                   <textarea
-                    className="min-h-36 w-full rounded-[20px] border border-midnight/10 bg-white p-4 pr-12 text-base leading-7 text-midnight shadow-soft outline-none transition duration-200 placeholder:text-ink/35 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/10"
+                    className="min-h-36 w-full rounded-[20px] border border-[#D8D0C1] bg-white p-4 pr-12 text-base leading-7 text-midnight shadow-[0_8px_22px_rgba(47,36,55,0.045)] outline-none transition duration-200 placeholder:text-ink/48 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/12"
                     maxLength={500}
                     onChange={(event) => setServiceDescription(event.target.value)}
-                    placeholder="F.eks. individuelle samtaleforløb, healing, massage eller kraniosakral behandling"
+                    placeholder="Fortæl om dine individuelle ydelser eller forløb"
                     value={serviceDescription}
                   />
                   {serviceDescription ? (
@@ -2246,6 +2759,107 @@ export function ProfileForm({
                     </button>
                   ) : null}
                 </div>
+              </div>
+
+              <div className="rounded-[24px] bg-white p-4 shadow-soft sm:p-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold leading-6 text-midnight">
+                      Vælg op til 2 symboler, der bedst beskriver din måde at arbejde på
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-ink/55">
+                      Symbolerne vises på din profil og giver deltagerne et hurtigt indtryk af din tilgang.
+                    </p>
+                  </div>
+                  <p className="shrink-0 rounded-full bg-sage-50 px-3 py-1 text-xs font-semibold text-sage-700">
+                    {individualServiceTypes.length} af {maxIndividualServiceTypes} valgt
+                  </p>
+                </div>
+
+                <div className="mt-4 rounded-[22px] border border-sage-700/10 bg-sage-50/55 p-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-sage-700">Dine valgte symboler</p>
+                  {selectedIndividualServiceDisplays.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {selectedIndividualServiceDisplays.map((service) => {
+                        const Icon = individualServiceIconMap[service.id];
+
+                        return (
+                          <span
+                            aria-label={service.label}
+                            className={
+                              "grid size-12 place-items-center rounded-2xl border-2 border-sage-700 text-sage-700 shadow-soft " +
+                              individualServiceToneMap[service.id]
+                            }
+                            key={service.id}
+                            title={service.label}
+                          >
+                            <Icon className="size-6" aria-hidden="true" />
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs leading-5 text-ink/50">Vælg op til 2 symboler nedenfor.</p>
+                  )}
+                </div>
+
+                <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-6 lg:grid-cols-8" aria-label="Vælg op til 2 ikoner">
+                  {individualServiceOptions.map((option) => {
+                    const selected = individualServiceTypes.includes(option.id);
+                    const disabled = !selected && individualServiceTypes.length >= maxIndividualServiceTypes;
+                    const Icon = individualServiceIconMap[option.id];
+                    const toneClass = individualServiceToneMap[option.id];
+
+                    return (
+                      <button
+                        aria-label={option.label}
+                        aria-disabled={disabled}
+                        aria-pressed={selected}
+                        className={
+                          "group relative grid aspect-square min-h-16 place-items-center rounded-[20px] border p-2 shadow-soft transition duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 sm:min-h-20 " +
+                          (selected
+                            ? "border-2 border-sage-700 text-sage-800 shadow-soft"
+                            : disabled
+                              ? "border-midnight/10 text-ink/35 opacity-45"
+                              : "border-midnight/10 text-midnight hover:-translate-y-0.5 hover:border-sage-700/45 hover:shadow-lg")
+                          + " "
+                          + toneClass
+                        }
+                        key={option.id}
+                        onClick={() => {
+                          if (!disabled) {
+                            toggleIndividualServiceType(option.id);
+                          }
+                        }}
+                        title={option.label}
+                        type="button"
+                      >
+                        <Icon className={selected ? "size-8 text-sage-700" : "size-8 text-sage-700/80 transition group-hover:text-sage-700"} aria-hidden="true" />
+                        <span
+                          className={
+                            "absolute right-2 top-2 grid size-6 place-items-center rounded-full border transition " +
+                            (selected ? "border-sage-700 bg-sage-700 text-white" : "border-transparent text-transparent")
+                          }
+                          aria-hidden="true"
+                        >
+                          <Check className="size-3.5" />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {hasOtherIndividualServiceType ? (
+                  <label className="mt-4 grid gap-2 text-sm font-semibold text-midnight/82">
+                    Kort titel for “Andet”
+                    <ClearableInput
+                      maxLength={80}
+                      onChange={setIndividualServiceOtherTitle}
+                      placeholder="Skriv en kort titel for din ydelse"
+                      value={individualServiceOtherTitle}
+                    />
+                  </label>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -2298,6 +2912,18 @@ export function ProfileForm({
                     onClick={() => editFromReview("services")}
                   >
                     <ProfilePreviewSectionTitle eyebrow="Individuelle ydelser" title="Mine ydelser" />
+                    {selectedIndividualServiceDisplays.length > 0 ? (
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        {selectedIndividualServiceDisplays.map((service) => (
+                          <span
+                            className="rounded-full border border-sage-700/15 bg-sage-50 px-3 py-1 text-xs font-semibold text-sage-800"
+                            key={service.id}
+                          >
+                            {service.label}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     {hasIndividualServicesDescription ? (
                       <p className="mt-5 max-w-3xl whitespace-pre-line text-base leading-8 text-[#5E5662]">{serviceDescription}</p>
                     ) : (
@@ -2421,26 +3047,28 @@ export function ProfileForm({
 
       {currentStep.id === "approval" && (
         <div className="grid gap-6 text-left">
-          <div className="grid gap-4 rounded-[30px] bg-[#F4F0E9] p-5">
-            <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Dig + SoulEvents</p>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <div className="grid min-h-[220px] grid-rows-[1fr_auto] justify-items-center gap-3 rounded-[24px] bg-white p-4 text-center shadow-soft">
-                <div className="grid aspect-square w-full max-w-[150px] place-items-center overflow-hidden rounded-[24px] bg-sage-50 text-sage-700">
-                  {profileImageUrl ? <img alt="" className="h-full w-full object-cover" src={profileImageUrl} /> : <Camera className="size-9" aria-hidden="true" />}
-                </div>
-                <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-midnight">{publicProfileName || "Din profil"}</p>
-              </div>
-              <div className="grid size-11 place-items-center rounded-full bg-white text-rose shadow-soft">
-                <HeartHandshake className="size-5" aria-hidden="true" />
-              </div>
-              <div className="grid min-h-[220px] grid-rows-[1fr_auto] justify-items-center gap-3 rounded-[24px] bg-white p-4 text-center shadow-soft">
-                <div className="grid aspect-square w-full max-w-[150px] place-items-center rounded-[24px] bg-sage-50 p-4">
-                  <InlineBrandLogo className="h-full w-full" src={activeDesktopLogoSrc} />
-                </div>
-                <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-midnight">SoulEvents</p>
-              </div>
+          {missingRequired.length > 0 ? (
+            <div className="rounded-[24px] bg-[#FFF7DE] p-5 text-left">
+              <p className="text-sm font-semibold text-[#715C21]">Ret de markerede oplysninger ovenfor, før profilen kan sendes til SoulEvents.</p>
+              {!storyMeetsMinimum ? (
+                <p className="mt-2 text-sm leading-6 text-[#715C21]">
+                  {storyMissingMessage}
+                </p>
+              ) : null}
+              <ul className="mt-3 grid gap-2">
+                {missingRequired.map((item) => (
+                  <li className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-midnight shadow-soft" key={item.label}>{item.label}</li>
+                ))}
+              </ul>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-[24px] border border-sage-700/20 bg-sage-50 p-5 text-left">
+              <p className="text-sm font-semibold text-sage-700">Din profil er klar til indsendelse.</p>
+              <p className="mt-2 text-sm leading-6 text-sage-700/80">
+                {acceptedTerms ? "Du kan nu sende profilen til SoulEvents." : "Acceptér vilkårene herunder, så kan profilen sendes til SoulEvents."}
+              </p>
+            </div>
+          )}
           <label className="flex items-start gap-3 rounded-[24px] border border-midnight/10 bg-white p-5 text-left shadow-soft">
             <input
               checked={acceptedTerms}
@@ -2464,29 +3092,26 @@ export function ProfileForm({
               .
             </span>
           </label>
-          {missingRequired.length > 0 ? (
-            <div className="rounded-[24px] bg-[#FFF7DE] p-5 text-left">
-              <p className="text-sm font-semibold text-[#715C21]">Der mangler lige et par oplysninger, før profilen kan sendes til godkendelse.</p>
-              {!storyMeetsMinimum ? (
-                <p className="mt-2 text-sm leading-6 text-[#715C21]">
-                  {storyMissingMessage}
-                </p>
-              ) : null}
-              <div className="mt-3 grid gap-2">
-                {missingRequired.map((item) => (
-                  <button
-                    className="inline-flex min-h-10 items-center justify-between rounded-full bg-white px-4 text-sm font-semibold text-midnight shadow-soft"
-                    key={item.label}
-                    onClick={() => goToMissingItem(item)}
-                    type="button"
-                  >
-                    {item.label}
-                    <ArrowRight className="size-4 text-sage-700" aria-hidden="true" />
-                  </button>
-                ))}
+          <div className="grid gap-4 rounded-[30px] bg-[#F4F0E9] p-5">
+            <SectionHeading Icon={HeartHandshake} title="Dig + SoulEvents" />
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+              <div className="grid min-h-[220px] grid-rows-[1fr_auto] justify-items-center gap-3 rounded-[24px] bg-white p-4 text-center shadow-soft">
+                <div className="grid aspect-square w-full max-w-[150px] place-items-center overflow-hidden rounded-[24px] bg-sage-50 text-sage-700">
+                  {profileImageUrl ? <img alt="" className="h-full w-full object-cover" src={profileImageUrl} /> : <Camera className="size-9" aria-hidden="true" />}
+                </div>
+                <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-midnight">{publicProfileName || "Din profil"}</p>
+              </div>
+              <div className="grid size-11 place-items-center rounded-full bg-white text-rose shadow-soft">
+                <HeartHandshake className="size-5" aria-hidden="true" />
+              </div>
+              <div className="grid min-h-[220px] grid-rows-[1fr_auto] justify-items-center gap-3 rounded-[24px] bg-white p-4 text-center shadow-soft">
+                <div className="grid aspect-square w-full max-w-[150px] place-items-center rounded-[24px] bg-sage-50 p-4">
+                  <InlineBrandLogo className="h-full w-full" src={activeDesktopLogoSrc} />
+                </div>
+                <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-midnight">SoulEvents</p>
               </div>
             </div>
-          ) : null}
+          </div>
         </div>
       )}
 

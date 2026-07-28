@@ -11,6 +11,7 @@ import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
 import { resolveFacilitatorHero } from "@/lib/facilitators/hero-collection";
 import { withFacilitatorMoodImageFallback } from "@/lib/facilitators/mood-image-fallback";
 import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
+import { profileCountryName } from "@/lib/locations/countries";
 import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
 import { buildFacilitatorMetadata, buildProfilePageJsonLd } from "@/lib/seo/public-page-metadata";
 import { publicFacilitatorPath } from "@/lib/slug";
@@ -126,13 +127,13 @@ function isMissingHeroKeyColumn(error: { code?: string; message?: string } | nul
 }
 
 const facilitatorMetadataSelectWithHero =
-  "id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, service_description, city, country, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
+  "id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, service_description, city, country, country_name, region_text, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
 const facilitatorMetadataSelectLegacy =
-  "id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, long_description, service_description, city, country, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
+  "id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, long_description, service_description, city, country, country_name, region_text, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
 const facilitatorSelectWithHero =
-  "id, profile_id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
+  "id, profile_id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, country_name, region_text, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 const facilitatorSelectLegacy =
-  "id, profile_id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
+  "id, profile_id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, country_name, region_text, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 const publicEventSelect =
   "id, slug, status, title, short_description, starts_at, ends_at, city, price_cents, capacity, event_format, cover_image_path, facilitator_profiles!inner(id, status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), event_co_organizers(created_at, status, facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(id, slug, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))), regions(name), event_categories(categories(name, color_hex)), event_main_categories(main_categories(name, color_hex, image_path))";
 
@@ -227,10 +228,11 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
     categories: facilitatorCategories(facilitator).map((category: any) => category.name),
     city: facilitator.city,
     country: facilitator.country,
+    countryName: (facilitator as any).country_name,
     eventTitles: (upcomingEvents ?? []).map((event) => event.title),
     name,
     presentationText: facilitator.long_description || facilitator.short_description,
-    region: first((facilitator as any).regions)?.name,
+    region: first((facilitator as any).regions)?.name || (facilitator as any).region_text,
     serviceDescription: (facilitator as any).service_description,
     specialties: normalizeSpecialtyText((facilitator as any).specialties) ? [normalizeSpecialtyText((facilitator as any).specialties)] : [],
   });
@@ -450,6 +452,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     categories: categories.map((category: any) => category.name),
     city: facilitatorData.city,
     country: facilitatorData.country,
+    countryName: facilitatorData.country_name,
     email: publicEmail,
     eventTitles: eventsWithCapacity.map((event: any) => event.title),
     imageUrl: imageUrl || coverImage.url,
@@ -457,7 +460,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     name,
     phone: publicPhone,
     presentationText,
-    region: region?.name,
+    region: region?.name || facilitatorData.region_text,
     serviceDescription: facilitatorData.offers_services ? facilitatorData.service_description : null,
     specialties: specialty ? [specialty] : [],
   });
@@ -482,12 +485,12 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
         }))}
         contact={{
           city: facilitatorData.city,
-          country: facilitatorData.country,
+          country: profileCountryName(facilitatorData.country, facilitatorData.country_name),
           email: publicEmail,
           isOnline: facilitatorData.is_online_facilitator,
           links,
           phone: publicPhone,
-          region: region?.name,
+          region: region?.name || facilitatorData.region_text,
         }}
         coverImage={coverImage}
         eventReturnTo={currentProfilePath}

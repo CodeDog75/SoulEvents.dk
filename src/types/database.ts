@@ -27,6 +27,24 @@ export type FeedbackQuestionType = "rating" | "free_text" | "yes_no" | "multiple
 export type FeedbackAnswerType = FeedbackQuestionType | "final_text";
 export type FeedbackResponseSource = "homepage" | "direct";
 export type BecomeFacilitatorSectionKey = "section_1" | "section_2" | "section_3";
+export type IndividualServiceType =
+  | "treatment"
+  | "hands"
+  | "heart"
+  | "nature"
+  | "conversation"
+  | "teaching"
+  | "community"
+  | "lotus"
+  | "energy"
+  | "moon"
+  | "sun"
+  | "meditation"
+  | "sound"
+  | "water"
+  | "fire_ceremony"
+  | "reflection"
+  | "other";
 
 type Row<T> = T;
 type Insert<T> = Partial<T>;
@@ -124,13 +142,17 @@ export type Database = {
           instagram_url: string | null;
           practical_information: string | null;
           event_format: string;
+          individual_service_other_title: string | null;
+          individual_service_types: IndividualServiceType[];
           online_description: string | null;
           online_url_or_note: string | null;
           country: string;
+          country_name: string | null;
           address_line: string | null;
           postal_code: string | null;
           city: string | null;
           region_id: string | null;
+          region_text: string | null;
           latitude: number | null;
           longitude: number | null;
           max_ticket_price_per_person: number | null;

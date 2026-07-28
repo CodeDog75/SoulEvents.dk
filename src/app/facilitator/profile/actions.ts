@@ -10,9 +10,17 @@ import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-da
 import { profileApprovalUrl, sendFacilitatorProfileReadyEmail } from "@/lib/email/facilitator-profile-ready";
 import { isMoodHeroKey, moodHeroKeyToSortOrder, normalizeFacilitatorHeroKey } from "@/lib/facilitators/hero-collection";
 import { normalizeFacilitatorMoodImagePaths, normalizeFacilitatorMoodImageSlots } from "@/lib/facilitators/mood-image-slots";
+import { normalizeIndividualServiceTypes } from "@/lib/facilitators/individual-services";
 import { getFacilitatorProfileReadiness, getFacilitatorSubmissionReadiness } from "@/lib/facilitators/profile-readiness";
 import { facilitatorWorkAreaSlugs } from "@/lib/facilitators/work-areas";
 import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes, recordLegalAcceptances } from "@/lib/legal/documents";
+import {
+  inferProfileCountryCode,
+  isDanishProfileCountry,
+  isOtherProfileCountry,
+  normalizeInternationalPostalCode,
+} from "@/lib/locations/countries";
+import { normalizeDanishPostalCode } from "@/lib/locations/danish-postal-codes";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
 import { assertRateLimit, isRateLimitExceededError, RATE_LIMIT_MESSAGE } from "@/lib/rate-limit";
@@ -332,6 +340,52 @@ function parsePaymentDeadlineDays(value: string) {
   return Number.isInteger(fallback) && fallback >= 0 && fallback <= 60 ? fallback : null;
 }
 
+function normalizeLocationFields(input: {
+  city: string | null;
+  country: string | null;
+  countryName?: string | null;
+  postalCode: string | null;
+  regionText?: string | null;
+}) {
+  const rawCountry = input.country?.trim() ?? "";
+  const country = inferProfileCountryCode(input);
+  const isDanishLocation = isDanishProfileCountry(country);
+  const isOtherCountry = isOtherProfileCountry(country);
+  const postalCode = isDanishLocation
+    ? normalizeDanishPostalCode(input.postalCode ?? "")
+    : normalizeInternationalPostalCode(input.postalCode ?? "").trim();
+  const countryNameFallback =
+    rawCountry && rawCountry.toUpperCase() !== "OTHER" && rawCountry.toLowerCase() !== "andet land" ? rawCountry : "";
+  const countryName = isOtherCountry ? (input.countryName?.trim() || countryNameFallback).slice(0, 80) : "";
+  const regionText = isDanishLocation ? "" : input.regionText?.trim().slice(0, 80) ?? "";
+
+  return {
+    city: input.city?.trim() ?? "",
+    country,
+    countryName,
+    isDanishLocation,
+    isOtherCountry,
+    postalCode,
+    regionText,
+  };
+}
+
+function validateLocationFields(input: ReturnType<typeof normalizeLocationFields>) {
+  if (input.isOtherCountry && !input.countryName) {
+    return "Skriv landets navn.";
+  }
+
+  if (input.isDanishLocation && input.postalCode && !/^\d{4}$/.test(input.postalCode)) {
+    return "Dansk postnummer skal bestå af præcis fire cifre.";
+  }
+
+  if (!input.isDanishLocation && input.postalCode && !/^[A-Z0-9 -]{1,16}$/.test(input.postalCode)) {
+    return "Postnummer må kun indeholde bogstaver, tal, mellemrum og bindestreg.";
+  }
+
+  return null;
+}
+
 function isProfileReady(input: {
   categoryIds: string[];
   city: string | null;
@@ -345,6 +399,7 @@ function isProfileReady(input: {
     companyName: input.companyName,
     fullName: input.fullName,
     postalCode: input.postalCode,
+    requireLocation: true,
     shortDescription: "Indsendelse fra klassisk profilformular",
   }).isComplete;
 }
@@ -931,7 +986,7 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
 
   const facilitatorId = existingProfile.id as string;
   const targetProfileId = (existingProfile.profile_id as string | null) ?? profile.id;
-  const updates: Record<string, boolean | number | string | null> = {};
+  const updates: Record<string, boolean | number | string | string[] | null> = {};
 
   if (section === "contact") {
     const fullName = valueForAutosave(input.values.full_name);
@@ -969,33 +1024,57 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
 
   if (section === "location") {
     const addressLine = valueForAutosave(input.values.address_line);
-    const postalCode = valueForAutosave(input.values.postal_code);
-    const city = valueForAutosave(input.values.city);
-    const country = valueForAutosave(input.values.country) || "Danmark";
+    const locationFields = normalizeLocationFields({
+      city: valueForAutosave(input.values.city),
+      country: valueForAutosave(input.values.country),
+      countryName: valueForAutosave(input.values.country_name),
+      postalCode: valueForAutosave(input.values.postal_code),
+      regionText: valueForAutosave(input.values.region_text),
+    });
     const isOnlineFacilitator = input.values.is_online_facilitator === true;
 
-    if (addressLine.length > 120 || postalCode.length > 20 || city.length > 80 || country.length > 80) {
+    if (
+      addressLine.length > 120 ||
+      locationFields.postalCode.length > 16 ||
+      locationFields.city.length > 80 ||
+      locationFields.country.length > 5 ||
+      locationFields.countryName.length > 80 ||
+      locationFields.regionText.length > 80
+    ) {
       return { message: "Et lokationsfelt er længere end tilladt.", ok: false };
     }
 
+    const locationValidationMessage = validateLocationFields(locationFields);
+
+    if (locationValidationMessage) {
+      return { message: locationValidationMessage, ok: false };
+    }
+
     let regionId: string | null = null;
-    const inferredSlug = inferRegionSlug({ city, postalCode });
+    const inferredSlug = locationFields.isDanishLocation
+      ? inferRegionSlug({ city: locationFields.city, postalCode: locationFields.postalCode })
+      : null;
 
     if (inferredSlug) {
       const { data: inferredRegion } = await supabase.from("regions").select("id").eq("slug", inferredSlug).maybeSingle();
       regionId = inferredRegion?.id ?? null;
     }
 
-    const coordinates = postalCode && city ? await geocodeDanishAddress({ addressLine, postalCode, city }) : null;
+    const coordinates =
+      locationFields.isDanishLocation && locationFields.postalCode && locationFields.city
+        ? await geocodeDanishAddress({ addressLine, postalCode: locationFields.postalCode, city: locationFields.city })
+        : null;
 
     updates.address_line = addressLine;
-    updates.city = city;
-    updates.country = country;
+    updates.city = locationFields.city;
+    updates.country = locationFields.country;
+    updates.country_name = locationFields.countryName || null;
     updates.is_online_facilitator = isOnlineFacilitator;
     updates.latitude = coordinates?.latitude ?? null;
     updates.longitude = coordinates?.longitude ?? null;
-    updates.postal_code = postalCode;
+    updates.postal_code = locationFields.postalCode;
     updates.region_id = regionId;
+    updates.region_text = locationFields.regionText || null;
   }
 
   if (section === "social") {
@@ -1110,14 +1189,18 @@ export async function autosaveFacilitatorProfileAction(input: ProfileAutosaveInp
 
   if (section === "services") {
     const offersServices = input.values.offers_services === true;
+    const individualServiceTypes = normalizeIndividualServiceTypes(input.values.individual_service_types);
+    const individualServiceOtherTitle = valueForAutosave(input.values.individual_service_other_title);
     const serviceDescription = valueForAutosave(input.values.service_description);
     const showInLocalServiceResults = input.values.show_in_local_service_results === true;
 
-    if (serviceDescription.length > 500) {
+    if (serviceDescription.length > 500 || individualServiceOtherTitle.length > 80) {
       return { message: "Et ydelsesfelt er længere end tilladt.", ok: false };
     }
 
     updates.offers_services = offersServices;
+    updates.individual_service_other_title = offersServices && individualServiceTypes.includes("other") ? individualServiceOtherTitle : null;
+    updates.individual_service_types = offersServices ? individualServiceTypes : [];
     updates.service_description = offersServices ? serviceDescription : null;
     updates.show_in_local_service_results = offersServices && showInLocalServiceResults;
   }
@@ -1729,7 +1812,7 @@ export async function submitFacilitatorProfileForReviewAction(input: { acceptedT
   const { data: facilitatorProfile, error: profileError } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, company_name, profile_image_path, short_description, long_description, status, facilitator_categories(category_id), facilitator_images(image_path, sort_order)",
+      "id, city, company_name, country, country_name, postal_code, profile_image_path, short_description, long_description, status, facilitator_categories(category_id), facilitator_images(image_path, sort_order)",
     )
     .eq("profile_id", profile.id)
     .single();
@@ -1751,12 +1834,27 @@ export async function submitFacilitatorProfileForReviewAction(input: { acceptedT
 
   const readiness = getFacilitatorSubmissionReadiness({
     categoryIds: facilitatorProfile.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [],
+    city: facilitatorProfile.city,
     companyName: facilitatorProfile.company_name,
     fullName: profile.full_name,
     hasMoodImage: Boolean(facilitatorProfile.facilitator_images?.length),
     hasProfileImage: Boolean(facilitatorProfile.profile_image_path),
+    postalCode: facilitatorProfile.postal_code,
+    requireLocation: true,
     shortDescription: facilitatorProfile.long_description || facilitatorProfile.short_description,
   });
+
+  const locationFields = normalizeLocationFields({
+    city: facilitatorProfile.city,
+    country: facilitatorProfile.country,
+    countryName: facilitatorProfile.country_name,
+    postalCode: facilitatorProfile.postal_code,
+  });
+  const locationValidationMessage = validateLocationFields(locationFields);
+
+  if (locationValidationMessage) {
+    return { message: locationValidationMessage, ok: false };
+  }
   const missingLabels = {
     categories: "arbejdsområder",
     city: "by",
@@ -1882,14 +1980,23 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   const youtubeUrl = getOptionalString(formData, "youtube_url");
   const tiktokUrl = getOptionalString(formData, "tiktok_url");
   const addressLine = getOptionalString(formData, "address_line");
-  const postalCode = getOptionalString(formData, "postal_code");
-  const city = getOptionalString(formData, "city");
-  const country = getOptionalString(formData, "country") || "Danmark";
+  const locationFields = normalizeLocationFields({
+    city: getOptionalString(formData, "city"),
+    country: getOptionalString(formData, "country"),
+    countryName: getOptionalString(formData, "country_name"),
+    postalCode: getOptionalString(formData, "postal_code"),
+    regionText: getOptionalString(formData, "region_text"),
+  });
+  const postalCode = locationFields.postalCode;
+  const city = locationFields.city;
+  const country = locationFields.country;
   const isOnlineFacilitator = formData.get("is_online_facilitator") === "on";
   let regionId: string | null = null;
   const categoryIds = getAllStrings(formData, "category_ids");
   const uniqueCategoryIds = [...new Set(categoryIds)];
   const offersServices = formData.get("offers_services") === "on";
+  const individualServiceTypes = normalizeIndividualServiceTypes(getAllStrings(formData, "individual_service_types"));
+  const individualServiceOtherTitle = getOptionalString(formData, "individual_service_other_title");
   const serviceDescription = getOptionalString(formData, "service_description");
   const specialties = normalizeSpecialtyText(getOptionalString(formData, "specialties"));
   const showInLocalServiceResults = formData.get("show_in_local_service_results") === "on";
@@ -1901,7 +2008,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   let existingProfileQuery = supabase
     .from("facilitator_profiles")
     .select(
-      "id, profile_id, address_line, city, company_name, country, facebook_url, instagram_url, is_online_facilitator, long_description, offers_services, postal_code, profile_image_path, public_email, public_phone, region_id, service_description, short_description, show_in_local_service_results, status, tiktok_url, website_url, youtube_url, facilitator_categories(category_id), facilitator_images(id, image_path, sort_order), facilitator_tags(tag_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)",
+      "id, profile_id, address_line, city, company_name, country, country_name, facebook_url, instagram_url, individual_service_other_title, individual_service_types, is_online_facilitator, long_description, offers_services, postal_code, profile_image_path, public_email, public_phone, region_id, region_text, service_description, short_description, show_in_local_service_results, status, tiktok_url, website_url, youtube_url, facilitator_categories(category_id), facilitator_images(id, image_path, sort_order), facilitator_tags(tag_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)",
     );
 
   existingProfileQuery = isAdminEdit
@@ -1963,9 +2070,11 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     [savesSection(section, "contact"), shortDescription, 300, "Kort præsentation", "contact"],
     [savesSection(section, "contact"), longDescription, 2000, "Uddybende beskrivelse", "contact"],
     [savesSection(section, "location"), addressLine, 120, "Adresse", "location"],
-    [savesSection(section, "location"), postalCode, 20, "Postnummer", "location"],
+    [savesSection(section, "location"), postalCode, 16, "Postnummer", "location"],
     [savesSection(section, "location"), city, 80, "By", "location"],
-    [savesSection(section, "location"), country, 80, "Land", "location"],
+    [savesSection(section, "location"), country, 5, "Land", "location"],
+    [savesSection(section, "location"), locationFields.countryName, 80, "Landets navn", "location"],
+    [savesSection(section, "location"), locationFields.regionText, 80, "Region / område", "location"],
     [savesSection(section, "social"), publicEmail, 180, "Offentlig e-mail", "social"],
     [savesSection(section, "social"), publicPhone, 40, "Offentlig telefon", "social"],
     [savesSection(section, "social"), websiteUrl, 300, "Website", "social"],
@@ -1974,6 +2083,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     [savesSection(section, "social"), youtubeUrl, 300, "YouTube-link", "social"],
     [savesSection(section, "social"), tiktokUrl, 300, "TikTok-link", "social"],
     [savesSection(section, "categories"), specialties, specialtyMaxLength, "Speciale", "categories"],
+    [savesSection(section, "services"), individualServiceOtherTitle, 80, "Egen ydelsestitel", "services"],
     [savesSection(section, "services"), serviceDescription, 500, "Kort beskrivelse af ydelser", "services"],
   ];
 
@@ -2041,6 +2151,16 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     profileRedirect("Postnummer og by skal udfyldes.", redirectOrigin, "location");
   }
 
+  if (savesSection(section, "location")) {
+    const locationValidationMessage = validateLocationFields(locationFields);
+    if (locationValidationMessage) {
+      if (isAdminEdit) {
+        adminProfileRedirect(locationValidationMessage, adminReturnTo, "location");
+      }
+      profileRedirect(locationValidationMessage, redirectOrigin, "location");
+    }
+  }
+
   if (savesSection(section, "categories") && !uniqueCategoryIds.length) {
     if (isAdminEdit) {
       adminProfileRedirect("Vælg mindst ét arbejdsområde.", adminReturnTo, "categories");
@@ -2105,7 +2225,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     }
   }
 
-  const facilitatorUpdates: Record<string, string | number | boolean | null> = {};
+  const facilitatorUpdates: Record<string, string | number | boolean | string[] | null> = {};
 
   if (savesSection(section, "contact")) {
     facilitatorUpdates.company_name = companyName;
@@ -2127,23 +2247,28 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   }
 
   if (savesSection(section, "location")) {
-    const inferredSlug = inferRegionSlug({ city, postalCode });
+    const inferredSlug = locationFields.isDanishLocation ? inferRegionSlug({ city, postalCode }) : null;
 
     if (inferredSlug) {
       const { data: inferredRegion } = await supabase.from("regions").select("id").eq("slug", inferredSlug).maybeSingle();
       regionId = inferredRegion?.id ?? null;
     }
 
-    const coordinates = postalCode && city ? await geocodeDanishAddress({ addressLine, postalCode, city }) : null;
+    const coordinates =
+      locationFields.isDanishLocation && postalCode && city
+        ? await geocodeDanishAddress({ addressLine, postalCode, city })
+        : null;
 
     facilitatorUpdates.address_line = addressLine;
     facilitatorUpdates.city = city;
     facilitatorUpdates.country = country;
+    facilitatorUpdates.country_name = locationFields.countryName || null;
     facilitatorUpdates.is_online_facilitator = isOnlineFacilitator;
     facilitatorUpdates.latitude = coordinates?.latitude ?? null;
     facilitatorUpdates.longitude = coordinates?.longitude ?? null;
     facilitatorUpdates.postal_code = postalCode;
     facilitatorUpdates.region_id = regionId;
+    facilitatorUpdates.region_text = locationFields.regionText || null;
   }
 
   if (savesSection(section, "images")) {
@@ -2182,6 +2307,8 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
 
   if (savesSection(section, "services")) {
     facilitatorUpdates.offers_services = offersServices;
+    facilitatorUpdates.individual_service_other_title = offersServices && individualServiceTypes.includes("other") ? individualServiceOtherTitle : null;
+    facilitatorUpdates.individual_service_types = offersServices ? individualServiceTypes : [];
     facilitatorUpdates.service_description = offersServices ? serviceDescription : null;
     facilitatorUpdates.show_in_local_service_results = offersServices && showInLocalServiceResults;
   }
@@ -2206,6 +2333,20 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
           ...(updateCategoryDebug ?? {}),
           profileId: targetProfile.id,
           stage: "update_facilitator_profile",
+        });
+      } else {
+        console.error("[facilitator-profile] Profile update could not be saved", {
+          authenticatedProfileRef: logProfileReference(profile.id),
+          code: facilitatorError.code,
+          details: facilitatorError.details,
+          facilitatorId,
+          hint: facilitatorError.hint,
+          message: facilitatorError.message,
+          operation: "update",
+          payloadColumns: Object.keys(facilitatorUpdates),
+          profileRef: logProfileReference(targetProfile.id),
+          section,
+          table: "facilitator_profiles",
         });
       }
       const message = categorySaveMessage(facilitatorError);

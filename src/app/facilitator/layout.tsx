@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { FacilitatorDashboardShell } from "@/components/facilitator/facilitator-dashboard-shell";
 import { requireProfile } from "@/lib/auth/roles";
 import { getFacilitatorUnreadAdminMessageCount } from "@/lib/facilitator/dashboard-data";
@@ -8,6 +9,12 @@ export const dynamic = "force-dynamic";
 
 export default async function FacilitatorLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireProfile({ allowDisabledFacilitator: true });
+  const requestHeaders = await headers();
+  const pathname = requestHeaders.get("x-soulevents-pathname") ?? "";
+  const shouldUseNeutralOnboardingShell =
+    pathname === "/facilitator/profile/draft" ||
+    pathname === "/facilitator/profile/submitted" ||
+    pathname === "/facilitator/welcome";
 
   if (profile.role !== "facilitator") {
     return <>{children}</>;
@@ -21,6 +28,10 @@ export default async function FacilitatorLayout({ children }: { children: React.
     .maybeSingle();
 
   if (!facilitatorProfile?.id) {
+    return <>{children}</>;
+  }
+
+  if (shouldUseNeutralOnboardingShell) {
     return <>{children}</>;
   }
 

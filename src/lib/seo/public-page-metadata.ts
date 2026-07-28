@@ -1,3 +1,4 @@
+import { profileCountryName } from "@/lib/locations/countries";
 import { stripHtml } from "@/lib/open-graph-core";
 
 type PublicLink = {
@@ -8,6 +9,7 @@ type FacilitatorSeoInput = {
   categories?: Array<string | null | undefined>;
   city?: string | null;
   country?: string | null;
+  countryName?: string | null;
   eventTitles?: Array<string | null | undefined>;
   name: string;
   presentationText?: string | null;
@@ -114,8 +116,8 @@ function formatDate(value: string | null | undefined) {
   return new Intl.DateTimeFormat("da-DK", { dateStyle: "long" }).format(date);
 }
 
-function placeText(input: { city?: string | null; country?: string | null; region?: string | null }) {
-  return normalizeText(input.city) || normalizeText(input.region) || normalizeText(input.country) || "Danmark";
+function placeText(input: { city?: string | null; country?: string | null; countryName?: string | null; region?: string | null }) {
+  return normalizeText(input.city) || normalizeText(input.region) || profileCountryName(input.country, input.countryName) || "Danmark";
 }
 
 function eventPlaceText(input: { city?: string | null; eventFormat?: string | null }) {

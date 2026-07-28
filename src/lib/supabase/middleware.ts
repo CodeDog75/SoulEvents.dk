@@ -8,14 +8,25 @@ import {
 } from "@/lib/supabase/auth-cookies";
 
 export async function updateSession(request: NextRequest) {
+  const nextWithPathHeader = () => {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-soulevents-pathname", request.nextUrl.pathname);
+    const cookieHeader = request.cookies.toString();
+
+    if (cookieHeader) {
+      requestHeaders.set("cookie", cookieHeader);
+    }
+
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  };
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.next({ request });
+    return nextWithPathHeader();
   }
 
-  let response = NextResponse.next({ request });
+  let response = nextWithPathHeader();
   const hostname = request.nextUrl.hostname;
   const cookieOptions = supabaseCookieOptions(hostname);
   const authCookieNames = request.cookies
@@ -39,7 +50,7 @@ export async function updateSession(request: NextRequest) {
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
+        response = nextWithPathHeader();
         cookiesToSet.forEach(({ name, value, options }) => {
           response.cookies.set(name, value, normalizeSupabaseCookieOptions(options, hostname));
         });
