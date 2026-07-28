@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { BrowserInjectedAttributeCleanup } from "@/components/browser-injected-attribute-cleanup";
 import { CookieConsentManager } from "@/components/cookie-consent-manager";
 import { getSiteFaviconUrl } from "@/lib/brand-logo";
@@ -127,7 +128,11 @@ export default function RootLayout({
   return (
     <html lang="da">
       <head>
-        <script id="soulevents-gcr-attribute-cleanup" dangerouslySetInnerHTML={{ __html: gcrAttributeCleanupScript }} />
+        <Script
+          dangerouslySetInnerHTML={{ __html: gcrAttributeCleanupScript }}
+          id="soulevents-gcr-attribute-cleanup"
+          strategy="beforeInteractive"
+        />
       </head>
       <body>
         {children}

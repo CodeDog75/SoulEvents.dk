@@ -654,7 +654,7 @@ function OnboardingShell({
 
   const footer = hidePrimaryAction ? null : (
     <button
-      className="inline-flex min-h-16 w-full items-center justify-center gap-2 rounded-[999px] bg-midnight px-6 text-lg font-semibold text-white shadow-soft transition duration-200 hover:bg-sage-700 disabled:cursor-not-allowed disabled:opacity-45 lg:min-h-12 lg:text-base xl:min-h-14"
+      className="inline-flex min-h-16 w-full items-center justify-center gap-2 rounded-[999px] bg-midnight px-6 text-lg font-semibold text-white shadow-soft transition duration-200 hover:bg-sage-700 disabled:cursor-not-allowed disabled:opacity-45 lg:min-h-12 lg:w-auto lg:min-w-56 lg:text-base xl:min-h-14"
       disabled={isBusy || !canContinue}
       onClick={onContinue}
       type="button"
@@ -683,18 +683,20 @@ function OnboardingShell({
           footer ? (
             <>
               {footerLeading}
-              {footer}
+              <div className="lg:flex lg:flex-wrap lg:items-center lg:gap-3">
+                {footer}
+                {onSaveDraft ? (
+                  <button
+                    className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-full border border-midnight/10 bg-white px-5 text-sm font-semibold text-sage-700 shadow-soft transition hover:border-sage-700/35 hover:bg-sage-50 disabled:cursor-not-allowed disabled:opacity-45 lg:mt-0 lg:w-auto lg:min-w-56"
+                    disabled={isBusy}
+                    onClick={onSaveDraft}
+                    type="button"
+                  >
+                    Gem kladde og fortsæt senere
+                  </button>
+                ) : null}
+              </div>
               {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
-              {onSaveDraft ? (
-                <button
-                  className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-full border border-midnight/10 bg-white px-5 text-sm font-semibold text-sage-700 shadow-soft transition hover:border-sage-700/35 hover:bg-sage-50 disabled:cursor-not-allowed disabled:opacity-45"
-                  disabled={isBusy}
-                  onClick={onSaveDraft}
-                  type="button"
-                >
-                  Gem kladde og fortsæt senere
-                </button>
-              ) : null}
             </>
           ) : null
         }
@@ -733,7 +735,7 @@ function OnboardingShell({
       className="fixed inset-0 z-[80] overflow-y-auto bg-[#fbfaf7] px-4 pb-[calc(env(safe-area-inset-bottom)+2rem)] pt-[calc(env(safe-area-inset-top)+1rem)] sm:px-6 lg:bg-[#F4F0E9] lg:px-8 lg:py-6 xl:py-8"
       ref={shellRef}
     >
-      <div className="mx-auto grid min-h-[calc(100svh-3rem)] w-full max-w-[680px] content-between gap-6 lg:min-h-[calc(100dvh-48px)] lg:max-w-[1180px] xl:min-h-[calc(100dvh-64px)] xl:max-w-[1280px]">
+      <div className="mx-auto grid min-h-[calc(100svh-3rem)] w-full max-w-[680px] content-between gap-6 lg:min-h-[calc(100dvh-48px)] lg:max-w-[1180px] xl:min-h-[calc(100dvh-64px)] xl:max-w-[1320px]">
         <div className="grid gap-5 lg:min-h-0">
           <div className="flex min-h-11 items-center justify-between gap-4">
             {presentationMode === "editing" ? (
@@ -747,7 +749,7 @@ function OnboardingShell({
           </div>
 
           <div
-            className="rounded-[30px] bg-white px-5 py-8 shadow-soft transition-all duration-200 sm:px-8 sm:py-10 lg:px-8 lg:py-8 xl:px-10 xl:py-10"
+            className="mx-auto w-full rounded-[30px] bg-white px-5 py-8 shadow-soft transition-all duration-200 sm:px-8 sm:py-10 lg:max-w-[820px] lg:px-10 lg:py-9 xl:px-12 xl:py-10"
             ref={contentScrollRef}
           >
             <div className="min-w-0">
@@ -757,9 +759,9 @@ function OnboardingShell({
         </div>
 
         {hidePrimaryAction ? null : (
-          <div className="sticky bottom-0 rounded-t-[28px] bg-[#fbfaf7]/92 pb-2 pt-3 backdrop-blur lg:static lg:rounded-[28px] lg:bg-white/85 lg:p-4 lg:shadow-soft">
+          <div className="sticky bottom-0 rounded-t-[28px] bg-[#fbfaf7]/92 pb-2 pt-3 backdrop-blur lg:static lg:mx-auto lg:w-full lg:max-w-[820px] lg:rounded-[28px] lg:bg-white/85 lg:p-4 lg:shadow-soft">
             {footerLeading}
-            {footer}
+            <div className="lg:flex lg:flex-wrap lg:items-center lg:gap-3">{footer}</div>
             {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
           </div>
         )}
@@ -1865,7 +1867,7 @@ export function ProfileForm({
               <p className="mt-1 text-sm leading-6 text-ink/55">Dit navn og det profilnavn, deltagerne møder på SoulEvents.</p>
             </div>
           ) : null}
-          <div className="grid gap-4">
+          <div className="grid gap-4 lg:grid-cols-2">
             <ClearableInput label="Dit fornavn" onChange={setFirstName} placeholder="Dit fornavn" value={firstName} />
             <ClearableInput label="Dit efternavn" onChange={setLastName} placeholder="Dit efternavn" value={lastName} />
           </div>
@@ -2085,8 +2087,10 @@ export function ProfileForm({
               Skift mailadresse under Login og sikkerhed
             </Link>
           </section>
-          <ClearableInput onChange={setPhone} placeholder="Telefonnummer" value={phone} />
-          <ClearableInput onChange={setWebsite} placeholder="Website" value={website} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ClearableInput onChange={setPhone} placeholder="Telefonnummer" value={phone} />
+            <ClearableInput onChange={setWebsite} placeholder="Website" value={website} />
+          </div>
           <div className="grid gap-2">
             <ClearableInput onChange={setFacebook} placeholder={socialProfileLinkPlaceholder("facebook")} value={facebook} />
             {facebookError ? <p className="text-sm font-semibold leading-5 text-[#A51D1D]">{facebookError}</p> : null}

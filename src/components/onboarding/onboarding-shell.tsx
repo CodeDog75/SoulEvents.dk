@@ -76,12 +76,12 @@ export function OnboardingShell({
       <section
         className={
           "mx-auto grid min-h-[calc(100svh-3rem)] w-full max-w-[620px] content-between gap-8 lg:h-[calc(100dvh-48px)] lg:min-h-0 lg:content-stretch lg:gap-0 lg:overflow-hidden lg:rounded-[34px] lg:bg-[#fbfaf7] lg:shadow-[0_24px_70px_rgba(47,36,55,0.16)] xl:h-[calc(100dvh-64px)] " +
-          (showVisualPanel ? "lg:max-w-[1040px] lg:grid-cols-[42%_58%] xl:max-w-[1120px]" : "lg:max-w-[640px]")
+          (showVisualPanel ? "lg:max-w-[1180px] lg:grid-cols-[34%_66%] xl:max-w-[1320px]" : "lg:max-w-[820px]")
         }
       >
         {showVisualPanel ? <OnboardingVisualPanel logoSources={logoSources} panel={panel} /> : null}
 
-        <div className="grid min-h-[calc(100svh-3rem)] content-between gap-8 lg:h-full lg:min-h-0 lg:grid-rows-[minmax(0,1fr)_auto] lg:gap-5 lg:overflow-hidden lg:px-6 lg:py-6 xl:px-8 xl:py-7">
+        <div className="grid min-h-[calc(100svh-3rem)] content-between gap-8 lg:h-full lg:min-h-0 lg:grid-rows-[minmax(0,1fr)_auto] lg:gap-5 lg:overflow-hidden lg:px-8 lg:py-7 xl:px-10 xl:py-8">
           <div className="grid gap-8 lg:min-h-0 lg:gap-5 lg:overflow-y-auto lg:pr-1" ref={contentScrollRef}>
             {backNavigation || backLink ? (
               <div className={hideBackOnDesktop ? "min-h-8 lg:hidden" : "min-h-8"}>
@@ -93,12 +93,12 @@ export function OnboardingShell({
               </div>
             ) : null}
 
-            <div className="rounded-[30px] bg-white px-5 py-8 shadow-soft transition-all duration-200 sm:px-8 sm:py-10 lg:rounded-none lg:bg-transparent lg:px-4 lg:py-5 lg:shadow-none xl:px-5 xl:py-6">
+            <div className="mx-auto w-full rounded-[30px] bg-white px-5 py-8 shadow-soft transition-all duration-200 sm:px-8 sm:py-10 lg:max-w-[820px] lg:rounded-none lg:bg-transparent lg:px-0 lg:py-5 lg:shadow-none xl:py-6">
               {children}
             </div>
           </div>
 
-          {footer ? <div className="pb-2">{footer}</div> : null}
+          {footer ? <div className="mx-auto w-full pb-2 lg:max-w-[820px]">{footer}</div> : null}
         </div>
       </section>
     </div>
@@ -144,7 +144,7 @@ function OnboardingVisualPanel({
         className="object-cover"
         fill
         priority={panel.imagePriority ?? true}
-        sizes="(min-width: 1024px) 520px, 0px"
+        sizes="(min-width: 1280px) 440px, (min-width: 1024px) 34vw, 0px"
         src={panel.imageSrc}
       />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(47,36,55,0.18),rgba(47,36,55,0.38)),linear-gradient(90deg,rgba(151,161,132,0.16),rgba(231,221,231,0.12))]" />
