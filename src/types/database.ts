@@ -120,6 +120,24 @@ export type Database = {
         Update: Update<Database["public"]["Tables"]["categories"]["Row"]>;
         Relationships: [];
       };
+      design_symbols: {
+        Row: Row<{
+          id: string;
+          name: string;
+          slug: string;
+          category: string;
+          svg_path: string;
+          original_svg_path: string | null;
+          background_color: string;
+          sort_order: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["design_symbols"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["design_symbols"]["Row"]>;
+        Relationships: [];
+      };
       facilitator_profiles: {
         Row: Row<{
           id: string;
@@ -164,6 +182,17 @@ export type Database = {
         }>;
         Insert: Insert<Database["public"]["Tables"]["facilitator_profiles"]["Row"]>;
         Update: Update<Database["public"]["Tables"]["facilitator_profiles"]["Row"]>;
+        Relationships: [];
+      };
+      facilitator_profile_symbols: {
+        Row: Row<{
+          facilitator_id: string;
+          symbol_id: string;
+          sort_order: number;
+          created_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["facilitator_profile_symbols"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["facilitator_profile_symbols"]["Row"]>;
         Relationships: [];
       };
       events: {

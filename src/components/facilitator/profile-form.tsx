@@ -44,7 +44,16 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type ChangeEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import {
+  type ChangeEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { resolveNameParts } from "@/lib/auth/names";
 import {
   autosaveFacilitatorProfileAction,
@@ -52,7 +61,10 @@ import {
   saveFacilitatorProfileImageAction,
   submitFacilitatorProfileForReviewAction,
 } from "@/app/facilitator/profile/actions";
-import { imageUploadAccept, prepareImageFileForUpload } from "@/lib/images/client-image-upload";
+import {
+  imageUploadAccept,
+  prepareImageFileForUpload,
+} from "@/lib/images/client-image-upload";
 import {
   fetchDanishPostalCity,
   getLocalDanishPostalCity,
@@ -72,6 +84,7 @@ import { OnboardingShell as SharedOnboardingShell } from "@/components/onboardin
 import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
 import { PublicFacilitatorGallery } from "@/components/facilitator/public-facilitator-gallery";
 import type { BrandLogoSources } from "@/lib/brand-logo";
+import { maxProfileSymbols, type DesignSymbol } from "@/lib/design-symbols";
 import {
   defaultFacilitatorHeroKey,
   facilitatorHeroOptions,
@@ -81,16 +94,20 @@ import {
   type FacilitatorHeroKey,
 } from "@/lib/facilitators/hero-collection";
 import {
-  individualServiceOptions,
-  maxIndividualServiceTypes,
-  normalizeIndividualServiceTypes,
-  type IndividualServiceType,
-} from "@/lib/facilitators/individual-services";
-import { facilitatorStoryMinLength, normalizeFacilitatorStory } from "@/lib/facilitators/profile-readiness";
-import { facilitatorWorkAreas, sortFacilitatorWorkAreas } from "@/lib/facilitators/work-areas";
+  facilitatorStoryMinLength,
+  normalizeFacilitatorStory,
+} from "@/lib/facilitators/profile-readiness";
+import {
+  facilitatorWorkAreas,
+  sortFacilitatorWorkAreas,
+} from "@/lib/facilitators/work-areas";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
 import { publicFacilitatorPath } from "@/lib/slug";
-import { socialProfileLinkHelpText, socialProfileLinkPlaceholder, validateSocialProfileLink } from "@/lib/social-profile-links";
+import {
+  socialProfileLinkHelpText,
+  socialProfileLinkPlaceholder,
+  validateSocialProfileLink,
+} from "@/lib/social-profile-links";
 
 type Region = {
   id: string;
@@ -145,44 +162,8 @@ type FacilitatorProfile = {
   show_in_local_service_results?: boolean | null;
 };
 
-const individualServiceIconMap: Record<IndividualServiceType, LucideIcon> = {
-  community: Users,
-  conversation: MessageCircle,
-  energy: Sparkles,
-  fire_ceremony: Flame,
-  hands: HandHeart,
-  heart: Heart,
-  lotus: Flower2,
-  meditation: Brain,
-  moon: Moon,
-  nature: Leaf,
-  other: Waves,
-  reflection: Eye,
-  sound: Music,
-  sun: Sun,
-  teaching: PencilLine,
-  treatment: HeartHandshake,
-  water: Droplets,
-};
-
-const individualServiceToneMap: Record<IndividualServiceType, string> = {
-  community: "bg-[#F2EDF7]",
-  conversation: "bg-sky-50",
-  energy: "bg-[#F4EAF8]",
-  fire_ceremony: "bg-[#F8EDE7]",
-  hands: "bg-sage-50",
-  heart: "bg-rose-50",
-  lotus: "bg-[#F6EEF4]",
-  meditation: "bg-[#F2F0FA]",
-  moon: "bg-[#EEF1F7]",
-  nature: "bg-[#EEF5EA]",
-  other: "bg-[#F5F1EA]",
-  reflection: "bg-[#F4F0F7]",
-  sound: "bg-[#F1EDF7]",
-  sun: "bg-[#FFF4D8]",
-  teaching: "bg-[#F8F2E8]",
-  treatment: "bg-[#F1F6EF]",
-  water: "bg-[#EAF5F7]",
+type ProfileDesignSymbol = DesignSymbol & {
+  publicUrl: string | null;
 };
 
 type GalleryImage = {
@@ -210,7 +191,9 @@ type ProfileFormProps = {
   facilitatorProfile: FacilitatorProfile;
   regions: Region[];
   categories: Category[];
+  designSymbols?: ProfileDesignSymbol[];
   selectedCategoryIds: string[];
+  selectedDesignSymbolIds?: string[];
   galleryImages: GalleryImage[];
   savedSection?: string | null;
   submitLabel?: string;
@@ -253,23 +236,33 @@ function sortedByDanishName<T extends { name: string }>(items: T[]) {
 
 function workAreaIconForName(name: string): LucideIcon {
   const normalized = name.toLowerCase();
-  if (normalized.includes("yoga") || normalized.includes("krop")) return Dumbbell;
-  if (normalized.includes("meditation") || normalized.includes("mindfulness")) return Moon;
-  if (normalized.includes("healing") || normalized.includes("energi")) return Sparkles;
+  if (normalized.includes("yoga") || normalized.includes("krop"))
+    return Dumbbell;
+  if (normalized.includes("meditation") || normalized.includes("mindfulness"))
+    return Moon;
+  if (normalized.includes("healing") || normalized.includes("energi"))
+    return Sparkles;
   if (normalized.includes("sauna") || normalized.includes("ild")) return Flame;
   if (normalized.includes("lyd") || normalized.includes("musik")) return Music;
-  if (normalized.includes("natur") || normalized.includes("retreat")) return Leaf;
-  if (normalized.includes("ceremoni") || normalized.includes("ritual")) return Flower2;
-  if (normalized.includes("terapi") || normalized.includes("coaching")) return Brain;
-  if (normalized.includes("åndedræt") || normalized.includes("breath")) return Waves;
-  if (normalized.includes("hjerte") || normalized.includes("relation")) return Heart;
+  if (normalized.includes("natur") || normalized.includes("retreat"))
+    return Leaf;
+  if (normalized.includes("ceremoni") || normalized.includes("ritual"))
+    return Flower2;
+  if (normalized.includes("terapi") || normalized.includes("coaching"))
+    return Brain;
+  if (normalized.includes("åndedræt") || normalized.includes("breath"))
+    return Waves;
+  if (normalized.includes("hjerte") || normalized.includes("relation"))
+    return Heart;
   if (normalized.includes("sol") || normalized.includes("lys")) return Sun;
   return HandHeart;
 }
 
 function workAreaDescriptionForCategory(category: Category) {
   if (category.description) return category.description;
-  const workArea = facilitatorWorkAreas.find((area) => area.slug === category.slug);
+  const workArea = facilitatorWorkAreas.find(
+    (area) => area.slug === category.slug,
+  );
   return workArea?.examples.join(", ") ?? null;
 }
 
@@ -354,8 +347,8 @@ const steps: Array<{
   {
     eyebrow: "Klar",
     id: "approval",
-    text: "Du kan sende profilen til SoulEvents nu eller gemme den som kladde og fortsætte senere. Når du sender den, gennemgår vi profilen og giver dig besked, så snart den er klar.",
-    title: "Er din profil klar til at blive vist offentligt på SoulEvents?",
+    text: "Gennemgå dine oplysninger en sidste gang, før din profil oprettes.",
+    title: "Gennemgå din profil",
   },
   {
     eyebrow: "Velkommen",
@@ -365,8 +358,22 @@ const steps: Array<{
   },
 ];
 
-const onboardingStepIds: PrototypeStep[] = ["welcome", "profile", "approval", "complete"];
-const editingStepIds: PrototypeStep[] = ["review", "person", "location", "profile-image", "experiences", "story", "links", "services"];
+const onboardingStepIds: PrototypeStep[] = [
+  "welcome",
+  "profile",
+  "approval",
+  "complete",
+];
+const editingStepIds: PrototypeStep[] = [
+  "review",
+  "person",
+  "location",
+  "profile-image",
+  "experiences",
+  "story",
+  "links",
+  "services",
+];
 const onboardingDraftStepStorageKeyBase = "soulevents:onboarding:last-step";
 const specialtyMaxLength = 180;
 
@@ -380,7 +387,9 @@ function normalizeSpecialtyText(input: string | null | undefined) {
 
 function publicImageUrl(path: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  return supabaseUrl && path ? `${supabaseUrl}/storage/v1/object/public/media/${path}` : "";
+  return supabaseUrl && path
+    ? `${supabaseUrl}/storage/v1/object/public/media/${path}`
+    : "";
 }
 
 function resolveInitialStepIndex({
@@ -397,19 +406,28 @@ function resolveInitialStepIndex({
   }
 
   const storedStep = window.localStorage.getItem(storageKey);
-  const nextIndex = storedStep ? activeStepIds.indexOf(storedStep as PrototypeStep) : -1;
+  const nextIndex = storedStep
+    ? activeStepIds.indexOf(storedStep as PrototypeStep)
+    : -1;
 
-  return nextIndex >= 0 && activeStepIds[nextIndex] !== "complete" ? nextIndex : 0;
+  return nextIndex >= 0 && activeStepIds[nextIndex] !== "complete"
+    ? nextIndex
+    : 0;
 }
 
 function inputClass(extra = "") {
-  return "min-h-14 w-full rounded-[18px] border border-[#D8D0C1] bg-white px-5 text-lg text-midnight shadow-[0_8px_22px_rgba(47,36,55,0.045)] outline-none transition duration-200 placeholder:text-ink/48 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/12 " + extra;
+  return (
+    "min-h-14 w-full rounded-[18px] border border-[#D8D0C1] bg-white px-5 text-lg text-midnight shadow-[0_8px_22px_rgba(47,36,55,0.045)] outline-none transition duration-200 placeholder:text-ink/48 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/12 " +
+    extra
+  );
 }
 
 function workAreaClass(selected: boolean, _isLong = false) {
   return (
     "flex min-h-16 items-center justify-between gap-3 rounded-[22px] border px-3.5 py-3 text-left text-base font-semibold shadow-soft transition duration-200 hover:scale-[1.01] hover:border-sage-700 sm:px-4 " +
-    (selected ? "border-sage-700/25 bg-sage-50 text-sage-700" : "border-midnight/10 bg-white text-midnight")
+    (selected
+      ? "border-sage-700/25 bg-sage-50 text-sage-700"
+      : "border-midnight/10 bg-white text-midnight")
   );
 }
 
@@ -434,9 +452,15 @@ function SelectionCardContent({
         <span className="flex min-w-0 items-center gap-3">
           <Icon
             aria-hidden="true"
-            className={selected ? "size-5 shrink-0 text-sage-700" : "size-5 shrink-0 text-sage-700/55"}
+            className={
+              selected
+                ? "size-5 shrink-0 text-sage-700"
+                : "size-5 shrink-0 text-sage-700/55"
+            }
           />
-          <span className="min-w-0 whitespace-normal break-words text-left leading-snug">{label}</span>
+          <span className="min-w-0 whitespace-normal break-words text-left leading-snug">
+            {label}
+          </span>
           {description ? (
             <span
               aria-label={"Se eksempler for " + label}
@@ -466,7 +490,14 @@ function SelectionCardContent({
           </span>
         ) : null}
       </span>
-      <Circle className={selected ? "ml-2 size-4 shrink-0 fill-sage-700/15 text-sage-700" : "ml-2 size-4 shrink-0 text-sage-700/45"} aria-hidden="true" />
+      <Circle
+        className={
+          selected
+            ? "ml-2 size-4 shrink-0 fill-sage-700/15 text-sage-700"
+            : "ml-2 size-4 shrink-0 text-sage-700/45"
+        }
+        aria-hidden="true"
+      />
     </>
   );
 }
@@ -544,7 +575,9 @@ function ClearableTextarea({
   return (
     <div className="relative">
       <textarea
-        className={inputClass("resize-none overflow-hidden py-4 pr-12 leading-7 " + className)}
+        className={inputClass(
+          "resize-none overflow-hidden py-4 pr-12 leading-7 " + className,
+        )}
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -567,7 +600,10 @@ function ClearableTextarea({
 }
 
 function displayLink(input: string) {
-  return input.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/$/, "");
+  return input
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/\/$/, "");
 }
 
 function ProfilePreviewEditButton({
@@ -617,18 +653,32 @@ function EditablePublicSection({
       onClick={onClick}
     >
       <div className="absolute right-4 top-4 z-10">
-        {actions ?? <ProfilePreviewEditButton label={label} onClick={onClick} />}
+        {actions ?? (
+          <ProfilePreviewEditButton label={label} onClick={onClick} />
+        )}
       </div>
       {children}
     </section>
   );
 }
 
-function ProfilePreviewSectionTitle({ eyebrow, title }: { eyebrow?: string; title: string }) {
+function ProfilePreviewSectionTitle({
+  eyebrow,
+  title,
+}: {
+  eyebrow?: string;
+  title: string;
+}) {
   return (
     <div>
-      {eyebrow ? <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#7A5D91]">{eyebrow}</p> : null}
-      <h2 className="mt-2 font-serif text-3xl font-semibold leading-tight text-[#2F2437] sm:text-4xl">{title}</h2>
+      {eyebrow ? (
+        <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#7A5D91]">
+          {eyebrow}
+        </p>
+      ) : null}
+      <h2 className="mt-2 font-serif text-3xl font-semibold leading-tight text-[#2F2437] sm:text-4xl">
+        {title}
+      </h2>
     </div>
   );
 }
@@ -649,11 +699,22 @@ function LinkRows({
   const instagramValue = instagram.trim();
   const youtubeValue = youtube.trim();
   const links = [
-    websiteValue ? { icon: Globe, label: "Hjemmeside", text: displayLink(websiteValue) } : null,
-    facebookValue ? { icon: Link2, label: "Facebook", text: displayLink(facebookValue) } : null,
-    instagramValue ? { icon: Camera, label: "Instagram", text: displayLink(instagramValue) } : null,
-    youtubeValue ? { icon: Video, label: "YouTube", text: displayLink(youtubeValue) } : null,
-  ].filter((item): item is { icon: typeof Globe; label: string; text: string } => Boolean(item));
+    websiteValue
+      ? { icon: Globe, label: "Hjemmeside", text: displayLink(websiteValue) }
+      : null,
+    facebookValue
+      ? { icon: Link2, label: "Facebook", text: displayLink(facebookValue) }
+      : null,
+    instagramValue
+      ? { icon: Camera, label: "Instagram", text: displayLink(instagramValue) }
+      : null,
+    youtubeValue
+      ? { icon: Video, label: "YouTube", text: displayLink(youtubeValue) }
+      : null,
+  ].filter(
+    (item): item is { icon: typeof Globe; label: string; text: string } =>
+      Boolean(item),
+  );
 
   if (links.length === 0) return null;
 
@@ -732,17 +793,27 @@ function OnboardingShell({
       onClick={onContinue}
       type="button"
     >
-      {isBusy ? "Gemmer..." : ctaLabel ?? (isFirst ? "Kom i gang" : isLast ? "Opret profil" : "Fortsæt")}
+      {isBusy
+        ? "Gemmer..."
+        : (ctaLabel ??
+          (isFirst ? "Kom i gang" : isLast ? "Opret profil" : "Fortsæt"))}
       {!isBusy && <ArrowRight className="size-5" aria-hidden="true" />}
     </button>
   );
 
   const backNavigation = hideBackNavigation ? null : isFirst ? (
-    <Link className="text-sm font-semibold text-ink/55 underline-offset-4 hover:text-sage-700 hover:underline" href={backHref}>
+    <Link
+      className="text-sm font-semibold text-ink/55 underline-offset-4 hover:text-sage-700 hover:underline"
+      href={backHref}
+    >
       {backLabel}
     </Link>
   ) : (
-    <button className="inline-flex items-center gap-2 text-sm font-semibold text-ink/55 transition hover:text-sage-700" onClick={onBack} type="button">
+    <button
+      className="inline-flex items-center gap-2 text-sm font-semibold text-ink/55 transition hover:text-sage-700"
+      onClick={onBack}
+      type="button"
+    >
       <ArrowLeft className="size-4" aria-hidden="true" />
       Tilbage
     </button>
@@ -756,11 +827,10 @@ function OnboardingShell({
           footer ? (
             <>
               {footerLeading}
-              <div className="lg:flex lg:flex-wrap lg:items-center lg:gap-3">
-                {footer}
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between lg:gap-3">
                 {onSaveDraft ? (
                   <button
-                    className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-full border border-midnight/10 bg-white px-5 text-sm font-semibold text-sage-700 shadow-soft transition hover:border-sage-700/35 hover:bg-sage-50 disabled:cursor-not-allowed disabled:opacity-45 lg:mt-0 lg:w-auto lg:min-w-56"
+                    className="order-2 mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-full border border-midnight/10 bg-white px-5 text-sm font-semibold text-sage-700 shadow-soft transition hover:border-sage-700/35 hover:bg-sage-50 disabled:cursor-not-allowed disabled:opacity-45 lg:order-1 lg:mt-0 lg:w-auto lg:min-w-56"
                     disabled={isBusy}
                     onClick={onSaveDraft}
                     type="button"
@@ -768,8 +838,13 @@ function OnboardingShell({
                     Gem kladde og fortsæt senere
                   </button>
                 ) : null}
+                <div className="order-1 lg:order-2 lg:ml-auto">{footer}</div>
               </div>
-              {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
+              {ctaHelper ? (
+                <p className="mt-3 text-left text-sm font-medium text-ink/55">
+                  {ctaHelper}
+                </p>
+              ) : null}
             </>
           ) : null
         }
@@ -825,17 +900,21 @@ function OnboardingShell({
             className="mx-auto w-full rounded-[30px] bg-white px-5 py-8 shadow-soft transition-all duration-200 sm:px-8 sm:py-10 lg:max-w-[820px] lg:px-10 lg:py-9 xl:px-12 xl:py-10"
             ref={contentScrollRef}
           >
-            <div className="min-w-0">
-              {children}
-            </div>
+            <div className="min-w-0">{children}</div>
           </div>
         </div>
 
         {hidePrimaryAction ? null : (
           <div className="sticky bottom-0 rounded-t-[28px] bg-[#fbfaf7]/92 pb-2 pt-3 backdrop-blur lg:static lg:mx-auto lg:w-full lg:max-w-[820px] lg:rounded-[28px] lg:bg-white/85 lg:p-4 lg:shadow-soft">
             {footerLeading}
-            <div className="lg:flex lg:flex-wrap lg:items-center lg:gap-3">{footer}</div>
-            {ctaHelper ? <p className="mt-3 text-left text-sm font-medium text-ink/55">{ctaHelper}</p> : null}
+            <div className="lg:flex lg:flex-wrap lg:items-center lg:gap-3">
+              {footer}
+            </div>
+            {ctaHelper ? (
+              <p className="mt-3 text-left text-sm font-medium text-ink/55">
+                {ctaHelper}
+              </p>
+            ) : null}
           </div>
         )}
       </div>
@@ -843,12 +922,26 @@ function OnboardingShell({
   );
 }
 
-function StepIntro({ eyebrow, text, title }: { eyebrow: string; text: string; title: string }) {
+function StepIntro({
+  eyebrow,
+  text,
+  title,
+}: {
+  eyebrow: string;
+  text: string;
+  title: string;
+}) {
   return (
     <div className="mb-8 grid gap-3 lg:mb-5 lg:gap-2">
-      <p className="text-sm font-semibold uppercase tracking-wide text-sage-700 lg:text-xs">{eyebrow}</p>
-      <h2 className="text-4xl font-semibold leading-tight text-midnight sm:text-5xl lg:text-3xl xl:text-4xl">{title}</h2>
-      <p className="text-base leading-7 text-ink/64 lg:text-sm lg:leading-6">{text}</p>
+      <p className="text-sm font-semibold uppercase tracking-wide text-sage-700 lg:text-xs">
+        {eyebrow}
+      </p>
+      <h2 className="text-4xl font-semibold leading-tight text-midnight sm:text-5xl lg:text-3xl xl:text-4xl">
+        {title}
+      </h2>
+      <p className="text-base leading-7 text-ink/64 lg:text-sm lg:leading-6">
+        {text}
+      </p>
     </div>
   );
 }
@@ -868,7 +961,9 @@ function SectionHeading({
         <Icon className="size-4 shrink-0" aria-hidden="true" />
         {title}
       </p>
-      {description ? <p className="mt-1 text-sm leading-6 text-ink/64">{description}</p> : null}
+      {description ? (
+        <p className="mt-1 text-sm leading-6 text-ink/64">{description}</p>
+      ) : null}
     </div>
   );
 }
@@ -899,11 +994,17 @@ function UploadTile({
     if (!file) return;
 
     try {
-      const prepared = await prepareImageFileForUpload(file, { maxFileSizeBytes });
+      const prepared = await prepareImageFileForUpload(file, {
+        maxFileSizeBytes,
+      });
       onSelect(prepared, createPreview ? URL.createObjectURL(prepared) : "");
     } catch (error) {
       event.target.value = "";
-      onError?.(error instanceof Error ? error.message : "Billedet kunne ikke læses. Prøv et andet billede.");
+      onError?.(
+        error instanceof Error
+          ? error.message
+          : "Billedet kunne ikke læses. Prøv et andet billede.",
+      );
     }
   }
 
@@ -917,22 +1018,42 @@ function UploadTile({
       type="button"
     >
       {imageUrl ? (
-        <img alt="" className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]" src={imageUrl} />
+        <img
+          alt=""
+          className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]"
+          src={imageUrl}
+        />
       ) : (
         <span className="grid justify-items-center gap-4 px-6">
           <span className="grid size-16 place-items-center rounded-full bg-white text-sage-700 shadow-soft">
             <Upload className="size-7" aria-hidden="true" />
           </span>
           <span className="text-lg font-semibold text-midnight">{label}</span>
-          {helperText ? <span className="whitespace-pre-line text-sm font-medium leading-5 text-ink/55">{helperText}</span> : null}
+          {helperText ? (
+            <span className="whitespace-pre-line text-sm font-medium leading-5 text-ink/55">
+              {helperText}
+            </span>
+          ) : null}
         </span>
       )}
-      <input accept={imageUploadAccept} className="sr-only" onChange={handleChange} ref={inputRef} type="file" />
+      <input
+        accept={imageUploadAccept}
+        className="sr-only"
+        onChange={handleChange}
+        ref={inputRef}
+        type="file"
+      />
     </button>
   );
 }
 
-function MissingCard({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+function MissingCard({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
   return (
     <button
       className="w-full rounded-[22px] bg-[#FFF7DE] p-4 text-left text-sm font-semibold leading-6 text-[#715C21] transition hover:bg-[#FFF1C2]"
@@ -948,13 +1069,35 @@ function isSvgSrc(src: string) {
   return src.split("?")[0]?.toLowerCase().endsWith(".svg") ?? false;
 }
 
-function InlineBrandLogo({ className, src }: { className: string; src: string }) {
+function InlineBrandLogo({
+  className,
+  src,
+}: {
+  className: string;
+  src: string;
+}) {
   if (isSvgSrc(src)) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img alt="SoulEvents" className={className + " object-contain"} height={240} src={src} width={520} />;
+    return (
+      <img
+        alt="SoulEvents"
+        className={className + " object-contain"}
+        height={240}
+        src={src}
+        width={520}
+      />
+    );
   }
 
-  return <Image alt="SoulEvents" className={className + " object-contain"} height={240} src={src} width={520} />;
+  return (
+    <Image
+      alt="SoulEvents"
+      className={className + " object-contain"}
+      height={240}
+      src={src}
+      width={520}
+    />
+  );
 }
 
 export function ProfileForm({
@@ -967,8 +1110,10 @@ export function ProfileForm({
   profile,
   facilitatorProfile,
   categories,
+  designSymbols = [],
   regions,
   selectedCategoryIds,
+  selectedDesignSymbolIds = [],
   galleryImages,
   logoSources,
 }: ProfileFormProps) {
@@ -980,18 +1125,25 @@ export function ProfileForm({
   });
   const activeSteps =
     presentationMode === "onboarding"
-      ? onboardingStepIds.map((stepId) => steps.find((step) => step.id === stepId)).filter((step): step is (typeof steps)[number] => Boolean(step))
-      : editingStepIds.map((stepId) => steps.find((step) => step.id === stepId)).filter((step): step is (typeof steps)[number] => Boolean(step));
+      ? onboardingStepIds
+          .map((stepId) => steps.find((step) => step.id === stepId))
+          .filter((step): step is (typeof steps)[number] => Boolean(step))
+      : editingStepIds
+          .map((stepId) => steps.find((step) => step.id === stepId))
+          .filter((step): step is (typeof steps)[number] => Boolean(step));
   const activeStepIds = activeSteps.map((step) => step.id);
   const activeStepIdsKey = activeStepIds.join("|");
   const onboardingDraftStepStorageKey = `${onboardingDraftStepStorageKeyBase}:${facilitatorProfile.id ?? profile.email}`;
   const [stepIndex, setStepIndex] = useState(0);
   const [isBusy, setIsBusy] = useState(false);
   const [returnToReview, setReturnToReview] = useState(false);
-  const [profileImageSubmissionError, setProfileImageSubmissionError] = useState(false);
+  const [profileImageSubmissionError, setProfileImageSubmissionError] =
+    useState(false);
   const [storySubmissionError, setStorySubmissionError] = useState(false);
   const continueInProgressRef = useRef(false);
-  const hasResolvedInitialOnboardingStepRef = useRef(presentationMode !== "onboarding");
+  const hasResolvedInitialOnboardingStepRef = useRef(
+    presentationMode !== "onboarding",
+  );
   const latestPostalCodeLookupRef = useRef("");
   const pendingImageSectionTargetRef = useRef<ImageSectionTarget | null>(null);
   const locationSectionRef = useRef<HTMLDivElement | null>(null);
@@ -1004,14 +1156,24 @@ export function ProfileForm({
   const [, startImageTransition] = useTransition();
   const [firstName, setFirstName] = useState(names.firstName);
   const [lastName, setLastName] = useState(names.lastName);
-  const fullPublicName = [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" ");
+  const fullPublicName = [firstName, lastName]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
   const initialProfileName = value(facilitatorProfile.company_name);
-  const [useCustomProfileName, setUseCustomProfileName] = useState(() => Boolean(initialProfileName && initialProfileName !== fullPublicName));
+  const [useCustomProfileName, setUseCustomProfileName] = useState(() =>
+    Boolean(initialProfileName && initialProfileName !== fullPublicName),
+  );
   const [profileName, setProfileName] = useState(initialProfileName);
-  const [addressLine, setAddressLine] = useState(value(facilitatorProfile.address_line));
-  const initialPostalLocation = splitDanishPostalCity(facilitatorProfile.postal_code);
+  const [addressLine, setAddressLine] = useState(
+    value(facilitatorProfile.address_line),
+  );
+  const initialPostalLocation = splitDanishPostalCity(
+    facilitatorProfile.postal_code,
+  );
   const initialCityLocation = splitDanishPostalCity(facilitatorProfile.city);
-  const initialPostalCode = initialPostalLocation.postalCode || initialCityLocation.postalCode;
+  const initialPostalCode =
+    initialPostalLocation.postalCode || initialCityLocation.postalCode;
   const initialCity =
     initialCityLocation.city ||
     (initialCityLocation.postalCode ? "" : value(facilitatorProfile.city)) ||
@@ -1028,60 +1190,115 @@ export function ProfileForm({
       : value(facilitatorProfile.country_name);
   const [postalCode, setPostalCode] = useState(initialPostalCode);
   const [city, setCity] = useState(initialCity);
-  const [postalCodeMessage, setPostalCodeMessage] = useState(initialPostalCode && !initialCity ? "Indtast postnummer, så finder vi automatisk byen." : "");
+  const [postalCodeMessage, setPostalCodeMessage] = useState(
+    initialPostalCode && !initialCity
+      ? "Indtast postnummer, så finder vi automatisk byen."
+      : "",
+  );
   const [country, setCountry] = useState(initialCountryCode);
   const [countryName, setCountryName] = useState(initialCustomCountryName);
-  const [regionText, setRegionText] = useState(value(facilitatorProfile.region_text));
+  const [regionText, setRegionText] = useState(
+    value(facilitatorProfile.region_text),
+  );
   const [locationSubmissionError, setLocationSubmissionError] = useState(false);
-  const [isOnlineFacilitator, setIsOnlineFacilitator] = useState(Boolean(facilitatorProfile.is_online_facilitator));
+  const [isOnlineFacilitator, setIsOnlineFacilitator] = useState(
+    Boolean(facilitatorProfile.is_online_facilitator),
+  );
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
-  const [profileImageUrl, setProfileImageUrl] = useState(facilitatorProfile.profile_image_path ? publicImageUrl(facilitatorProfile.profile_image_path) : "");
+  const [profileImageUrl, setProfileImageUrl] = useState(
+    facilitatorProfile.profile_image_path
+      ? publicImageUrl(facilitatorProfile.profile_image_path)
+      : "",
+  );
   const [moodImages, setMoodImages] = useState<MoodImage[]>(
     Array.from({ length: 3 }, (_, index) => ({
       fileName: "",
       path: galleryImages[index]?.image_path ?? "",
-      previewUrl: galleryImages[index]?.image_path ? publicImageUrl(galleryImages[index].image_path) : "",
+      previewUrl: galleryImages[index]?.image_path
+        ? publicImageUrl(galleryImages[index].image_path)
+        : "",
     })),
   );
-  const initialHeroKey = normalizeFacilitatorHeroKey(facilitatorProfile.facilitator_hero_key);
-  const initialHeroHasMoodImage = galleryImages.some((image) => Boolean(image?.image_path));
+  const initialHeroKey = normalizeFacilitatorHeroKey(
+    facilitatorProfile.facilitator_hero_key,
+  );
+  const initialHeroHasMoodImage = galleryImages.some((image) =>
+    Boolean(image?.image_path),
+  );
   const [selectedHeroKey, setSelectedHeroKey] = useState<FacilitatorHeroKey>(
-    initialHeroKey ?? (initialHeroHasMoodImage ? "mood_1" : defaultFacilitatorHeroKey),
+    initialHeroKey ??
+      (initialHeroHasMoodImage ? "mood_1" : defaultFacilitatorHeroKey),
   );
   const [moodImageStatuses, setMoodImageStatuses] = useState<SlotStatus[]>(
     Array.from({ length: 3 }, () => ({ message: "", status: "idle" })),
   );
   const visibleCategoryIds = new Set(categories.map((category) => category.id));
-  const initialSelectedCategoryIds = selectedCategoryIds.filter((categoryId) => visibleCategoryIds.has(categoryId));
-  const [selectedExperiences, setSelectedExperiences] = useState(initialSelectedCategoryIds);
-  const [story, setStory] = useState(value(facilitatorProfile.long_description || facilitatorProfile.short_description));
+  const initialSelectedCategoryIds = selectedCategoryIds.filter((categoryId) =>
+    visibleCategoryIds.has(categoryId),
+  );
+  const [selectedExperiences, setSelectedExperiences] = useState(
+    initialSelectedCategoryIds,
+  );
+  const [story, setStory] = useState(
+    value(
+      facilitatorProfile.long_description ||
+        facilitatorProfile.short_description,
+    ),
+  );
   const [phone, setPhone] = useState(profile.phone ?? "");
   const [website, setWebsite] = useState(value(facilitatorProfile.website_url));
-  const [facebook, setFacebook] = useState(value(facilitatorProfile.facebook_url));
-  const [instagram, setInstagram] = useState(value(facilitatorProfile.instagram_url));
-  const [youtube, setYoutube] = useState(value(facilitatorProfile.youtube_url));
-  const [paymentMobilepayNumber, setPaymentMobilepayNumber] = useState(value(facilitatorProfile.payment_mobilepay_number));
-  const [paymentBankRegistrationNumber, setPaymentBankRegistrationNumber] = useState(value(facilitatorProfile.payment_bank_registration_number));
-  const [paymentBankAccountNumber, setPaymentBankAccountNumber] = useState(value(facilitatorProfile.payment_bank_account_number));
-  const [paymentBankAccountName, setPaymentBankAccountName] = useState(value(facilitatorProfile.payment_bank_account_name));
-  const [paymentExternalUrl, setPaymentExternalUrl] = useState(value(facilitatorProfile.payment_external_url));
-  const [paymentInstructions, setPaymentInstructions] = useState(value(facilitatorProfile.payment_instructions));
-  const [paymentDeadlineDays, setPaymentDeadlineDays] = useState(String(facilitatorProfile.payment_deadline_days ?? 14));
-  const [offersIndividualServices, setOffersIndividualServices] = useState(Boolean(facilitatorProfile.offers_services));
-  const [individualServiceTypes, setIndividualServiceTypes] = useState<IndividualServiceType[]>(() =>
-    normalizeIndividualServiceTypes(facilitatorProfile.individual_service_types),
+  const [facebook, setFacebook] = useState(
+    value(facilitatorProfile.facebook_url),
   );
-  const [individualServiceOtherTitle, setIndividualServiceOtherTitle] = useState(value(facilitatorProfile.individual_service_other_title));
-  const [serviceDescription, setServiceDescription] = useState(value(facilitatorProfile.service_description));
-  const [specialties, setSpecialties] = useState(value(facilitatorProfile.specialties));
+  const [instagram, setInstagram] = useState(
+    value(facilitatorProfile.instagram_url),
+  );
+  const [youtube, setYoutube] = useState(value(facilitatorProfile.youtube_url));
+  const [paymentMobilepayNumber, setPaymentMobilepayNumber] = useState(
+    value(facilitatorProfile.payment_mobilepay_number),
+  );
+  const [paymentBankRegistrationNumber, setPaymentBankRegistrationNumber] =
+    useState(value(facilitatorProfile.payment_bank_registration_number));
+  const [paymentBankAccountNumber, setPaymentBankAccountNumber] = useState(
+    value(facilitatorProfile.payment_bank_account_number),
+  );
+  const [paymentBankAccountName, setPaymentBankAccountName] = useState(
+    value(facilitatorProfile.payment_bank_account_name),
+  );
+  const [paymentExternalUrl, setPaymentExternalUrl] = useState(
+    value(facilitatorProfile.payment_external_url),
+  );
+  const [paymentInstructions, setPaymentInstructions] = useState(
+    value(facilitatorProfile.payment_instructions),
+  );
+  const [paymentDeadlineDays, setPaymentDeadlineDays] = useState(
+    String(facilitatorProfile.payment_deadline_days ?? 14),
+  );
+  const [offersIndividualServices, setOffersIndividualServices] = useState(
+    Boolean(facilitatorProfile.offers_services),
+  );
+  const [selectedProfileSymbolIds, setSelectedProfileSymbolIds] = useState<
+    string[]
+  >(() => selectedDesignSymbolIds.slice(0, maxProfileSymbols));
+  const [serviceDescription, setServiceDescription] = useState(
+    value(facilitatorProfile.service_description),
+  );
+  const [specialties, setSpecialties] = useState(
+    value(facilitatorProfile.specialties),
+  );
   const [openAreaInfoId, setOpenAreaInfoId] = useState<string | null>(null);
-  const [stepSaveStatus, setStepSaveStatus] = useState<SlotStatus>({ message: "", status: "idle" });
+  const [stepSaveStatus, setStepSaveStatus] = useState<SlotStatus>({
+    message: "",
+    status: "idle",
+  });
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const currentStep = activeSteps[stepIndex] ?? activeSteps[0] ?? steps[0];
   const isProfileOverviewStep = currentStep.id === "profile";
   const isApprovalStep = currentStep.id === "approval";
-  const shellBackHref = presentationMode === "onboarding" ? "/auth/login" : backHref;
-  const activeDesktopLogoSrc = logoSources?.desktop ?? "/brand/soulevents-logo.png";
+  const shellBackHref =
+    presentationMode === "onboarding" ? "/auth/login" : backHref;
+  const activeDesktopLogoSrc =
+    logoSources?.desktop ?? "/brand/soulevents-logo.png";
   const displayedStep =
     presentationMode !== "onboarding" && currentStep.id === "review"
       ? {
@@ -1091,25 +1308,33 @@ export function ProfileForm({
           title: "Rediger profil",
         }
       : currentStep;
-  const publicProfileName = useCustomProfileName ? profileName.trim() : fullPublicName;
+  const publicProfileName = useCustomProfileName
+    ? profileName.trim()
+    : fullPublicName;
   const hasWorkArea = selectedExperiences.length > 0;
   const specialtyText = normalizeSpecialtyText(specialties);
-  const hasIndividualServicesDescription = offersIndividualServices && serviceDescription.trim().length > 0;
-  const hasOtherIndividualServiceType = individualServiceTypes.includes("other");
-  const selectedIndividualServiceDisplays = individualServiceOptions
-    .filter((option) => individualServiceTypes.includes(option.id))
-    .map((option) => ({
-      id: option.id,
-      label: option.id === "other" && individualServiceOtherTitle.trim() ? individualServiceOtherTitle.trim() : option.label,
-    }));
+  const hasIndividualServicesDescription =
+    offersIndividualServices && serviceDescription.trim().length > 0;
+  const selectedProfileSymbols = designSymbols.filter((symbol) =>
+    selectedProfileSymbolIds.includes(symbol.id),
+  );
   const facebookValidation = validateSocialProfileLink(facebook, "facebook");
   const instagramValidation = validateSocialProfileLink(instagram, "instagram");
-  const facebookError = facebook.trim() && !facebookValidation.ok ? facebookValidation.message : null;
-  const instagramError = instagram.trim() && !instagramValidation.ok ? instagramValidation.message : null;
-  const hasLinks = Boolean(website.trim() || facebook.trim() || instagram.trim() || youtube.trim());
+  const facebookError =
+    facebook.trim() && !facebookValidation.ok
+      ? facebookValidation.message
+      : null;
+  const instagramError =
+    instagram.trim() && !instagramValidation.ok
+      ? instagramValidation.message
+      : null;
+  const hasLinks = Boolean(
+    website.trim() || facebook.trim() || instagram.trim() || youtube.trim(),
+  );
   const normalizedStory = normalizeFacilitatorStory(story);
   const storyMeetsMinimum = normalizedStory.length >= facilitatorStoryMinLength;
-  const storyMissingMessage = "Skriv gerne lidt mere om dig selv, før profilen sendes til SoulEvents.";
+  const storyMissingMessage =
+    "Skriv gerne lidt mere om dig selv, før profilen sendes til SoulEvents.";
   const isDanishLocation = isDanishProfileCountry(country);
   const isOtherCountry = isOtherProfileCountry(country);
   const normalizedLocationPostalCode = postalCode.trim();
@@ -1117,11 +1342,19 @@ export function ProfileForm({
   const normalizedCountryName = countryName.trim();
   const locationCountryNameMissing = isOtherCountry && !normalizedCountryName;
   const locationPostalCodeMissingOrInvalid =
-    !locationCountryNameMissing && (!normalizedLocationPostalCode || (isDanishLocation && !/^\d{4}$/.test(normalizedLocationPostalCode)));
-  const locationCityMissing = !locationCountryNameMissing && Boolean(normalizedLocationPostalCode) && !normalizedLocationCity;
+    !locationCountryNameMissing &&
+    (!normalizedLocationPostalCode ||
+      (isDanishLocation && !/^\d{4}$/.test(normalizedLocationPostalCode)));
+  const locationCityMissing =
+    !locationCountryNameMissing &&
+    Boolean(normalizedLocationPostalCode) &&
+    !normalizedLocationCity;
   const locationIsComplete = isDanishLocation
-    ? /^\d{4}$/.test(normalizedLocationPostalCode) && Boolean(normalizedLocationCity)
-    : Boolean(normalizedLocationPostalCode) && Boolean(normalizedLocationCity) && (!isOtherCountry || Boolean(normalizedCountryName));
+    ? /^\d{4}$/.test(normalizedLocationPostalCode) &&
+      Boolean(normalizedLocationCity)
+    : Boolean(normalizedLocationPostalCode) &&
+      Boolean(normalizedLocationCity) &&
+      (!isOtherCountry || Boolean(normalizedCountryName));
   const locationValidationMessage = isDanishLocation
     ? !normalizedLocationPostalCode
       ? "Indtast postnummer, så finder vi automatisk byen."
@@ -1132,42 +1365,73 @@ export function ProfileForm({
           : ""
     : locationCountryNameMissing
       ? "Skriv landets navn."
-    : !normalizedLocationPostalCode || !normalizedLocationCity
-      ? "Postnummer og by skal udfyldes."
-      : "";
+      : !normalizedLocationPostalCode || !normalizedLocationCity
+        ? "Postnummer og by skal udfyldes."
+        : "";
   const missingRequired = [
-    !firstName.trim() || !lastName.trim() ? { label: "Dit navn", step: "person" as PrototypeStep } : null,
-    !publicProfileName ? { label: "Profilnavn", step: "person" as PrototypeStep } : null,
-    !locationIsComplete ? { label: locationCountryNameMissing ? "Skriv landets navn" : "Udfyld postnummer og by", step: "location" as PrototypeStep } : null,
-    !profileImageUrl ? { label: "Tilføj profilbillede", step: "profile-image" as PrototypeStep } : null,
-    moodImages.every((image) => !image.previewUrl) ? { label: "Tilføj mindst ét stemningsbillede", step: "profile-image" as PrototypeStep } : null,
-    !hasWorkArea ? { label: "Vælg mindst ét arbejdsområde", step: "experiences" as PrototypeStep } : null,
-    !storyMeetsMinimum ? { label: "Gå til fortælling", step: "story" as PrototypeStep } : null,
-  ].filter((item): item is { label: string; step: PrototypeStep } => Boolean(item));
+    !firstName.trim() || !lastName.trim()
+      ? { label: "Dit navn", step: "person" as PrototypeStep }
+      : null,
+    !publicProfileName
+      ? { label: "Profilnavn", step: "person" as PrototypeStep }
+      : null,
+    !locationIsComplete
+      ? {
+          label: locationCountryNameMissing
+            ? "Skriv landets navn"
+            : "Udfyld postnummer og by",
+          step: "location" as PrototypeStep,
+        }
+      : null,
+    !profileImageUrl
+      ? {
+          label: "Tilføj profilbillede",
+          step: "profile-image" as PrototypeStep,
+        }
+      : null,
+    moodImages.every((image) => !image.previewUrl)
+      ? {
+          label: "Tilføj mindst ét stemningsbillede",
+          step: "profile-image" as PrototypeStep,
+        }
+      : null,
+    !hasWorkArea
+      ? {
+          label: "Vælg mindst ét arbejdsområde",
+          step: "experiences" as PrototypeStep,
+        }
+      : null,
+    !storyMeetsMinimum
+      ? { label: "Gå til fortælling", step: "story" as PrototypeStep }
+      : null,
+  ].filter((item): item is { label: string; step: PrototypeStep } =>
+    Boolean(item),
+  );
   const missingStepIds = new Set(missingRequired.map((item) => item.step));
-  const shouldShowApprovalPersonEditor = isApprovalStep && missingStepIds.has("person");
-  const shouldShowApprovalImageEditor = isApprovalStep && missingStepIds.has("profile-image");
-  const shouldShowApprovalExperiencesEditor = isApprovalStep && missingStepIds.has("experiences");
-  const shouldShowApprovalStoryEditor = isApprovalStep && missingStepIds.has("story");
-  const shouldUseEmbeddedProfileSection = isProfileOverviewStep || isApprovalStep;
+  const shouldShowApprovalPersonEditor =
+    isApprovalStep && missingStepIds.has("person");
+  const shouldShowApprovalImageEditor =
+    isApprovalStep && missingStepIds.has("profile-image");
+  const shouldShowApprovalExperiencesEditor =
+    isApprovalStep && missingStepIds.has("experiences");
+  const shouldShowApprovalStoryEditor =
+    isApprovalStep && missingStepIds.has("story");
+  const shouldUseEmbeddedProfileSection =
+    isProfileOverviewStep || isApprovalStep;
   const profileIsReadyForSubmission = missingRequired.length === 0;
   const approvalReadyForSubmit = profileIsReadyForSubmission && acceptedTerms;
-  const approvalCtaLabel = profileIsReadyForSubmission
-    ? acceptedTerms
-      ? "Send profil til SoulEvents"
-      : "Acceptér vilkår først"
-    : "Profilen mangler oplysninger";
+  const approvalCtaLabel = "Opret profil";
   const approvalHelper = approvalReadyForSubmit
     ? "Din profil er klar til indsendelse."
     : "Udfyld de markerede oplysninger og acceptér vilkårene, før profilen kan sendes.";
 
-  function toggleIndividualServiceType(serviceType: IndividualServiceType) {
-    setIndividualServiceTypes((current) =>
-      current.includes(serviceType)
-        ? current.filter((item) => item !== serviceType)
-        : current.length >= maxIndividualServiceTypes
+  function toggleProfileSymbol(symbolId: string) {
+    setSelectedProfileSymbolIds((current) =>
+      current.includes(symbolId)
+        ? current.filter((item) => item !== symbolId)
+        : current.length >= maxProfileSymbols
           ? current
-          : [...current, serviceType],
+          : [...current, symbolId],
     );
   }
 
@@ -1185,6 +1449,7 @@ export function ProfileForm({
       return;
     }
 
+    setCity("");
     setPostalCodeMessage("Vi kunne ikke finde en by til dette postnummer.");
   }
 
@@ -1222,6 +1487,7 @@ export function ProfileForm({
       return;
     }
 
+    setCity("");
     void lookupPostalCodeCity(normalizedPostalCode);
   }
 
@@ -1252,7 +1518,9 @@ export function ProfileForm({
       setRegionText("");
 
       if (!normalizedPostalCode) {
-        setPostalCodeMessage("Indtast postnummer, så finder vi automatisk byen.");
+        setPostalCodeMessage(
+          "Indtast postnummer, så finder vi automatisk byen.",
+        );
         return;
       }
 
@@ -1291,6 +1559,7 @@ export function ProfileForm({
         return;
       }
 
+      setCity("");
       setPostalCodeMessage("Vi kunne ikke finde en by til dette postnummer.");
     });
 
@@ -1320,36 +1589,55 @@ export function ProfileForm({
   }, [activeStepIdsKey, onboardingDraftStepStorageKey, presentationMode]);
 
   useEffect(() => {
-    if (presentationMode === "onboarding" && !hasResolvedInitialOnboardingStepRef.current) return;
+    if (
+      presentationMode === "onboarding" &&
+      !hasResolvedInitialOnboardingStepRef.current
+    )
+      return;
 
     const url = new URL(window.location.href);
     url.searchParams.delete("confirmed");
     url.searchParams.set("prototypeStep", currentStep.id);
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     if (presentationMode === "onboarding" && currentStep.id !== "complete") {
-      window.localStorage.setItem(onboardingDraftStepStorageKey, currentStep.id);
+      window.localStorage.setItem(
+        onboardingDraftStepStorageKey,
+        currentStep.id,
+      );
     }
   }, [currentStep.id, onboardingDraftStepStorageKey, presentationMode]);
 
   const scrollToLocationError = useCallback(() => {
     const reducedMotion =
-      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    locationSectionRef.current?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    locationSectionRef.current?.scrollIntoView({
+      behavior: reducedMotion ? "auto" : "smooth",
+      block: "start",
+    });
 
-  window.requestAnimationFrame(() => {
-    if (isOtherCountry && !normalizedCountryName) {
-      countryNameInputRef.current?.focus();
-      return;
-    }
+    window.requestAnimationFrame(() => {
+      if (isOtherCountry && !normalizedCountryName) {
+        countryNameInputRef.current?.focus();
+        return;
+      }
 
-    if (!normalizedLocationPostalCode || (isDanishLocation && !/^\d{4}$/.test(normalizedLocationPostalCode))) {
-      postalCodeInputRef.current?.focus();
-      return;
+      if (
+        !normalizedLocationPostalCode ||
+        (isDanishLocation && !/^\d{4}$/.test(normalizedLocationPostalCode))
+      ) {
+        postalCodeInputRef.current?.focus();
+        return;
       }
 
       cityInputRef.current?.focus();
     });
-}, [isDanishLocation, isOtherCountry, normalizedCountryName, normalizedLocationPostalCode]);
+  }, [
+    isDanishLocation,
+    isOtherCountry,
+    normalizedCountryName,
+    normalizedLocationPostalCode,
+  ]);
 
   useEffect(() => {
     if (currentStep.id !== "profile-image") return;
@@ -1365,14 +1653,109 @@ export function ProfileForm({
           ? moodImageSectionRef.current
           : bannerImageSectionRef.current;
 
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    targetElement?.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    targetElement?.scrollIntoView({
+      behavior: reducedMotion ? "auto" : "smooth",
+      block: "start",
+    });
   }, [currentStep.id]);
 
   useEffect(() => {
-    if (!locationSubmissionError || (currentStep.id !== "profile" && currentStep.id !== "location")) return;
+    if (
+      !locationSubmissionError ||
+      (currentStep.id !== "profile" && currentStep.id !== "location")
+    )
+      return;
     scrollToLocationError();
   }, [currentStep.id, locationSubmissionError, scrollToLocationError]);
+
+  async function getCurrentLocationPayload() {
+    const nextCountry = normalizeProfileCountryCode(country);
+    const nextIsDanishLocation = isDanishProfileCountry(nextCountry);
+    const nextIsOtherCountry = isOtherProfileCountry(nextCountry);
+    const nextPostalCode = nextIsDanishLocation
+      ? normalizeDanishPostalCode(postalCode)
+      : normalizeInternationalPostalCode(postalCode).trim();
+    let nextCity = city.trim();
+    const nextCountryName = nextIsOtherCountry
+      ? countryName.trim().slice(0, 80)
+      : "";
+    const nextRegionText = nextIsDanishLocation
+      ? ""
+      : regionText.trim().slice(0, 80);
+
+    if (nextIsDanishLocation && nextPostalCode.length === 4) {
+      const localCity = getLocalDanishPostalCity(nextPostalCode);
+
+      if (localCity) {
+        nextCity = localCity;
+      } else if (!nextCity) {
+        const lookupResult = await fetchDanishPostalCity(nextPostalCode);
+        nextCity = lookupResult.ok ? lookupResult.city : "";
+      }
+    }
+
+    if (nextPostalCode !== postalCode) {
+      setPostalCode(nextPostalCode);
+    }
+
+    if (nextCity !== city) {
+      setCity(nextCity);
+    }
+
+    if (nextCountry !== country) {
+      setCountry(nextCountry);
+    }
+
+    if (nextCountryName !== countryName) {
+      setCountryName(nextCountryName);
+    }
+
+    if (nextRegionText !== regionText) {
+      setRegionText(nextRegionText);
+    }
+
+    if (nextIsDanishLocation && nextPostalCode.length === 4) {
+      setPostalCodeMessage(
+        nextCity
+          ? `${nextCity} blev fundet automatisk.`
+          : "Vi kunne ikke finde en by til dette postnummer.",
+      );
+    }
+
+    const validationMessage = nextIsDanishLocation
+      ? !nextPostalCode
+        ? "Indtast postnummer, så finder vi automatisk byen."
+        : !/^\d{4}$/.test(nextPostalCode)
+          ? "Dansk postnummer skal bestå af fire cifre."
+          : !nextCity
+            ? "Vi kunne ikke finde en by til dette postnummer."
+            : ""
+      : nextIsOtherCountry && !nextCountryName
+        ? "Skriv landets navn."
+        : !nextPostalCode || !nextCity
+          ? "Postnummer og by skal udfyldes."
+          : "";
+
+    return {
+      isComplete: !validationMessage,
+      validationMessage,
+      values: {
+        address_line: addressLine,
+        city: nextCity,
+        country: nextCountry,
+        country_name: nextCountryName,
+        is_online_facilitator:
+          presentationMode === "onboarding"
+            ? Boolean(facilitatorProfile.is_online_facilitator)
+            : isOnlineFacilitator,
+        postal_code: nextPostalCode,
+        region_text: nextRegionText,
+      },
+    };
+  }
 
   const contactValues = {
     company_name: publicProfileName,
@@ -1385,10 +1768,17 @@ export function ProfileForm({
   };
 
   async function saveProfileOverviewStep() {
-    if (!locationIsComplete) {
+    const locationPayload = await getCurrentLocationPayload();
+
+    if (!locationPayload.isComplete) {
       setLocationSubmissionError(true);
       scrollToLocationError();
-      return { message: locationValidationMessage || "Postnummer og by skal udfyldes.", ok: false };
+      return {
+        message:
+          locationPayload.validationMessage ||
+          "Postnummer og by skal udfyldes.",
+        ok: false,
+      };
     }
 
     const contactResult = await autosaveFacilitatorProfileAction({
@@ -1400,15 +1790,7 @@ export function ProfileForm({
 
     const locationResult = await autosaveFacilitatorProfileAction({
       section: "location",
-      values: {
-        address_line: addressLine,
-        city,
-        country,
-        country_name: countryName,
-        is_online_facilitator: presentationMode === "onboarding" ? Boolean(facilitatorProfile.is_online_facilitator) : isOnlineFacilitator,
-        postal_code: postalCode,
-        region_text: regionText,
-      },
+      values: locationPayload.values,
     });
 
     if (!locationResult.ok) return locationResult;
@@ -1444,8 +1826,10 @@ export function ProfileForm({
       if (!categoryResult.ok) return categoryResult;
     }
 
-    if (!facebookValidation.ok) return { message: facebookValidation.message, ok: false };
-    if (!instagramValidation.ok) return { message: instagramValidation.message, ok: false };
+    if (!facebookValidation.ok)
+      return { message: facebookValidation.message, ok: false };
+    if (!instagramValidation.ok)
+      return { message: instagramValidation.message, ok: false };
 
     const socialResult = await autosaveFacilitatorProfileAction({
       adminTargetFacilitatorId: adminTargetFacilitatorId ?? null,
@@ -1467,10 +1851,11 @@ export function ProfileForm({
       section: "services",
       values: {
         offers_services: offersIndividualServices,
-        individual_service_other_title: individualServiceOtherTitle,
-        individual_service_types: individualServiceTypes,
+        individual_service_other_title: "",
+        individual_service_types: [],
         service_description: serviceDescription,
         show_in_local_service_results: offersIndividualServices,
+        symbol_ids: selectedProfileSymbolIds,
       },
     });
 
@@ -1479,12 +1864,22 @@ export function ProfileForm({
     return { message: "Din profil er gemt.", ok: true };
   }
 
-  async function saveCurrentStep({ submitForReview = true }: { submitForReview?: boolean } = {}) {
-    const shouldPersistAdminCategories = presentationMode === "admin" && currentStep.id === "experiences";
-    const shouldPersistAdminImages = presentationMode === "admin" && currentStep.id === "profile-image";
-    const shouldPersistAdminLinks = presentationMode === "admin" && currentStep.id === "links";
+  async function saveCurrentStep({
+    submitForReview = true,
+  }: { submitForReview?: boolean } = {}) {
+    const shouldPersistAdminCategories =
+      presentationMode === "admin" && currentStep.id === "experiences";
+    const shouldPersistAdminImages =
+      presentationMode === "admin" && currentStep.id === "profile-image";
+    const shouldPersistAdminLinks =
+      presentationMode === "admin" && currentStep.id === "links";
 
-    if ((!autosaveEnabled || presentationMode === "admin") && !shouldPersistAdminCategories && !shouldPersistAdminImages && !shouldPersistAdminLinks) {
+    if (
+      (!autosaveEnabled || presentationMode === "admin") &&
+      !shouldPersistAdminCategories &&
+      !shouldPersistAdminImages &&
+      !shouldPersistAdminLinks
+    ) {
       return { message: "Gemt", ok: true };
     }
 
@@ -1549,7 +1944,9 @@ export function ProfileForm({
       }
 
       const result = await autosaveFacilitatorProfileAction({
-        adminTargetFacilitatorId: shouldPersistAdminCategories ? (adminTargetFacilitatorId ?? null) : null,
+        adminTargetFacilitatorId: shouldPersistAdminCategories
+          ? (adminTargetFacilitatorId ?? null)
+          : null,
         section: "categories",
         values: { category_ids: selectedExperiences, specialties },
       });
@@ -1567,11 +1964,15 @@ export function ProfileForm({
     }
 
     if (currentStep.id === "links") {
-      if (!facebookValidation.ok) return { message: facebookValidation.message, ok: false };
-      if (!instagramValidation.ok) return { message: instagramValidation.message, ok: false };
+      if (!facebookValidation.ok)
+        return { message: facebookValidation.message, ok: false };
+      if (!instagramValidation.ok)
+        return { message: instagramValidation.message, ok: false };
 
       const contactResult = await autosaveFacilitatorProfileAction({
-        adminTargetFacilitatorId: shouldPersistAdminLinks ? (adminTargetFacilitatorId ?? null) : null,
+        adminTargetFacilitatorId: shouldPersistAdminLinks
+          ? (adminTargetFacilitatorId ?? null)
+          : null,
         section: "contact",
         values: contactValues,
       });
@@ -1579,7 +1980,9 @@ export function ProfileForm({
       if (!contactResult.ok) return contactResult;
 
       const result = await autosaveFacilitatorProfileAction({
-        adminTargetFacilitatorId: shouldPersistAdminLinks ? (adminTargetFacilitatorId ?? null) : null,
+        adminTargetFacilitatorId: shouldPersistAdminLinks
+          ? (adminTargetFacilitatorId ?? null)
+          : null,
         section: "social",
         values: {
           facebook_url: facebook,
@@ -1617,10 +2020,11 @@ export function ProfileForm({
         section: "services",
         values: {
           offers_services: offersIndividualServices,
-          individual_service_other_title: individualServiceOtherTitle,
-          individual_service_types: individualServiceTypes,
+          individual_service_other_title: "",
+          individual_service_types: [],
           service_description: serviceDescription,
           show_in_local_service_results: offersIndividualServices,
+          symbol_ids: selectedProfileSymbolIds,
         },
       });
 
@@ -1637,14 +2041,24 @@ export function ProfileForm({
       }
 
       if (missingRequired.length > 0) {
-        return { message: "Udfyld de markerede oplysninger, før profilen kan sendes til SoulEvents.", ok: false };
+        return {
+          message:
+            "Udfyld de markerede oplysninger, før profilen kan sendes til SoulEvents.",
+          ok: false,
+        };
       }
 
       if (!acceptedTerms) {
-        return { message: "Du skal acceptere vilkårene, før profilen kan sendes til SoulEvents.", ok: false };
+        return {
+          message:
+            "Du skal acceptere vilkårene, før profilen kan sendes til SoulEvents.",
+          ok: false,
+        };
       }
 
-      const result = await submitFacilitatorProfileForReviewAction({ acceptedTerms });
+      const result = await submitFacilitatorProfileForReviewAction({
+        acceptedTerms,
+      });
 
       if (!result.ok) return result;
       return result;
@@ -1768,7 +2182,9 @@ export function ProfileForm({
 
   function toggleExperience(categoryId: string) {
     setSelectedExperiences((current) =>
-      current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId],
+      current.includes(categoryId)
+        ? current.filter((id) => id !== categoryId)
+        : [...current, categoryId],
     );
   }
 
@@ -1786,16 +2202,24 @@ export function ProfileForm({
   }
 
   function setMoodImageStatus(index: number, status: SlotStatus) {
-    setMoodImageStatuses((current) => current.map((item, itemIndex) => (itemIndex === index ? status : item)));
+    setMoodImageStatuses((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? status : item)),
+    );
   }
 
   function saveMoodImage(index: number, file: File) {
     if (file.size > moodImageMaxFileSize) {
-      setMoodImageStatus(index, { message: "Billedet er for stort. Vælg et billede på højst 15 MB.", status: "error" });
+      setMoodImageStatus(index, {
+        message: "Billedet er for stort. Vælg et billede på højst 15 MB.",
+        status: "error",
+      });
       return;
     }
 
-    setMoodImageStatus(index, { message: "Uploader og gemmer billedet...", status: "saving" });
+    setMoodImageStatus(index, {
+      message: "Uploader og gemmer billedet...",
+      status: "saving",
+    });
     startImageTransition(async () => {
       try {
         const formData = new FormData();
@@ -1808,19 +2232,28 @@ export function ProfileForm({
 
         if (result.status === "success") {
           applyMoodImagePaths(result.paths);
-          setMoodImageStatus(index, { message: "Billedet er gemt.", status: "success" });
+          setMoodImageStatus(index, {
+            message: "Billedet er gemt.",
+            status: "success",
+          });
           return;
         }
 
         setMoodImageStatus(index, { message: result.message, status: "error" });
       } catch {
-        setMoodImageStatus(index, { message: "Billedet kunne ikke gemmes. Prøv igen.", status: "error" });
+        setMoodImageStatus(index, {
+          message: "Billedet kunne ikke gemmes. Prøv igen.",
+          status: "error",
+        });
       }
     });
   }
 
   function removeMoodImage(index: number) {
-    setMoodImageStatus(index, { message: "Fjerner billedet...", status: "saving" });
+    setMoodImageStatus(index, {
+      message: "Fjerner billedet...",
+      status: "saving",
+    });
     startImageTransition(async () => {
       try {
         const formData = new FormData();
@@ -1833,13 +2266,19 @@ export function ProfileForm({
 
         if (result.status === "success") {
           applyMoodImagePaths(result.paths);
-          setMoodImageStatus(index, { message: "Billedet er fjernet.", status: "success" });
+          setMoodImageStatus(index, {
+            message: "Billedet er fjernet.",
+            status: "success",
+          });
           return;
         }
 
         setMoodImageStatus(index, { message: result.message, status: "error" });
       } catch {
-        setMoodImageStatus(index, { message: "Billedet kunne ikke fjernes. Prøv igen.", status: "error" });
+        setMoodImageStatus(index, {
+          message: "Billedet kunne ikke fjernes. Prøv igen.",
+          status: "error",
+        });
       }
     });
   }
@@ -1867,16 +2306,26 @@ export function ProfileForm({
     })),
     preferCustomWhenUnset: false,
   });
-  const selectedMoodHeroNumber = isMoodHeroKey(selectedHeroKey) ? Number(selectedHeroKey.replace("mood_", "")) : null;
-  const selectedHeroDisplayLabel = selectedMoodHeroNumber ? `Stemningsbillede ${selectedMoodHeroNumber}` : heroPreview.label;
+  const selectedMoodHeroNumber = isMoodHeroKey(selectedHeroKey)
+    ? Number(selectedHeroKey.replace("mood_", ""))
+    : null;
+  const selectedHeroDisplayLabel = selectedMoodHeroNumber
+    ? `Stemningsbillede ${selectedMoodHeroNumber}`
+    : heroPreview.label;
   const reviewCategories = categories
     .filter((category) => selectedExperiences.includes(category.id))
     .map((category) => ({ name: category.name }));
-  const inferredRegionSlug = isDanishLocation ? inferRegionSlug({ city, postalCode }) : null;
-  const inferredRegionName = inferredRegionSlug ? regions.find((region) => region.slug === inferredRegionSlug)?.name : null;
+  const inferredRegionSlug = isDanishLocation
+    ? inferRegionSlug({ city, postalCode })
+    : null;
+  const inferredRegionName = inferredRegionSlug
+    ? regions.find((region) => region.slug === inferredRegionSlug)?.name
+    : null;
   const reviewPlace = isOnlineFacilitator
     ? "Online arrangør"
-    : [city, profileCountryName(country, countryName)].filter(Boolean).join(", ") || null;
+    : [city, profileCountryName(country, countryName)]
+        .filter(Boolean)
+        .join(", ") || null;
   const previewGalleryImages = moodImages
     .filter((image) => Boolean(image.previewUrl))
     .map((image, index) => ({
@@ -1890,7 +2339,12 @@ export function ProfileForm({
     instagram.trim() ? { href: instagram.trim(), label: "Instagram" } : null,
     youtube.trim() ? { href: youtube.trim(), label: "YouTube" } : null,
   ].filter((link): link is { href: string; label: string } => Boolean(link));
-  const hasPreviewContact = Boolean(reviewPlace || profile.email || phone.trim() || previewContactLinks.length > 0);
+  const hasPreviewContact = Boolean(
+    reviewPlace ||
+    profile.email ||
+    phone.trim() ||
+    previewContactLinks.length > 0,
+  );
   const fullProfileHref = facilitatorProfile.id
     ? publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id) +
       (adminReturnTo
@@ -1909,28 +2363,32 @@ export function ProfileForm({
     objectPositionDesktop: string;
     objectPositionMobile: string;
   };
-  const souleventsHeroOptions: HeroPickerOption[] = [
-    ...facilitatorHeroOptions,
-  ];
-  const moodHeroOptions: HeroPickerOption[] = moodImages.reduce<HeroPickerOption[]>((options, image, index) => {
-      const key = `mood_${index + 1}` as FacilitatorHeroKey;
-      const hasImage = Boolean(image.previewUrl);
+  const souleventsHeroOptions: HeroPickerOption[] = [...facilitatorHeroOptions];
+  const moodHeroOptions: HeroPickerOption[] = moodImages.reduce<
+    HeroPickerOption[]
+  >((options, image, index) => {
+    const key = `mood_${index + 1}` as FacilitatorHeroKey;
+    const hasImage = Boolean(image.previewUrl);
 
-      if (!hasImage && selectedHeroKey !== key) return options;
+    if (!hasImage && selectedHeroKey !== key) return options;
 
-      options.push({
-        altText: `Stemningsbillede ${index + 1}`,
-        description: hasImage ? "Brug dette billede som banner." : "Ikke uploadet endnu",
-        disabled: !hasImage,
-        imagePath: hasImage ? image.previewUrl : facilitatorHeroOptions[0].imagePath,
-        key,
-        label: `Stemningsbillede ${index + 1}`,
-        objectPositionDesktop: "center center",
-        objectPositionMobile: "center center",
-      });
+    options.push({
+      altText: `Stemningsbillede ${index + 1}`,
+      description: hasImage
+        ? "Brug dette billede som banner."
+        : "Ikke uploadet endnu",
+      disabled: !hasImage,
+      imagePath: hasImage
+        ? image.previewUrl
+        : facilitatorHeroOptions[0].imagePath,
+      key,
+      label: `Stemningsbillede ${index + 1}`,
+      objectPositionDesktop: "center center",
+      objectPositionMobile: "center center",
+    });
 
-      return options;
-    }, []);
+    return options;
+  }, []);
 
   function renderHeroOption(option: HeroPickerOption) {
     const selected = selectedHeroKey === option.key;
@@ -1941,8 +2399,12 @@ export function ProfileForm({
         aria-pressed={selected}
         className={
           "grid min-h-[118px] grid-cols-[96px_1fr] overflow-hidden rounded-[20px] border text-left shadow-soft transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 " +
-          (selected ? "border-sage-700/45 bg-sage-50" : "border-midnight/10 bg-white hover:border-sage-700/30") +
-          (option.disabled ? " cursor-not-allowed opacity-72" : " hover:-translate-y-0.5")
+          (selected
+            ? "border-sage-700/45 bg-sage-50"
+            : "border-midnight/10 bg-white hover:border-sage-700/30") +
+          (option.disabled
+            ? " cursor-not-allowed opacity-72"
+            : " hover:-translate-y-0.5")
         }
         key={option.key}
         onClick={() => {
@@ -1953,20 +2415,34 @@ export function ProfileForm({
         type="button"
       >
         <span className="relative h-full w-full">
-          <Image alt="" className="object-cover" fill sizes="96px" src={option.imagePath} unoptimized />
+          <Image
+            alt=""
+            className="object-cover"
+            fill
+            sizes="96px"
+            src={option.imagePath}
+            unoptimized
+          />
         </span>
         <span className="grid content-center gap-1 p-3">
           <span className="flex items-center justify-between gap-2">
-            <span className="text-sm font-semibold text-midnight">{option.label}</span>
+            <span className="text-sm font-semibold text-midnight">
+              {option.label}
+            </span>
             {selected ? (
               <span className="rounded-full bg-sage-700 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white">
                 Valgt
               </span>
             ) : (
-              <Circle className="size-4 shrink-0 text-sage-700/45" aria-hidden="true" />
+              <Circle
+                className="size-4 shrink-0 text-sage-700/45"
+                aria-hidden="true"
+              />
             )}
           </span>
-          <span className="text-xs leading-5 text-ink/55">{option.description}</span>
+          <span className="text-xs leading-5 text-ink/55">
+            {option.description}
+          </span>
         </span>
       </button>
     );
@@ -1980,10 +2456,16 @@ export function ProfileForm({
         ref={bannerImageSectionRef}
       >
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">3. Dit valgte banner</p>
-          <p className="mt-2 text-lg font-semibold text-midnight">Vælg banner til din profil</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">
+            3. Dit valgte banner
+          </p>
+          <p className="mt-2 text-lg font-semibold text-midnight">
+            Vælg banner til din profil
+          </p>
           <p className="mt-1 text-sm leading-6 text-ink/55">
-            Banneret er det brede billede øverst på din offentlige profil. Du kan vælge et af dine egne stemningsbilleder eller et af SoulEvents’ naturbannere.
+            Banneret er det brede billede øverst på din offentlige profil. Du
+            kan vælge et af dine egne stemningsbilleder eller et af SoulEvents’
+            naturbannere.
           </p>
         </div>
 
@@ -2002,16 +2484,25 @@ export function ProfileForm({
               <span className="w-fit rounded-full bg-white/18 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
                 Valgt som banner
               </span>
-              <span className="mt-3 text-xs font-bold uppercase tracking-[0.22em] text-white/78">Dit nuværende banner</span>
-              <p className="mt-2 font-serif text-3xl font-semibold leading-tight">{selectedHeroDisplayLabel}</p>
+              <span className="mt-3 text-xs font-bold uppercase tracking-[0.22em] text-white/78">
+                Dit nuværende banner
+              </span>
+              <p className="mt-2 font-serif text-3xl font-semibold leading-tight">
+                {selectedHeroDisplayLabel}
+              </p>
             </div>
           </div>
         </div>
 
         <div className="grid gap-3">
           <div>
-            <p className="text-sm font-semibold text-midnight">Vælg blandt dine stemningsbilleder</p>
-            <p className="mt-1 text-sm leading-6 text-ink/55">Dine egne billeder vises først, så profilen kan få dit personlige udtryk.</p>
+            <p className="text-sm font-semibold text-midnight">
+              Vælg blandt dine stemningsbilleder
+            </p>
+            <p className="mt-1 text-sm leading-6 text-ink/55">
+              Dine egne billeder vises først, så profilen kan få dit personlige
+              udtryk.
+            </p>
           </div>
           {moodHeroOptions.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -2019,7 +2510,8 @@ export function ProfileForm({
             </div>
           ) : (
             <p className="rounded-[18px] bg-white/70 px-4 py-3 text-sm leading-6 text-ink/55">
-              Tilføj et stemningsbillede ovenfor, eller vælg et SoulEvents-naturbanner nedenfor.
+              Tilføj et stemningsbillede ovenfor, eller vælg et
+              SoulEvents-naturbanner nedenfor.
             </p>
           )}
         </div>
@@ -2027,18 +2519,28 @@ export function ProfileForm({
 
       <section className="grid gap-3 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">4. SoulEvents-naturbannere</p>
-          <p className="mt-2 text-lg font-semibold text-midnight">Naturbannere som reservevalg</p>
-          <p className="mt-1 text-sm leading-6 text-ink/55">Har du endnu ikke et egnet stemningsbillede, kan du vælge et af SoulEvents’ bannere.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">
+            4. SoulEvents-naturbannere
+          </p>
+          <p className="mt-2 text-lg font-semibold text-midnight">
+            Naturbannere som reservevalg
+          </p>
+          <p className="mt-1 text-sm leading-6 text-ink/55">
+            Har du endnu ikke et egnet stemningsbillede, kan du vælge et af
+            SoulEvents’ bannere.
+          </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {souleventsHeroOptions.map(renderHeroOption)}
         </div>
       </section>
 
-      {isMoodHeroKey(selectedHeroKey) && !moodImages[Number(selectedHeroKey.replace("mood_", "")) - 1]?.previewUrl ? (
+      {isMoodHeroKey(selectedHeroKey) &&
+      !moodImages[Number(selectedHeroKey.replace("mood_", "")) - 1]
+        ?.previewUrl ? (
         <p className="rounded-[18px] bg-[#FFF7DE] px-4 py-3 text-sm font-semibold leading-6 text-[#715C21]">
-          Det valgte stemningsbillede findes ikke længere. Vælg et nyt banner, før du gemmer.
+          Det valgte stemningsbillede findes ikke længere. Vælg et nyt banner,
+          før du gemmer.
         </p>
       ) : null}
     </>
@@ -2047,20 +2549,36 @@ export function ProfileForm({
   const moodImageTiles = (
     <>
       {moodImages.map((image, index) => {
-        const selectedAsBanner = selectedHeroKey === (`mood_${index + 1}` as FacilitatorHeroKey);
+        const selectedAsBanner =
+          selectedHeroKey === (`mood_${index + 1}` as FacilitatorHeroKey);
 
         return (
-          <div className="grid min-w-[82%] snap-start gap-2 sm:min-w-0" key={`mood-slot-${index + 1}`}>
-            <p className="text-sm font-semibold text-midnight">Stemningsbillede {index + 1}</p>
+          <div
+            className="grid min-w-[82%] snap-start gap-2 sm:min-w-0"
+            key={`mood-slot-${index + 1}`}
+          >
+            <p className="text-sm font-semibold text-midnight">
+              Stemningsbillede {index + 1}
+            </p>
             <div className="relative">
               <UploadTile
-                className={selectedAsBanner ? "ring-2 ring-sage-700/45 ring-offset-2 ring-offset-white" : ""}
+                className={
+                  selectedAsBanner
+                    ? "ring-2 ring-sage-700/45 ring-offset-2 ring-offset-white"
+                    : ""
+                }
                 createPreview={false}
                 helperText={"JPG, PNG eller WebP\nMaks. 15 MB"}
                 imageUrl={image.previewUrl}
-                label={moodImageStatuses[index]?.status === "saving" ? "Gemmer billede..." : `Vælg stemningsbillede ${index + 1}`}
+                label={
+                  moodImageStatuses[index]?.status === "saving"
+                    ? "Gemmer billede..."
+                    : `Vælg stemningsbillede ${index + 1}`
+                }
                 maxFileSizeBytes={moodImageMaxFileSize}
-                onError={(message) => setMoodImageStatus(index, { message, status: "error" })}
+                onError={(message) =>
+                  setMoodImageStatus(index, { message, status: "error" })
+                }
                 onSelect={(file) => saveMoodImage(index, file)}
               />
               {selectedAsBanner && image.previewUrl ? (
@@ -2079,20 +2597,20 @@ export function ProfileForm({
                 </button>
               ) : null}
             </div>
-          {moodImageStatuses[index]?.message ? (
-            <p
-              className={
-                "text-sm font-semibold " +
-                (moodImageStatuses[index]?.status === "error"
-                  ? "text-rose"
-                  : moodImageStatuses[index]?.status === "success"
-                    ? "text-sage-700"
-                    : "text-ink/55")
-              }
-            >
-              {moodImageStatuses[index]?.message}
-            </p>
-          ) : null}
+            {moodImageStatuses[index]?.message ? (
+              <p
+                className={
+                  "text-sm font-semibold " +
+                  (moodImageStatuses[index]?.status === "error"
+                    ? "text-rose"
+                    : moodImageStatuses[index]?.status === "success"
+                      ? "text-sage-700"
+                      : "text-ink/55")
+                }
+              >
+                {moodImageStatuses[index]?.message}
+              </p>
+            ) : null}
           </div>
         );
       })}
@@ -2112,7 +2630,9 @@ export function ProfileForm({
             <span
               className={
                 "rounded-full px-3 py-1 text-xs font-bold shadow-soft " +
-                (profileImageAdded ? "bg-white text-sage-700" : "bg-white text-[#7A4EAB]")
+                (profileImageAdded
+                  ? "bg-white text-sage-700"
+                  : "bg-white text-[#7A4EAB]")
               }
             >
               {profileImageAdded ? "Profilbillede tilføjet" : "Obligatorisk"}
@@ -2122,14 +2642,17 @@ export function ProfileForm({
             Vælg et profilbillede, der tydeligt repræsenterer dig
           </p>
           <p className="mt-1 text-sm leading-6 text-ink/55">
-            Dit profilbillede vises tydeligt på din offentlige profil og hjælper gæsterne med at lære dig at kende.
+            Dit profilbillede vises tydeligt på din offentlige profil og hjælper
+            gæsterne med at lære dig at kende.
           </p>
           <p className="mt-1 text-sm leading-6 text-ink/55">
-            Det kan være et portræt, et logo eller et billede af en behandling, aktivitet eller stemning, der repræsenterer dit virke.
+            Det kan være et portræt, et logo eller et billede af en behandling,
+            aktivitet eller stemning, der repræsenterer dit virke.
           </p>
           {profileImageSubmissionError && !profileImageAdded ? (
             <p className="mt-3 rounded-[18px] border border-[#E3B6B6] bg-[#FFF7F7] px-4 py-3 font-semibold text-[#A51D1D]">
-              Du skal tilføje et profilbillede, før profilen kan sendes til SoulEvents.
+              Du skal tilføje et profilbillede, før profilen kan sendes til
+              SoulEvents.
             </p>
           ) : null}
         </div>
@@ -2144,7 +2667,9 @@ export function ProfileForm({
             ) : null}
           </div>
           {profileImageAdded ? (
-            <p className="text-center text-xs font-semibold text-ink/45">Klik på billedet for at udskifte det.</p>
+            <p className="text-center text-xs font-semibold text-ink/45">
+              Klik på billedet for at udskifte det.
+            </p>
           ) : null}
         </div>
       </section>
@@ -2156,9 +2681,12 @@ export function ProfileForm({
       >
         <div>
           <SectionHeading Icon={ImagePlus} title="Dine stemningsbilleder" />
-          <p className="mt-2 text-lg font-semibold text-midnight">Tilføj op til tre billeder, der viser dit univers</p>
+          <p className="mt-2 text-lg font-semibold text-midnight">
+            Tilføj op til tre billeder, der viser dit univers
+          </p>
           <p className="mt-1 text-sm leading-6 text-ink/55">
-            Tilføj op til tre billeder, der viser stemningen i det, du tilbyder. Ét af billederne kan også vælges som banner på din profil.
+            Tilføj op til tre billeder, der viser stemningen i det, du tilbyder.
+            Ét af billederne kan også vælges som banner på din profil.
           </p>
         </div>
         <div className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0">
@@ -2183,8 +2711,8 @@ export function ProfileForm({
             : currentStep.id === "welcome"
               ? "Kom i gang"
               : currentStep.id === "profile"
-                ? "Gennemse og afslut"
-              : undefined
+                ? "Gennemgå din profil"
+                : undefined
           : currentStep.id === "review"
             ? "Gem ændringer"
             : returnToReview
@@ -2199,7 +2727,9 @@ export function ProfileForm({
       footerLeading={
         currentStep.id === "review" && fullProfileHref ? (
           <div className="mb-3 grid gap-2 text-center">
-            <p className="text-sm font-medium text-ink/55">Klik på den del af profilen, du vil ændre.</p>
+            <p className="text-sm font-medium text-ink/55">
+              Klik på den del af profilen, du vil ændre.
+            </p>
             <Link
               className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-sage-700/20 bg-white px-5 text-sm font-semibold text-sage-700 shadow-soft transition hover:border-sage-700/40 hover:bg-sage-50"
               href={fullProfileHref}
@@ -2212,13 +2742,23 @@ export function ProfileForm({
           </div>
         ) : null
       }
-      hideBackNavigation={presentationMode === "onboarding" && currentStep.id === "complete"}
-      hidePrimaryAction={presentationMode === "onboarding" && currentStep.id === "complete"}
+      hideBackNavigation={
+        presentationMode === "onboarding" && currentStep.id === "complete"
+      }
+      hidePrimaryAction={
+        presentationMode === "onboarding" && currentStep.id === "complete"
+      }
       isBusy={isBusy}
       logoSources={logoSources}
       onBack={goBack}
       onContinue={continueFlow}
-      onSaveDraft={presentationMode === "onboarding" && currentStep.id !== "welcome" && currentStep.id !== "complete" ? saveDraftAndExit : undefined}
+      onSaveDraft={
+        presentationMode === "onboarding" &&
+        currentStep.id !== "welcome" &&
+        currentStep.id !== "complete"
+          ? saveDraftAndExit
+          : undefined
+      }
       presentationMode={presentationMode}
     >
       {currentStep.id === "welcome" ? (
@@ -2227,7 +2767,11 @@ export function ProfileForm({
         </div>
       ) : null}
 
-      <StepIntro eyebrow={displayedStep.eyebrow} text={displayedStep.text} title={displayedStep.title} />
+      <StepIntro
+        eyebrow={displayedStep.eyebrow}
+        text={displayedStep.text}
+        title={displayedStep.title}
+      />
       {stepSaveStatus.message ? (
         <p
           className={
@@ -2243,8 +2787,16 @@ export function ProfileForm({
         </p>
       ) : null}
 
-      {(currentStep.id === "person" || isProfileOverviewStep || shouldShowApprovalPersonEditor) && (
-        <div className={shouldUseEmbeddedProfileSection ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6" : "grid gap-5"}>
+      {(currentStep.id === "person" ||
+        isProfileOverviewStep ||
+        shouldShowApprovalPersonEditor) && (
+        <div
+          className={
+            shouldUseEmbeddedProfileSection
+              ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
+              : "grid gap-5"
+          }
+        >
           {shouldUseEmbeddedProfileSection ? (
             <SectionHeading
               description="Dit navn og det profilnavn, deltagerne møder på SoulEvents."
@@ -2253,8 +2805,18 @@ export function ProfileForm({
             />
           ) : null}
           <div className="grid gap-4 lg:grid-cols-2">
-            <ClearableInput label="Dit fornavn" onChange={setFirstName} placeholder="Dit fornavn" value={firstName} />
-            <ClearableInput label="Dit efternavn" onChange={setLastName} placeholder="Dit efternavn" value={lastName} />
+            <ClearableInput
+              label="Dit fornavn"
+              onChange={setFirstName}
+              placeholder="Dit fornavn"
+              value={firstName}
+            />
+            <ClearableInput
+              label="Dit efternavn"
+              onChange={setLastName}
+              placeholder="Dit efternavn"
+              value={lastName}
+            />
           </div>
 
           <button
@@ -2264,9 +2826,16 @@ export function ProfileForm({
             type="button"
           >
             <span className="text-sm font-semibold leading-6 text-midnight">
-              Mit profilnavn skal være et andet end mit rigtige navn på SoulEvents.
+              Mit profilnavn skal være et andet end mit rigtige navn på
+              SoulEvents.
             </span>
-            <span className={useCustomProfileName ? "flex h-10 w-[4.5rem] shrink-0 items-center justify-end rounded-full bg-sage-700 p-1" : "flex h-10 w-[4.5rem] shrink-0 items-center justify-start rounded-full bg-midnight/15 p-1"}>
+            <span
+              className={
+                useCustomProfileName
+                  ? "flex h-10 w-[4.5rem] shrink-0 items-center justify-end rounded-full bg-sage-700 p-1"
+                  : "flex h-10 w-[4.5rem] shrink-0 items-center justify-start rounded-full bg-midnight/15 p-1"
+              }
+            >
               <span className="size-8 rounded-full bg-white shadow-soft" />
             </span>
           </button>
@@ -2281,13 +2850,18 @@ export function ProfileForm({
                 value={profileName}
               />
               <span className="text-sm font-normal leading-6 text-ink/64">
-                Det kan eksempelvis være dit kunstnernavn, virksomhedsnavn, studionavn eller et andet navn, deltagerne kender dig under.
+                Det kan eksempelvis være dit kunstnernavn, virksomhedsnavn,
+                studionavn eller et andet navn, deltagerne kender dig under.
               </span>
             </label>
           ) : (
             <div className="rounded-[22px] bg-sage-50 p-4">
-              <p className="text-sm font-semibold text-sage-700">Din profil vises som:</p>
-              <p className="mt-1 text-2xl font-semibold text-midnight">{fullPublicName || "Dit navn"}</p>
+              <p className="text-sm font-semibold text-sage-700">
+                Din profil vises som:
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-midnight">
+                {fullPublicName || "Dit navn"}
+              </p>
             </div>
           )}
         </div>
@@ -2295,7 +2869,11 @@ export function ProfileForm({
 
       {(currentStep.id === "location" || isProfileOverviewStep) && (
         <div
-          className={shouldUseEmbeddedProfileSection ? "mb-6 grid scroll-mt-24 gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6" : "grid scroll-mt-24 gap-5"}
+          className={
+            shouldUseEmbeddedProfileSection
+              ? "mb-6 grid scroll-mt-24 gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
+              : "grid scroll-mt-24 gap-5"
+          }
           id="profile-location-section"
           ref={locationSectionRef}
         >
@@ -2318,13 +2896,21 @@ export function ProfileForm({
                   <Video className="size-5" aria-hidden="true" />
                 </span>
                 <span>
-                  <span className="block text-sm font-semibold leading-6 text-midnight">Jeg tilbyder også online forløb eller events.</span>
+                  <span className="block text-sm font-semibold leading-6 text-midnight">
+                    Jeg tilbyder også online forløb eller events.
+                  </span>
                   <span className="mt-1 block text-sm leading-6 text-ink/55">
                     Slå til, hvis deltagere må finde dig som online arrangør.
                   </span>
                 </span>
               </span>
-              <span className={isOnlineFacilitator ? "flex h-10 w-[4.5rem] shrink-0 items-center justify-end rounded-full bg-sage-700 p-1" : "flex h-10 w-[4.5rem] shrink-0 items-center justify-start rounded-full bg-midnight/15 p-1"}>
+              <span
+                className={
+                  isOnlineFacilitator
+                    ? "flex h-10 w-[4.5rem] shrink-0 items-center justify-end rounded-full bg-sage-700 p-1"
+                    : "flex h-10 w-[4.5rem] shrink-0 items-center justify-start rounded-full bg-midnight/15 p-1"
+                }
+              >
                 <span className="size-8 rounded-full bg-white shadow-soft" />
               </span>
             </button>
@@ -2351,7 +2937,11 @@ export function ProfileForm({
               <input
                 autoComplete="country-name"
                 aria-invalid={locationSubmissionError && !normalizedCountryName}
-                className={inputClass(locationSubmissionError && !normalizedCountryName ? "border-[#D97A7A] bg-[#FFF8F8]" : "")}
+                className={inputClass(
+                  locationSubmissionError && !normalizedCountryName
+                    ? "border-[#D97A7A] bg-[#FFF8F8]"
+                    : "",
+                )}
                 maxLength={80}
                 onChange={(event) => {
                   setLocationSubmissionError(false);
@@ -2364,7 +2954,9 @@ export function ProfileForm({
               />
               <span className="min-h-5 text-xs font-medium leading-5 text-ink/64">
                 {locationSubmissionError && !normalizedCountryName ? (
-                  <span className="font-semibold text-[#A51D1D]">Skriv landets navn.</span>
+                  <span className="font-semibold text-[#A51D1D]">
+                    Skriv landets navn.
+                  </span>
                 ) : (
                   "Brug det navn, deltagerne normalt vil genkende."
                 )}
@@ -2372,17 +2964,30 @@ export function ProfileForm({
             </label>
           ) : null}
 
-          <ClearableInput label="Adresse og husnummer (valgfrit)" onChange={setAddressLine} placeholder="Indtast adresse og husnummer" value={addressLine} />
+          <ClearableInput
+            label="Adresse og husnummer (valgfrit)"
+            onChange={setAddressLine}
+            placeholder="Indtast adresse og husnummer"
+            value={addressLine}
+          />
 
           <div className="grid gap-4 md:grid-cols-2 md:items-start">
             <label className="grid grid-rows-[auto_auto_minmax(2.75rem,auto)] gap-2 text-sm font-semibold text-midnight/82">
               Postnummer
               <input
                 autoComplete="postal-code"
-                aria-invalid={locationSubmissionError && Boolean(locationValidationMessage) && locationPostalCodeMissingOrInvalid}
+                aria-invalid={
+                  locationSubmissionError &&
+                  Boolean(locationValidationMessage) &&
+                  locationPostalCodeMissingOrInvalid
+                }
                 className={inputClass(
-                  (isDanishLocation && postalCode.length > 0 && postalCode.length < 4) ||
-                    (locationSubmissionError && Boolean(locationValidationMessage) && locationPostalCodeMissingOrInvalid)
+                  (isDanishLocation &&
+                    postalCode.length > 0 &&
+                    postalCode.length < 4) ||
+                    (locationSubmissionError &&
+                      Boolean(locationValidationMessage) &&
+                      locationPostalCodeMissingOrInvalid)
                     ? "border-[#D97A7A] bg-[#FFF8F8]"
                     : "",
                 )}
@@ -2399,10 +3004,21 @@ export function ProfileForm({
                 value={postalCode}
               />
               <span className="min-h-11 text-xs font-medium leading-5 text-ink/64">
-                {locationSubmissionError && Boolean(locationValidationMessage) && locationPostalCodeMissingOrInvalid ? (
-                  <span className="font-semibold text-[#A51D1D]">{locationValidationMessage}</span>
+                {locationSubmissionError &&
+                Boolean(locationValidationMessage) &&
+                locationPostalCodeMissingOrInvalid ? (
+                  <span className="font-semibold text-[#A51D1D]">
+                    {locationValidationMessage}
+                  </span>
                 ) : postalCodeMessage && isDanishLocation ? (
-                  <span className={"font-semibold " + (postalCode.length === 4 && !city ? "text-[#A51D1D]" : "text-sage-700")}>
+                  <span
+                    className={
+                      "font-semibold " +
+                      (postalCode.length === 4 && !city
+                        ? "text-[#A51D1D]"
+                        : "text-sage-700")
+                    }
+                  >
                     {postalCodeMessage}
                   </span>
                 ) : isDanishLocation ? (
@@ -2416,8 +3032,18 @@ export function ProfileForm({
               By
               <input
                 autoComplete="address-level2"
-                aria-invalid={locationSubmissionError && Boolean(locationValidationMessage) && locationCityMissing}
-                className={inputClass(locationSubmissionError && Boolean(locationValidationMessage) && locationCityMissing ? "border-[#D97A7A] bg-[#FFF8F8]" : "")}
+                aria-invalid={
+                  locationSubmissionError &&
+                  Boolean(locationValidationMessage) &&
+                  locationCityMissing
+                }
+                className={inputClass(
+                  locationSubmissionError &&
+                    Boolean(locationValidationMessage) &&
+                    locationCityMissing
+                    ? "border-[#D97A7A] bg-[#FFF8F8]"
+                    : "",
+                )}
                 maxLength={80}
                 onChange={(event) => {
                   if (!isDanishLocation) {
@@ -2432,8 +3058,12 @@ export function ProfileForm({
                 value={city}
               />
               <span className="min-h-11 text-xs font-medium leading-5 text-ink/64">
-                {locationSubmissionError && Boolean(locationValidationMessage) && locationCityMissing ? (
-                  <span className="font-semibold text-[#A51D1D]">{locationValidationMessage}</span>
+                {locationSubmissionError &&
+                Boolean(locationValidationMessage) &&
+                locationCityMissing ? (
+                  <span className="font-semibold text-[#A51D1D]">
+                    {locationValidationMessage}
+                  </span>
                 ) : isDanishLocation ? (
                   "Byen udfyldes automatisk ud fra postnummeret."
                 ) : (
@@ -2459,18 +3089,35 @@ export function ProfileForm({
               {isDanishLocation
                 ? "Område vælges automatisk ud fra postnummer og by."
                 : "Danske områdefiltre bruges ikke for udenlandske profiler."}
-              {inferredRegionName ? <span className="block font-semibold">Aktuelt område: {inferredRegionName}</span> : null}
+              {inferredRegionName ? (
+                <span className="block font-semibold">
+                  Aktuelt område: {inferredRegionName}
+                </span>
+              ) : null}
             </p>
           </div>
         </div>
       )}
 
-      {(currentStep.id === "profile-image" || isProfileOverviewStep || shouldShowApprovalImageEditor) && (
-        shouldUseEmbeddedProfileSection ? <div className="mb-6">{imageOverview}</div> : imageOverview
-      )}
+      {(currentStep.id === "profile-image" ||
+        isProfileOverviewStep ||
+        shouldShowApprovalImageEditor) &&
+        (shouldUseEmbeddedProfileSection ? (
+          <div className="mb-6">{imageOverview}</div>
+        ) : (
+          imageOverview
+        ))}
 
-      {(currentStep.id === "experiences" || isProfileOverviewStep || shouldShowApprovalExperiencesEditor) && (
-        <div className={shouldUseEmbeddedProfileSection ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6" : "grid gap-5"}>
+      {(currentStep.id === "experiences" ||
+        isProfileOverviewStep ||
+        shouldShowApprovalExperiencesEditor) && (
+        <div
+          className={
+            shouldUseEmbeddedProfileSection
+              ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
+              : "grid gap-5"
+          }
+        >
           {shouldUseEmbeddedProfileSection ? (
             <SectionHeading
               description="Vælg de områder, der bedst beskriver dit arbejde."
@@ -2495,7 +3142,11 @@ export function ProfileForm({
                     description={description}
                     Icon={WorkAreaIcon}
                     label={category.name}
-                    onInfoToggle={() => setOpenAreaInfoId((current) => (current === category.id ? null : category.id))}
+                    onInfoToggle={() =>
+                      setOpenAreaInfoId((current) =>
+                        current === category.id ? null : category.id,
+                      )
+                    }
                     selected={selected}
                     showInfo={openAreaInfoId === category.id}
                   />
@@ -2511,7 +3162,8 @@ export function ProfileForm({
               Hvad er du særligt god til?
             </p>
             <p className="mt-3 text-xs leading-5 text-ink/60">
-              Hjælp deltagerne med hurtigt at forstå, hvad du er særligt kendt for. Fortæl om din baggrund, erfaring og den måde, du arbejder på.
+              Hjælp deltagerne med hurtigt at forstå, hvad du er særligt kendt
+              for. Fortæl om din baggrund, erfaring og den måde, du arbejder på.
             </p>
             <div className="mt-3">
               <ClearableTextarea
@@ -2527,21 +3179,33 @@ export function ProfileForm({
             </div>
             <p className="mt-3 inline-flex items-start gap-2 rounded-[18px] bg-white/70 px-3 py-2 text-xs font-semibold leading-5 text-sage-700 shadow-soft">
               <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              Et godt speciale gør det lettere at blive fundet og skaber tillid hos deltagerne.
+              Et godt speciale gør det lettere at blive fundet og skaber tillid
+              hos deltagerne.
             </p>
           </div>
         </div>
       )}
 
-      {(currentStep.id === "story" || isProfileOverviewStep || shouldShowApprovalStoryEditor) && (
-        <div className={shouldUseEmbeddedProfileSection ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6" : "grid gap-5"}>
+      {(currentStep.id === "story" ||
+        isProfileOverviewStep ||
+        shouldShowApprovalStoryEditor) && (
+        <div
+          className={
+            shouldUseEmbeddedProfileSection
+              ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
+              : "grid gap-5"
+          }
+        >
           <div className="border-b border-midnight/10 pb-3">
             <SectionHeading Icon={PencilLine} title="Mit univers" />
           </div>
           <div className="rounded-[22px] bg-[#FBF5E9] p-4 text-sm leading-6 text-ink/65">
-            <p className="font-semibold text-midnight">Fortæl, hvem du er, og hvad deltagerne kan forvente.</p>
+            <p className="font-semibold text-midnight">
+              Fortæl, hvem du er, og hvad deltagerne kan forvente.
+            </p>
             <p className="mt-1">
-              Du kan gemme en kort kladde, men teksten skal være færdig, før profilen sendes til SoulEvents.
+              Du kan gemme en kort kladde, men teksten skal være færdig, før
+              profilen sendes til SoulEvents.
             </p>
           </div>
           <div className="relative">
@@ -2549,7 +3213,10 @@ export function ProfileForm({
               className="min-h-64 w-full rounded-[24px] border border-[#D8D0C1] bg-white p-5 pr-12 text-lg leading-8 text-midnight shadow-[0_8px_22px_rgba(47,36,55,0.045)] outline-none transition duration-200 placeholder:text-ink/48 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/12"
               onChange={(event) => {
                 setStory(event.target.value);
-                if (normalizeFacilitatorStory(event.target.value).length >= facilitatorStoryMinLength) {
+                if (
+                  normalizeFacilitatorStory(event.target.value).length >=
+                  facilitatorStoryMinLength
+                ) {
                   setStorySubmissionError(false);
                 }
               }}
@@ -2569,7 +3236,9 @@ export function ProfileForm({
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold">
             {storyMeetsMinimum ? (
-              <span className="rounded-full bg-sage-50 px-3 py-1.5 text-sage-700">✓ Din fortælling er klar</span>
+              <span className="rounded-full bg-sage-50 px-3 py-1.5 text-sage-700">
+                ✓ Din fortælling er klar
+              </span>
             ) : (
               <span className="rounded-full bg-white px-3 py-1.5 text-ink/55 shadow-soft">
                 {storyMissingMessage}
@@ -2585,7 +3254,13 @@ export function ProfileForm({
       )}
 
       {(currentStep.id === "links" || isProfileOverviewStep) && (
-        <div className={shouldUseEmbeddedProfileSection ? "mb-6 grid gap-4 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6" : "grid gap-4"}>
+        <div
+          className={
+            shouldUseEmbeddedProfileSection
+              ? "mb-6 grid gap-4 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
+              : "grid gap-4"
+          }
+        >
           {shouldUseEmbeddedProfileSection ? (
             <SectionHeading
               description="Loginmailen vises kun her. Links og telefon kan udfyldes, hvis deltagerne må bruge dem."
@@ -2594,27 +3269,66 @@ export function ProfileForm({
             />
           ) : null}
           <section className="rounded-[22px] border border-[#E5DCCB] bg-white p-4 shadow-[0_8px_22px_rgba(47,36,55,0.035)]">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">Mailadresse</p>
-            <p className="mt-2 break-all text-base font-semibold text-midnight">{profile.email}</p>
-            <p className="mt-2 text-sm leading-6 text-ink/55">Mailadressen bruges til login og vigtige beskeder.</p>
-            <Link className="mt-3 inline-flex text-sm font-semibold text-[#7A4EAB] hover:text-sage-700" href="/facilitator/settings">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">
+              Mailadresse
+            </p>
+            <p className="mt-2 break-all text-base font-semibold text-midnight">
+              {profile.email}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-ink/55">
+              Mailadressen bruges til login og vigtige beskeder.
+            </p>
+            <Link
+              className="mt-3 inline-flex text-sm font-semibold text-[#7A4EAB] hover:text-sage-700"
+              href="/facilitator/settings"
+            >
               Skift mailadresse under Login og sikkerhed
             </Link>
           </section>
           <div className="grid gap-4 lg:grid-cols-2">
-            <ClearableInput onChange={setPhone} placeholder="Telefonnummer" value={phone} />
-            <ClearableInput onChange={setWebsite} placeholder="Website" value={website} />
+            <ClearableInput
+              onChange={setPhone}
+              placeholder="Telefonnummer"
+              value={phone}
+            />
+            <ClearableInput
+              onChange={setWebsite}
+              placeholder="Website"
+              value={website}
+            />
           </div>
           <div className="grid gap-2">
-            <ClearableInput onChange={setFacebook} placeholder={socialProfileLinkPlaceholder("facebook")} value={facebook} />
-            {facebookError ? <p className="text-sm font-semibold leading-5 text-[#A51D1D]">{facebookError}</p> : null}
+            <ClearableInput
+              onChange={setFacebook}
+              placeholder={socialProfileLinkPlaceholder("facebook")}
+              value={facebook}
+            />
+            {facebookError ? (
+              <p className="text-sm font-semibold leading-5 text-[#A51D1D]">
+                {facebookError}
+              </p>
+            ) : null}
           </div>
           <div className="grid gap-2">
-            <ClearableInput onChange={setInstagram} placeholder={socialProfileLinkPlaceholder("instagram")} value={instagram} />
-            {instagramError ? <p className="text-sm font-semibold leading-5 text-[#A51D1D]">{instagramError}</p> : null}
+            <ClearableInput
+              onChange={setInstagram}
+              placeholder={socialProfileLinkPlaceholder("instagram")}
+              value={instagram}
+            />
+            {instagramError ? (
+              <p className="text-sm font-semibold leading-5 text-[#A51D1D]">
+                {instagramError}
+              </p>
+            ) : null}
           </div>
-          <p className="text-sm leading-6 text-ink/55">{socialProfileLinkHelpText}</p>
-          <ClearableInput onChange={setYoutube} placeholder="YouTube" value={youtube} />
+          <p className="text-sm leading-6 text-ink/55">
+            {socialProfileLinkHelpText}
+          </p>
+          <ClearableInput
+            onChange={setYoutube}
+            placeholder="YouTube"
+            value={youtube}
+          />
         </div>
       )}
 
@@ -2626,18 +3340,33 @@ export function ProfileForm({
                 <CreditCard className="size-5" aria-hidden="true" />
               </span>
               <div>
-                <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#7A4EAB]">Privat betalingsinfo</p>
+                <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#7A4EAB]">
+                  Privat betalingsinfo
+                </p>
                 <p className="mt-2 text-sm leading-6 text-ink/65">
-                  Betalingsoplysningerne vises ikke offentligt. De sendes først til deltageren, når du bekræfter en tilmelding.
-                  SoulEvents modtager eller behandler ikke betalingen.
+                  Betalingsoplysningerne vises ikke offentligt. De sendes først
+                  til deltageren, når du bekræfter en tilmelding. SoulEvents
+                  modtager eller behandler ikke betalingen.
                 </p>
               </div>
             </div>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <ClearableInput label="MobilePay" maxLength={40} onChange={setPaymentMobilepayNumber} placeholder="Nummer eller MobilePay Box" value={paymentMobilepayNumber} />
-            <ClearableInput label="Betalingslink" maxLength={300} onChange={setPaymentExternalUrl} placeholder="https://..." value={paymentExternalUrl} />
+            <ClearableInput
+              label="MobilePay"
+              maxLength={40}
+              onChange={setPaymentMobilepayNumber}
+              placeholder="Nummer eller MobilePay Box"
+              value={paymentMobilepayNumber}
+            />
+            <ClearableInput
+              label="Betalingslink"
+              maxLength={300}
+              onChange={setPaymentExternalUrl}
+              placeholder="https://..."
+              value={paymentExternalUrl}
+            />
             <ClearableInput
               label="Bank reg.nr."
               maxLength={20}
@@ -2668,13 +3397,18 @@ export function ProfileForm({
               className={inputClass("max-w-44")}
               max={60}
               min={0}
-              onChange={(event) => setPaymentDeadlineDays(event.target.value.replace(/\D/g, "").slice(0, 2))}
+              onChange={(event) =>
+                setPaymentDeadlineDays(
+                  event.target.value.replace(/\D/g, "").slice(0, 2),
+                )
+              }
               placeholder="14"
               type="number"
               value={paymentDeadlineDays}
             />
             <span className="text-xs leading-5 text-ink/55">
-              Antal dage efter bekræftet tilmelding. Fristen bliver aldrig sat efter eventets startdato.
+              Antal dage efter bekræftet tilmelding. Fristen bliver aldrig sat
+              efter eventets startdato.
             </span>
           </label>
 
@@ -2687,14 +3421,21 @@ export function ProfileForm({
               value={paymentInstructions}
             />
             <span className="text-xs leading-5 text-ink/55">
-              Brug feltet til praktiske detaljer, som deltageren skal kende efter bekræftelse.
+              Brug feltet til praktiske detaljer, som deltageren skal kende
+              efter bekræftelse.
             </span>
           </label>
         </div>
       )}
 
       {(currentStep.id === "services" || isProfileOverviewStep) && (
-        <div className={shouldUseEmbeddedProfileSection ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6" : "grid gap-5"}>
+        <div
+          className={
+            shouldUseEmbeddedProfileSection
+              ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
+              : "grid gap-5"
+          }
+        >
           {shouldUseEmbeddedProfileSection ? (
             <SectionHeading
               description="Valgfrit: fortæl om ydelser uden for events."
@@ -2703,13 +3444,21 @@ export function ProfileForm({
             />
           ) : null}
           <p className="text-base leading-7 text-ink/65">
-            Så kan du blive vist på SoulEvents under “Ydelser”, så deltagere også kan finde og kontakte dig uden for dine events.
+            Så kan du blive vist på SoulEvents under “Ydelser”, så deltagere
+            også kan finde og kontakte dig uden for dine events.
           </p>
 
-          <div className="grid gap-3" role="radiogroup" aria-label="Individuelle ydelser">
+          <div
+            className="grid gap-3"
+            role="radiogroup"
+            aria-label="Individuelle ydelser"
+          >
             {[
               { label: "Nej, jeg afholder kun events", value: false },
-              { label: "Ja, jeg tilbyder også individuelle ydelser", value: true },
+              {
+                label: "Ja, jeg tilbyder også individuelle ydelser",
+                value: true,
+              },
             ].map((option) => {
               const selected = offersIndividualServices === option.value;
               return (
@@ -2717,7 +3466,9 @@ export function ProfileForm({
                   aria-checked={selected}
                   className={
                     "flex min-h-16 items-center justify-between gap-4 rounded-[22px] border px-4 text-left text-base font-semibold shadow-soft transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 " +
-                    (selected ? "border-sage-700/25 bg-sage-50 text-sage-700" : "border-midnight/10 bg-white text-midnight hover:border-sage-700")
+                    (selected
+                      ? "border-sage-700/25 bg-sage-50 text-sage-700"
+                      : "border-midnight/10 bg-white text-midnight hover:border-sage-700")
                   }
                   key={String(option.value)}
                   onClick={() => {
@@ -2727,7 +3478,14 @@ export function ProfileForm({
                   type="button"
                 >
                   {option.label}
-                  <Circle className={selected ? "size-4 fill-sage-700/15 text-sage-700" : "size-4 text-sage-700/45"} aria-hidden="true" />
+                  <Circle
+                    className={
+                      selected
+                        ? "size-4 fill-sage-700/15 text-sage-700"
+                        : "size-4 text-sage-700/45"
+                    }
+                    aria-hidden="true"
+                  />
                 </button>
               );
             })}
@@ -2736,15 +3494,20 @@ export function ProfileForm({
           {offersIndividualServices ? (
             <div className="grid gap-4 rounded-[24px] bg-sage-50/65 p-4">
               <div className="rounded-[24px] bg-white p-4 shadow-soft sm:p-5">
-                <p className="text-sm font-semibold leading-6 text-midnight">Hvad tilbyder du?</p>
+                <p className="text-sm font-semibold leading-6 text-midnight">
+                  Hvad tilbyder du?
+                </p>
                 <p className="mt-2 text-xs leading-5 text-ink/55">
-                  Beskriv kort de individuelle ydelser eller forløb, man kan booke hos dig.
+                  Beskriv kort de individuelle ydelser eller forløb, man kan
+                  booke hos dig.
                 </p>
                 <div className="relative mt-3">
                   <textarea
                     className="min-h-36 w-full rounded-[20px] border border-[#D8D0C1] bg-white p-4 pr-12 text-base leading-7 text-midnight shadow-[0_8px_22px_rgba(47,36,55,0.045)] outline-none transition duration-200 placeholder:text-ink/48 focus:border-sage-700 focus:ring-4 focus:ring-sage-700/12"
                     maxLength={500}
-                    onChange={(event) => setServiceDescription(event.target.value)}
+                    onChange={(event) =>
+                      setServiceDescription(event.target.value)
+                    }
                     placeholder="Fortæl om dine individuelle ydelser eller forløb"
                     value={serviceDescription}
                   />
@@ -2765,101 +3528,126 @@ export function ProfileForm({
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold leading-6 text-midnight">
-                      Vælg op til 2 symboler, der bedst beskriver din måde at arbejde på
+                      Vælg op til 2 symboler, der bedst beskriver din måde at
+                      arbejde på
                     </p>
                     <p className="mt-1 text-xs leading-5 text-ink/55">
-                      Symbolerne vises på din profil og giver deltagerne et hurtigt indtryk af din tilgang.
+                      Symbolerne vises på din profil og giver deltagerne et
+                      hurtigt indtryk af din tilgang.
                     </p>
                   </div>
                   <p className="shrink-0 rounded-full bg-sage-50 px-3 py-1 text-xs font-semibold text-sage-700">
-                    {individualServiceTypes.length} af {maxIndividualServiceTypes} valgt
+                    {selectedProfileSymbolIds.length} af {maxProfileSymbols}{" "}
+                    valgt
                   </p>
                 </div>
 
                 <div className="mt-4 rounded-[22px] border border-sage-700/10 bg-sage-50/55 p-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-sage-700">Dine valgte symboler</p>
-                  {selectedIndividualServiceDisplays.length > 0 ? (
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-sage-700">
+                    Dine valgte symboler
+                  </p>
+                  {selectedProfileSymbols.length > 0 ? (
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {selectedIndividualServiceDisplays.map((service) => {
-                        const Icon = individualServiceIconMap[service.id];
-
-                        return (
-                          <span
-                            aria-label={service.label}
-                            className={
-                              "grid size-12 place-items-center rounded-2xl border-2 border-sage-700 text-sage-700 shadow-soft " +
-                              individualServiceToneMap[service.id]
-                            }
-                            key={service.id}
-                            title={service.label}
-                          >
-                            <Icon className="size-6" aria-hidden="true" />
-                          </span>
-                        );
-                      })}
+                      {selectedProfileSymbols.map((symbol) => (
+                        <span
+                          aria-label={symbol.name}
+                          className="grid size-12 place-items-center rounded-2xl border-2 border-sage-700 text-sage-700 shadow-soft"
+                          key={symbol.id}
+                          style={{ backgroundColor: symbol.backgroundColor }}
+                          title={symbol.name}
+                        >
+                          {symbol.publicUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              alt=""
+                              aria-hidden="true"
+                              className="size-6"
+                              src={symbol.publicUrl}
+                            />
+                          ) : (
+                            <Sparkles className="size-6" aria-hidden="true" />
+                          )}
+                        </span>
+                      ))}
                     </div>
                   ) : (
-                    <p className="mt-2 text-xs leading-5 text-ink/50">Vælg op til 2 symboler nedenfor.</p>
+                    <p className="mt-2 text-xs leading-5 text-ink/50">
+                      Vælg op til 2 symboler nedenfor.
+                    </p>
                   )}
                 </div>
 
-                <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-6 lg:grid-cols-8" aria-label="Vælg op til 2 ikoner">
-                  {individualServiceOptions.map((option) => {
-                    const selected = individualServiceTypes.includes(option.id);
-                    const disabled = !selected && individualServiceTypes.length >= maxIndividualServiceTypes;
-                    const Icon = individualServiceIconMap[option.id];
-                    const toneClass = individualServiceToneMap[option.id];
+                {designSymbols.length > 0 ? (
+                  <div
+                    className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-6 lg:grid-cols-8"
+                    aria-label="Vælg op til 2 symboler"
+                  >
+                    {designSymbols.map((symbol) => {
+                      const selected = selectedProfileSymbolIds.includes(
+                        symbol.id,
+                      );
+                      const disabled =
+                        !selected &&
+                        selectedProfileSymbolIds.length >= maxProfileSymbols;
 
-                    return (
-                      <button
-                        aria-label={option.label}
-                        aria-disabled={disabled}
-                        aria-pressed={selected}
-                        className={
-                          "group relative grid aspect-square min-h-16 place-items-center rounded-[20px] border p-2 shadow-soft transition duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 sm:min-h-20 " +
-                          (selected
-                            ? "border-2 border-sage-700 text-sage-800 shadow-soft"
-                            : disabled
-                              ? "border-midnight/10 text-ink/35 opacity-45"
-                              : "border-midnight/10 text-midnight hover:-translate-y-0.5 hover:border-sage-700/45 hover:shadow-lg")
-                          + " "
-                          + toneClass
-                        }
-                        key={option.id}
-                        onClick={() => {
-                          if (!disabled) {
-                            toggleIndividualServiceType(option.id);
-                          }
-                        }}
-                        title={option.label}
-                        type="button"
-                      >
-                        <Icon className={selected ? "size-8 text-sage-700" : "size-8 text-sage-700/80 transition group-hover:text-sage-700"} aria-hidden="true" />
-                        <span
+                      return (
+                        <button
+                          aria-label={symbol.name}
+                          aria-disabled={disabled}
+                          aria-pressed={selected}
                           className={
-                            "absolute right-2 top-2 grid size-6 place-items-center rounded-full border transition " +
-                            (selected ? "border-sage-700 bg-sage-700 text-white" : "border-transparent text-transparent")
+                            "group relative grid aspect-square min-h-16 place-items-center rounded-[20px] border p-2 shadow-soft transition duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 sm:min-h-20 " +
+                            (selected
+                              ? "border-2 border-sage-700 text-sage-800 shadow-soft"
+                              : disabled
+                                ? "border-midnight/10 text-ink/35 opacity-45"
+                                : "border-midnight/10 text-midnight hover:-translate-y-0.5 hover:border-sage-700/45 hover:shadow-lg")
                           }
-                          aria-hidden="true"
+                          key={symbol.id}
+                          onClick={() => {
+                            if (!disabled) {
+                              toggleProfileSymbol(symbol.id);
+                            }
+                          }}
+                          style={{ backgroundColor: symbol.backgroundColor }}
+                          title={symbol.name}
+                          type="button"
                         >
-                          <Check className="size-3.5" />
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {hasOtherIndividualServiceType ? (
-                  <label className="mt-4 grid gap-2 text-sm font-semibold text-midnight/82">
-                    Kort titel for “Andet”
-                    <ClearableInput
-                      maxLength={80}
-                      onChange={setIndividualServiceOtherTitle}
-                      placeholder="Skriv en kort titel for din ydelse"
-                      value={individualServiceOtherTitle}
-                    />
-                  </label>
-                ) : null}
+                          {symbol.publicUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              alt=""
+                              aria-hidden="true"
+                              className="size-8"
+                              src={symbol.publicUrl}
+                            />
+                          ) : (
+                            <Sparkles
+                              className="size-8 text-sage-700"
+                              aria-hidden="true"
+                            />
+                          )}
+                          <span
+                            className={
+                              "absolute right-2 top-2 grid size-6 place-items-center rounded-full border transition " +
+                              (selected
+                                ? "border-sage-700 bg-sage-700 text-white"
+                                : "border-transparent text-transparent")
+                            }
+                            aria-hidden="true"
+                          >
+                            <Check className="size-3.5" />
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-4 rounded-[18px] border border-sage-700/10 bg-white/75 px-4 py-3 text-sm leading-6 text-ink/60">
+                    Der er endnu ikke uploadet aktive symboler i
+                    adminbiblioteket.
+                  </p>
+                )}
               </div>
             </div>
           ) : null}
@@ -2880,10 +3668,30 @@ export function ProfileForm({
                 url: heroPreview.url,
               }}
               editActions={{
-                banner: <ProfilePreviewEditButton label="Rediger bannerbillede" onClick={() => editImagesFromReview("banner")} />,
-                categories: <ProfilePreviewEditButton label="Rediger arbejdsområder og speciale" onClick={() => editFromReview("experiences")} />,
-                identity: <ProfilePreviewEditButton label="Rediger navn og grundoplysninger" onClick={() => editFromReview("person")} />,
-                profileImage: <ProfilePreviewEditButton label="Rediger profilbillede" onClick={() => editImagesFromReview("profile")} />,
+                banner: (
+                  <ProfilePreviewEditButton
+                    label="Rediger bannerbillede"
+                    onClick={() => editImagesFromReview("banner")}
+                  />
+                ),
+                categories: (
+                  <ProfilePreviewEditButton
+                    label="Rediger arbejdsområder og speciale"
+                    onClick={() => editFromReview("experiences")}
+                  />
+                ),
+                identity: (
+                  <ProfilePreviewEditButton
+                    label="Rediger navn og grundoplysninger"
+                    onClick={() => editFromReview("person")}
+                  />
+                ),
+                profileImage: (
+                  <ProfilePreviewEditButton
+                    label="Rediger profilbillede"
+                    onClick={() => editImagesFromReview("profile")}
+                  />
+                ),
               }}
               hostReferenceId={facilitatorProfile.host_reference_id}
               name={publicProfileName || "Profilnavn mangler"}
@@ -2894,10 +3702,18 @@ export function ProfileForm({
 
             <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
               <div className="grid gap-8">
-                <EditablePublicSection label="Rediger fortælling" onClick={() => editFromReview("story")}>
-                  <ProfilePreviewSectionTitle eyebrow="Mød arrangøren" title="Mit univers" />
+                <EditablePublicSection
+                  label="Rediger fortælling"
+                  onClick={() => editFromReview("story")}
+                >
+                  <ProfilePreviewSectionTitle
+                    eyebrow="Mød arrangøren"
+                    title="Mit univers"
+                  />
                   {normalizedStory ? (
-                    <div className="mt-6 max-w-3xl whitespace-pre-line text-base leading-8 text-[#5E5662]">{story}</div>
+                    <div className="mt-6 max-w-3xl whitespace-pre-line text-base leading-8 text-[#5E5662]">
+                      {story}
+                    </div>
                   ) : (
                     <div className="mt-6 rounded-[22px] bg-[#FFF7DE] p-4 text-sm font-semibold leading-6 text-[#715C21]">
                       Fortæl lidt om dig og de begivenheder, du skaber.
@@ -2905,30 +3721,51 @@ export function ProfileForm({
                   )}
                 </EditablePublicSection>
 
-                {offersIndividualServices || presentationMode !== "onboarding" ? (
+                {offersIndividualServices ||
+                presentationMode !== "onboarding" ? (
                   <EditablePublicSection
                     className="border-[#D8CBE4] bg-[#F4F0F7]"
                     label="Rediger individuelle ydelser"
                     onClick={() => editFromReview("services")}
                   >
-                    <ProfilePreviewSectionTitle eyebrow="Individuelle ydelser" title="Mine ydelser" />
-                    {selectedIndividualServiceDisplays.length > 0 ? (
-                      <div className="mt-5 flex flex-wrap gap-2">
-                        {selectedIndividualServiceDisplays.map((service) => (
+                    <ProfilePreviewSectionTitle
+                      eyebrow="Individuelle ydelser"
+                      title="Mine ydelser"
+                    />
+                    {selectedProfileSymbols.length > 0 ? (
+                      <div className="mt-5 flex flex-wrap gap-3">
+                        {selectedProfileSymbols.map((symbol) => (
                           <span
-                            className="rounded-full border border-sage-700/15 bg-sage-50 px-3 py-1 text-xs font-semibold text-sage-800"
-                            key={service.id}
+                            aria-label={symbol.name}
+                            className="grid size-14 place-items-center rounded-[20px] border border-[#D8CBE4]/70 text-sage-700 shadow-soft"
+                            key={symbol.id}
+                            style={{ backgroundColor: symbol.backgroundColor }}
+                            title={symbol.name}
                           >
-                            {service.label}
+                            {symbol.publicUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                alt=""
+                                aria-hidden="true"
+                                className="size-7"
+                                src={symbol.publicUrl}
+                              />
+                            ) : (
+                              <Sparkles className="size-7" aria-hidden="true" />
+                            )}
                           </span>
                         ))}
                       </div>
                     ) : null}
                     {hasIndividualServicesDescription ? (
-                      <p className="mt-5 max-w-3xl whitespace-pre-line text-base leading-8 text-[#5E5662]">{serviceDescription}</p>
+                      <p className="mt-5 max-w-3xl whitespace-pre-line text-base leading-8 text-[#5E5662]">
+                        {serviceDescription}
+                      </p>
                     ) : (
                       <p className="mt-5 max-w-3xl text-base leading-8 text-[#5E5662]">
-                        Så kan du blive vist på SoulEvents under “Ydelser”, så deltagere også kan finde og kontakte dig uden for dine events.
+                        Så kan du blive vist på SoulEvents under “Ydelser”, så
+                        deltagere også kan finde og kontakte dig uden for dine
+                        events.
                       </p>
                     )}
                   </EditablePublicSection>
@@ -2936,7 +3773,12 @@ export function ProfileForm({
 
                 {previewGalleryImages.length > 0 ? (
                   <PublicFacilitatorGallery
-                    actions={<ProfilePreviewEditButton label="Rediger stemningsbilleder" onClick={() => editImagesFromReview("mood")} />}
+                    actions={
+                      <ProfilePreviewEditButton
+                        label="Rediger stemningsbilleder"
+                        onClick={() => editImagesFromReview("mood")}
+                      />
+                    }
                     images={previewGalleryImages}
                   />
                 ) : (
@@ -2945,7 +3787,10 @@ export function ProfileForm({
                     label="Rediger stemningsbilleder"
                     onClick={() => editImagesFromReview("mood")}
                   >
-                    <ProfilePreviewSectionTitle eyebrow="Stemninger" title="Galleri" />
+                    <ProfilePreviewSectionTitle
+                      eyebrow="Stemninger"
+                      title="Galleri"
+                    />
                     <div className="mt-6 grid gap-3 md:grid-cols-3">
                       {moodImages.map((image, index) => (
                         <div
@@ -2953,7 +3798,11 @@ export function ProfileForm({
                           key={"empty-gallery-preview-" + (index + 1)}
                         >
                           {image.previewUrl ? (
-                            <img alt="" className="h-full w-full rounded-xl object-cover" src={image.previewUrl} />
+                            <img
+                              alt=""
+                              className="h-full w-full rounded-xl object-cover"
+                              src={image.previewUrl}
+                            />
                           ) : (
                             <ImagePlus className="size-6" aria-hidden="true" />
                           )}
@@ -2965,7 +3814,9 @@ export function ProfileForm({
 
                 {missingRequired.length > 0 ? (
                   <div className="rounded-[24px] bg-[#FFF7DE] p-5">
-                    <p className="text-sm font-semibold text-[#715C21]">Du mangler stadig nogle oplysninger</p>
+                    <p className="text-sm font-semibold text-[#715C21]">
+                      Du mangler stadig nogle oplysninger
+                    </p>
                     {!storyMeetsMinimum ? (
                       <p className="mt-2 text-sm leading-6 text-[#715C21]">
                         {storyMissingMessage}
@@ -2980,7 +3831,10 @@ export function ProfileForm({
                           type="button"
                         >
                           {item.label}
-                          <ArrowRight className="size-4 text-sage-700" aria-hidden="true" />
+                          <ArrowRight
+                            className="size-4 text-sage-700"
+                            aria-hidden="true"
+                          />
                         </button>
                       ))}
                     </div>
@@ -2995,11 +3849,16 @@ export function ProfileForm({
                     label="Rediger kontaktoplysninger"
                     onClick={() => editFromReview("links")}
                   >
-                    <h2 className="font-serif text-3xl font-semibold text-[#2F2437]">Kontakt</h2>
+                    <h2 className="font-serif text-3xl font-semibold text-[#2F2437]">
+                      Kontakt
+                    </h2>
                     <div className="mt-5 grid gap-3 pr-12 text-sm text-[#6E6475]">
                       {reviewPlace ? (
                         <div className="flex gap-2">
-                          <MapPinned className="mt-0.5 size-4 shrink-0 text-[#7A5D91]" aria-hidden="true" />
+                          <MapPinned
+                            className="mt-0.5 size-4 shrink-0 text-[#7A5D91]"
+                            aria-hidden="true"
+                          />
                           <span>{reviewPlace}</span>
                         </div>
                       ) : null}
@@ -3049,7 +3908,10 @@ export function ProfileForm({
         <div className="grid gap-6 text-left">
           {missingRequired.length > 0 ? (
             <div className="rounded-[24px] bg-[#FFF7DE] p-5 text-left">
-              <p className="text-sm font-semibold text-[#715C21]">Ret de markerede oplysninger ovenfor, før profilen kan sendes til SoulEvents.</p>
+              <p className="text-sm font-semibold text-[#715C21]">
+                Ret de markerede oplysninger ovenfor, før profilen kan sendes
+                til SoulEvents.
+              </p>
               {!storyMeetsMinimum ? (
                 <p className="mt-2 text-sm leading-6 text-[#715C21]">
                   {storyMissingMessage}
@@ -3057,58 +3919,106 @@ export function ProfileForm({
               ) : null}
               <ul className="mt-3 grid gap-2">
                 {missingRequired.map((item) => (
-                  <li className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-midnight shadow-soft" key={item.label}>{item.label}</li>
+                  <li
+                    className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-midnight shadow-soft"
+                    key={item.label}
+                  >
+                    {item.label}
+                  </li>
                 ))}
               </ul>
             </div>
           ) : (
             <div className="rounded-[24px] border border-sage-700/20 bg-sage-50 p-5 text-left">
-              <p className="text-sm font-semibold text-sage-700">Din profil er klar til indsendelse.</p>
+              <p className="text-sm font-semibold text-sage-700">
+                Din profil er klar til indsendelse.
+              </p>
               <p className="mt-2 text-sm leading-6 text-sage-700/80">
-                {acceptedTerms ? "Du kan nu sende profilen til SoulEvents." : "Acceptér vilkårene herunder, så kan profilen sendes til SoulEvents."}
+                {acceptedTerms
+                  ? "Du kan nu sende profilen til SoulEvents."
+                  : "Acceptér vilkårene herunder, så kan profilen sendes til SoulEvents."}
               </p>
             </div>
           )}
-          <label className="flex items-start gap-3 rounded-[24px] border border-midnight/10 bg-white p-5 text-left shadow-soft">
+          <div className="flex items-start gap-3 rounded-[24px] border border-midnight/10 bg-white p-5 text-left shadow-soft">
             <input
+              id="facilitator-profile-terms-acceptance"
               checked={acceptedTerms}
               className="mt-1 size-5 rounded border-midnight/20 accent-sage-700"
               onChange={(event) => setAcceptedTerms(event.target.checked)}
               type="checkbox"
             />
             <span className="text-sm font-semibold leading-6 text-midnight">
-              Jeg har læst og accepterer SoulEvents&apos;{" "}
-              <Link className="text-sage-700 underline underline-offset-4" href="/legal/arrangoervilkaar">
+              <label htmlFor="facilitator-profile-terms-acceptance">
+                Jeg har læst og accepterer SoulEvents&apos;{" "}
+              </label>
+              <Link
+                aria-label="Læs arrangørvilkår i en ny fane"
+                className="inline-flex items-center gap-1 text-sage-700 underline underline-offset-4"
+                href="/legal/arrangoervilkaar"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
                 arrangørvilkår
+                <ExternalLink className="size-3" aria-hidden="true" />
               </Link>
               ,{" "}
-              <Link className="text-sage-700 underline underline-offset-4" href="/legal/platformens-retningslinjer">
+              <Link
+                aria-label="Læs retningslinjer i en ny fane"
+                className="inline-flex items-center gap-1 text-sage-700 underline underline-offset-4"
+                href="/legal/platformens-retningslinjer"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
                 retningslinjer
+                <ExternalLink className="size-3" aria-hidden="true" />
               </Link>{" "}
               og{" "}
-              <Link className="text-sage-700 underline underline-offset-4" href="/legal/privatlivspolitik">
+              <Link
+                aria-label="Læs privatlivspolitik i en ny fane"
+                className="inline-flex items-center gap-1 text-sage-700 underline underline-offset-4"
+                href="/legal/privatlivspolitik"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
                 privatlivspolitik
+                <ExternalLink className="size-3" aria-hidden="true" />
               </Link>
               .
             </span>
-          </label>
+          </div>
           <div className="grid gap-4 rounded-[30px] bg-[#F4F0E9] p-5">
             <SectionHeading Icon={HeartHandshake} title="Dig + SoulEvents" />
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
               <div className="grid min-h-[220px] grid-rows-[1fr_auto] justify-items-center gap-3 rounded-[24px] bg-white p-4 text-center shadow-soft">
                 <div className="grid aspect-square w-full max-w-[150px] place-items-center overflow-hidden rounded-[24px] bg-sage-50 text-sage-700">
-                  {profileImageUrl ? <img alt="" className="h-full w-full object-cover" src={profileImageUrl} /> : <Camera className="size-9" aria-hidden="true" />}
+                  {profileImageUrl ? (
+                    <img
+                      alt=""
+                      className="h-full w-full object-cover"
+                      src={profileImageUrl}
+                    />
+                  ) : (
+                    <Camera className="size-9" aria-hidden="true" />
+                  )}
                 </div>
-                <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-midnight">{publicProfileName || "Din profil"}</p>
+                <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-midnight">
+                  {publicProfileName || "Din profil"}
+                </p>
               </div>
               <div className="grid size-11 place-items-center rounded-full bg-white text-rose shadow-soft">
                 <HeartHandshake className="size-5" aria-hidden="true" />
               </div>
               <div className="grid min-h-[220px] grid-rows-[1fr_auto] justify-items-center gap-3 rounded-[24px] bg-white p-4 text-center shadow-soft">
                 <div className="grid aspect-square w-full max-w-[150px] place-items-center rounded-[24px] bg-sage-50 p-4">
-                  <InlineBrandLogo className="h-full w-full" src={activeDesktopLogoSrc} />
+                  <InlineBrandLogo
+                    className="h-full w-full"
+                    src={activeDesktopLogoSrc}
+                  />
                 </div>
-                <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-midnight">SoulEvents</p>
+                <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-midnight">
+                  SoulEvents
+                </p>
               </div>
             </div>
           </div>
@@ -3123,12 +4033,14 @@ export function ProfileForm({
             </span>
             <div className="grid gap-4 text-base leading-7 text-ink/65">
               <p>
-                Vi gennemgår alle nye profiler manuelt for at sikre en tryg og troværdig platform. Du modtager en e-mail,
-                så snart din profil er godkendt.
+                Vi gennemgår alle nye profiler manuelt for at sikre en tryg og
+                troværdig platform. Du modtager en e-mail, så snart din profil
+                er godkendt.
               </p>
               <p>
-                Du kan allerede nu begynde at oprette dit første event. Eventet gemmes som en kladde og bliver først
-                synligt, når din arrangørprofil er godkendt.
+                Du kan allerede nu begynde at oprette dit første event. Eventet
+                gemmes som en kladde og bliver først synligt, når din
+                arrangørprofil er godkendt.
               </p>
             </div>
           </div>

@@ -370,8 +370,13 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     .in("events.status", ["active", "sold_out"])
     .eq("events.facilitator_profiles.status", "approved")
     .eq("events.facilitator_profiles.is_paused", false)
-    .eq("events.facilitator_profiles.is_disabled", false)
-    .gte("events.ends_at", new Date().toISOString());
+	    .eq("events.facilitator_profiles.is_disabled", false)
+	    .gte("events.ends_at", new Date().toISOString());
+  const { data: profileSymbolRows } = await createAdminClient()
+    .from("facilitator_profile_symbols")
+    .select("symbol_id, sort_order, design_symbols(id, name, svg_path, background_color, is_active)")
+    .eq("facilitator_id", facilitatorData.id)
+    .order("sort_order", { ascending: true });
   const coOrganizerEvents =
     coOrganizerRows
       ?.map((row: any) => first(row.events))
@@ -417,6 +422,16 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
       ?.map((row: any) => (Array.isArray(row.categories) ? row.categories[0] : row.categories))
       .filter((category: any) => category?.slug && facilitatorWorkAreaSlugSet.has(category.slug)) ?? [];
   const specialty = normalizeSpecialtyText(facilitatorData.specialties);
+  const serviceSymbols =
+    profileSymbolRows
+      ?.map((row: any) => first(row.design_symbols))
+      .filter((symbol: any) => symbol?.is_active)
+      .map((symbol: any) => ({
+        backgroundColor: symbol.background_color || "#EEF5EA",
+        id: symbol.id,
+        name: symbol.name,
+        url: publicMediaUrl(supabase, symbol.svg_path),
+      })) ?? [];
   const publicEmail = facilitatorData.public_email || profile?.email || null;
   const publicPhone = facilitatorData.public_phone || profile?.phone || null;
   const links = [
@@ -505,6 +520,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
         reminderFormAction={subscribeToFacilitatorReminderAction.bind(null, facilitatorData.id)}
         reminderMessage={reminderMessage}
         serviceDescription={facilitatorData.offers_services ? facilitatorData.service_description : null}
+        serviceSymbols={facilitatorData.offers_services ? serviceSymbols : []}
         showFallbackNotice={Boolean(adminReturnLink || isOwnProfilePreview)}
         specialty={specialty}
       />

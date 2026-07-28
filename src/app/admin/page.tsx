@@ -13,6 +13,7 @@ import {
   HeartHandshake,
   Home,
   LayoutDashboard,
+  Layers3,
   Megaphone,
   MessageCircle,
   ReceiptText,
@@ -152,6 +153,7 @@ const adminCardThemes = {
 
 const adminSectionThemes = {
   content: "border-[#EBDDC8] bg-[#FFF8EC]",
+  design: "border-[#D8CBE4] bg-[#F7F2FA]",
   events: "border-[#D7E7D2] bg-[#F4FAF1]",
   facilitators: "border-[#D8CBE4] bg-[#F7F2FA]",
   platform: "border-[#DADDD8] bg-[#F4F4F1]",
@@ -255,6 +257,14 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         { href: "/admin/homepage", title: "Forsidebokse og temaer", text: "Styr de store 1:1 bokse og kampagne-temaer på forsiden.", icon: Home, theme: adminCardThemes.lavender },
         { href: "/admin/ads", title: "Reklamer / partnerindhold", text: "Styr diskrete reklamer på forsiden og hovedkategorisider.", icon: Megaphone, theme: adminCardThemes.pink },
         { href: "/admin/feedback", title: "Feedback Center", text: "Opret spørgeskemaer, del links og læs svar.", icon: ClipboardList, theme: adminCardThemes.teal },
+      ],
+    },
+    {
+      description: "Styr SoulEvents' visuelle byggeklodser.",
+      theme: adminSectionThemes.design,
+      title: "Design",
+      items: [
+        { href: "/admin/design/symbols", title: "Symboler", text: "Upload og administrér SoulEvents' egne SVG-symboler.", icon: Layers3, theme: adminCardThemes.lavender },
       ],
     },
     {

@@ -569,7 +569,12 @@ function DashboardGreetingIntro({
 
         <aside className="text-center text-white">
           <p className="text-sm font-medium text-white/62">Månen i nat</p>
-          <MoonPhase className={"mt-5 [--moon-size:132px] sm:[--moon-size:150px] lg:[--moon-size:188px] " + (period === "night" || period === "evening" ? "opacity-100" : "opacity-82")} illumination={moonData.illumination} phase={moonData.phase} size={156} />
+          <MoonPhase
+            className="mt-5 [--moon-size:132px] sm:[--moon-size:150px] lg:[--moon-size:188px]"
+            illumination={moonData.illumination}
+            phase={moonData.phase}
+            size={156}
+          />
           <div className="mt-5 grid gap-1 text-center text-sm text-white/68">
             <p className="font-semibold text-white">{moonData.phaseDanish}</p>
             <p className="text-white/78">

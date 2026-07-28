@@ -26,6 +26,13 @@ type GalleryImage = {
   url: string;
 };
 
+type ServiceSymbol = {
+  backgroundColor: string;
+  id: string;
+  name: string;
+  url: string | null;
+};
+
 type PublicFacilitatorProfileProps = {
   backLink: {
     href: string;
@@ -61,6 +68,7 @@ type PublicFacilitatorProfileProps = {
   reminderFormAction: (formData: FormData) => Promise<void>;
   reminderMessage?: string;
   serviceDescription?: string | null;
+  serviceSymbols?: ServiceSymbol[];
   specialty?: string | null;
   showFallbackNotice?: boolean;
 };
@@ -137,6 +145,7 @@ export function PublicFacilitatorProfile({
   reminderFormAction,
   reminderMessage,
   serviceDescription,
+  serviceSymbols = [],
   showFallbackNotice = false,
   specialty,
 }: PublicFacilitatorProfileProps) {
@@ -189,10 +198,31 @@ export function PublicFacilitatorProfile({
             </section>
           ) : null}
 
-          {serviceDescription ? (
+          {serviceDescription || serviceSymbols.length > 0 ? (
             <section className="rounded-[32px] border border-[#D8CBE4] bg-[#F4F0F7] p-7 sm:p-8">
               <SectionTitle eyebrow="Individuelle ydelser" title="Mine ydelser" />
-              <p className="mt-5 max-w-3xl whitespace-pre-line text-base leading-8 text-[#5E5662]">{serviceDescription}</p>
+              {serviceSymbols.length > 0 ? (
+                <div className="mt-5 flex flex-wrap gap-3">
+                  {serviceSymbols.map((symbol) => (
+                    <span
+                      aria-label={symbol.name}
+                      className="grid size-14 place-items-center rounded-[20px] border border-[#D8CBE4]/70 text-sage-700 shadow-[0_10px_24px_rgba(47,36,55,0.08)]"
+                      key={symbol.id}
+                      style={{ backgroundColor: symbol.backgroundColor }}
+                      title={symbol.name}
+                    >
+                      {symbol.url ? (
+                        <img alt="" aria-hidden="true" className="size-7" src={symbol.url} />
+                      ) : (
+                        <Sparkles className="size-7" aria-hidden="true" />
+                      )}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {serviceDescription ? (
+                <p className="mt-5 max-w-3xl whitespace-pre-line text-base leading-8 text-[#5E5662]">{serviceDescription}</p>
+              ) : null}
             </section>
           ) : null}
 
