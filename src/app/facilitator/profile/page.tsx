@@ -224,7 +224,7 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
         </div>
       </header>
 
-      <section className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-5">
           <AuthMessage message={message} variant={isSavedMessage ? "success" : "notice"} />
         </div>

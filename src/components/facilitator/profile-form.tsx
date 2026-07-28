@@ -747,6 +747,7 @@ function OnboardingShell({
   currentIndex,
   hideBackNavigation = false,
   hidePrimaryAction = false,
+  isWidePreview = false,
   isBusy,
   logoSources,
   onBack,
@@ -768,6 +769,7 @@ function OnboardingShell({
   footerLeading?: React.ReactNode;
   hideBackNavigation?: boolean;
   hidePrimaryAction?: boolean;
+  isWidePreview?: boolean;
   isBusy: boolean;
   logoSources?: BrandLogoSources;
   onBack: () => void;
@@ -877,6 +879,12 @@ function OnboardingShell({
       Tilbage
     </button>
   );
+  const editingContentClass =
+    "mx-auto w-full rounded-[30px] bg-white px-5 py-8 shadow-soft transition-all duration-200 sm:px-8 sm:py-10 lg:px-10 lg:py-9 xl:px-12 xl:py-10 " +
+    (isWidePreview ? "lg:max-w-[1180px]" : "lg:max-w-[820px]");
+  const editingFooterClass =
+    "sticky bottom-0 rounded-t-[28px] bg-[#fbfaf7]/92 pb-2 pt-3 backdrop-blur lg:static lg:mx-auto lg:w-full lg:rounded-[28px] lg:bg-white/85 lg:p-4 lg:shadow-soft " +
+    (isWidePreview ? "lg:max-w-[1180px]" : "lg:max-w-[820px]");
 
   return (
     <div
@@ -897,7 +905,7 @@ function OnboardingShell({
           </div>
 
           <div
-            className="mx-auto w-full rounded-[30px] bg-white px-5 py-8 shadow-soft transition-all duration-200 sm:px-8 sm:py-10 lg:max-w-[820px] lg:px-10 lg:py-9 xl:px-12 xl:py-10"
+            className={editingContentClass}
             ref={contentScrollRef}
           >
             <div className="min-w-0">{children}</div>
@@ -905,7 +913,7 @@ function OnboardingShell({
         </div>
 
         {hidePrimaryAction ? null : (
-          <div className="sticky bottom-0 rounded-t-[28px] bg-[#fbfaf7]/92 pb-2 pt-3 backdrop-blur lg:static lg:mx-auto lg:w-full lg:max-w-[820px] lg:rounded-[28px] lg:bg-white/85 lg:p-4 lg:shadow-soft">
+          <div className={editingFooterClass}>
             {footerLeading}
             <div className="lg:flex lg:flex-wrap lg:items-center lg:gap-3">
               {footer}
@@ -2749,6 +2757,9 @@ export function ProfileForm({
         presentationMode === "onboarding" && currentStep.id === "complete"
       }
       isBusy={isBusy}
+      isWidePreview={
+        presentationMode !== "onboarding" && currentStep.id === "review"
+      }
       logoSources={logoSources}
       onBack={goBack}
       onContinue={continueFlow}
