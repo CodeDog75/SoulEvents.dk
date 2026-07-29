@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { CookieSettingsButton } from "@/components/cookie-settings-button";
 import { LoginSecuritySection } from "@/components/facilitator/login-security-section";
 import { FacilitatorPauseSection } from "@/components/facilitator/facilitator-dashboard-settings-sections";
 import { getFacilitatorDashboardContext } from "@/lib/facilitator/dashboard-data";
@@ -103,6 +104,14 @@ export default async function FacilitatorSettingsPage() {
           pendingEmailChange={pendingEmailChange}
         />
         <FacilitatorPauseSection isPaused={Boolean(facilitatorProfile.is_paused)} />
+        <section className="rounded-[28px] border border-[#E5DDEA] bg-white/78 p-5 shadow-soft">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#7A5D91]">Cookievalg</p>
+          <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Cookieindstillinger</h2>
+          <p className="mt-2 text-sm leading-6 text-[#6E6475]">
+            Du kan altid justere, hvilke valgfrie cookies SoulEvents må bruge til statistik og markedsføring.
+          </p>
+          <CookieSettingsButton className="mt-3 inline-flex text-sm font-semibold text-[#7A5D91] underline underline-offset-4 transition hover:text-[#5F4777] focus:outline-none focus:ring-4 focus:ring-[#E5DDEA]" />
+        </section>
       </section>
     </main>
   );

@@ -1,9 +1,9 @@
 "use client";
 
-export function CookieSettingsButton() {
+export function CookieSettingsButton({ className = "font-semibold transition hover:text-rose" }: { className?: string }) {
   return (
     <button
-      className="font-semibold transition hover:text-rose"
+      className={className}
       onClick={() => window.dispatchEvent(new Event("soulevents:open-cookie-settings"))}
       type="button"
     >

@@ -195,46 +195,43 @@ export function FacilitatorDashboardShell({
 
   return (
     <div className="min-h-screen bg-[#FAF8F4] text-[#2F2437]">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-[#E5DDEA] bg-[#FBFAF7]/95 px-4 py-5 shadow-[12px_0_36px_rgba(47,36,55,0.04)] backdrop-blur lg:flex lg:flex-col">
-        <Link className="flex items-center gap-3 rounded-[20px] px-2 py-2" href="/facilitator">
-          <Image
-            alt="SoulEvents.dk"
-            className="h-12 w-12 shrink-0 object-contain"
-            height={96}
-            priority
-            src="/brand/soulevents-logo.png"
-            width={96}
-          />
-          <span>
-            <span className="block text-sm font-bold uppercase tracking-[0.16em] text-[#7A5D91]">SoulEvents</span>
-            <span className="block text-sm font-semibold text-[#6E6475]">Arrangørdashboard</span>
-          </span>
-        </Link>
-        <FacilitatorIdentityCard identity={facilitatorIdentity} imageVariant="desktop" />
+      <aside className="fixed left-0 top-0 z-30 hidden h-[100dvh] w-72 flex-col overflow-hidden border-r border-[#E5DDEA] bg-[#FBFAF7]/95 px-4 pb-6 pt-5 shadow-[12px_0_36px_rgba(47,36,55,0.04)] backdrop-blur lg:flex">
+        <div className="shrink-0">
+          <Link className="flex items-center gap-3 rounded-[20px] px-2 py-2" href="/facilitator">
+            <Image
+              alt="SoulEvents.dk"
+              className="h-12 w-12 shrink-0 object-contain"
+              height={96}
+              priority
+              src="/brand/soulevents-logo.png"
+              width={96}
+            />
+            <span>
+              <span className="block text-sm font-bold uppercase tracking-[0.16em] text-[#7A5D91]">SoulEvents</span>
+              <span className="block text-sm font-semibold text-[#6E6475]">Arrangørdashboard</span>
+            </span>
+          </Link>
+          <FacilitatorIdentityCard identity={facilitatorIdentity} imageVariant="desktop" />
+        </div>
 
-        <nav className="mt-7 grid gap-1">
-          {primaryItems.map((item) => (
-            <NavLink item={item} key={item.label} pathname={pathname} />
-          ))}
-        </nav>
-
-        <div className="mt-6 border-t border-[#E5DDEA] pt-5">
-          <p className="px-3 text-xs font-bold uppercase tracking-[0.16em] text-[#A08BB4]">Indstillinger</p>
-          <nav className="mt-2 grid gap-1">
-            {secondaryItems.map((item) => (
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-7 pr-1">
+          <nav className="grid gap-1">
+            {primaryItems.map((item) => (
               <NavLink item={item} key={item.label} pathname={pathname} />
             ))}
           </nav>
+
+          <div className="mt-6 border-t border-[#E5DDEA] pt-5">
+            <p className="px-3 text-xs font-bold uppercase tracking-[0.16em] text-[#A08BB4]">Indstillinger</p>
+            <nav className="mt-2 grid gap-1">
+              {secondaryItems.map((item) => (
+                <NavLink item={item} key={item.label} pathname={pathname} />
+              ))}
+            </nav>
+          </div>
         </div>
 
-        <div className="mt-auto grid gap-3 border-t border-[#E5DDEA] pt-5">
-          <Link
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-[#D8CBE4] bg-white px-3 text-sm font-semibold text-[#2F2437] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
-            href="/"
-          >
-            <Home className="size-4" aria-hidden="true" />
-            Tilbage til SoulEvents
-          </Link>
+        <div className="grid shrink-0 gap-3 border-t border-[#E5DDEA] pb-[env(safe-area-inset-bottom)] pt-5">
           <SignOutButton />
         </div>
       </aside>
@@ -280,14 +277,6 @@ export function FacilitatorDashboardShell({
               <NavLink item={item} key={item.label} onNavigate={() => setIsMenuOpen(false)} pathname={pathname} />
             ))}
             <div className="mt-2 grid gap-3 border-t border-[#E5DDEA] pt-3">
-              <Link
-                className="inline-flex h-10 items-center gap-2 rounded-md border border-[#D8CBE4] bg-white px-3 text-sm font-semibold text-[#2F2437] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
-                href="/"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                <Home className="size-4" aria-hidden="true" />
-                Tilbage til SoulEvents
-              </Link>
               <SignOutButton />
             </div>
           </dialog>
