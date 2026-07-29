@@ -1,7 +1,7 @@
 "use client";
 
 import { Copy, Mail, MessageCircle, Send, Share2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { trackAnalyticsEvent, type AnalyticsShareMethod } from "@/lib/analytics/client";
 import { publicEventPath } from "@/lib/slug";
 
@@ -23,6 +23,8 @@ function formatEventDate(startsAt: string) {
 export function ShareEventButton({ eventId, eventSlug, eventTitle, facilitatorName, startsAt }: ShareEventButtonProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const sharingRef = useRef(false);
 
   const shareData = useMemo(() => {
     const relativeUrl = publicEventPath(eventSlug || eventId);
@@ -38,18 +40,23 @@ export function ShareEventButton({ eventId, eventSlug, eventTitle, facilitatorNa
       facilitatorName +
       " den " +
       eventDate +
-      ". Se mere her: " +
-      eventUrl;
+      ".";
+    const fallbackText = text + " Se mere her: " + eventUrl;
 
     return {
       eventUrl,
+      fallbackText,
       text,
       title: eventTitle,
     };
   }, [eventId, eventSlug, eventTitle, facilitatorName, startsAt]);
 
   async function shareEvent() {
+    if (sharingRef.current) return;
+
     if (navigator.share) {
+      sharingRef.current = true;
+      setIsSharing(true);
       try {
         await navigator.share({
           title: shareData.title,
@@ -60,6 +67,9 @@ export function ShareEventButton({ eventId, eventSlug, eventTitle, facilitatorNa
         return;
       } catch {
         return;
+      } finally {
+        sharingRef.current = false;
+        setIsSharing(false);
       }
     }
 
@@ -81,7 +91,7 @@ export function ShareEventButton({ eventId, eventSlug, eventTitle, facilitatorNa
     trackAnalyticsEvent({ eventId, shareMethod, type: "event_share" });
   }
 
-  const encodedText = encodeURIComponent(shareData.text);
+  const encodedText = encodeURIComponent(shareData.fallbackText);
   const encodedUrl = encodeURIComponent(shareData.eventUrl);
   const mailHref = "mailto:?subject=" + encodeURIComponent("Event på SoulEvents: " + eventTitle) + "&body=" + encodedText;
   const smsHref = "sms:?&body=" + encodedText;
@@ -95,12 +105,13 @@ export function ShareEventButton({ eventId, eventSlug, eventTitle, facilitatorNa
           <p className="mt-1 text-sm leading-6 text-ink/64">Send eventet til en ven eller gem linket til senere.</p>
         </div>
         <button
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-button bg-olive px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-button bg-olive px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-wait disabled:opacity-75"
+          disabled={isSharing}
           onClick={shareEvent}
           type="button"
         >
           <Share2 className="size-4" aria-hidden="true" />
-          Del event
+          {isSharing ? "Åbner deling..." : "Del event"}
         </button>
       </div>
 

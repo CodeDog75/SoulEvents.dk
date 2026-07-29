@@ -158,7 +158,7 @@ const adminSectionThemes = {
 } as const;
 
 export default async function AdminPage({ searchParams }: AdminPageProps) {
-  const [{ message }, profile] = await Promise.all([searchParams, requireRole("admin")]);
+  const [{ message }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = await createClient();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -283,7 +283,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
             </div>
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-sage-700">Administrator</p>
-              <h1 className="text-xl font-semibold text-midnight">Dashboard · {profile.full_name}</h1>
+              <h1 className="text-xl font-semibold text-midnight">SoulEvents Administration</h1>
             </div>
           </div>
           <SignOutButton />
