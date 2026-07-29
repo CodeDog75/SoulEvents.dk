@@ -1,5 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
-
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, Mail, MapPinned, Phone, Sparkles } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
@@ -24,13 +22,6 @@ type GalleryImage = {
   altText?: string | null;
   imagePath?: string | null;
   url: string;
-};
-
-type ServiceSymbol = {
-  backgroundColor: string;
-  id: string;
-  name: string;
-  url: string | null;
 };
 
 type PublicFacilitatorProfileProps = {
@@ -68,7 +59,6 @@ type PublicFacilitatorProfileProps = {
   reminderFormAction: (formData: FormData) => Promise<void>;
   reminderMessage?: string;
   serviceDescription?: string | null;
-  serviceSymbols?: ServiceSymbol[];
   specialty?: string | null;
   showFallbackNotice?: boolean;
 };
@@ -145,7 +135,6 @@ export function PublicFacilitatorProfile({
   reminderFormAction,
   reminderMessage,
   serviceDescription,
-  serviceSymbols = [],
   showFallbackNotice = false,
   specialty,
 }: PublicFacilitatorProfileProps) {
@@ -198,31 +187,10 @@ export function PublicFacilitatorProfile({
             </section>
           ) : null}
 
-          {serviceDescription || serviceSymbols.length > 0 ? (
+          {serviceDescription ? (
             <section className="rounded-[32px] border border-[#D8CBE4] bg-[#F4F0F7] p-7 sm:p-8">
               <SectionTitle eyebrow="Individuelle ydelser" title="Mine ydelser" />
-              {serviceSymbols.length > 0 ? (
-                <div className="mt-5 flex flex-wrap gap-3">
-                  {serviceSymbols.map((symbol) => (
-                    <span
-                      aria-label={symbol.name}
-                      className="grid size-14 place-items-center rounded-[20px] border border-[#D8CBE4]/70 text-sage-700 shadow-[0_10px_24px_rgba(47,36,55,0.08)]"
-                      key={symbol.id}
-                      style={{ backgroundColor: symbol.backgroundColor }}
-                      title={symbol.name}
-                    >
-                      {symbol.url ? (
-                        <img alt="" aria-hidden="true" className="size-7" src={symbol.url} />
-                      ) : (
-                        <Sparkles className="size-7" aria-hidden="true" />
-                      )}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {serviceDescription ? (
-                <p className="mt-5 max-w-3xl whitespace-pre-line text-base leading-8 text-[#5E5662]">{serviceDescription}</p>
-              ) : null}
+              <p className="mt-5 max-w-3xl whitespace-pre-line text-base leading-8 text-[#5E5662]">{serviceDescription}</p>
             </section>
           ) : null}
 

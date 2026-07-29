@@ -15,7 +15,6 @@ import {
   profileApprovalUrl,
   sendFacilitatorProfileReadyEmail,
 } from "@/lib/email/facilitator-profile-ready";
-import { maxProfileSymbols } from "@/lib/design-symbols";
 import {
   isMoodHeroKey,
   moodHeroKeyToSortOrder,
@@ -319,75 +318,6 @@ function isEditableProfileSection(
   value: string | null | undefined,
 ): value is EditableProfileSection {
   return editableProfileSections.includes(value as EditableProfileSection);
-}
-
-function normalizeProfileSymbolIds(value: unknown) {
-  const values = Array.isArray(value)
-    ? value
-    : typeof value === "string"
-      ? [value]
-      : [];
-  return [
-    ...new Set(
-      values
-        .map((item) => String(item).trim())
-        .filter((item) => /^[0-9a-f-]{36}$/i.test(item)),
-    ),
-  ].slice(0, maxProfileSymbols);
-}
-
-async function saveFacilitatorProfileSymbols(input: {
-  facilitatorId: string;
-  symbolIds: string[];
-  supabase: ReturnType<typeof createAdminClient>;
-}) {
-  const symbolIds = input.symbolIds.slice(0, maxProfileSymbols);
-
-  const { error: deleteError } = await input.supabase
-    .from("facilitator_profile_symbols")
-    .delete()
-    .eq("facilitator_id", input.facilitatorId);
-
-  if (deleteError) {
-    return { error: deleteError };
-  }
-
-  if (symbolIds.length === 0) {
-    return { error: null };
-  }
-
-  const { data: activeSymbols, error: symbolError } = await input.supabase
-    .from("design_symbols")
-    .select("id")
-    .in("id", symbolIds)
-    .eq("is_active", true);
-
-  if (symbolError) {
-    return { error: symbolError };
-  }
-
-  const activeIds = new Set(
-    (activeSymbols ?? []).map((symbol) => symbol.id as string),
-  );
-  const validSymbolIds = symbolIds.filter((symbolId) =>
-    activeIds.has(symbolId),
-  );
-
-  if (validSymbolIds.length === 0) {
-    return { error: null };
-  }
-
-  const { error: insertError } = await input.supabase
-    .from("facilitator_profile_symbols")
-    .insert(
-      validSymbolIds.map((symbolId, index) => ({
-        facilitator_id: input.facilitatorId,
-        sort_order: index,
-        symbol_id: symbolId,
-      })),
-    );
-
-  return { error: insertError };
 }
 
 function normalizeProfileSection(
@@ -1682,13 +1612,8 @@ export async function autosaveFacilitatorProfileAction(
     }
   }
 
-  let profileSymbolIds: string[] | null = null;
-
   if (section === "services") {
     const offersServices = input.values.offers_services === true;
-    profileSymbolIds = offersServices
-      ? normalizeProfileSymbolIds(input.values.symbol_ids)
-      : [];
     const serviceDescription = valueForAutosave(
       input.values.service_description,
     );
@@ -1925,31 +1850,6 @@ export async function autosaveFacilitatorProfileAction(
         message: profileSaveMessage(facilitatorError, section),
         ok: false,
       };
-    }
-  }
-
-  if (section === "services" && profileSymbolIds) {
-    const { error: symbolError } = await saveFacilitatorProfileSymbols({
-      facilitatorId,
-      supabase,
-      symbolIds: profileSymbolIds,
-    });
-
-    if (symbolError) {
-      console.error(
-        "[facilitator-profile] Profile symbols could not be saved",
-        {
-          code: symbolError.code,
-          details: symbolError.details,
-          facilitatorId,
-          hint: symbolError.hint,
-          message: symbolError.message,
-          operation: "replace",
-          profileRef: logProfileReference(targetProfileId),
-          table: "facilitator_profile_symbols",
-        },
-      );
-      return { message: "Symbolerne kunne ikke gemmes.", ok: false };
     }
   }
 
@@ -2768,9 +2668,6 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   const categoryIds = getAllStrings(formData, "category_ids");
   const uniqueCategoryIds = [...new Set(categoryIds)];
   const offersServices = formData.get("offers_services") === "on";
-  const profileSymbolIds = offersServices
-    ? normalizeProfileSymbolIds(getAllStrings(formData, "symbol_ids"))
-    : [];
   const serviceDescription = getOptionalString(formData, "service_description");
   const specialties = normalizeSpecialtyText(
     getOptionalString(formData, "specialties"),
@@ -3405,42 +3302,6 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
         message,
         redirectOrigin,
         fallbackErrorSection(section, "contact"),
-      );
-    }
-  }
-
-  if (savesSection(section, "services")) {
-    const { error: symbolError } = await saveFacilitatorProfileSymbols({
-      facilitatorId,
-      supabase,
-      symbolIds: profileSymbolIds,
-    });
-
-    if (symbolError) {
-      console.error(
-        "[facilitator-profile] Profile symbols could not be saved",
-        {
-          code: symbolError.code,
-          details: symbolError.details,
-          facilitatorId,
-          hint: symbolError.hint,
-          message: symbolError.message,
-          operation: "replace",
-          profileRef: logProfileReference(targetProfile.id),
-          table: "facilitator_profile_symbols",
-        },
-      );
-      if (isAdminEdit) {
-        adminProfileRedirect(
-          "Symbolerne kunne ikke gemmes.",
-          adminReturnTo,
-          "services",
-        );
-      }
-      profileRedirect(
-        "Symbolerne kunne ikke gemmes.",
-        redirectOrigin,
-        "services",
       );
     }
   }

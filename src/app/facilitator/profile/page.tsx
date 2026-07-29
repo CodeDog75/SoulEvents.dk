@@ -8,12 +8,10 @@ import { ProfileForm } from "@/components/facilitator/profile-form";
 import { requireProfile } from "@/lib/auth/roles";
 import { resolveNameParts } from "@/lib/auth/names";
 import { getBrandLogoSources, type LogoSettingClient } from "@/lib/brand-logo";
-import { mapDesignSymbolRow } from "@/lib/design-symbols";
 import { normalizeFacilitatorMoodImageSlots } from "@/lib/facilitators/mood-image-slots";
 import { getFacilitatorOnboardingState } from "@/lib/facilitators/onboarding-state";
 import { parseProfileChangeRequest } from "@/lib/facilitators/profile-change-request";
 import { facilitatorWorkAreaSlugs } from "@/lib/facilitators/work-areas";
-import { publicMediaUrl } from "@/lib/media/public-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -72,8 +70,6 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
   const [
     { data: paymentSettings },
     { data: latestChangeRequest },
-    { data: designSymbolRows },
-    { data: selectedProfileSymbolRows },
   ] = await Promise.all([
     supabase.from("facilitator_payment_settings").select("*").eq("facilitator_id", facilitatorProfile.id).maybeSingle(),
     admin
@@ -84,17 +80,6 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    admin
-      .from("design_symbols")
-      .select("id, name, slug, category, svg_path, original_svg_path, background_color, sort_order, is_active, created_at, updated_at")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true }),
-    admin
-      .from("facilitator_profile_symbols")
-      .select("symbol_id, sort_order")
-      .eq("facilitator_id", facilitatorProfile.id)
-      .order("sort_order", { ascending: true }),
   ]);
 
   const backHref = profile.role === "admin" ? "/admin" : "/facilitator";
@@ -127,14 +112,6 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
   const isSubmittedForReview = onboardingState === "pending_review";
   const presentationMode = onboardingState === "approved" || onboardingState === "changes_requested" ? "editing" : "onboarding";
   const profileChangeRequest = parseProfileChangeRequest(latestChangeRequest?.reason);
-  const designSymbols = (designSymbolRows ?? []).map((row) => {
-    const symbol = mapDesignSymbolRow(row);
-    return {
-      ...symbol,
-      publicUrl: publicMediaUrl(symbol.optimizedSvgPath),
-    };
-  });
-  const selectedDesignSymbolIds = (selectedProfileSymbolRows ?? []).map((row) => row.symbol_id as string);
   const canSendForReview =
     Boolean(facilitatorProfile.profile_image_path) &&
     Boolean(facilitatorProfile.company_name) &&
@@ -309,14 +286,12 @@ export default async function FacilitatorProfilePage({ searchParams }: Facilitat
           }}
           feedbackMessage={message ?? null}
           galleryImages={galleryImages}
-          designSymbols={designSymbols}
           logoSources={logoSources}
           presentationMode={presentationMode}
           profile={profileForForm}
           regions={regions ?? []}
           savedSection={saved ?? null}
           selectedCategoryIds={selectedCategoryIds}
-          selectedDesignSymbolIds={selectedDesignSymbolIds}
         />
       </section>
     </main>

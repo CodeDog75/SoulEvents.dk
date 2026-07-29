@@ -3,41 +3,26 @@
 import {
   ArrowLeft,
   ArrowRight,
-  Brain,
   Camera,
-  Check,
   Circle,
   CreditCard,
-  Droplets,
-  Dumbbell,
   Eye,
   ExternalLink,
-  Flame,
-  Flower2,
   Globe,
-  HandHeart,
-  Heart,
   HeartHandshake,
   ImagePlus,
   Info,
-  Leaf,
   Link2,
   Mail,
   MapPin,
   MapPinned,
-  MessageCircle,
-  Moon,
-  Music,
   PartyPopper,
   PencilLine,
   Phone,
   Sparkles,
-  Sun,
   Upload,
   User,
-  Users,
   Video,
-  Waves,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -84,7 +69,6 @@ import { OnboardingShell as SharedOnboardingShell } from "@/components/onboardin
 import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
 import { PublicFacilitatorGallery } from "@/components/facilitator/public-facilitator-gallery";
 import type { BrandLogoSources } from "@/lib/brand-logo";
-import { maxProfileSymbols, type DesignSymbol } from "@/lib/design-symbols";
 import {
   defaultFacilitatorHeroKey,
   facilitatorHeroOptions,
@@ -162,10 +146,6 @@ type FacilitatorProfile = {
   show_in_local_service_results?: boolean | null;
 };
 
-type ProfileDesignSymbol = DesignSymbol & {
-  publicUrl: string | null;
-};
-
 type GalleryImage = {
   image_path: string;
   alt_text: string | null;
@@ -191,9 +171,7 @@ type ProfileFormProps = {
   facilitatorProfile: FacilitatorProfile;
   regions: Region[];
   categories: Category[];
-  designSymbols?: ProfileDesignSymbol[];
   selectedCategoryIds: string[];
-  selectedDesignSymbolIds?: string[];
   galleryImages: GalleryImage[];
   savedSection?: string | null;
   submitLabel?: string;
@@ -232,30 +210,6 @@ const moodImageMaxFileSize = 15 * 1024 * 1024;
 
 function sortedByDanishName<T extends { name: string }>(items: T[]) {
   return [...items].sort((a, b) => a.name.localeCompare(b.name, "da-DK"));
-}
-
-function workAreaIconForName(name: string): LucideIcon {
-  const normalized = name.toLowerCase();
-  if (normalized.includes("yoga") || normalized.includes("krop"))
-    return Dumbbell;
-  if (normalized.includes("meditation") || normalized.includes("mindfulness"))
-    return Moon;
-  if (normalized.includes("healing") || normalized.includes("energi"))
-    return Sparkles;
-  if (normalized.includes("sauna") || normalized.includes("ild")) return Flame;
-  if (normalized.includes("lyd") || normalized.includes("musik")) return Music;
-  if (normalized.includes("natur") || normalized.includes("retreat"))
-    return Leaf;
-  if (normalized.includes("ceremoni") || normalized.includes("ritual"))
-    return Flower2;
-  if (normalized.includes("terapi") || normalized.includes("coaching"))
-    return Brain;
-  if (normalized.includes("åndedræt") || normalized.includes("breath"))
-    return Waves;
-  if (normalized.includes("hjerte") || normalized.includes("relation"))
-    return Heart;
-  if (normalized.includes("sol") || normalized.includes("lys")) return Sun;
-  return HandHeart;
 }
 
 function workAreaDescriptionForCategory(category: Category) {
@@ -433,14 +387,12 @@ function workAreaClass(selected: boolean, _isLong = false) {
 
 function SelectionCardContent({
   description,
-  Icon,
   label,
   onInfoToggle,
   showInfo,
   selected,
 }: {
   description?: string | null;
-  Icon: LucideIcon;
   label: string;
   onInfoToggle?: () => void;
   showInfo?: boolean;
@@ -449,15 +401,7 @@ function SelectionCardContent({
   return (
     <>
       <span className="flex min-w-0 flex-1 flex-col gap-2">
-        <span className="flex min-w-0 items-center gap-3">
-          <Icon
-            aria-hidden="true"
-            className={
-              selected
-                ? "size-5 shrink-0 text-sage-700"
-                : "size-5 shrink-0 text-sage-700/55"
-            }
-          />
+        <span className="flex min-w-0 items-center gap-2">
           <span className="min-w-0 whitespace-normal break-words text-left leading-snug">
             {label}
           </span>
@@ -1118,10 +1062,8 @@ export function ProfileForm({
   profile,
   facilitatorProfile,
   categories,
-  designSymbols = [],
   regions,
   selectedCategoryIds,
-  selectedDesignSymbolIds = [],
   galleryImages,
   logoSources,
 }: ProfileFormProps) {
@@ -1285,9 +1227,6 @@ export function ProfileForm({
   const [offersIndividualServices, setOffersIndividualServices] = useState(
     Boolean(facilitatorProfile.offers_services),
   );
-  const [selectedProfileSymbolIds, setSelectedProfileSymbolIds] = useState<
-    string[]
-  >(() => selectedDesignSymbolIds.slice(0, maxProfileSymbols));
   const [serviceDescription, setServiceDescription] = useState(
     value(facilitatorProfile.service_description),
   );
@@ -1323,9 +1262,6 @@ export function ProfileForm({
   const specialtyText = normalizeSpecialtyText(specialties);
   const hasIndividualServicesDescription =
     offersIndividualServices && serviceDescription.trim().length > 0;
-  const selectedProfileSymbols = designSymbols.filter((symbol) =>
-    selectedProfileSymbolIds.includes(symbol.id),
-  );
   const facebookValidation = validateSocialProfileLink(facebook, "facebook");
   const instagramValidation = validateSocialProfileLink(instagram, "instagram");
   const facebookError =
@@ -1432,16 +1368,6 @@ export function ProfileForm({
   const approvalHelper = approvalReadyForSubmit
     ? "Din profil er klar til indsendelse."
     : "Udfyld de markerede oplysninger og acceptér vilkårene, før profilen kan sendes.";
-
-  function toggleProfileSymbol(symbolId: string) {
-    setSelectedProfileSymbolIds((current) =>
-      current.includes(symbolId)
-        ? current.filter((item) => item !== symbolId)
-        : current.length >= maxProfileSymbols
-          ? current
-          : [...current, symbolId],
-    );
-  }
 
   async function lookupPostalCodeCity(nextPostalCode: string) {
     latestPostalCodeLookupRef.current = nextPostalCode;
@@ -1863,7 +1789,6 @@ export function ProfileForm({
         individual_service_types: [],
         service_description: serviceDescription,
         show_in_local_service_results: offersIndividualServices,
-        symbol_ids: selectedProfileSymbolIds,
       },
     });
 
@@ -2032,7 +1957,6 @@ export function ProfileForm({
           individual_service_types: [],
           service_description: serviceDescription,
           show_in_local_service_results: offersIndividualServices,
-          symbol_ids: selectedProfileSymbolIds,
         },
       });
 
@@ -3132,7 +3056,7 @@ export function ProfileForm({
           {shouldUseEmbeddedProfileSection ? (
             <SectionHeading
               description="Vælg de områder, der bedst beskriver dit arbejde."
-              Icon={HandHeart}
+              Icon={Sparkles}
               title="Arbejdsområder og speciale"
             />
           ) : null}
@@ -3140,7 +3064,6 @@ export function ProfileForm({
             {sortFacilitatorWorkAreas(categories).map((category) => {
               const selected = selectedExperiences.includes(category.id);
               const isLong = category.name.length > 17;
-              const WorkAreaIcon = workAreaIconForName(category.name);
               const description = workAreaDescriptionForCategory(category);
               return (
                 <button
@@ -3151,7 +3074,6 @@ export function ProfileForm({
                 >
                   <SelectionCardContent
                     description={description}
-                    Icon={WorkAreaIcon}
                     label={category.name}
                     onInfoToggle={() =>
                       setOpenAreaInfoId((current) =>
@@ -3534,132 +3456,6 @@ export function ProfileForm({
                   ) : null}
                 </div>
               </div>
-
-              <div className="rounded-[24px] bg-white p-4 shadow-soft sm:p-5">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold leading-6 text-midnight">
-                      Vælg op til 2 symboler, der bedst beskriver din måde at
-                      arbejde på
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-ink/55">
-                      Symbolerne vises på din profil og giver deltagerne et
-                      hurtigt indtryk af din tilgang.
-                    </p>
-                  </div>
-                  <p className="shrink-0 rounded-full bg-sage-50 px-3 py-1 text-xs font-semibold text-sage-700">
-                    {selectedProfileSymbolIds.length} af {maxProfileSymbols}{" "}
-                    valgt
-                  </p>
-                </div>
-
-                <div className="mt-4 rounded-[22px] border border-sage-700/10 bg-sage-50/55 p-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-sage-700">
-                    Dine valgte symboler
-                  </p>
-                  {selectedProfileSymbols.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {selectedProfileSymbols.map((symbol) => (
-                        <span
-                          aria-label={symbol.name}
-                          className="grid size-12 place-items-center rounded-2xl border-2 border-sage-700 text-sage-700 shadow-soft"
-                          key={symbol.id}
-                          style={{ backgroundColor: symbol.backgroundColor }}
-                          title={symbol.name}
-                        >
-                          {symbol.publicUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              alt=""
-                              aria-hidden="true"
-                              className="size-6"
-                              src={symbol.publicUrl}
-                            />
-                          ) : (
-                            <Sparkles className="size-6" aria-hidden="true" />
-                          )}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-xs leading-5 text-ink/50">
-                      Vælg op til 2 symboler nedenfor.
-                    </p>
-                  )}
-                </div>
-
-                {designSymbols.length > 0 ? (
-                  <div
-                    className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-6 lg:grid-cols-8"
-                    aria-label="Vælg op til 2 symboler"
-                  >
-                    {designSymbols.map((symbol) => {
-                      const selected = selectedProfileSymbolIds.includes(
-                        symbol.id,
-                      );
-                      const disabled =
-                        !selected &&
-                        selectedProfileSymbolIds.length >= maxProfileSymbols;
-
-                      return (
-                        <button
-                          aria-label={symbol.name}
-                          aria-disabled={disabled}
-                          aria-pressed={selected}
-                          className={
-                            "group relative grid aspect-square min-h-16 place-items-center rounded-[20px] border p-2 shadow-soft transition duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 sm:min-h-20 " +
-                            (selected
-                              ? "border-2 border-sage-700 text-sage-800 shadow-soft"
-                              : disabled
-                                ? "border-midnight/10 text-ink/35 opacity-45"
-                                : "border-midnight/10 text-midnight hover:-translate-y-0.5 hover:border-sage-700/45 hover:shadow-lg")
-                          }
-                          key={symbol.id}
-                          onClick={() => {
-                            if (!disabled) {
-                              toggleProfileSymbol(symbol.id);
-                            }
-                          }}
-                          style={{ backgroundColor: symbol.backgroundColor }}
-                          title={symbol.name}
-                          type="button"
-                        >
-                          {symbol.publicUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              alt=""
-                              aria-hidden="true"
-                              className="size-8"
-                              src={symbol.publicUrl}
-                            />
-                          ) : (
-                            <Sparkles
-                              className="size-8 text-sage-700"
-                              aria-hidden="true"
-                            />
-                          )}
-                          <span
-                            className={
-                              "absolute right-2 top-2 grid size-6 place-items-center rounded-full border transition " +
-                              (selected
-                                ? "border-sage-700 bg-sage-700 text-white"
-                                : "border-transparent text-transparent")
-                            }
-                            aria-hidden="true"
-                          >
-                            <Check className="size-3.5" />
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="mt-4 rounded-[18px] border border-sage-700/10 bg-white/75 px-4 py-3 text-sm leading-6 text-ink/60">
-                    Der er endnu ikke uploadet aktive symboler i
-                    adminbiblioteket.
-                  </p>
-                )}
-              </div>
             </div>
           ) : null}
         </div>
@@ -3743,31 +3539,6 @@ export function ProfileForm({
                       eyebrow="Individuelle ydelser"
                       title="Mine ydelser"
                     />
-                    {selectedProfileSymbols.length > 0 ? (
-                      <div className="mt-5 flex flex-wrap gap-3">
-                        {selectedProfileSymbols.map((symbol) => (
-                          <span
-                            aria-label={symbol.name}
-                            className="grid size-14 place-items-center rounded-[20px] border border-[#D8CBE4]/70 text-sage-700 shadow-soft"
-                            key={symbol.id}
-                            style={{ backgroundColor: symbol.backgroundColor }}
-                            title={symbol.name}
-                          >
-                            {symbol.publicUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                alt=""
-                                aria-hidden="true"
-                                className="size-7"
-                                src={symbol.publicUrl}
-                              />
-                            ) : (
-                              <Sparkles className="size-7" aria-hidden="true" />
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
                     {hasIndividualServicesDescription ? (
                       <p className="mt-5 max-w-3xl whitespace-pre-line text-base leading-8 text-[#5E5662]">
                         {serviceDescription}
