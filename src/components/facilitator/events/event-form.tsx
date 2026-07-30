@@ -605,7 +605,7 @@ function TextInput({
       : fieldStateClass(inputValue);
 
   return (
-    <label className="grid gap-2 text-sm font-medium text-ink/72">
+    <label className="grid min-w-0 gap-2 text-sm font-medium text-ink/72">
       <span>
         {label}
         {required ? <span className="ml-1 text-[#B56F8A]">*</span> : null}
@@ -666,7 +666,7 @@ function TextArea({
   const isAtLimit = remainingCharacters !== null && remainingCharacters <= 0;
 
   return (
-    <label className="grid gap-2 text-sm font-medium text-ink/72">
+    <label className="grid min-w-0 gap-2 text-sm font-medium text-ink/72">
       <span>
         {label}
         {required ? <span className="ml-1 text-[#B56F8A]">*</span> : null}
@@ -704,7 +704,7 @@ function EventDescriptionField({ defaultValue = "" }: { defaultValue?: string })
   const hasMinimumCharacters = missingMinimumCharacters === 0;
 
   return (
-    <label className="grid gap-2 text-sm font-medium text-ink/72">
+    <label className="grid min-w-0 gap-2 text-sm font-medium text-ink/72">
       <span>
         Hvad skal deltagerne opleve?<span className="ml-1 text-[#B56F8A]">*</span>
       </span>
@@ -2062,7 +2062,7 @@ export function EventForm({
       : "border-[#D8CBE4] bg-[#F4F0F7] text-[#7A5D91]";
     const headerLayoutClass =
       index === 1 || index === 2 ? "flex-col items-stretch sm:flex-row sm:items-center" : "items-center";
-    const radioGroupClass = "grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[245px]";
+    const radioGroupClass = "grid w-full min-w-0 grid-cols-2 gap-2 sm:w-auto sm:min-w-[245px]";
     const radioPillClass = (checked: boolean) =>
       "inline-flex h-9 cursor-pointer items-center justify-center rounded-full border px-3 text-xs font-semibold transition sm:h-10 sm:text-sm " +
       (checked
@@ -2070,7 +2070,7 @@ export function EventForm({
         : "border-[#D8CBE4] bg-white text-[#2F2437] hover:border-[#7A5D91]");
 
     return (
-      <div className={"flex w-full gap-3 rounded-[18px] border px-4 py-3 transition " + headerLayoutClass + " " + statusClass}>
+      <div className={"flex w-full min-w-0 gap-3 rounded-[18px] border px-4 py-3 transition " + headerLayoutClass + " " + statusClass}>
         <button
           aria-expanded={isOpen}
           className="min-w-0 flex-1 text-left"
@@ -2509,8 +2509,8 @@ export function EventForm({
       <div className="grid min-w-0 max-w-full gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
         <div className="grid min-w-0 max-w-full gap-5">
           {renderStepAccordionHeader(0)}
-      <section className={isStepOpen(0) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
-        <div className="grid gap-4 md:grid-cols-2 md:gap-x-5 md:gap-y-4">
+      <section className={isStepOpen(0) ? "grid w-full min-w-0 max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
+        <div className="grid min-w-0 gap-4 md:grid-cols-2 md:gap-x-5 md:gap-y-4">
           <div
             className={
               "rounded-[20px] border p-4 transition md:col-span-2 " +
@@ -2606,7 +2606,7 @@ export function EventForm({
         <div className={"rounded-[20px] transition " + highlightMissingClass("description")} id="event-description-field">
           <EventDescriptionField defaultValue={value(draftEvent?.long_description || draftEvent?.short_description)} />
         </div>
-        <section className="grid gap-4 rounded-[22px] border border-[#E5D4F7] bg-[#FAF8FC] p-4 md:p-5">
+        <section className="grid min-w-0 gap-4 rounded-[22px] border border-[#E5D4F7] bg-[#FAF8FC] p-4 md:p-5">
           <div className="grid gap-1">
             <h3 className="text-lg font-semibold text-midnight">Afholder du eventet sammen med andre?</h3>
             <p className="text-sm leading-6 text-ink/68">
@@ -2639,7 +2639,7 @@ export function EventForm({
                         <p className="mt-2 text-sm leading-5 text-ink/62">{statusCopy.description}</p>
                       </div>
                     </div>
-                    <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                    <div className="flex min-w-0 flex-wrap gap-2 sm:shrink-0 sm:justify-end">
                       {coOrganizer.status === "pending" && coOrganizer.profileIsActive !== false ? (
                         <button
                           className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#D8CBE4] bg-[#F4F0F7] px-3 text-xs font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
@@ -2665,7 +2665,7 @@ export function EventForm({
               })}
 
               {selectedCoOrganizers.map((coOrganizer) => (
-                <div className="flex items-start gap-3 rounded-card border border-[#D8CBE4] bg-white p-3 shadow-sm" key={coOrganizer.id}>
+                <div className="flex min-w-0 items-start gap-3 rounded-card border border-[#D8CBE4] bg-white p-3 shadow-sm" key={coOrganizer.id}>
                   <CoOrganizerAvatar imageUrl={coOrganizer.imageUrl} name={coOrganizer.name} />
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-midnight">{coOrganizer.name}</p>
@@ -2759,17 +2759,17 @@ export function EventForm({
         </section>
       </section>
 {renderStepAccordionHeader(1)}
-      <section className={isStepOpen(1) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-5 sm:p-6 " + highlightMissingClass(eventFormat === "online" ? "online" : "location") : "hidden"} id="event-location-field">
+      <section className={isStepOpen(1) ? "grid w-full min-w-0 max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-5 sm:p-6 " + highlightMissingClass(eventFormat === "online" ? "online" : "location") : "hidden"} id="event-location-field">
         {!hasChosenEventFormat ? (
           <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
             Vælg først fysisk eller online i trinlinjen ovenfor.
           </p>
         ) : null}
         {showAddress ? (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid min-w-0 gap-4 md:grid-cols-2">
             <TextInput defaultValue={value(draftEvent?.address_line ?? facilitator.addressLine)} label="Adresse" name="address_line" required maxLength={120} />
 
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
+            <label className="grid min-w-0 gap-2 text-sm font-medium text-ink/72">
               <span>
                 {isDanishPhysicalEvent ? "Postnummer" : "Postnummer / ZIP"}<span className="ml-1 text-[#B56F8A]">*</span>
               </span>
@@ -2786,7 +2786,7 @@ export function EventForm({
               />
             </label>
 
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
+            <label className="grid min-w-0 gap-2 text-sm font-medium text-ink/72">
               <span>
                 By<span className="ml-1 text-[#B56F8A]">*</span>
               </span>
@@ -2802,7 +2802,7 @@ export function EventForm({
               {postalCodeMessage && isDanishPhysicalEvent ? <span className="text-xs leading-5 text-[#7A4EAB]">{postalCodeMessage}</span> : null}
             </label>
 
-            <label className="grid gap-2 text-sm font-medium text-ink/72">
+            <label className="grid min-w-0 gap-2 text-sm font-medium text-ink/72">
               <span>
                 Land<span className="ml-1 text-[#B56F8A]">*</span>
               </span>
@@ -2819,7 +2819,7 @@ export function EventForm({
             </label>
 
             {isDanishPhysicalEvent ? (
-              <div className="grid gap-2 text-sm font-medium text-ink/72">
+              <div className="grid min-w-0 gap-2 text-sm font-medium text-ink/72">
                 <span>Område</span>
                 <input name="region_id" type="hidden" value={regionId} />
                 <div className="flex min-h-12 items-center rounded-card border border-[#D7C4F0] bg-[#F8F3FF] px-4 text-base text-ink">
@@ -2865,7 +2865,7 @@ export function EventForm({
           </div>
         ) : null}
         {showOnline ? (
-          <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid min-w-0 gap-4 md:grid-cols-2">
             <div className="grid gap-3">
               {sendOnlineLinkLater ? (
                 <div className="grid gap-3 rounded-card border border-[#CFE3C8] bg-[#F6FBF3] p-4 text-sm text-ink/72">
@@ -2945,13 +2945,13 @@ export function EventForm({
       
 
       
-<section className={isStepOpen(2) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-5 sm:p-6 " + highlightMissingClass(highlightedMissingKey === "capacity" ? "capacity" : "price-mode") : "hidden"} id="event-price-field">
+<section className={isStepOpen(2) ? "grid w-full min-w-0 max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-5 sm:p-6 " + highlightMissingClass(highlightedMissingKey === "capacity" ? "capacity" : "price-mode") : "hidden"} id="event-price-field">
         {priceMode === "" ? (
           <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
             Vælg først gratis eller betaling i trinlinjen ovenfor.
           </p>
         ) : null}
-        <div className="grid gap-4 md:grid-cols-2 md:items-stretch">
+        <div className="grid min-w-0 gap-4 md:grid-cols-2 md:items-stretch">
           {priceMode === "paid" ? (
             <label className="grid min-h-[180px] content-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-5 text-sm font-medium text-ink/72 shadow-soft">
               <span>Pris i kr.</span>
@@ -3009,8 +3009,8 @@ export function EventForm({
         <input name="payment_deadline_days" type="hidden" value={priceMode === "paid" && sendPaymentInfo ? paymentDeadlineDays : ""} />
 
         {priceMode === "paid" ? (
-          <section className="grid gap-4 rounded-card border border-[#E5D4F7] bg-[#FBF8FE] p-4 sm:p-5">
-            <div className="flex items-start gap-3">
+          <section className="grid min-w-0 gap-4 rounded-card border border-[#E5D4F7] bg-[#FBF8FE] p-4 sm:p-5">
+            <div className="flex min-w-0 items-start gap-3">
               <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-[#7A4EAB] shadow-soft">
                 <CreditCard className="size-5" aria-hidden="true" />
               </span>
@@ -3023,7 +3023,7 @@ export function EventForm({
               </div>
             </div>
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-card border border-midnight/10 bg-white p-4 text-sm text-midnight shadow-soft transition hover:border-[#7A4EAB]/35">
+            <label className="flex min-w-0 cursor-pointer items-start gap-3 rounded-card border border-midnight/10 bg-white p-4 text-sm text-midnight shadow-soft transition hover:border-[#7A4EAB]/35">
               <input
                 checked={sendPaymentInfo}
                 className="mt-1 size-5 rounded border-midnight/20 accent-[#7A4EAB]"
@@ -3045,12 +3045,12 @@ export function EventForm({
             </label>
 
             {sendPaymentInfo ? (
-              <div className="grid gap-4">
+              <div className="grid min-w-0 gap-4">
                 {hasStandardPaymentSettings ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-sage-700/15 bg-sage-50 px-4 py-3 text-sm text-sage-700">
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-card border border-sage-700/15 bg-sage-50 px-4 py-3 text-sm text-sage-700">
                     <span className="font-semibold">✓ Standardbetalingsoplysninger anvendes.</span>
                     <button
-                      className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(47,36,55,0.10)] focus:outline-none focus:ring-4 focus:ring-[#CDB4EA]"
+                      className="inline-flex min-w-0 items-center justify-center gap-2 rounded-full bg-white px-4 py-2 text-center text-sm font-semibold text-[#7A4EAB] shadow-soft transition hover:-translate-y-0.5 hover:shadow-[0_14px_26px_rgba(47,36,55,0.10)] focus:outline-none focus:ring-4 focus:ring-[#CDB4EA]"
                       onClick={() => setIsPaymentFormOpen((isOpen) => !isOpen)}
                       type="button"
                     >
@@ -3059,11 +3059,11 @@ export function EventForm({
                     </button>
                   </div>
                 ) : (
-                  <div className="grid gap-3 rounded-card border border-[#E5D4F7] bg-white px-4 py-4 text-sm text-ink/68 shadow-soft">
+                  <div className="grid min-w-0 gap-3 rounded-card border border-[#E5D4F7] bg-white px-4 py-4 text-sm text-ink/68 shadow-soft">
                     <p className="font-semibold text-midnight">Du har endnu ikke opsat standardbetalingsoplysninger.</p>
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-3">
                       <Link
-                        className="inline-flex h-11 items-center justify-center rounded-full bg-[#7A4EAB] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(122,78,171,0.22)] focus:outline-none focus:ring-4 focus:ring-[#CDB4EA]"
+                        className="inline-flex h-11 min-w-0 items-center justify-center rounded-full bg-[#7A4EAB] px-5 text-center text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(122,78,171,0.22)] focus:outline-none focus:ring-4 focus:ring-[#CDB4EA]"
                         href="/facilitator/settings/payment"
                       >
                         Opsæt standardbetaling
@@ -3092,10 +3092,10 @@ export function EventForm({
                   ) : null}
 
                   <div className="grid gap-3 md:grid-cols-2">
-                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                  <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
                     MobilePay
                     <input
-                      className="h-12 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      className="h-12 min-w-0 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
                       maxLength={40}
                       onChange={(event) => {
                         setPaymentFieldsEdited(true);
@@ -3105,10 +3105,10 @@ export function EventForm({
                       value={paymentMobilepayNumber}
                     />
                   </label>
-                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                  <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
                     Betalingslink
                     <input
-                      className="h-12 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      className="h-12 min-w-0 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
                       maxLength={300}
                       onChange={(event) => {
                         setPaymentFieldsEdited(true);
@@ -3118,10 +3118,10 @@ export function EventForm({
                       value={paymentExternalUrl}
                     />
                   </label>
-                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                  <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
                     Registreringsnummer
                     <input
-                      className="h-12 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      className="h-12 min-w-0 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
                       maxLength={20}
                       onChange={(event) => {
                         setPaymentFieldsEdited(true);
@@ -3131,10 +3131,10 @@ export function EventForm({
                       value={paymentBankRegistrationNumber}
                     />
                   </label>
-                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                  <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
                     Kontonummer
                     <input
-                      className="h-12 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      className="h-12 min-w-0 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
                       maxLength={40}
                       onChange={(event) => {
                         setPaymentFieldsEdited(true);
@@ -3144,10 +3144,10 @@ export function EventForm({
                       value={paymentBankAccountNumber}
                     />
                   </label>
-                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                  <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
                     Kontohaver
                     <input
-                      className="h-12 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      className="h-12 min-w-0 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
                       maxLength={120}
                       onChange={(event) => {
                         setPaymentFieldsEdited(true);
@@ -3157,10 +3157,10 @@ export function EventForm({
                       value={paymentBankAccountName}
                     />
                   </label>
-                  <label className="grid gap-2 text-sm font-semibold text-midnight">
+                  <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
                     Betalingsfrist
                     <select
-                      className="h-12 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      className="h-12 min-w-0 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
                       onChange={(event) => {
                         setPaymentFieldsEdited(true);
                         setPaymentDeadlineDays(event.currentTarget.value);
@@ -3174,10 +3174,10 @@ export function EventForm({
                       ))}
                     </select>
                   </label>
-                  <label className="grid gap-2 text-sm font-semibold text-midnight md:col-span-2">
+                  <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight md:col-span-2">
                     Betalingsvejledning
                     <textarea
-                      className="min-h-28 resize-y rounded-card border border-midnight/10 bg-white px-4 py-3 text-sm font-normal leading-6 text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      className="min-h-28 min-w-0 resize-y rounded-card border border-midnight/10 bg-white px-4 py-3 text-sm font-normal leading-6 text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
                       maxLength={800}
                       onChange={(event) => {
                         setPaymentFieldsEdited(true);
@@ -3205,7 +3205,7 @@ export function EventForm({
         ) : null}
       </section>
 
-<section className={isStepOpen(2) ? "grid w-full max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
+<section className={isStepOpen(2) ? "grid w-full min-w-0 max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
         <details className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4">
           <summary className="cursor-pointer list-none text-sm font-semibold text-[#7A4EAB] [&::-webkit-details-marker]:hidden">
             Tilføj praktiske oplysninger
@@ -3224,7 +3224,7 @@ export function EventForm({
 
 
           {renderStepAccordionHeader(3)}
-      <section className={isStepOpen(3) ? "grid w-full max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-6 sm:p-6 " + highlightMissingClass("category") : "hidden"} id="event-category-field">
+      <section className={isStepOpen(3) ? "grid w-full min-w-0 max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-6 sm:p-6 " + highlightMissingClass("category") : "hidden"} id="event-category-field">
         {draftEvent?.subcategoryIds?.map((subcategoryId) => (
           <input key={subcategoryId} name="subcategory_ids" type="hidden" value={subcategoryId} />
         ))}
@@ -3239,7 +3239,7 @@ export function EventForm({
         </div>
         {mainCategories.length > 0 && (
           <div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {mainCategories.map((category, index) => (
                 <MainCategoryCard
                   category={category}
