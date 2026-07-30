@@ -46,7 +46,8 @@ function statusLabel(facilitator: any) {
   if (facilitator.is_paused) return "Sat på pause";
   if (facilitator.status === "approved") return "Aktiv";
   if (facilitator.status === "changes_requested") return "Kræver ændringer";
-  return "Afventer";
+  if (facilitator.status === "pending_review") return "Afventer godkendelse";
+  return "Under udarbejdelse";
 }
 
 export default async function AdminEditFacilitatorPage({ params, searchParams }: PageProps) {

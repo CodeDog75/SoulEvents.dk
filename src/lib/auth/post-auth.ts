@@ -193,7 +193,7 @@ export async function ensureAppProfileForAuthUser(
         .from("facilitator_profiles")
         .insert({
           profile_id: appProfile.id,
-          status: "pending",
+          status: "draft",
         })
         .select("id, slug, company_name, short_description, postal_code, city, status, created_at, is_paused, is_disabled, facilitator_categories(category_id)")
         .single();

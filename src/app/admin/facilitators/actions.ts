@@ -8,13 +8,15 @@ import { sendAdminEmailChangeConfirmation, sendEmailChangeSecurityNotice } from 
 import { sendAdminMessageNotificationEmail } from "@/lib/email/admin-message-notification";
 import { facilitatorProfileEditUrl, sendFacilitatorProfileChangesRequestedEmail } from "@/lib/email/facilitator-profile-changes-requested";
 import { sendFacilitatorProfileDeactivatedEmail } from "@/lib/email/facilitator-profile-deactivated";
+import { facilitatorSubmissionMissingLabels, getFacilitatorSubmissionReadiness } from "@/lib/facilitators/profile-readiness";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
+import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes } from "@/lib/legal/documents";
 import { validateSocialProfileLink } from "@/lib/social-profile-links";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { FacilitatorStatus } from "@/types/database";
 
-const allowedStatuses: FacilitatorStatus[] = ["pending", "approved"];
-const editableStatuses: FacilitatorStatus[] = ["pending", "approved", "changes_requested"];
+const allowedStatuses: FacilitatorStatus[] = ["approved"];
+const editableStatuses: FacilitatorStatus[] = ["draft", "pending", "pending_review", "approved", "changes_requested"];
 const missingColumnErrorCodes = ["42703", "PGRST204"];
 
 const profileChangeFieldLabels = {
@@ -40,7 +42,55 @@ type FacilitatorMessageRecipient = {
   status?: FacilitatorStatus | null;
 };
 
+type FacilitatorReadinessProfileRelation = {
+  full_name?: string | null;
+};
+
 type AdminSupabaseClient = ReturnType<typeof createAdminClient>;
+
+async function getAdminFacilitatorSubmissionReadiness(supabase: AdminSupabaseClient, facilitatorId: string) {
+  const { data: facilitator, error } = await supabase
+    .from("facilitator_profiles")
+    .select(
+      "id, city, company_name, postal_code, profile_id, profile_image_path, short_description, long_description, status, facilitator_categories(category_id), facilitator_images(image_path), profiles!facilitator_profiles_profile_id_fkey(full_name)",
+    )
+    .eq("id", facilitatorId)
+    .maybeSingle();
+
+  if (error || !facilitator) {
+    return {
+      facilitator: null,
+      missing: [] as string[],
+      ok: false,
+    };
+  }
+
+  const missingLegalAcceptances = await getMissingRequiredLegalAcceptances(
+    supabase,
+    facilitator.profile_id,
+    organizerAcceptanceTypes,
+  );
+  const relatedProfile = facilitator.profiles as FacilitatorReadinessProfileRelation | FacilitatorReadinessProfileRelation[] | null;
+  const profile = Array.isArray(relatedProfile) ? relatedProfile[0] : relatedProfile;
+  const readiness = getFacilitatorSubmissionReadiness({
+    categoryIds: facilitator.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [],
+    city: facilitator.city,
+    companyName: facilitator.company_name,
+    fullName: profile?.full_name,
+    hasAcceptedRequiredLegalDocuments: missingLegalAcceptances.length === 0,
+    hasMoodImage: Boolean(facilitator.facilitator_images?.length),
+    hasProfileImage: Boolean(facilitator.profile_image_path),
+    postalCode: facilitator.postal_code,
+    requireLocation: true,
+    shortDescription: facilitator.long_description || facilitator.short_description,
+  });
+
+  return {
+    facilitator,
+    missing: readiness.missing.map((item) => facilitatorSubmissionMissingLabels[item]),
+    ok: readiness.isComplete,
+  };
+}
 
 async function getFacilitatorMessageRecipient(supabase: AdminSupabaseClient, facilitatorId: string) {
   const { data: facilitator, error: facilitatorError } = await supabase
@@ -454,16 +504,29 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
     adminReturnRedirect("Ugyldig arrangørhandling.", returnTo);
   }
 
-  if (status === "pending") {
-    adminReturnRedirect("En godkendt eller deaktiveret arrangør kan ikke sættes tilbage til afventer. Brug deaktiver, hvis profilen ikke skal være synlig.", returnTo);
+  const supabase = createAdminClient();
+  const readiness = await getAdminFacilitatorSubmissionReadiness(supabase, facilitatorId);
+  const previousFacilitator = readiness.facilitator;
+
+  if (!previousFacilitator) {
+    adminReturnRedirect("Arrangøren kunne ikke findes.", returnTo);
   }
 
-  const supabase = createAdminClient();
-  const { data: previousFacilitator } = await supabase
-    .from("facilitator_profiles")
-    .select("status")
-    .eq("id", facilitatorId)
-    .maybeSingle();
+  if (status === "approved" && previousFacilitator.status !== "pending_review") {
+    adminReturnRedirect("Kun profiler, der afventer godkendelse, kan godkendes. Profilen er under udarbejdelse eller ligger i et andet statusflow.", returnTo);
+  }
+
+  if (status === "approved" && !readiness.ok) {
+    if (previousFacilitator.status === "pending_review") {
+      await supabase.from("facilitator_profiles").update({ status: "draft" }).eq("id", facilitatorId);
+    }
+
+    adminReturnRedirect(
+      "Profilen kan ikke godkendes endnu. Mangler: " + (readiness.missing.length ? readiness.missing.join(", ") : "ukendt krav") + ".",
+      returnTo,
+    );
+  }
+
   const { error } = await supabase
     .from("facilitator_profiles")
     .update({ status })
@@ -486,14 +549,11 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
     new_value: status,
   });
 
-  const labels: Record<FacilitatorStatus, string> = {
-    pending: "sat tilbage til afventer",
+  const labels: Partial<Record<FacilitatorStatus, string>> = {
     approved: "godkendt",
-    disabled: "deaktiveret",
-    changes_requested: "markeret som kræver ændringer",
   };
 
-  adminReturnRedirect(`Arrangør er ${labels[status]}.`, returnTo, { clearSearch: true });
+  adminReturnRedirect(`Arrangør er ${labels[status] ?? "opdateret"}.`, returnTo, { clearSearch: true });
 }
 
 export async function requestFacilitatorProfileChangesAction(formData: FormData) {
@@ -522,7 +582,7 @@ export async function requestFacilitatorProfileChangesAction(formData: FormData)
     adminReturnRedirect("Arrangøren kunne ikke findes.", returnTo);
   }
 
-  if (facilitator.status !== "pending") {
+  if (facilitator.status !== "pending_review") {
     adminReturnRedirect("Kun arrangører, der afventer godkendelse, kan markeres som kræver ændringer her.", returnTo);
   }
 

@@ -1,7 +1,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type AppRole = "admin" | "facilitator";
-export type FacilitatorStatus = "pending" | "approved" | "disabled" | "changes_requested";
+export type FacilitatorStatus = "draft" | "pending" | "pending_review" | "approved" | "disabled" | "changes_requested";
 export type EventStatus = "draft" | "pending_review" | "active" | "rejected" | "sold_out" | "cancelled" | "completed" | "archived";
 export type BookingStatus =
   | "pending"

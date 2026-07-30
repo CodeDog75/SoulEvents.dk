@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
 import { getFacilitatorSubmissionReadiness } from "@/lib/facilitators/profile-readiness";
+import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes } from "@/lib/legal/documents";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function getText(formData: FormData, key: string) {
@@ -24,7 +25,7 @@ async function getFacilitatorForCurrentUser() {
   const admin = createAdminClient();
   const { data: facilitator } = await admin
     .from("facilitator_profiles")
-    .select("id, company_name, profile_image_path, short_description, long_description, status, is_disabled, is_paused, facilitator_categories(category_id), facilitator_images(image_path)")
+    .select("id, city, company_name, postal_code, profile_image_path, short_description, long_description, status, is_disabled, is_paused, facilitator_categories(category_id), facilitator_images(image_path)")
     .eq("profile_id", profile.id)
     .single();
 
@@ -140,12 +141,21 @@ export async function sendFacilitatorProfileToReviewAction() {
     go("Din profil kan ikke sendes til ny godkendelse lige nu.");
   }
 
+  const missingLegalAcceptances = await getMissingRequiredLegalAcceptances(
+    admin,
+    profile.id,
+    organizerAcceptanceTypes,
+  );
   const readiness = getFacilitatorSubmissionReadiness({
     categoryIds: facilitator.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [],
+    city: facilitator.city,
     companyName: facilitator.company_name,
     fullName: profile.full_name,
+    hasAcceptedRequiredLegalDocuments: missingLegalAcceptances.length === 0,
     hasMoodImage: Boolean(facilitator.facilitator_images?.length),
     hasProfileImage: Boolean(facilitator.profile_image_path),
+    postalCode: facilitator.postal_code,
+    requireLocation: true,
     shortDescription: facilitator.long_description || facilitator.short_description,
   });
 
@@ -155,7 +165,7 @@ export async function sendFacilitatorProfileToReviewAction() {
 
   const { error } = await admin
     .from("facilitator_profiles")
-    .update({ status: "pending" })
+    .update({ status: "pending_review" })
     .eq("id", facilitator.id);
 
   if (error) {
@@ -168,7 +178,7 @@ export async function sendFacilitatorProfileToReviewAction() {
     action: "facilitator_resubmitted_for_review",
     facilitator_id: facilitator.id,
     old_value: "changes_requested",
-    new_value: "pending",
+    new_value: "pending_review",
   });
 
   revalidatePath("/facilitator");

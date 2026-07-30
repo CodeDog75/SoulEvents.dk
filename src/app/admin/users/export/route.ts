@@ -54,7 +54,7 @@ const facilitatorSortValues = new Set<FacilitatorSort>([
   "priority",
 ]);
 const loginActivityFilterValues = new Set<LoginActivityFilter>(["all", "never", "within_30", "inactive_30", "inactive_90", "inactive_180"]);
-const statusFilterValues = new Set<"all" | FacilitatorAdminStatus>(["all", "pending", "changes_requested", "active", "paused", "disabled"]);
+const statusFilterValues = new Set<"all" | FacilitatorAdminStatus>(["all", "draft", "pending", "changes_requested", "active", "paused", "disabled"]);
 
 function optionalFieldMap(rows: OptionalFacilitatorFieldRow[] | null | undefined, field: keyof Omit<OptionalFacilitatorFieldRow, "id">) {
   return new Map((rows ?? []).map((row) => [row.id, row[field]]));

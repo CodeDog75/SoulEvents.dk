@@ -34,16 +34,7 @@ export async function getFacilitatorOnboardingState(
     return "changes_requested";
   }
 
-  const submissionReadiness = getFacilitatorSubmissionReadiness({
-    categoryIds: input.categoryIds,
-    companyName: input.companyName,
-    fullName: input.fullName,
-    hasMoodImage: input.hasMoodImage,
-    hasProfileImage: input.hasProfileImage,
-    shortDescription: input.longDescription || input.shortDescription,
-  });
-
-  if (input.status !== "pending" || !submissionReadiness.isComplete) {
+  if (input.status !== "pending_review" && input.status !== "pending") {
     return "onboarding";
   }
 
@@ -53,8 +44,18 @@ export async function getFacilitatorOnboardingState(
       input.profileId,
       organizerAcceptanceTypes,
     );
+    const hasAcceptedRequiredLegalDocuments = missingLegalAcceptances.length === 0;
+    const submissionReadiness = getFacilitatorSubmissionReadiness({
+      categoryIds: input.categoryIds,
+      companyName: input.companyName,
+      fullName: input.fullName,
+      hasAcceptedRequiredLegalDocuments,
+      hasMoodImage: input.hasMoodImage,
+      hasProfileImage: input.hasProfileImage,
+      shortDescription: input.longDescription || input.shortDescription,
+    });
 
-    return missingLegalAcceptances.length === 0 ? "pending_review" : "onboarding";
+    return submissionReadiness.isComplete ? "pending_review" : "onboarding";
   } catch (error) {
     console.error("Could not determine facilitator onboarding state", {
       message: error instanceof Error ? error.message : "Unknown legal acceptance error",

@@ -5,6 +5,11 @@ import { AdminUserSearchForm } from "@/components/admin/users/admin-user-search-
 import { UserRoleTable } from "@/components/admin/users/user-role-table";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
+import {
+  getFacilitatorSubmissionMissingDisplayItems,
+  getFacilitatorSubmissionReadiness,
+  type FacilitatorSubmissionMissingDisplayItem,
+} from "@/lib/facilitators/profile-readiness";
 import { publicEventPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { EventStatus, FacilitatorStatus } from "@/types/database";
@@ -132,6 +137,10 @@ type TagRelationRow = {
   tags?: { name?: string | null } | Array<{ name?: string | null }> | null;
 };
 
+type ImageRelationRow = {
+  facilitator_id: string | null;
+};
+
 type OptionalFacilitatorFieldRow = {
   auto_approve_events?: boolean | null;
   featured_sort_order?: number | null;
@@ -170,6 +179,7 @@ type EnrichedFacilitatorRow = {
   last_sign_in_at?: string | null;
   days_since_last_login?: number | null;
   long_description?: string | null;
+  missing_requirements: FacilitatorSubmissionMissingDisplayItem[];
   pending_bookings: number;
   participant_booking_count: number;
   phone: string | null;
@@ -206,6 +216,7 @@ const eventsPerPage = 25;
 
 const facilitatorStatusFilters: Array<{ label: string; value: "all" | FacilitatorAdminStatus }> = [
   { label: "Alle", value: "all" },
+  { label: "Under udarbejdelse", value: "draft" },
   { label: "Afventer godkendelse", value: "pending" },
   { label: "Kræver ændringer", value: "changes_requested" },
   { label: "Aktive", value: "active" },
@@ -287,6 +298,80 @@ function appendToMap(map: Map<string, string[]>, key: string | null, value: stri
 
 function optionalFieldMap(rows: OptionalFacilitatorFieldRow[] | null | undefined, field: keyof Omit<OptionalFacilitatorFieldRow, "id">) {
   return new Map((rows ?? []).map((row) => [row.id, row[field]]));
+}
+
+async function getOrganizerTermsAcceptanceByProfileId(supabase: ReturnType<typeof createAdminClient>, profileIds: string[]) {
+  const uniqueProfileIds = Array.from(new Set(profileIds.filter(Boolean)));
+  const acceptedByProfileId = new Map(uniqueProfileIds.map((profileId) => [profileId, true]));
+
+  if (uniqueProfileIds.length === 0) return acceptedByProfileId;
+
+  const organizerAcceptanceTypes = ["organizer_terms", "guidelines"];
+  const [{ data: documents, error: documentsError }, { data: versions, error: versionsError }] = await Promise.all([
+    supabase.from("legal_documents").select("type, current_version_id").in("type", organizerAcceptanceTypes),
+    supabase
+      .from("legal_document_versions")
+      .select("id, document_type, requires_acceptance, effective_at, created_at, published_at")
+      .in("document_type", organizerAcceptanceTypes)
+      .eq("requires_acceptance", true)
+      .lte("effective_at", new Date().toISOString())
+      .order("effective_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("published_at", { ascending: false }),
+  ]);
+
+  if (documentsError || versionsError) {
+    throw new Error(documentsError?.message ?? versionsError?.message ?? "Juridiske dokumenter kunne ikke hentes.");
+  }
+
+  const currentVersionIds = new Map(
+    ((documents ?? []) as Array<{ current_version_id: string | null; type: string }>).map((document) => [
+      document.type,
+      document.current_version_id,
+    ]),
+  );
+  const requiredVersionIds: string[] = [];
+  const seenDocumentTypes = new Set<string>();
+
+  for (const version of (versions ?? []) as Array<{ document_type: string; id: string }>) {
+    if (seenDocumentTypes.has(version.document_type)) continue;
+    const currentVersionId = currentVersionIds.get(version.document_type);
+    if (currentVersionId && currentVersionId !== version.id) continue;
+
+    seenDocumentTypes.add(version.document_type);
+    requiredVersionIds.push(version.id);
+  }
+
+  if (requiredVersionIds.length === 0) return acceptedByProfileId;
+
+  for (const profileId of uniqueProfileIds) {
+    acceptedByProfileId.set(profileId, false);
+  }
+
+  const { data, error } = await supabase
+    .from("legal_document_acceptances")
+    .select("profile_id, document_version_id")
+    .in("profile_id", uniqueProfileIds)
+    .in("document_version_id", requiredVersionIds);
+
+  if (error) throw new Error(error.message);
+
+  const acceptedVersionIdsByProfileId = new Map<string, Set<string>>();
+  for (const acceptance of (data ?? []) as Array<{ document_version_id: string; profile_id: string }>) {
+    const acceptedVersionIds = acceptedVersionIdsByProfileId.get(acceptance.profile_id) ?? new Set<string>();
+    acceptedVersionIds.add(acceptance.document_version_id);
+    acceptedVersionIdsByProfileId.set(acceptance.profile_id, acceptedVersionIds);
+  }
+
+  for (const profileId of uniqueProfileIds) {
+    const acceptedVersionIds = acceptedVersionIdsByProfileId.get(profileId) ?? new Set<string>();
+    acceptedByProfileId.set(
+      profileId,
+      requiredVersionIds.every((versionId) => acceptedVersionIds.has(versionId)),
+    );
+  }
+
+  return acceptedByProfileId;
 }
 
 function normalizeSearchValue(value: string | number | boolean | null | undefined) {
@@ -764,7 +849,6 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     supabase,
     facilitators.map((facilitator) => facilitator.profile_id),
   );
-
   const [
     { data: events },
     { data: bookings },
@@ -775,6 +859,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     { data: notificationLogs },
     { data: categoryRows },
     { data: tagRows },
+    { data: imageRows },
     { data: featuredRows },
     { data: featuredSortRows },
     { data: autoApproveRows },
@@ -798,12 +883,19 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     supabase
       .from("facilitator_tags")
       .select("facilitator_id, tags(name)"),
+    supabase
+      .from("facilitator_images")
+      .select("facilitator_id"),
     supabase.from("facilitator_profiles").select("id, is_featured"),
     supabase.from("facilitator_profiles").select("id, featured_sort_order"),
     supabase.from("facilitator_profiles").select("id, auto_approve_events"),
     supabase.from("facilitator_profiles").select("id, is_active_host"),
     supabase.from("facilitator_profiles").select("id, is_experienced_host"),
   ]);
+  const organizerTermsAcceptedByProfileId = await getOrganizerTermsAcceptanceByProfileId(
+    supabase,
+    facilitators.map((facilitator) => facilitator.profile_id),
+  );
   const eventStatsByFacilitator = new Map<string, {
     activeEvents: number;
     completedEvents: number;
@@ -885,6 +977,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     appendToMap(tagsByFacilitator, row.facilitator_id, first(row.tags)?.name);
   }
 
+  const imageCountsByFacilitator = countByFacilitator(imageRows as ImageRelationRow[] | null);
   const featuredByFacilitator = optionalFieldMap(featuredRows as OptionalFacilitatorFieldRow[] | null, "is_featured");
   const featuredSortByFacilitator = optionalFieldMap(featuredSortRows as OptionalFacilitatorFieldRow[] | null, "featured_sort_order");
   const autoApproveByFacilitator = optionalFieldMap(autoApproveRows as OptionalFacilitatorFieldRow[] | null, "auto_approve_events");
@@ -928,6 +1021,18 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       notificationLogCount;
     const categories = categoriesByFacilitator.get(facilitator.id) ?? [];
     const tags = tagsByFacilitator.get(facilitator.id) ?? [];
+    const readiness = getFacilitatorSubmissionReadiness({
+      categoryIds: categories,
+      city: facilitator.city,
+      companyName: facilitator.company_name,
+      fullName: user?.full_name,
+      hasAcceptedRequiredLegalDocuments: organizerTermsAcceptedByProfileId.get(facilitator.profile_id) ?? false,
+      hasMoodImage: (imageCountsByFacilitator.get(facilitator.id) ?? 0) > 0,
+      hasProfileImage: Boolean(facilitator.profile_image_path),
+      postalCode: facilitator.postal_code,
+      requireLocation: true,
+      shortDescription: facilitator.long_description || facilitator.short_description,
+    });
     const lastSignInAt = authActivityLookup.isComplete
       ? (authActivityLookup.activity.get(facilitator.profile_id)?.lastSignInAt ?? null)
       : undefined;
@@ -961,6 +1066,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       last_sign_in_at: lastSignInAt,
       days_since_last_login: daysSince(lastSignInAt, now),
       long_description: facilitator.long_description,
+      missing_requirements: getFacilitatorSubmissionMissingDisplayItems(readiness.missing),
       pending_bookings: bookingStats.pendingBookings,
       participant_booking_count: participantBookingCount,
       phone: user?.phone ?? null,

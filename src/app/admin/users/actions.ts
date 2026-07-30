@@ -43,7 +43,7 @@ function usersRedirectWithParams(message: string, returnTo: string, params: Reco
 
 const overviewBooleanFields = ["auto_approve_events", "is_active_host", "is_experienced_host", "is_featured"] as const;
 const overviewVisibilityFields = ["is_disabled", "is_paused"] as const;
-const overviewStatuses: FacilitatorStatus[] = ["approved", "pending"];
+const overviewStatuses: FacilitatorStatus[] = ["approved"];
 const missingColumnErrorCodes = ["42703", "PGRST204"];
 
 async function ensureAnotherAdminIsLeft(profileId: string) {
@@ -68,7 +68,7 @@ async function ensureFacilitatorProfileExists(profileId: string) {
   if (!facilitatorProfile) {
     await supabase.from("facilitator_profiles").insert({
       profile_id: profileId,
-      status: "pending",
+      status: "draft",
     });
   }
 }
@@ -214,9 +214,6 @@ export async function updateFacilitatorOverviewAction(formData: FormData) {
     const sortOrder = Number(value);
     update.featured_sort_order = Number.isFinite(sortOrder) ? sortOrder : 0;
   } else if (field === "status" && overviewStatuses.includes(value as FacilitatorStatus)) {
-    if (value === "pending") {
-      usersRedirect("En arrangør kan ikke sættes tilbage til afventer fra oversigten.", returnTo);
-    }
     update.status = value;
   } else {
     usersRedirect("Ugyldig arrangørhandling.", returnTo);

@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 import { MapPin, UserRound } from "lucide-react";
 import { FacilitatorStatusBadge } from "@/components/admin/facilitator-status-badge";
+import type { FacilitatorSubmissionMissingDisplayItem } from "@/lib/facilitators/profile-readiness";
 import { cn } from "@/lib/utils";
 import type { AppRole, FacilitatorStatus } from "@/types/database";
 
@@ -30,6 +31,7 @@ type FacilitatorAdminMetric = {
 
 export type FacilitatorAdminTask = {
   description?: string;
+  missingRequirements?: FacilitatorSubmissionMissingDisplayItem[];
   title: string;
   tone: "attention" | "good" | "info" | "warning";
 };
@@ -61,8 +63,10 @@ const taskStyles: Record<FacilitatorAdminTask["tone"], string> = {
 
 export function getFacilitatorAdminTask({
   facilitator,
+  missingRequirements = [],
 }: {
   facilitator: Pick<FacilitatorAdminCardSource, "id" | "is_disabled" | "is_paused" | "pending_bookings" | "status">;
+  missingRequirements?: FacilitatorSubmissionMissingDisplayItem[];
 }): FacilitatorAdminTask {
   const pendingBookings = facilitator.pending_bookings ?? 0;
 
@@ -74,11 +78,20 @@ export function getFacilitatorAdminTask({
     };
   }
 
-  if (facilitator.status === "pending" && !facilitator.is_paused) {
+  if (facilitator.status === "pending_review" && !facilitator.is_paused) {
     return {
       description: "Profilen afventer din godkendelse. Godkend eller anmod om ændringer.",
       title: "Næste handling",
       tone: "warning",
+    };
+  }
+
+  if (facilitator.status === "draft" || facilitator.status === "pending") {
+    return {
+      description: "Profilen er startet, men arrangøren har ikke sendt den til godkendelse endnu.",
+      missingRequirements,
+      title: "Under udarbejdelse",
+      tone: "info",
     };
   }
 
@@ -246,6 +259,28 @@ export function FacilitatorAdminCard({
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-wide">{task.title}</p>
             {task.description ? <p className="mt-1 text-sm leading-5">{task.description}</p> : null}
+            {task.missingRequirements?.length ? (
+              <div className="mt-3">
+                <p className="text-xs font-bold uppercase tracking-wide">
+                  Mangler {task.missingRequirements.length} {task.missingRequirements.length === 1 ? "oplysning" : "oplysninger"}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {task.missingRequirements.map((item) => (
+                    <span
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-xs font-semibold",
+                        item.tone === "legal"
+                          ? "border-[#D06B1E]/35 bg-[#FFF1DB] text-[#7A3F11]"
+                          : "border-[#9BAFC3]/35 bg-white/70 text-[#405565]",
+                      )}
+                      key={item.label}
+                    >
+                      {item.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

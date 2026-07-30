@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   Megaphone,
   MessageCircle,
+  PencilLine,
   ReceiptText,
   Scale,
   Settings,
@@ -74,7 +75,7 @@ function textExcerpt(value: string | null | undefined) {
 function facilitatorCenterHref(facilitator: { id: string; status?: string | null }) {
   const params = new URLSearchParams({
     highlight: facilitator.id,
-    status: facilitator.status === "changes_requested" ? "changes_requested" : "pending",
+    status: facilitator.status === "changes_requested" ? "changes_requested" : facilitator.status === "pending_review" ? "pending" : "draft",
   });
 
   return "/admin/users?" + params.toString();
@@ -168,6 +169,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   const [
     { count: activeFacilitators },
     { count: pendingFacilitators },
+    { count: draftFacilitators },
     { count: changesRequestedFacilitators },
     { count: upcomingEvents },
     { count: onlineEvents },
@@ -180,7 +182,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { count: openAdminMessages },
   ] = await Promise.all([
     supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "approved").eq("is_paused", false).eq("is_disabled", false),
-    supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "pending_review"),
+    supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).in("status", ["draft", "pending"]),
     supabase.from("facilitator_profiles").select("id", { count: "exact", head: true }).eq("status", "changes_requested"),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "active").gte("starts_at", today.toISOString()),
     supabase.from("events").select("id", { count: "exact", head: true }).eq("status", "active").eq("event_format", "online").gte("starts_at", today.toISOString()),
@@ -190,7 +193,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     supabase
       .from("facilitator_profiles")
       .select("id, slug, host_reference_id, status, is_paused, is_disabled, company_name, profile_image_path, city, postal_code, short_description, long_description, created_at, profiles!facilitator_profiles_profile_id_fkey(full_name)")
-      .in("status", ["pending", "changes_requested"])
+      .in("status", ["pending_review", "changes_requested", "draft", "pending"])
       .eq("is_paused", false)
       .eq("is_disabled", false)
       .order("created_at", { ascending: false })
@@ -218,6 +221,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     { label: "Tilmeldinger seneste 30 dage", value: formatNumber(recentBookings), icon: ReceiptText },
     { label: "Påmindelses-mails", value: formatNumber(reminderSubscribers), icon: Bell },
     { label: "Nye arrangøransøgninger", value: formatNumber(pendingFacilitators), icon: Clock3 },
+    { label: "Under udarbejdelse", value: formatNumber(draftFacilitators), icon: PencilLine },
     { label: "Kræver ændringer", value: formatNumber(changesRequestedFacilitators), icon: AlertCircle },
     { label: "Events til kontrol", value: formatNumber(pendingEvents), icon: AlertCircle },
   ];

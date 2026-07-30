@@ -1181,7 +1181,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     redirect("/auth/oauth-profile");
   }
 
-  const status = facilitatorProfile?.status ?? "pending";
+  const status = facilitatorProfile?.status ?? "draft";
   const profileImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
     : null;

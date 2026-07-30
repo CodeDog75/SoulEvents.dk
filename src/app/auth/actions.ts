@@ -517,7 +517,7 @@ export async function signUpFacilitatorAction(formData: FormData) {
   const { error: facilitatorError } = await admin.from("facilitator_profiles").upsert(
     {
       profile_id: user.id,
-      status: "pending",
+      status: "draft",
       company_name: null,
     },
     { onConflict: "profile_id" },

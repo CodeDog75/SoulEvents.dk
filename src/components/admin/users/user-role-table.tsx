@@ -23,6 +23,7 @@ import { AdminActionMenu, AdminActionMenuScope } from "@/components/admin/action
 import { DisableFacilitatorDialog } from "@/components/admin/disable-facilitator-dialog";
 import { FacilitatorAdminCard, getFacilitatorAdminTask } from "@/components/admin/facilitator-admin-card";
 import { RequestFacilitatorChangesDialog } from "@/components/admin/reject-facilitator-dialog";
+import type { FacilitatorSubmissionMissingDisplayItem } from "@/lib/facilitators/profile-readiness";
 import { publicFacilitatorPath } from "@/lib/slug";
 import type { AppRole, FacilitatorStatus } from "@/types/database";
 
@@ -52,6 +53,7 @@ type FacilitatorOverviewRow = {
   last_sign_in_at?: string | null;
   days_since_last_login?: number | null;
   long_description?: string | null;
+  missing_requirements?: FacilitatorSubmissionMissingDisplayItem[];
   pending_bookings: number;
   phone: string | null;
   postal_code?: string | null;
@@ -386,7 +388,7 @@ export function UserRoleTable({ currentProfileId, exportHref, facilitators, high
                 {facilitator.is_experienced_host ? <span className="rounded-full bg-[#F4F0F7] px-3 py-1 text-xs font-semibold text-[#6E5A86]">Erfaren Arrangør</span> : null}
               </>
             );
-            const isPendingReview = facilitator.status === "pending" && !facilitator.is_disabled && !facilitator.is_paused;
+            const isPendingReview = facilitator.status === "pending_review" && !facilitator.is_disabled && !facilitator.is_paused;
             const actions = (
               <>
                 <Link className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={publicFacilitatorPath(facilitator.slug || facilitator.id) + "?admin_return=" + encodeURIComponent(returnHref)}>
@@ -514,6 +516,7 @@ export function UserRoleTable({ currentProfileId, exportHref, facilitators, high
                 specialty={normalizeSpecialtyText(facilitator.specialties)}
                 task={getFacilitatorAdminTask({
                   facilitator,
+                  missingRequirements: facilitator.missing_requirements ?? [],
                 })}
               />
             );

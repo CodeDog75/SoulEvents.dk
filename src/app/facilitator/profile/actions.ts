@@ -25,6 +25,7 @@ import {
   normalizeFacilitatorMoodImageSlots,
 } from "@/lib/facilitators/mood-image-slots";
 import {
+  facilitatorSubmissionMissingLabels,
   getFacilitatorProfileReadiness,
   getFacilitatorSubmissionReadiness,
 } from "@/lib/facilitators/profile-readiness";
@@ -2436,7 +2437,7 @@ export async function submitFacilitatorProfileForReviewAction(input: {
   const { data: facilitatorProfile, error: profileError } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, city, company_name, country, postal_code, profile_image_path, short_description, long_description, status, facilitator_categories(category_id), facilitator_images(image_path, sort_order)",
+      "id, city, company_name, country, country_name, postal_code, profile_image_path, short_description, long_description, status, facilitator_categories(category_id), facilitator_images(image_path, sort_order)",
     )
     .eq("profile_id", profile.id)
     .single();
@@ -2459,30 +2460,10 @@ export async function submitFacilitatorProfileForReviewAction(input: {
     return { message: "Arrangørprofilen kunne ikke hentes.", ok: false };
   }
 
-  const readiness = getFacilitatorSubmissionReadiness({
-    categoryIds:
-      facilitatorProfile.facilitator_categories?.map(
-        (row: { category_id: string }) => row.category_id,
-      ) ?? [],
-    city: facilitatorProfile.city,
-    companyName: facilitatorProfile.company_name,
-    fullName: profile.full_name,
-    hasMoodImage: Boolean(facilitatorProfile.facilitator_images?.length),
-    hasProfileImage: Boolean(facilitatorProfile.profile_image_path),
-    postalCode: facilitatorProfile.postal_code,
-    requireLocation: true,
-    shortDescription:
-      facilitatorProfile.long_description ||
-      facilitatorProfile.short_description,
-  });
-
   const locationFields = normalizeLocationFields({
     city: facilitatorProfile.city,
     country: facilitatorProfile.country,
-    countryName:
-      "country_name" in facilitatorProfile
-        ? (facilitatorProfile.country_name as string | null)
-        : null,
+    countryName: facilitatorProfile.country_name,
     postalCode: facilitatorProfile.postal_code,
   });
   const locationValidationMessage = validateLocationFields(locationFields);
@@ -2490,40 +2471,6 @@ export async function submitFacilitatorProfileForReviewAction(input: {
   if (locationValidationMessage) {
     return { message: locationValidationMessage, ok: false };
   }
-  const missingLabels = {
-    categories: "arbejdsområder",
-    city: "by",
-    company_name: "profilnavn",
-    full_name: "navn",
-    mood_image: "stemningsbillede",
-    postal_code: "postnummer",
-    profile_image: "profilbillede",
-    short_description: "fortælling",
-  } as const;
-  const missingFields = readiness.missing.map((item) => missingLabels[item]);
-
-  if (missingFields.length > 0) {
-    const storyIsMissing = readiness.missing.includes("short_description");
-    const otherMissingFields = readiness.missing
-      .filter((item) => item !== "short_description")
-      .map((item) => missingLabels[item]);
-    const message = storyIsMissing
-      ? [
-          "Skriv gerne lidt mere om dig selv, før profilen sendes til SoulEvents.",
-          otherMissingFields.length > 0
-            ? `Der mangler også: ${otherMissingFields.join(", ")}.`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" ")
-      : `Der mangler stadig: ${missingFields.join(", ")}.`;
-
-    return {
-      message,
-      ok: false,
-    };
-  }
-
   const missingAcceptances = await getMissingRequiredLegalAcceptances(
     supabase,
     profile.id,
@@ -2537,9 +2484,6 @@ export async function submitFacilitatorProfileForReviewAction(input: {
       ok: false,
     };
   }
-
-  const wasAlreadySubmittedForReview =
-    facilitatorProfile.status === "pending" && missingAcceptances.length === 0;
 
   if (missingAcceptances.length > 0) {
     try {
@@ -2564,10 +2508,53 @@ export async function submitFacilitatorProfileForReviewAction(input: {
     }
   }
 
-  if (facilitatorProfile.status !== "pending") {
+  const readiness = getFacilitatorSubmissionReadiness({
+    categoryIds:
+      facilitatorProfile.facilitator_categories?.map(
+        (row: { category_id: string }) => row.category_id,
+      ) ?? [],
+    city: facilitatorProfile.city,
+    companyName: facilitatorProfile.company_name,
+    fullName: profile.full_name,
+    hasAcceptedRequiredLegalDocuments: true,
+    hasMoodImage: Boolean(facilitatorProfile.facilitator_images?.length),
+    hasProfileImage: Boolean(facilitatorProfile.profile_image_path),
+    postalCode: facilitatorProfile.postal_code,
+    requireLocation: true,
+    shortDescription:
+      facilitatorProfile.long_description ||
+      facilitatorProfile.short_description,
+  });
+  const missingFields = readiness.missing.map((item) => facilitatorSubmissionMissingLabels[item]);
+
+  if (missingFields.length > 0) {
+    const storyIsMissing = readiness.missing.includes("short_description");
+    const otherMissingFields = readiness.missing
+      .filter((item) => item !== "short_description")
+      .map((item) => facilitatorSubmissionMissingLabels[item]);
+    const message = storyIsMissing
+      ? [
+          "Skriv gerne lidt mere om dig selv, før profilen sendes til SoulEvents.",
+          otherMissingFields.length > 0
+            ? `Der mangler også: ${otherMissingFields.join(", ")}.`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : `Der mangler stadig: ${missingFields.join(", ")}.`;
+
+    return {
+      message,
+      ok: false,
+    };
+  }
+
+  const wasAlreadySubmittedForReview = facilitatorProfile.status === "pending_review";
+
+  if (facilitatorProfile.status !== "pending_review") {
     const { error: statusError } = await supabase
       .from("facilitator_profiles")
-      .update({ status: "pending" })
+      .update({ status: "pending_review" })
       .eq("id", facilitatorProfile.id);
 
     if (statusError) {
@@ -2597,6 +2584,8 @@ export async function submitFacilitatorProfileForReviewAction(input: {
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/profile");
+  revalidatePath("/admin");
+  revalidatePath("/admin/users");
 
   return {
     message: "Din profil er sendt til SoulEvents’ gennemgang.",
@@ -3477,7 +3466,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   });
 
   const shouldRequestApproval =
-    !isAdminEdit && finalReady && existingProfile.status === "pending";
+    !isAdminEdit && finalReady && existingProfile.status === "pending_review";
   const acceptedOrganizerTerms =
     formData.get("accepted_organizer_terms") === "yes";
 

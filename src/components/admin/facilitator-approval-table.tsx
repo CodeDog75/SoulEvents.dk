@@ -168,17 +168,19 @@ export function FacilitatorApprovalTable({ facilitators }: FacilitatorApprovalTa
                   <Pencil className="size-4" aria-hidden="true" />
                   Rediger
                 </Link>
-                {facilitator.status !== "approved" && (
+                {facilitator.status === "pending_review" ? (
                   <>
-                    {facilitator.status === "pending" ? (
-                      <RequestFacilitatorChangesDialog facilitatorId={facilitator.id} facilitatorName={facilitatorName} />
-                    ) : null}
+                    <RequestFacilitatorChangesDialog facilitatorId={facilitator.id} facilitatorName={facilitatorName} />
                     <StatusButton facilitatorId={facilitator.id} status="approved">
                       <Check className="size-4" aria-hidden="true" />
                       Godkend
                     </StatusButton>
                   </>
-                )}
+                ) : facilitator.status !== "approved" ? (
+                  <p className="max-w-52 text-sm leading-5 text-ink/56">
+                    Profilen er under udarbejdelse og kan først godkendes, når arrangøren sender den ind.
+                  </p>
+                ) : null}
                 {facilitator.is_disabled ? (
                   <form action={reactivateFacilitatorAction}>
                     <input name="facilitator_id" type="hidden" value={facilitator.id} />
