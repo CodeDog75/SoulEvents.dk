@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 const links = [
   { href: "#find-events", label: "Events" },
   { href: "#map", label: "Kort" },
+  { description: "Opret profil og events gratis", href: "/bliv-arrangoer", label: "Bliv arrangør" },
   { href: "/facilitators", label: "Arrangører" },
   { href: "/inspiration", label: "Inspiration" },
   { href: "#categories", label: "Kategorier" },
@@ -49,7 +50,8 @@ export function MobileHomeMenu() {
                       key={link.href}
                       onClick={() => setIsOpen(false)}
                     >
-                      {link.label}
+                      <span className="block">{link.label}</span>
+                      {link.description ? <span className="mt-0.5 block text-sm font-medium leading-5 text-[#6E6475]">{link.description}</span> : null}
                     </Link>
                   ) : (
                     <a
@@ -58,7 +60,8 @@ export function MobileHomeMenu() {
                       key={link.href}
                       onClick={() => setIsOpen(false)}
                     >
-                      {link.label}
+                      <span className="block">{link.label}</span>
+                      {link.description ? <span className="mt-0.5 block text-sm font-medium leading-5 text-[#6E6475]">{link.description}</span> : null}
                     </a>
                   ),
                 )}

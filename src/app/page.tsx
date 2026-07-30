@@ -1543,6 +1543,13 @@ export default async function Home({ searchParams }: HomeProps) {
             <p className="mt-8 max-w-[21rem] text-sm font-semibold leading-6 text-[#2F2633]/78 drop-shadow-[0_2px_14px_rgba(255,255,255,0.62)]">
               Oplev events, workshops og retreats med arrangører, der skaber rum for fordybelse og fællesskab i hele Danmark.
             </p>
+            <div className="mt-4 max-w-[21rem] rounded-[20px] border border-white/70 bg-white/74 px-4 py-3 text-sm leading-6 text-[#2F2633]/78 shadow-soft backdrop-blur">
+              <span className="font-semibold text-[#2F2633]">Er du arrangør?</span>{" "}
+              Opret en gratis profil og del dine events på SoulEvents.
+              <Link className="mt-3 inline-flex min-h-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7A4EAB_0%,#B56F8A_100%)] px-4 text-sm font-bold text-white shadow-[0_10px_24px_rgba(122,78,171,0.20)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(122,78,171,0.26)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A4EAB]" href="/bliv-arrangoer">
+                Bliv arrangør →
+              </Link>
+            </div>
           </section>
 
           <section
@@ -1560,6 +1567,13 @@ export default async function Home({ searchParams }: HomeProps) {
               <p className="mt-7 max-w-[620px] text-lg leading-8 text-[#2F2633]/78">
                 Oplev events, workshops, retreats og passionerede arrangører, der skaber rum for fordybelse, fællesskab og nye perspektiver – over hele Danmark.
               </p>
+              <div className="mt-5 inline-flex max-w-[620px] flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-white/70 bg-white/72 px-5 py-3 text-sm text-[#2F2633]/74 shadow-soft backdrop-blur">
+                <span className="font-semibold text-[#2F2633]">Er du arrangør?</span>
+                <span>Opret en gratis profil og del dine events på SoulEvents.</span>
+                <Link className="inline-flex min-h-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#7A4EAB_0%,#B56F8A_100%)] px-4 text-sm font-bold text-white shadow-[0_10px_24px_rgba(122,78,171,0.20)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(122,78,171,0.26)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A4EAB]" href="/bliv-arrangoer">
+                  Bliv arrangør →
+                </Link>
+              </div>
             </div>
           </section>
 
