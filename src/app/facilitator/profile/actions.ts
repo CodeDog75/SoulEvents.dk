@@ -29,6 +29,7 @@ import {
   getFacilitatorProfileReadiness,
   getFacilitatorSubmissionReadiness,
 } from "@/lib/facilitators/profile-readiness";
+import { getProfileLocationSaveValidation } from "@/lib/facilitators/profile-location-save-validation";
 import { facilitatorWorkAreaSlugs } from "@/lib/facilitators/work-areas";
 import {
   getMissingRequiredLegalAcceptances,
@@ -200,7 +201,9 @@ function isMissingOptionalLocationColumnError(error: {
   const message = error.message ?? "";
   return (
     (error.code === "PGRST204" || error.code === "42703") &&
-    (message.includes("country_name") || message.includes("region_text"))
+    (message.includes("country_name") ||
+      message.includes("region_text") ||
+      message.includes("show_public_location"))
   );
 }
 
@@ -210,6 +213,7 @@ function withoutOptionalLocationColumns(
   const fallbackUpdates = { ...updates };
   delete fallbackUpdates.country_name;
   delete fallbackUpdates.region_text;
+  delete fallbackUpdates.show_public_location;
   return fallbackUpdates;
 }
 
@@ -578,28 +582,22 @@ function normalizeLocationFields(input: {
 
 function validateLocationFields(
   input: ReturnType<typeof normalizeLocationFields>,
+  options: {
+    requireComplete?: boolean;
+    requireOtherCountryName?: boolean;
+  } = {},
 ) {
-  if (input.isOtherCountry && !input.countryName) {
-    return "Skriv landets navn.";
-  }
-
-  if (
-    input.isDanishLocation &&
-    input.postalCode &&
-    !/^\d{4}$/.test(input.postalCode)
-  ) {
-    return "Dansk postnummer skal bestå af præcis fire cifre.";
-  }
-
-  if (
-    !input.isDanishLocation &&
-    input.postalCode &&
-    !/^[A-Z0-9 -]{1,16}$/.test(input.postalCode)
-  ) {
-    return "Postnummer må kun indeholde bogstaver, tal, mellemrum og bindestreg.";
-  }
-
-  return null;
+  return (
+    getProfileLocationSaveValidation({
+      city: input.city,
+      countryName: input.countryName,
+      isDanishLocation: input.isDanishLocation,
+      isOtherCountry: input.isOtherCountry,
+      postalCode: input.postalCode,
+      requireComplete: options.requireComplete,
+      requireOtherCountryName: options.requireOtherCountryName,
+    }).validationMessage || null
+  );
 }
 
 function isProfileReady(input: {
@@ -1351,6 +1349,21 @@ export async function autosaveFacilitatorProfileAction(
       : await profileLookup.eq("profile_id", profile.id).single();
 
   if (existingProfileError || !existingProfile) {
+    console.error("[facilitator-profile] Autosave profile lookup failed", {
+      adminTargetFacilitatorRef: adminTargetFacilitatorId
+        ? shortId(adminTargetFacilitatorId)
+        : null,
+      authenticatedProfileRef: logProfileReference(profile.id),
+      code: existingProfileError?.code,
+      details: existingProfileError?.details,
+      hint: existingProfileError?.hint,
+      message:
+        existingProfileError?.message ??
+        "No facilitator profile row matched the current profile.",
+      operation: "select",
+      section,
+      table: "facilitator_profiles",
+    });
     return { message: "Arrangørprofilen kunne ikke hentes.", ok: false };
   }
 
@@ -1426,7 +1439,10 @@ export async function autosaveFacilitatorProfileAction(
       return { message: "Et lokationsfelt er længere end tilladt.", ok: false };
     }
 
-    const locationValidationMessage = validateLocationFields(locationFields);
+    const locationValidationMessage = validateLocationFields(locationFields, {
+      requireComplete: false,
+      requireOtherCountryName: false,
+    });
 
     if (locationValidationMessage) {
       return { message: locationValidationMessage, ok: false };
@@ -1807,7 +1823,11 @@ export async function autosaveFacilitatorProfileAction(
         {
           code: originalError?.code,
           message: originalError?.message,
-          missingColumns: ["country_name", "region_text"],
+          missingColumns: [
+            "country_name",
+            "region_text",
+            "show_public_location",
+          ],
           section,
         },
       );
@@ -3244,7 +3264,11 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
         {
           code: originalError?.code,
           message: originalError?.message,
-          missingColumns: ["country_name", "region_text"],
+          missingColumns: [
+            "country_name",
+            "region_text",
+            "show_public_location",
+          ],
           section,
         },
       );

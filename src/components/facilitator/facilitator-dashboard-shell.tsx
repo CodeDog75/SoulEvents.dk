@@ -144,6 +144,7 @@ export function FacilitatorDashboardShell({
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const closeMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuScrollRef = useRef<HTMLDivElement>(null);
   const primaryItems: NavigationItem[] = [
     { href: "/facilitator", icon: Home, label: "Startside" },
     { href: "/facilitator/events", icon: CalendarPlus, label: "Opret nyt event", isPrimary: true },
@@ -175,7 +176,10 @@ export function FacilitatorDashboardShell({
 
     const previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const originalOverflow = document.body.style.overflow;
-    const focusFrame = window.requestAnimationFrame(() => closeMenuButtonRef.current?.focus());
+    const focusFrame = window.requestAnimationFrame(() => {
+      mobileMenuScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+      closeMenuButtonRef.current?.focus();
+    });
     document.body.style.overflow = "hidden";
 
     function onKeyDown(event: KeyboardEvent) {
@@ -253,11 +257,11 @@ export function FacilitatorDashboardShell({
         <div className="fixed inset-0 z-40 bg-[#2F2437]/28 backdrop-blur-[2px] lg:hidden" onClick={() => setIsMenuOpen(false)}>
           <dialog
             aria-label="Arrangørmenu"
-            className="fixed inset-x-3 top-16 z-50 m-0 grid max-h-[calc(100vh-7rem)] w-auto gap-1 overflow-y-auto rounded-[28px] border border-[#E5DDEA] bg-white p-3 shadow-[0_18px_45px_rgba(47,36,55,0.18)]"
+            className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] top-3 z-50 m-0 grid w-auto grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-[28px] border border-[#E5DDEA] bg-white shadow-[0_18px_45px_rgba(47,36,55,0.18)]"
             onClick={(event) => event.stopPropagation()}
             open
           >
-            <div className="mb-2 flex items-center justify-between gap-3 border-b border-[#E5DDEA] pb-3">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#E5DDEA] p-3">
               <span className="flex items-center gap-2 font-semibold text-[#2F2437]">
                 <Image alt="SoulEvents.dk" className="h-8 w-8 object-contain" height={64} priority src="/brand/soulevents-logo.png" width={64} />
                 Menu
@@ -272,11 +276,26 @@ export function FacilitatorDashboardShell({
                 <X className="size-5" aria-hidden="true" />
               </button>
             </div>
-            <FacilitatorIdentityCard className="mb-2 mt-0" identity={facilitatorIdentity} />
-            {[...primaryItems, ...secondaryItems].map((item) => (
-              <NavLink item={item} key={item.label} onNavigate={() => setIsMenuOpen(false)} pathname={pathname} />
-            ))}
-            <div className="mt-2 grid gap-3 border-t border-[#E5DDEA] pt-3">
+            <div
+              className="min-h-0 overflow-y-auto overscroll-contain p-3"
+              ref={mobileMenuScrollRef}
+            >
+              <FacilitatorIdentityCard className="mb-2 mt-0" identity={facilitatorIdentity} />
+              <nav className="grid gap-1">
+                {[...primaryItems, ...secondaryItems].map((item) => (
+                  <NavLink item={item} key={item.label} onNavigate={() => setIsMenuOpen(false)} pathname={pathname} />
+                ))}
+              </nav>
+            </div>
+            <div className="grid shrink-0 gap-2 border-t border-[#E5DDEA] bg-white p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+              <Link
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[14px] border border-[#D8CBE4] bg-white px-3 text-sm font-semibold text-[#6E5285] transition hover:border-[#C8B8D7] hover:bg-[#F7F1FA]/70 focus:outline-none focus:ring-4 focus:ring-[#E5DDEA]"
+                href="/"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <Home className="size-4" aria-hidden="true" />
+                Tilbage til SoulEvents
+              </Link>
               <SignOutButton />
             </div>
           </dialog>

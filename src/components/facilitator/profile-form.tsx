@@ -81,6 +81,7 @@ import {
   facilitatorStoryMinLength,
   normalizeFacilitatorStory,
 } from "@/lib/facilitators/profile-readiness";
+import { getProfileLocationSaveValidation } from "@/lib/facilitators/profile-location-save-validation";
 import {
   facilitatorWorkAreas,
   sortFacilitatorWorkAreas,
@@ -195,6 +196,16 @@ type PrototypeStep =
   | "complete";
 
 type ImageSectionTarget = "profile" | "mood" | "banner";
+
+type MissingFocusTarget =
+  | "experiences"
+  | "location"
+  | "mood-image"
+  | "person"
+  | "profile-image"
+  | "story";
+
+type ApprovalIssueTarget = "missing-requirements" | "terms";
 
 type MoodImage = {
   fileName: string;
@@ -1097,6 +1108,7 @@ export function ProfileForm({
   );
   const latestPostalCodeLookupRef = useRef("");
   const pendingImageSectionTargetRef = useRef<ImageSectionTarget | null>(null);
+  const pendingMissingFocusTargetRef = useRef<MissingFocusTarget | null>(null);
   const locationSectionRef = useRef<HTMLDivElement | null>(null);
   const countryNameInputRef = useRef<HTMLInputElement | null>(null);
   const postalCodeInputRef = useRef<HTMLInputElement | null>(null);
@@ -1104,6 +1116,11 @@ export function ProfileForm({
   const profileImageSectionRef = useRef<HTMLElement | null>(null);
   const moodImageSectionRef = useRef<HTMLElement | null>(null);
   const bannerImageSectionRef = useRef<HTMLElement | null>(null);
+  const experiencesSectionRef = useRef<HTMLDivElement | null>(null);
+  const storySectionRef = useRef<HTMLDivElement | null>(null);
+  const storyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const approvalMissingRequirementsRef = useRef<HTMLDivElement | null>(null);
+  const approvalTermsRef = useRef<HTMLDivElement | null>(null);
   const [, startImageTransition] = useTransition();
   const [firstName, setFirstName] = useState(names.firstName);
   const [lastName, setLastName] = useState(names.lastName);
@@ -1152,6 +1169,10 @@ export function ProfileForm({
     value(facilitatorProfile.region_text),
   );
   const [locationSubmissionError, setLocationSubmissionError] = useState(false);
+  const [highlightedMissingTarget, setHighlightedMissingTarget] =
+    useState<MissingFocusTarget | null>(null);
+  const [highlightedApprovalIssue, setHighlightedApprovalIssue] =
+    useState<ApprovalIssueTarget | null>(null);
   const [isOnlineFacilitator, setIsOnlineFacilitator] = useState(
     Boolean(facilitatorProfile.is_online_facilitator),
   );
@@ -1577,6 +1598,137 @@ export function ProfileForm({
     normalizedLocationPostalCode,
   ]);
 
+  const focusMissingTarget = useCallback(
+    (target: MissingFocusTarget) => {
+      const targetElement =
+        target === "profile-image"
+          ? profileImageSectionRef.current
+          : target === "mood-image"
+            ? moodImageSectionRef.current
+            : target === "experiences"
+              ? experiencesSectionRef.current
+              : target === "story"
+                ? storySectionRef.current
+                : target === "location"
+                  ? locationSectionRef.current
+                  : null;
+
+      const reducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+
+      targetElement?.scrollIntoView({
+        behavior: reducedMotion ? "auto" : "smooth",
+        block: "start",
+      });
+
+      setHighlightedMissingTarget(target);
+
+      window.setTimeout(() => {
+        if (target === "story") {
+          storyTextareaRef.current?.focus();
+          return;
+        }
+
+        if (target === "location") {
+          if (isOtherCountry && !normalizedCountryName) {
+            countryNameInputRef.current?.focus();
+            return;
+          }
+          if (
+            !normalizedLocationPostalCode ||
+            (isDanishLocation && !/^\d{4}$/.test(normalizedLocationPostalCode))
+          ) {
+            postalCodeInputRef.current?.focus();
+            return;
+          }
+          cityInputRef.current?.focus();
+          return;
+        }
+
+        targetElement?.focus({ preventScroll: true });
+      }, reducedMotion ? 0 : 260);
+
+      window.setTimeout(() => {
+        setHighlightedMissingTarget((current) =>
+          current === target ? null : current,
+        );
+      }, 1800);
+    },
+    [
+      isDanishLocation,
+      isOtherCountry,
+      normalizedCountryName,
+      normalizedLocationPostalCode,
+    ],
+  );
+
+  function missingItemTarget(item: {
+    label: string;
+    step: PrototypeStep;
+  }): MissingFocusTarget | null {
+    if (item.step === "profile-image") {
+      return item.label.includes("stemningsbillede")
+        ? "mood-image"
+        : "profile-image";
+    }
+    if (item.step === "experiences") return "experiences";
+    if (item.step === "story") return "story";
+    if (item.step === "location") return "location";
+    if (item.step === "person") return "person";
+    return null;
+  }
+
+  function missingTargetStep(target: MissingFocusTarget): PrototypeStep {
+    if (target === "profile-image" || target === "mood-image") {
+      return "profile-image";
+    }
+    return target;
+  }
+
+  function highlightClass(target: MissingFocusTarget) {
+    return highlightedMissingTarget === target
+      ? " ring-4 ring-[#B56F8A]/30 ring-offset-2 ring-offset-white"
+      : "";
+  }
+
+  const focusApprovalIssue = useCallback(
+    (target: ApprovalIssueTarget) => {
+      const targetElement =
+        target === "missing-requirements"
+          ? approvalMissingRequirementsRef.current
+          : approvalTermsRef.current;
+
+      const reducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+
+      targetElement?.scrollIntoView({
+        behavior: reducedMotion ? "auto" : "smooth",
+        block: "center",
+      });
+
+      setHighlightedApprovalIssue(target);
+
+      window.setTimeout(() => {
+        targetElement?.focus({ preventScroll: true });
+      }, reducedMotion ? 0 : 260);
+
+      window.setTimeout(() => {
+        setHighlightedApprovalIssue((current) =>
+          current === target ? null : current,
+        );
+      }, 1800);
+    },
+    [],
+  );
+
+  function approvalHighlightClass(target: ApprovalIssueTarget) {
+    return highlightedApprovalIssue === target
+      ? " ring-4 ring-[#B56F8A]/30 ring-offset-2 ring-offset-white"
+      : "";
+  }
+
   useEffect(() => {
     if (currentStep.id !== "profile-image") return;
 
@@ -1601,6 +1753,17 @@ export function ProfileForm({
   }, [currentStep.id]);
 
   useEffect(() => {
+    const target = pendingMissingFocusTargetRef.current;
+    if (!target) return;
+    if (missingTargetStep(target) !== currentStep.id) return;
+
+    pendingMissingFocusTargetRef.current = null;
+    const frame = window.requestAnimationFrame(() => focusMissingTarget(target));
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [currentStep.id, focusMissingTarget]);
+
+  useEffect(() => {
     if (
       !locationSubmissionError ||
       (currentStep.id !== "profile" && currentStep.id !== "location")
@@ -1609,7 +1772,9 @@ export function ProfileForm({
     scrollToLocationError();
   }, [currentStep.id, locationSubmissionError, scrollToLocationError]);
 
-  async function getCurrentLocationPayload() {
+  async function getCurrentLocationPayload({
+    requireComplete = true,
+  }: { requireComplete?: boolean } = {}) {
     const nextCountry = normalizeProfileCountryCode(country);
     const nextIsDanishLocation = isDanishProfileCountry(nextCountry);
     const nextIsOtherCountry = isOtherProfileCountry(nextCountry);
@@ -1663,23 +1828,19 @@ export function ProfileForm({
       );
     }
 
-    const validationMessage = nextIsDanishLocation
-      ? !nextPostalCode
-        ? "Indtast postnummer, så finder vi automatisk byen."
-        : !/^\d{4}$/.test(nextPostalCode)
-          ? "Dansk postnummer skal bestå af fire cifre."
-          : !nextCity
-            ? "Vi kunne ikke finde en by til dette postnummer."
-            : ""
-      : nextIsOtherCountry && !nextCountryName
-        ? "Skriv landets navn."
-        : !nextPostalCode || !nextCity
-          ? "Postnummer og by skal udfyldes."
-          : "";
+    const locationValidation = getProfileLocationSaveValidation({
+      city: nextCity,
+      countryName: nextCountryName,
+      isDanishLocation: nextIsDanishLocation,
+      isOtherCountry: nextIsOtherCountry,
+      postalCode: nextPostalCode,
+      requireComplete,
+    });
 
     return {
-      isComplete: !validationMessage,
-      validationMessage,
+      canSave: locationValidation.canSave,
+      isComplete: locationValidation.isComplete,
+      validationMessage: locationValidation.validationMessage,
       values: {
         address_line: addressLine,
         city: nextCity,
@@ -1706,10 +1867,17 @@ export function ProfileForm({
     short_description: story.trim().slice(0, 300),
   };
 
-  async function saveProfileOverviewStep() {
-    const locationPayload = await getCurrentLocationPayload();
+  async function saveProfileOverviewStep({
+    requireLocation = true,
+  }: { requireLocation?: boolean } = {}) {
+    const locationPayload = await getCurrentLocationPayload({
+      requireComplete: requireLocation,
+    });
 
-    if (!locationPayload.isComplete) {
+    if (
+      !locationPayload.canSave ||
+      (requireLocation && !locationPayload.isComplete)
+    ) {
       setLocationSubmissionError(true);
       scrollToLocationError();
       return {
@@ -1824,7 +1992,7 @@ export function ProfileForm({
     setStepSaveStatus({ message: "Gemmer...", status: "saving" });
 
     if (currentStep.id === "profile") {
-      return saveProfileOverviewStep();
+      return saveProfileOverviewStep({ requireLocation: submitForReview });
     }
 
     if (currentStep.id === "person") {
@@ -1970,15 +2138,7 @@ export function ProfileForm({
     }
 
     if (currentStep.id === "approval") {
-      const saveResult = await saveProfileOverviewStep();
-
-      if (!saveResult.ok) return saveResult;
-
-      if (!submitForReview) {
-        return { message: "Din profilkladde er gemt.", ok: true };
-      }
-
-      if (missingRequired.length > 0) {
+      if (submitForReview && missingRequired.length > 0) {
         return {
           message:
             "Udfyld de markerede oplysninger, før profilen kan sendes til SoulEvents.",
@@ -1986,12 +2146,22 @@ export function ProfileForm({
         };
       }
 
-      if (!acceptedTerms) {
+      if (submitForReview && !acceptedTerms) {
         return {
           message:
             "Du skal acceptere vilkårene, før profilen kan sendes til SoulEvents.",
           ok: false,
         };
+      }
+
+      const saveResult = await saveProfileOverviewStep({
+        requireLocation: submitForReview,
+      });
+
+      if (!saveResult.ok) return saveResult;
+
+      if (!submitForReview) {
+        return { message: "Din profilkladde er gemt.", ok: true };
       }
 
       const result = await submitFacilitatorProfileForReviewAction({
@@ -2019,6 +2189,13 @@ export function ProfileForm({
       continueInProgressRef.current = false;
       setIsBusy(false);
       setStepSaveStatus({ message: saveResult.message, status: "error" });
+      if (presentationMode === "onboarding" && currentStep.id === "approval") {
+        window.requestAnimationFrame(() => {
+          focusApprovalIssue(
+            missingRequired.length > 0 ? "missing-requirements" : "terms",
+          );
+        });
+      }
       return;
     }
 
@@ -2102,6 +2279,8 @@ export function ProfileForm({
   }
 
   function goToMissingItem(item: { label: string; step: PrototypeStep }) {
+    const target = missingItemTarget(item);
+
     if (item.step === "location") {
       setLocationSubmissionError(true);
     }
@@ -2111,10 +2290,20 @@ export function ProfileForm({
     if (item.step === "story") {
       setStorySubmissionError(true);
     }
-    if (presentationMode === "onboarding") {
-      goToStep("profile");
+
+    if (target) {
+      const targetStep = missingTargetStep(target);
+      pendingMissingFocusTargetRef.current = target;
+
+      if (currentStep.id === targetStep) {
+        window.requestAnimationFrame(() => focusMissingTarget(target));
+        return;
+      }
+
+      goToStep(targetStep);
       return;
     }
+
     goToStep(item.step);
   }
 
@@ -2558,9 +2747,13 @@ export function ProfileForm({
   const imageOverview = (
     <div className="grid gap-6">
       <section
-        className="grid scroll-mt-24 gap-4 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
+        className={
+          "grid scroll-mt-24 gap-4 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] transition sm:p-6" +
+          highlightClass("profile-image")
+        }
         id="profile-image-section"
         ref={profileImageSectionRef}
+        tabIndex={-1}
       >
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -2613,9 +2806,13 @@ export function ProfileForm({
       </section>
 
       <section
-        className="grid scroll-mt-24 gap-4 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
+        className={
+          "grid scroll-mt-24 gap-4 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] transition sm:p-6" +
+          highlightClass("mood-image")
+        }
         id="profile-mood-images-section"
         ref={moodImageSectionRef}
+        tabIndex={-1}
       >
         <div>
           <SectionHeading Icon={ImagePlus} title="Dine stemningsbilleder" />
@@ -2636,11 +2833,28 @@ export function ProfileForm({
     </div>
   );
 
+  function renderMissingShortcut(item: { label: string; step: PrototypeStep }) {
+    return (
+      <button
+        className="group inline-flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-full bg-white px-4 py-2 text-left text-sm font-semibold text-midnight shadow-soft transition hover:bg-[#FBF7FF] hover:text-[#6E5285] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
+        key={item.label}
+        onClick={() => goToMissingItem(item)}
+        type="button"
+      >
+        <span>{item.label}</span>
+        <ArrowRight
+          className="size-4 shrink-0 text-sage-700 transition group-hover:translate-x-0.5 group-hover:text-[#6E5285]"
+          aria-hidden="true"
+        />
+      </button>
+    );
+  }
+
   return (
     <OnboardingShell
       backHref={shellBackHref}
       backLabel={backLabel}
-      canContinue={currentStep.id !== "approval" || approvalReadyForSubmit}
+      canContinue={true}
       currentIndex={stepIndex}
       ctaLabel={
         presentationMode === "onboarding"
@@ -2733,10 +2947,14 @@ export function ProfileForm({
         shouldShowApprovalPersonEditor) && (
         <div
           className={
-            shouldUseEmbeddedProfileSection
-              ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
-              : "grid gap-5"
+            (shouldUseEmbeddedProfileSection
+              ? "mb-6 grid scroll-mt-24 gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] transition sm:p-6"
+              : "grid scroll-mt-24 gap-5 transition") +
+            highlightClass("experiences")
           }
+          id="profile-experiences-section"
+          ref={experiencesSectionRef}
+          tabIndex={-1}
         >
           {shouldUseEmbeddedProfileSection ? (
             <SectionHeading
@@ -2811,12 +3029,14 @@ export function ProfileForm({
       {(currentStep.id === "location" || isProfileOverviewStep) && (
         <div
           className={
-            shouldUseEmbeddedProfileSection
-              ? "mb-6 grid scroll-mt-24 gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
-              : "grid scroll-mt-24 gap-5"
+            (shouldUseEmbeddedProfileSection
+              ? "mb-6 grid scroll-mt-24 gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] transition sm:p-6"
+              : "grid scroll-mt-24 gap-5 transition") +
+            highlightClass("location")
           }
           id="profile-location-section"
           ref={locationSectionRef}
+          tabIndex={-1}
         >
           {shouldUseEmbeddedProfileSection ? (
             <SectionHeading
@@ -3084,10 +3304,14 @@ export function ProfileForm({
         shouldShowApprovalExperiencesEditor) && (
         <div
           className={
-            shouldUseEmbeddedProfileSection
-              ? "mb-6 grid gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
-              : "grid gap-5"
+            (shouldUseEmbeddedProfileSection
+              ? "mb-6 grid scroll-mt-24 gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] transition sm:p-6"
+              : "grid scroll-mt-24 gap-5 transition") +
+            highlightClass("story")
           }
+          id="profile-story-section"
+          ref={storySectionRef}
+          tabIndex={-1}
         >
           {shouldUseEmbeddedProfileSection ? (
             <SectionHeading
@@ -3190,6 +3414,7 @@ export function ProfileForm({
                 }
               }}
               placeholder="Fortæl om din tilgang, stemningen i dine begivenheder, og hvad deltagerne kan glæde sig til."
+              ref={storyTextareaRef}
               value={story}
             />
             {story ? (
@@ -3641,20 +3866,7 @@ export function ProfileForm({
                       </p>
                     ) : null}
                     <div className="mt-3 grid gap-2">
-                      {missingRequired.map((item) => (
-                        <button
-                          className="inline-flex min-h-10 items-center justify-between rounded-full bg-white px-4 text-sm font-semibold text-midnight shadow-soft"
-                          key={item.label}
-                          onClick={() => goToMissingItem(item)}
-                          type="button"
-                        >
-                          {item.label}
-                          <ArrowRight
-                            className="size-4 text-sage-700"
-                            aria-hidden="true"
-                          />
-                        </button>
-                      ))}
+                      {missingRequired.map(renderMissingShortcut)}
                     </div>
                   </div>
                 ) : null}
@@ -3725,8 +3937,19 @@ export function ProfileForm({
       {currentStep.id === "approval" && (
         <div className="grid gap-6 text-left">
           {missingRequired.length > 0 ? (
-            <div className="rounded-[24px] bg-[#FFF7DE] p-5 text-left">
-              <p className="text-sm font-semibold text-[#715C21]">
+            <div
+              className={
+                "scroll-mt-28 rounded-[24px] bg-[#FFF7DE] p-5 text-left transition" +
+                approvalHighlightClass("missing-requirements")
+              }
+              id="profile-missing-requirements"
+              ref={approvalMissingRequirementsRef}
+              tabIndex={-1}
+            >
+              <p
+                className="text-sm font-semibold text-[#715C21]"
+                id="profile-missing-requirements-title"
+              >
                 Ret de markerede oplysninger ovenfor, før profilen kan sendes
                 til SoulEvents.
               </p>
@@ -3735,16 +3958,9 @@ export function ProfileForm({
                   {storyMissingMessage}
                 </p>
               ) : null}
-              <ul className="mt-3 grid gap-2">
-                {missingRequired.map((item) => (
-                  <li
-                    className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-midnight shadow-soft"
-                    key={item.label}
-                  >
-                    {item.label}
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-3 grid gap-2">
+                {missingRequired.map(renderMissingShortcut)}
+              </div>
             </div>
           ) : (
             <div className="rounded-[24px] border border-sage-700/20 bg-sage-50 p-5 text-left">
@@ -3758,7 +3974,15 @@ export function ProfileForm({
               </p>
             </div>
           )}
-          <div className="flex items-start gap-3 rounded-[24px] border border-midnight/10 bg-white p-5 text-left shadow-soft">
+          <div
+            className={
+              "scroll-mt-28 flex items-start gap-3 rounded-[24px] border border-midnight/10 bg-white p-5 text-left shadow-soft transition" +
+              approvalHighlightClass("terms")
+            }
+            id="profile-terms-acceptance-section"
+            ref={approvalTermsRef}
+            tabIndex={-1}
+          >
             <input
               id="facilitator-profile-terms-acceptance"
               checked={acceptedTerms}

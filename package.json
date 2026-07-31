@@ -11,6 +11,7 @@
     "start:3000": "next start -p 3000",
     "preview": "npm run build && npm run start",
     "lint": "eslint .",
+    "test:onboarding-draft": "node --test src/lib/facilitators/profile-location-save-validation.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

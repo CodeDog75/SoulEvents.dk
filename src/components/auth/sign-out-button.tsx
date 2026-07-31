@@ -19,7 +19,7 @@ function SignOutSubmitButton() {
 
   return (
     <button
-      className="inline-flex h-10 items-center justify-center gap-2 rounded-[14px] border border-zinc-300 bg-zinc-100 px-3 text-sm font-semibold text-zinc-800 transition hover:border-zinc-400 hover:bg-zinc-200 hover:text-zinc-900 focus:outline-none focus:ring-4 focus:ring-zinc-200 disabled:cursor-wait disabled:opacity-70"
+      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[14px] border border-zinc-300 bg-zinc-100 px-3 text-sm font-semibold text-zinc-800 transition hover:border-zinc-400 hover:bg-zinc-200 hover:text-zinc-900 focus:outline-none focus:ring-4 focus:ring-zinc-200 disabled:cursor-wait disabled:opacity-70"
       disabled={pending}
       type="submit"
     >
