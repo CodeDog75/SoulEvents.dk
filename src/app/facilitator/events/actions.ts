@@ -23,7 +23,7 @@ import { hasPaymentInstructions, paymentSettingsToInstructionsRecord, type Payme
 import { inferRegionSlug } from "@/lib/regions/infer-region";
 import { createSlug, publicEventPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { EventStatus } from "@/types/database";
+import type { EventRegistrationMode, EventStatus } from "@/types/database";
 
 const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "rejected", "sold_out", "cancelled", "completed", "archived"];
 const activeCoOrganizerStatuses = ["pending", "accepted"] as const;
@@ -36,6 +36,7 @@ type ActiveCoOrganizerStatus = (typeof activeCoOrganizerStatuses)[number];
 const facilitatorProfileEventSelect =
   "id, status, is_paused, is_disabled, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)";
 type AdminClient = ReturnType<typeof createAdminClient>;
+type PaymentLinkMode = "external_registration" | "payment_only";
 type EventUpdateSnapshot = {
   address_line: string | null;
   city: string | null;
@@ -46,6 +47,7 @@ type EventUpdateSnapshot = {
   online_url_or_note?: string | null;
   postal_code: string | null;
   price_cents: number;
+  registration_mode?: EventRegistrationMode;
   starts_at: string;
   status: EventStatus;
   title: string;
@@ -121,6 +123,14 @@ function normalizePaymentMethodSource(value: string): PaymentMethodSource {
   return value === "custom" || value === "none" ? value : "facilitator";
 }
 
+function normalizeRegistrationMode(value: string): EventRegistrationMode {
+  return value === "direct" ? "direct" : "approval_required";
+}
+
+function normalizePaymentLinkMode(value: string): PaymentLinkMode {
+  return value === "external_registration" ? "external_registration" : "payment_only";
+}
+
 function getPaymentDeadlineDays(formData: FormData) {
   const rawValue = getOptionalString(formData, "payment_deadline_days");
 
@@ -143,6 +153,7 @@ async function upsertEventPaymentSettings(
     externalUrl: string | null;
     facilitatorId: string;
     instructions: string | null;
+    paymentLinkMode: PaymentLinkMode;
     methodSource: PaymentMethodSource;
     mobilepayNumber: string | null;
   },
@@ -152,6 +163,7 @@ async function upsertEventPaymentSettings(
       event_id: input.eventId,
       facilitator_id: input.facilitatorId,
       method_source: input.methodSource,
+      payment_link_mode: input.paymentLinkMode,
       mobilepay_number: input.mobilepayNumber,
       bank_registration_number: input.bankRegistrationNumber,
       bank_account_number: input.bankAccountNumber,
@@ -1107,12 +1119,13 @@ export async function createEventAction(formData: FormData) {
   let existingEventTitle: string | null = null;
   let existingEventPublishedAt: string | null = null;
   let existingEventCoverImagePath: string | null = null;
+  let existingEventRegistrationMode: EventRegistrationMode | null = null;
   let previousEventSnapshot: EventUpdateSnapshot | null = null;
 
   if (existingEventId) {
     const { data: existingEvent } = await supabase
       .from("events")
-      .select("id, slug, status, published_at, cover_image_path, title, starts_at, ends_at, address_line, postal_code, city, country, price_cents, event_format, online_description, online_url_or_note")
+      .select("id, slug, status, published_at, cover_image_path, title, starts_at, ends_at, address_line, postal_code, city, country, price_cents, registration_mode, event_format, online_description, online_url_or_note")
       .eq("id", existingEventId)
       .eq("facilitator_id", facilitatorProfile.id)
       .maybeSingle();
@@ -1126,6 +1139,7 @@ export async function createEventAction(formData: FormData) {
     existingEventTitle = existingEvent.title ?? null;
     existingEventPublishedAt = existingEvent.published_at ?? null;
     existingEventCoverImagePath = existingEvent.cover_image_path ?? null;
+    existingEventRegistrationMode = normalizeRegistrationMode(existingEvent.registration_mode ?? "");
     previousEventSnapshot = existingEvent as EventUpdateSnapshot;
   }
 
@@ -1217,17 +1231,23 @@ export async function createEventAction(formData: FormData) {
   const country = getOptionalString(formData, "country") || "Danmark";
   let regionId = getOptionalString(formData, "region_id");
   const priceCents = getPriceCents(formData);
-  const paymentMethodSource = priceCents > 0 ? normalizePaymentMethodSource(getString(formData, "payment_method_source")) : "facilitator";
-  const paymentMobilepayNumber = priceCents > 0 && paymentMethodSource === "custom" ? getOptionalString(formData, "payment_mobilepay_number") : null;
-  const paymentBankRegistrationNumber =
-    priceCents > 0 && paymentMethodSource === "custom" ? getOptionalString(formData, "payment_bank_registration_number") : null;
-  const paymentBankAccountNumber =
-    priceCents > 0 && paymentMethodSource === "custom" ? getOptionalString(formData, "payment_bank_account_number") : null;
-  const paymentBankAccountName =
-    priceCents > 0 && paymentMethodSource === "custom" ? getOptionalString(formData, "payment_bank_account_name") : null;
+  const registrationMode = priceCents > 0 ? normalizeRegistrationMode(getString(formData, "registration_mode")) : "direct";
+  const paymentMethodSource = priceCents > 0 ? normalizePaymentMethodSource(getString(formData, "payment_method_source")) : "none";
+  const paymentLinkMode: PaymentLinkMode =
+    priceCents > 0 && paymentMethodSource === "custom" ? normalizePaymentLinkMode(getString(formData, "payment_link_mode")) : "payment_only";
+  const paymentMobilepayNumber = null;
+  const paymentBankRegistrationNumber = null;
+  const paymentBankAccountNumber = null;
+  const paymentBankAccountName = null;
   const paymentExternalUrl = priceCents > 0 && paymentMethodSource === "custom" ? getOptionalString(formData, "payment_external_url") : null;
-  const paymentInstructions = priceCents > 0 ? getOptionalString(formData, "payment_instructions") : null;
-  const paymentDeadlineDays = priceCents > 0 && paymentMethodSource === "custom" ? getPaymentDeadlineDays(formData) : null;
+  const paymentInstructions =
+    priceCents > 0 && !(paymentMethodSource === "custom" && paymentLinkMode === "external_registration")
+      ? getOptionalString(formData, "payment_instructions")
+      : null;
+  const paymentDeadlineDays =
+    priceCents > 0 && !(paymentMethodSource === "custom" && paymentLinkMode === "external_registration")
+      ? getPaymentDeadlineDays(formData)
+      : null;
   const capacityText = getString(formData, "capacity");
   const rawCapacity = getInteger(formData, "capacity");
   const capacity = isDraft && rawCapacity <= 0 ? 1 : rawCapacity;
@@ -1254,6 +1274,18 @@ export async function createEventAction(formData: FormData) {
   const mainCategoryIds = getAllStrings(formData, "main_category_ids");
   const subcategoryIds = getAllStrings(formData, "subcategory_ids");
   const tagIds = getAllStrings(formData, "tag_ids");
+
+  if (existingEventId && existingEventRegistrationMode && registrationMode !== existingEventRegistrationMode) {
+    const { count: activeBookingCount } = await supabase
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", existingEventId)
+      .in("status", ["pending", "confirmed"]);
+
+    if ((activeBookingCount ?? 0) > 0) {
+      eventsRedirect("Tilmeldingsmodellen kan ikke ændres, når eventet allerede har reservationer eller tilmeldinger.");
+    }
+  }
 
   if (!allowedFormats.includes(eventFormat as "physical" | "online")) {
     eventsRedirect("Vælg om eventet er fysisk eller online.");
@@ -1336,13 +1368,21 @@ export async function createEventAction(formData: FormData) {
     eventsRedirect("Betalingslink skal være et gyldigt link, fx https://...");
   }
 
+  if (!isDraft && priceCents > 0 && paymentMethodSource === "custom" && !paymentExternalUrl) {
+    eventsRedirect("Betalingslink er påkrævet, når du bruger et unikt betalingslink til eventet.");
+  }
+
+  if (!isDraft && priceCents > 0 && paymentMethodSource === "custom" && paymentLinkMode === "external_registration" && registrationMode !== "direct") {
+    eventsRedirect("Ekstern tilmelding og betaling kan kun bruges sammen med direkte tilmelding.");
+  }
+
   if (
     !isDraft &&
     priceCents > 0 &&
     paymentMethodSource === "facilitator" &&
     !hasPaymentInstructions(paymentSettingsToInstructionsRecord(facilitatorPaymentSettings))
   ) {
-    eventsRedirect("Tilføj standardbetalingsoplysninger på din profil, vælg egne oplysninger for eventet, eller vælg at betaling aftales direkte.");
+    eventsRedirect("Tilføj standardbetalingsoplysninger på din profil, eller vælg et unikt betalingslink til eventet.");
   }
 
   if (mainCategoryIds.length > 3 || categoryIds.length > 3 || tagIds.length > 4) {
@@ -1442,6 +1482,7 @@ export async function createEventAction(formData: FormData) {
       online_url_or_note: onlineUrlOrNote,
       postal_code: postalCode,
       price_cents: priceCents,
+      registration_mode: registrationMode,
       starts_at: startsAt,
       status,
       title,
@@ -1472,6 +1513,7 @@ export async function createEventAction(formData: FormData) {
         latitude: coordinates?.latitude ?? null,
         longitude: coordinates?.longitude ?? null,
         price_cents: priceCents,
+        registration_mode: registrationMode,
         capacity,
         contact_name: contactName,
         contact_email: contactEmail,
@@ -1530,6 +1572,7 @@ export async function createEventAction(formData: FormData) {
       bankAccountName: paymentBankAccountName,
       externalUrl: paymentExternalUrl,
       instructions: paymentInstructions,
+      paymentLinkMode,
       deadlineDays: paymentDeadlineDays,
     });
 
@@ -1692,6 +1735,7 @@ export async function createEventAction(formData: FormData) {
       latitude: coordinates?.latitude ?? null,
       longitude: coordinates?.longitude ?? null,
       price_cents: priceCents,
+      registration_mode: registrationMode,
       capacity,
       contact_name: contactName,
       contact_email: contactEmail,
@@ -1726,6 +1770,7 @@ export async function createEventAction(formData: FormData) {
     bankAccountName: paymentBankAccountName,
     externalUrl: paymentExternalUrl,
     instructions: paymentInstructions,
+    paymentLinkMode,
     deadlineDays: paymentDeadlineDays,
   });
 

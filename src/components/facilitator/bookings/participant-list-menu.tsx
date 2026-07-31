@@ -17,6 +17,7 @@ type ParticipantListRow = {
   paymentStatus: "Afventer" | "Betalt" | "Ikke relevant";
   phone: string | null;
   seats: number;
+  sourceLabel?: string;
   status: BookingStatus;
 };
 
@@ -135,7 +136,7 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
     if (includeContact) {
       headers.push("E-mail", "Telefon");
     }
-    headers.push("Antal pladser", "Tilmeldingsstatus");
+    headers.push("Antal pladser", "Tilmeldingsstatus", "Kilde");
     if (includePayment) {
       headers.push("Betalingsstatus");
     }
@@ -158,7 +159,7 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
       if (includeContact) {
         values.push(row.email, row.phone || "");
       }
-      values.push(row.seats, statusLabels[row.status] ?? row.status);
+      values.push(row.seats, statusLabels[row.status] ?? row.status, row.sourceLabel ?? "SoulEvents-booking");
       if (includePayment) {
         values.push(row.paymentStatus);
       }
@@ -319,6 +320,7 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
                             {includeContact ? <th className="px-3 py-3">Kontakt</th> : null}
                             <th className="px-3 py-3 text-right">Pladser</th>
                             <th className="px-3 py-3">Status</th>
+                            <th className="px-3 py-3">Kilde</th>
                             {includePayment ? <th className="px-3 py-3">Betaling</th> : null}
                             {includeValue ? <th className="px-3 py-3 text-right">Værdi</th> : null}
                             <th className="px-3 py-3">Tilmeldt</th>
@@ -337,6 +339,7 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
                               ) : null}
                               <td className="px-3 py-3 text-right font-semibold text-midnight">{row.seats}</td>
                               <td className="px-3 py-3">{statusLabels[row.status] ?? row.status}</td>
+                              <td className="px-3 py-3">{row.sourceLabel ?? "SoulEvents-booking"}</td>
                               {includePayment ? <td className="px-3 py-3">{row.paymentStatus}</td> : null}
                               {includeValue ? <td className="px-3 py-3 text-right">{formatMoney(row.bookingValueCents)}</td> : null}
                               <td className="px-3 py-3">{formatDateTime(row.createdAt)}</td>
@@ -353,6 +356,7 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
                             <div>
                               <h3 className="font-semibold text-midnight">{row.name}</h3>
                               <p className="text-sm text-ink/60">{statusLabels[row.status] ?? row.status}</p>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-lavender">{row.sourceLabel ?? "SoulEvents-booking"}</p>
                             </div>
                             <span className="rounded-full bg-sage-50 px-3 py-1 text-sm font-semibold text-sage-700">{row.seats} pladser</span>
                           </div>

@@ -4,10 +4,13 @@ import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
-import { CalendarDays, Check, ChevronDown, Copy, Mail, MessageSquare, Phone, Search, Slash, Ticket, UserRound } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Copy, Mail, MessageSquare, Pencil, Phone, Plus, Search, Slash, Ticket, Trash2, UserRound, X } from "lucide-react";
 import {
+  addExternalEventParticipantAction,
   confirmAllPendingBookingsAction,
+  deleteExternalEventParticipantAction,
   markEventSoldOutAction,
+  updateExternalEventParticipantAction,
   updateBookingManualPaymentAction,
   updateBookingSeatsAction,
   updateBookingStatusAction,
@@ -49,8 +52,21 @@ type BookingRow = {
 type BookingListProps = {
   bookings: BookingRow[];
   eventOptions: EventOption[];
+  externalParticipants: ExternalParticipantRow[];
   initialExpandedBookingId?: string | null;
   selectedEventId: string | null;
+};
+
+type ExternalParticipantRow = {
+  id: string;
+  event_id: string;
+  participant_name: string | null;
+  participant_email: string | null;
+  participant_phone: string | null;
+  seats: number;
+  internal_note: string | null;
+  source: "manual" | "provider_sync";
+  created_at: string;
 };
 
 type EventOption = {
@@ -62,11 +78,20 @@ type EventOption = {
   starts_at: string;
   status: string;
   capacity?: number | null;
+  price_cents?: number | null;
+  registration_mode?: "direct" | "approval_required" | null;
   bookings?: Array<{
     id: string;
     status: BookingStatus;
     seats: number;
   }>;
+  event_payment_settings?: Array<{
+    method_source?: "facilitator" | "custom" | "none" | null;
+    payment_link_mode?: "external_registration" | "payment_only" | null;
+  }> | {
+    method_source?: "facilitator" | "custom" | "none" | null;
+    payment_link_mode?: "external_registration" | "payment_only" | null;
+  } | null;
   event_main_categories?: Array<{
     main_categories?: {
       color_hex?: string | null;
@@ -118,6 +143,15 @@ function formatEventDate(value: string) {
 
 function first<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function usesExternalRegistration(event: EventOption | null | undefined) {
+  if (!event || (event.price_cents ?? 0) <= 0 || event.registration_mode !== "direct") {
+    return false;
+  }
+
+  const paymentSettings = first(event.event_payment_settings);
+  return paymentSettings?.method_source === "custom" && paymentSettings.payment_link_mode === "external_registration";
 }
 
 function formatShortDateTime(value: string | null | undefined) {
@@ -319,6 +353,49 @@ function SubmitButton({
   );
 }
 
+function ExternalParticipantSubmitButton({ disabled = false }: { disabled?: boolean }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="inline-flex h-10 items-center justify-center rounded-md bg-sage-700 px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-800 disabled:cursor-not-allowed disabled:opacity-60"
+      disabled={pending || disabled}
+      type="submit"
+    >
+      {pending ? "Tilføjer..." : "Tilføj deltager"}
+    </button>
+  );
+}
+
+function ExternalParticipantUpdateButton({ disabled = false }: { disabled?: boolean }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="inline-flex h-10 items-center justify-center rounded-md bg-sage-700 px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-800 disabled:cursor-not-allowed disabled:opacity-60"
+      disabled={pending || disabled}
+      type="submit"
+    >
+      {pending ? "Gemmer..." : "Gem ændringer"}
+    </button>
+  );
+}
+
+function ExternalParticipantDeleteButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-rose hover:text-rose disabled:cursor-not-allowed disabled:opacity-60"
+      disabled={pending}
+      type="submit"
+    >
+      <Trash2 className="size-4" aria-hidden="true" />
+      {pending ? "Fjerner..." : "Fjern deltager"}
+    </button>
+  );
+}
+
 function ConfirmAllPendingAction({
   eventId,
   pendingCount,
@@ -379,6 +456,227 @@ function ConfirmAllPendingAction({
   );
 }
 
+function ExternalParticipantFormFields({
+  maxSeats,
+  participant,
+}: {
+  maxSeats: number;
+  participant?: ExternalParticipantRow;
+}) {
+  const hasNoRemainingSeats = maxSeats <= 0;
+
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <label className="grid gap-1.5 text-sm font-semibold text-midnight">
+        Navn
+        <input
+          className="h-11 rounded-md border border-midnight/12 bg-white px-3 text-sm font-normal text-midnight outline-none transition focus:border-sage-700 focus:ring-2 focus:ring-sage-100"
+          defaultValue={participant?.participant_name ?? ""}
+          maxLength={120}
+          name="participant_name"
+          placeholder="Deltagerens navn"
+        />
+      </label>
+      <label className="grid gap-1.5 text-sm font-semibold text-midnight">
+        E-mail
+        <input
+          className="h-11 rounded-md border border-midnight/12 bg-white px-3 text-sm font-normal text-midnight outline-none transition focus:border-sage-700 focus:ring-2 focus:ring-sage-100"
+          defaultValue={participant?.participant_email ?? ""}
+          maxLength={160}
+          name="participant_email"
+          placeholder="Deltagerens e-mail"
+          type="email"
+        />
+      </label>
+      <label className="grid gap-1.5 text-sm font-semibold text-midnight">
+        Telefonnummer
+        <input
+          className="h-11 rounded-md border border-midnight/12 bg-white px-3 text-sm font-normal text-midnight outline-none transition focus:border-sage-700 focus:ring-2 focus:ring-sage-100"
+          defaultValue={participant?.participant_phone ?? ""}
+          maxLength={50}
+          name="participant_phone"
+          placeholder="Telefonnummer"
+        />
+      </label>
+      <label className="grid gap-1.5 text-sm font-semibold text-midnight">
+        Antal pladser
+        <input
+          className="h-11 rounded-md border border-midnight/12 bg-white px-3 text-sm font-normal text-midnight outline-none transition focus:border-sage-700 focus:ring-2 focus:ring-sage-100"
+          defaultValue={participant?.seats ?? 1}
+          disabled={hasNoRemainingSeats}
+          inputMode="numeric"
+          max={maxSeats}
+          min={1}
+          name="seats"
+          required
+          type="number"
+        />
+      </label>
+      <label className="grid gap-1.5 text-sm font-semibold text-midnight md:col-span-2">
+        Intern note
+        <textarea
+          className="min-h-24 rounded-md border border-midnight/12 bg-white px-3 py-2 text-sm font-normal leading-6 text-midnight outline-none transition focus:border-sage-700 focus:ring-2 focus:ring-sage-100"
+          defaultValue={participant?.internal_note ?? ""}
+          maxLength={500}
+          name="internal_note"
+          placeholder="Valgfri note til dig selv"
+        />
+      </label>
+    </div>
+  );
+}
+
+function AddExternalParticipantForm({ eventId, remainingSeats }: { eventId: string; remainingSeats: number | null }) {
+  const maxSeats = remainingSeats !== null ? Math.max(remainingSeats, 0) : 500;
+  const hasNoRemainingSeats = maxSeats <= 0;
+
+  return (
+    <form action={addExternalEventParticipantAction} className="grid gap-4 rounded-md border border-[#DDE8D7] bg-[#F4FAF2] p-4">
+      <input name="event_id" type="hidden" value={eventId} />
+      <div className="flex items-start gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-sage-700 shadow-soft">
+          <Plus className="size-4" aria-hidden="true" />
+        </span>
+        <div>
+          <h3 className="text-base font-semibold text-midnight">Tilføj deltager</h3>
+          <p className="mt-1 text-sm leading-6 text-ink/64">
+            Bruges kun som administrativt overblik. Der sendes ingen kvittering eller betalingsmail fra SoulEvents.
+          </p>
+        </div>
+      </div>
+
+      <ExternalParticipantFormFields maxSeats={maxSeats} />
+
+      <div className="flex justify-end">
+        <ExternalParticipantSubmitButton disabled={hasNoRemainingSeats} />
+      </div>
+      {hasNoRemainingSeats ? (
+        <p className="rounded-md border border-[#E8D6A8] bg-[#FFF8E8] px-3 py-2 text-sm leading-6 text-[#6E5528]">
+          Der er ikke flere pladser tilbage i dit manuelle overblik.
+        </p>
+      ) : (
+        <p className="text-sm leading-6 text-ink/58">Tilføj mindst én oplysning: navn, e-mail, telefonnummer eller intern note.</p>
+      )}
+    </form>
+  );
+}
+
+function ExternalParticipantArticle({
+  maxSeats,
+  participant,
+}: {
+  maxSeats: number | null;
+  participant: ExternalParticipantRow;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const editMaxSeats = maxSeats !== null ? Math.max(maxSeats, participant.seats) : 500;
+
+  if (isEditing) {
+    return (
+      <article className="rounded-md border border-[#C9DAC1] bg-white p-4 shadow-soft">
+        <form action={updateExternalEventParticipantAction} className="grid gap-4">
+          <input name="participant_id" type="hidden" value={participant.id} />
+          <input name="event_id" type="hidden" value={participant.event_id} />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h4 className="font-semibold text-midnight">Rediger manuel deltager</h4>
+              <p className="mt-1 text-sm leading-6 text-ink/64">
+                Ændringer opdaterer deltagerlisten og kapaciteten med det samme.
+              </p>
+            </div>
+            <button
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-midnight/12 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-lavender hover:text-lavender"
+              onClick={() => setIsEditing(false)}
+              type="button"
+            >
+              <X className="size-4" aria-hidden="true" />
+              Annuller
+            </button>
+          </div>
+          <ExternalParticipantFormFields maxSeats={editMaxSeats} participant={participant} />
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              className="inline-flex h-10 items-center justify-center rounded-md border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-lavender hover:text-lavender"
+              onClick={() => setIsEditing(false)}
+              type="button"
+            >
+              Annuller
+            </button>
+            <ExternalParticipantUpdateButton disabled={editMaxSeats <= 0} />
+          </div>
+        </form>
+      </article>
+    );
+  }
+
+  return (
+    <article className="rounded-md border border-midnight/10 bg-white p-4 shadow-soft">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="font-semibold text-midnight [overflow-wrap:anywhere]">{participant.participant_name || "Manuel deltager"}</h4>
+            <span className="rounded-full bg-[#EEF7F0] px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-sage-700">
+              Ekstern tilmelding
+            </span>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-ink/68 [overflow-wrap:anywhere]">
+            {[participant.participant_email, participant.participant_phone].filter(Boolean).join(" · ") || "Ingen kontaktoplysninger angivet"}
+          </p>
+          {participant.internal_note ? (
+            <p className="mt-2 rounded-md bg-sand/35 px-3 py-2 text-sm leading-6 text-ink/68 [overflow-wrap:anywhere]">
+              {participant.internal_note}
+            </p>
+          ) : null}
+        </div>
+        <span className="rounded-full bg-sand/45 px-3 py-1.5 text-sm font-semibold text-midnight">
+          {participant.seats} {participant.seats === 1 ? "plads" : "pladser"}
+        </span>
+      </div>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
+          onClick={() => {
+            setIsConfirmingDelete(false);
+            setIsEditing(true);
+          }}
+          type="button"
+        >
+          <Pencil className="size-4" aria-hidden="true" />
+          Rediger
+        </button>
+        {isConfirmingDelete ? (
+          <form action={deleteExternalEventParticipantAction} className="grid gap-2 rounded-md border border-rose/20 bg-rose/5 p-3 sm:min-w-80">
+            <input name="participant_id" type="hidden" value={participant.id} />
+            <input name="event_id" type="hidden" value={participant.event_id} />
+            <input name="confirm_delete" type="hidden" value="yes" />
+            <p className="text-sm font-semibold text-midnight">Fjern denne deltager fra dit manuelle overblik?</p>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                className="inline-flex h-10 items-center justify-center rounded-md border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-lavender hover:text-lavender"
+                onClick={() => setIsConfirmingDelete(false)}
+                type="button"
+              >
+                Annuller
+              </button>
+              <ExternalParticipantDeleteButton />
+            </div>
+          </form>
+        ) : (
+          <button
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-rose hover:text-rose"
+            onClick={() => setIsConfirmingDelete(true)}
+            type="button"
+          >
+            <Trash2 className="size-4" aria-hidden="true" />
+            Fjern
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
 function BookingArticle({
   booking,
   currentEventId,
@@ -399,6 +697,11 @@ function BookingArticle({
   const isCancelledBooking = booking.status === "cancelled";
   const reminderDisabledReason = canSendPaymentReminder(booking, paymentSnapshot);
   const paymentLabel = isPaidEventBooking ? (isManuallyMarkedPaid ? "Betalt" : "Afventer betaling") : "Gratis";
+  const statusLabel = isPaidEventBooking && booking.status === "confirmed" && !isManuallyMarkedPaid ? "Afventer betaling" : statusLabels[booking.status];
+  const statusClass =
+    isPaidEventBooking && booking.status === "confirmed" && !isManuallyMarkedPaid
+      ? "bg-[#FFF8E8] text-[#6E5528]"
+      : statusBadgeClasses[booking.status];
 
   return (
     <article className={"overflow-hidden rounded-md border border-l-4 shadow-soft transition " + cardClass} id={`booking-${booking.id}`} key={booking.id}>
@@ -410,8 +713,8 @@ function BookingArticle({
           onClick={onToggle}
           type="button"
         >
-          <span className={"w-fit rounded-md px-3 py-2 text-sm font-semibold md:text-center " + statusBadgeClasses[booking.status]}>
-            {statusLabels[booking.status]}
+          <span className={"w-fit rounded-md px-3 py-2 text-sm font-semibold md:text-center " + statusClass}>
+            {statusLabel}
           </span>
           <div className="min-w-0 rounded-md bg-[#FBF8F4] px-3 py-2">
             <p className="flex min-w-0 items-center gap-2 text-base font-semibold text-midnight">
@@ -720,6 +1023,7 @@ function EventSelector({
       <div className="flex snap-x gap-4 overflow-x-auto px-5 py-5 [scrollbar-width:thin]">
         {eventOptions.map((event) => {
           const stats = getEventBookingStats(event);
+          const eventUsesExternalRegistration = usesExternalRegistration(event);
           const isSelected = selectedEvent?.id === event.id;
           const mainCategories =
             event.event_main_categories
@@ -735,7 +1039,9 @@ function EventSelector({
                 ? "1 ledig plads"
                 : `${stats.availableSeats} ledige pladser`;
           const capacitySummaryLabel =
-            stats.availableSeats === null ? `${stats.totalSeats} tilmeldte` : `${stats.totalSeats} tilmeldte • ${availableLabel}`;
+            eventUsesExternalRegistration
+              ? "Tilmeldinger håndteres eksternt"
+              : stats.availableSeats === null ? `${stats.totalSeats} tilmeldte` : `${stats.totalSeats} tilmeldte • ${availableLabel}`;
 
           return (
             <Link
@@ -807,13 +1113,18 @@ function EventSelector({
   );
 }
 
-export function BookingList({ bookings, eventOptions, initialExpandedBookingId, selectedEventId }: BookingListProps) {
+export function BookingList({ bookings, eventOptions, externalParticipants, initialExpandedBookingId, selectedEventId }: BookingListProps) {
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(initialExpandedBookingId ?? null);
   const [filter, setFilter] = useState<BookingFilter>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [sort, setSort] = useState<BookingSort>("newest");
   const selectedEvent = eventOptions.find((event) => event.id === selectedEventId) ?? null;
+  const selectedEventUsesExternalRegistration = usesExternalRegistration(selectedEvent);
   const selectedEventStats = selectedEvent ? getEventBookingStats(selectedEvent) : null;
+  const externalSeatCount = externalParticipants.reduce((sum, participant) => sum + participant.seats, 0);
+  const occupiedSeatCount = (selectedEventStats?.totalSeats ?? 0) + externalSeatCount;
+  const externalCapacityAvailable =
+    selectedEvent?.capacity && selectedEvent.capacity > 0 ? Math.max(selectedEvent.capacity - occupiedSeatCount, 0) : null;
   const pendingBookingCount = selectedEvent ? bookings.filter((booking) => booking.status === "pending").length : 0;
   const selectedEventLocation = selectedEvent
     ? [selectedEvent.address_line, selectedEvent.city].filter(Boolean).join(", ") || null
@@ -831,8 +1142,26 @@ export function BookingList({ bookings, eventOptions, initialExpandedBookingId, 
     paymentStatus: paymentStatusLabel(booking),
     phone: booking.participant_phone,
     seats: booking.seats,
+    sourceLabel: "SoulEvents-booking",
     status: booking.status,
   }));
+  const externalParticipantRows = externalParticipants.map((participant) => ({
+    bookingValueCents: 0,
+    createdAt: participant.created_at,
+    email: participant.participant_email ?? "",
+    id: participant.id,
+    manualPaymentNote: participant.internal_note,
+    message: participant.internal_note,
+    name: participant.participant_name || "Manuel deltager",
+    paymentDueAt: null,
+    paymentReference: null,
+    paymentStatus: "Ikke relevant" as const,
+    phone: participant.participant_phone,
+    seats: participant.seats,
+    sourceLabel: participant.source === "provider_sync" ? "Synkroniseret ekstern tilmelding" : "Manuelt registreret",
+    status: "confirmed" as BookingStatus,
+  }));
+  const participantListRows = [...participantRows, ...externalParticipantRows];
   const visibleBookings = useMemo(() => {
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
     const searchedBookings = normalizedSearchTerm
@@ -867,17 +1196,28 @@ export function BookingList({ bookings, eventOptions, initialExpandedBookingId, 
               <div>
                 <h2 className="text-lg font-semibold text-midnight">{selectedEvent.title}</h2>
                 <p className="mt-1 text-sm text-ink/64">{formatEventDate(selectedEvent.starts_at)}</p>
-                {selectedEventStats && (
+                {selectedEventStats && !selectedEventUsesExternalRegistration && (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold text-ink/68">{selectedEventStats.totalSeats} tilmeldte</span>
                     <CapacityBadge availableSeats={selectedEventStats.availableSeats} capacity={selectedEvent.capacity} />
                   </div>
                 )}
+                {selectedEventUsesExternalRegistration ? (
+                  <div className="mt-2 grid max-w-2xl gap-2">
+                    <p className="rounded-md border border-[#E8D6A8] bg-[#FFF8E8] px-3 py-2 text-sm leading-6 text-[#6E5528]">
+                      Tilmeldinger og betaling håndteres via din eksterne tilmeldingsløsning. SoulEvents modtager ikke automatisk deltagerlisten.
+                    </p>
+                    <p className="text-sm font-semibold text-ink/68">
+                      {occupiedSeatCount} / {selectedEvent.capacity ?? "-"} pladser optaget
+                      {externalCapacityAvailable !== null ? ` · ${externalCapacityAvailable} tilbage i dit manuelle overblik` : ""}
+                    </p>
+                  </div>
+                ) : null}
               </div>
               {selectedEvent.status === "sold_out" ? (
                 <div className="flex flex-wrap gap-2 md:justify-end">
                   <ParticipantListMenu
-                    bookings={participantRows}
+                    bookings={participantListRows}
                     eventLocation={selectedEventLocation}
                     eventStartsAt={selectedEvent.starts_at}
                     eventTitle={selectedEvent.title}
@@ -889,7 +1229,7 @@ export function BookingList({ bookings, eventOptions, initialExpandedBookingId, 
               ) : (
                 <div className="flex flex-wrap gap-2 md:justify-end">
                   <ParticipantListMenu
-                    bookings={participantRows}
+                    bookings={participantListRows}
                     eventLocation={selectedEventLocation}
                     eventStartsAt={selectedEvent.starts_at}
                     eventTitle={selectedEvent.title}
@@ -962,10 +1302,43 @@ export function BookingList({ bookings, eventOptions, initialExpandedBookingId, 
           ) : null}
 
           <div className="grid gap-4 bg-[#FBF8F4] p-4">
+            {selectedEventUsesExternalRegistration ? (
+              <>
+                <AddExternalParticipantForm eventId={selectedEvent.id} remainingSeats={externalCapacityAvailable} />
+                {externalParticipants.length > 0 ? (
+                  <section className="grid gap-3">
+                    <div className="flex flex-wrap items-end justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-midnight">Manuelt registrerede deltagere</h3>
+                        <p className="mt-1 text-sm text-ink/64">
+                          {externalParticipants.length} deltagere · {externalSeatCount} pladser
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid gap-3">
+                      {externalParticipants.map((participant) => (
+                        <ExternalParticipantArticle
+                          key={participant.id}
+                          maxSeats={externalCapacityAvailable !== null ? externalCapacityAvailable + participant.seats : null}
+                          participant={participant}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+              </>
+            ) : null}
+
             {bookings.length === 0 ? (
               <div className="rounded-md border border-midnight/10 bg-white p-8 text-center">
-                <h3 className="text-base font-semibold text-midnight">Ingen tilmeldinger til dette event endnu</h3>
-                <p className="mt-2 text-sm text-ink/64">Når deltagere tilmelder sig det valgte event, vises de her.</p>
+                <h3 className="text-base font-semibold text-midnight">
+                  {selectedEventUsesExternalRegistration ? "Tilmeldinger håndteres eksternt" : "Ingen tilmeldinger til dette event endnu"}
+                </h3>
+                <p className="mt-2 text-sm text-ink/64">
+                  {selectedEventUsesExternalRegistration
+                    ? "Deltagerlisten findes hos din betalings- eller tilmeldingsudbyder."
+                    : "Når deltagere tilmelder sig det valgte event, vises de her."}
+                </p>
               </div>
             ) : visibleBookings.length === 0 ? (
               <div className="rounded-md border border-midnight/10 bg-white p-8 text-center">
@@ -980,7 +1353,7 @@ export function BookingList({ bookings, eventOptions, initialExpandedBookingId, 
                   isExpanded={expandedBookingId === booking.id}
                   key={booking.id}
                   onToggle={() => setExpandedBookingId((currentId) => (currentId === booking.id ? null : booking.id))}
-                  showActions={booking.status !== "cancelled"}
+                  showActions={booking.status !== "cancelled" && !selectedEventUsesExternalRegistration}
                 />
               ))
             )}

@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Clock3, Minus, Plus, Send, Sparkles, X } from "lucide-react";
+import { ChevronDown, Clock3, ExternalLink, Minus, Plus, Send, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createBookingAction } from "@/app/events/[id]/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { CapacityBadge } from "@/components/events/capacity-badge";
 import { maxSeatsPerBooking } from "@/lib/bookings/limits";
+import type { PaymentInstructionMethod } from "@/lib/payment-instructions";
 
 type BookingFormProps = {
   eventId: string;
@@ -14,10 +15,17 @@ type BookingFormProps = {
   capacity?: number | null;
   eventStartsAt: string;
   eventTitle: string;
+  externalRegistrationUrl?: string | null;
   facilitatorProfileHref: string;
   message?: string;
   messageVariant?: "notice" | "success";
   bookingSent?: boolean;
+  registrationMode?: "direct" | "approval_required";
+  paymentPreview?: {
+    deadlineDays: number | null;
+    methods: PaymentInstructionMethod[];
+    note: string | null;
+  } | null;
 };
 
 const inputClass =
@@ -78,12 +86,18 @@ export function BookingForm({
   capacity,
   eventStartsAt,
   eventTitle,
+  externalRegistrationUrl = null,
   facilitatorProfileHref,
   message,
   messageVariant = "notice",
   bookingSent = false,
+  registrationMode = "approval_required",
+  paymentPreview = null,
 }: BookingFormProps) {
-  const isSoldOut = availableSeats <= 0;
+  const isDirectRegistration = registrationMode === "direct";
+  const usesExternalRegistration = isDirectRegistration && Boolean(externalRegistrationUrl);
+  const isSoldOut = !usesExternalRegistration && availableSeats <= 0;
+  const bookingActionLabel = usesExternalRegistration ? "Tilmeld dig hos arrangøren" : isDirectRegistration ? "Tilmeld dig" : "Reserver plads";
   const formRef = useRef<HTMLFormElement>(null);
   const bookingToggleRef = useRef<HTMLButtonElement>(null);
   const bookingDialogRef = useRef<HTMLDivElement>(null);
@@ -265,7 +279,9 @@ export function BookingForm({
           Din tilmelding er modtaget 💜
         </h2>
         <p className="mt-4 text-sm leading-6 text-ink/72">
-          Du modtager en e-mail, når arrangøren har bekræftet din tilmelding.
+          {isDirectRegistration
+            ? "Du modtager en kvitteringsmail med betalingsoplysninger."
+            : "Du modtager en e-mail, når arrangøren har bekræftet din tilmelding."}
         </p>
         <div className="mt-6 rounded-md border border-[#E5D4F7] bg-white/80 px-4 py-3 text-sm leading-6 text-ink/72 shadow-soft">
           <p>
@@ -338,6 +354,29 @@ export function BookingForm({
     );
   }
 
+  if (usesExternalRegistration && externalRegistrationUrl) {
+    return (
+      <section className="rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_18px_45px_rgba(90,59,122,0.16)]">
+        <h2 className="text-3xl font-semibold text-olive">Tilmelding og betaling hos arrangøren</h2>
+        <p className="mt-3 text-sm leading-6 text-ink/72">
+          Du sendes videre til arrangørens tilmeldingsside, hvor du vælger antal pladser, udfylder dine oplysninger og gennemfører betalingen.
+        </p>
+        <p className="mt-4 rounded-md border border-white/70 bg-white/70 px-3 py-3 text-sm leading-6 text-ink/68 shadow-soft">
+          Tilmelding og betaling foregår på arrangørens eksterne side. SoulEvents opretter ikke en booking og reserverer ikke pladser i dette flow.
+        </p>
+        <a
+          className={`${bookingCtaClass} mt-5 inline-flex min-h-[4.25rem] w-full items-center justify-center gap-3`}
+          href={externalRegistrationUrl}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          Gå til tilmelding og betaling
+          <ExternalLink className="size-5" aria-hidden="true" />
+        </a>
+      </section>
+    );
+  }
+
   return (
     <form
       ref={formRef}
@@ -369,7 +408,7 @@ export function BookingForm({
       }}
     >
       <input name="event_id" type="hidden" value={eventId} />
-      <h2 className="text-3xl font-semibold text-olive">Tilmeld dig</h2>
+      <h2 className="text-3xl font-semibold text-olive">{bookingActionLabel}</h2>
       <CapacityBadge availableSeats={availableSeats} capacity={capacity} className="mt-2" />
 
       {!bookingSent ? (
@@ -390,7 +429,7 @@ export function BookingForm({
           ) : (
             <>
               <Sparkles className="size-5" aria-hidden="true" />
-              Tilmeld dig
+              {bookingActionLabel}
               <ChevronDown
                 className="size-5 -rotate-90 transition-transform duration-200 motion-safe:group-hover:translate-x-1 motion-safe:group-focus-visible:translate-x-1"
                 aria-hidden="true"
@@ -441,7 +480,7 @@ export function BookingForm({
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Tilmelding</p>
               <h3 className="mt-1 text-3xl font-semibold text-olive" id="booking-dialog-title">
-                Tilmeld dig
+                {bookingActionLabel}
               </h3>
             </div>
             <button
@@ -460,12 +499,46 @@ export function BookingForm({
           >
             <p className="font-semibold text-midnight">{"\ud83d\udc9c Vigtigt f\u00f8r du tilmelder dig"}</p>
             <p className="mt-2">
-              {"Din tilmelding sendes som en foresp\u00f8rgsel til arrangøren. Din plads er f\u00f8rst reserveret, n\u00e5r du har modtaget en bekr\u00e6ftelse."}
+              {isDirectRegistration
+                ? "Din tilmelding registreres med det samme. Betaling håndteres direkte mellem dig og arrangøren uden for SoulEvents."
+                : "Din tilmelding sendes som en forespørgsel til arrangøren. Din plads er først reserveret, når du har modtaget en bekræftelse."}
             </p>
             <p className="mt-2 italic">
               {"SoulEvents.dk hj\u00e6lper deltagere og arrangører med at finde hinanden. Det er den enkelte arrangør, der st\u00e5r for eventet og h\u00e5ndterer tilmeldinger."}
             </p>
           </div>
+
+          {isDirectRegistration && paymentPreview ? (
+            <div className="mt-4 rounded-md border border-[#DDE8D7] bg-[#EEF7F0] px-4 py-4 text-sm leading-6 text-sage-700 shadow-soft">
+              <p className="text-xs font-bold uppercase tracking-wide">Betaling</p>
+              <p className="mt-1 font-semibold text-midnight">Du får også betalingsoplysningerne i kvitteringsmailen.</p>
+              {paymentPreview.deadlineDays !== null ? (
+                <p className="mt-1 text-ink/68">Betalingsfrist: senest {paymentPreview.deadlineDays} dage efter tilmelding.</p>
+              ) : null}
+              {paymentPreview.methods.length > 0 ? (
+                <div className="mt-3 grid gap-2">
+                  {paymentPreview.methods.map((method) =>
+                    method.url ? (
+                      <a
+                        className="inline-flex min-w-0 items-center justify-center rounded-full bg-white px-4 py-2 font-semibold text-[#7A4EAB] shadow-soft transition hover:-translate-y-0.5"
+                        href={method.url}
+                        key={`${method.type}-${method.value}`}
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        {method.label}
+                      </a>
+                    ) : (
+                      <p className="rounded-card bg-white px-3 py-2 text-midnight shadow-soft" key={`${method.type}-${method.value}`}>
+                        <span className="font-semibold">{method.label}:</span> {method.value}
+                      </p>
+                    ),
+                  )}
+                </div>
+              ) : null}
+              {paymentPreview.note ? <p className="mt-3 text-ink/70">{paymentPreview.note}</p> : null}
+            </div>
+          ) : null}
 
       <div className="mt-6 grid gap-4 [&_input::placeholder]:text-sm [&_input::placeholder]:font-normal [&_input::placeholder]:text-ink/45 [&_textarea::placeholder]:text-sm [&_textarea::placeholder]:font-normal [&_textarea::placeholder]:text-ink/45">
         <label className="grid gap-2 text-sm font-medium text-ink/72">
@@ -665,11 +738,15 @@ export function BookingForm({
                     </span>
                     <div className="grid gap-2">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6E5A86]">Tilmelding modtaget</p>
-                      <h3 className="text-lg font-semibold leading-tight text-midnight">Din tilmelding afventer arrangørens bekræftelse</h3>
+                      <h3 className="text-lg font-semibold leading-tight text-midnight">
+                        {isDirectRegistration ? "Din tilmelding er registreret" : "Din tilmelding afventer arrangørens bekræftelse"}
+                      </h3>
                       <p className="text-sm leading-6 text-ink/72">{message}</p>
-                      <p className="text-sm font-semibold leading-6 text-ink/72">
-                        Hold øje med din indbakke. Din endelige bekræftelse sendes i en separat e-mail.
-                      </p>
+                      {!isDirectRegistration ? (
+                        <p className="text-sm font-semibold leading-6 text-ink/72">
+                          Hold øje med din indbakke. Din endelige bekræftelse sendes i en separat e-mail.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -700,7 +777,7 @@ export function BookingForm({
               Du er ved at tilmelde {seats} {highSeatPersonLabel}
             </h3>
             <p className="mt-3 text-sm leading-6 text-ink/70" id="high-seat-booking-description">
-              Er du sikker på, at du ønsker at reservere {seats} pladser til dette event?
+              Er du sikker på, at du ønsker at {isDirectRegistration ? "tilmelde" : "reservere"} {seats} pladser til dette event?
             </p>
             <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_1.4fr]">
               <button

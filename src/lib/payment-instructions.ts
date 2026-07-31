@@ -88,7 +88,7 @@ export function hasPaymentInstructions(record: PaymentInstructionsRecord | null 
   );
 }
 
-function resolvePaymentRecord({
+export function resolvePaymentRecord({
   event,
   facilitator,
 }: {
@@ -105,10 +105,17 @@ function resolvePaymentRecord({
     return { record: event, source };
   }
 
-  return { record: facilitator, source: "facilitator" as const };
+  return {
+    record: {
+      ...facilitator,
+      payment_deadline_days: event.payment_deadline_days ?? facilitator.payment_deadline_days,
+      payment_instructions: event.payment_instructions ?? facilitator.payment_instructions,
+    },
+    source: "facilitator" as const,
+  };
 }
 
-function buildMethods(record: PaymentInstructionsRecord) {
+export function buildPaymentMethods(record: PaymentInstructionsRecord) {
   const methods: PaymentInstructionMethod[] = [];
   const mobilepay = cleanText(record.payment_mobilepay_number);
   const registrationNumber = cleanText(record.payment_bank_registration_number);
@@ -188,7 +195,7 @@ export function buildBookingPaymentInstructions({
   }
 
   const { record, source } = resolvePaymentRecord({ event, facilitator });
-  const methods = source === "none" ? [] : buildMethods(record);
+  const methods = source === "none" ? [] : buildPaymentMethods(record);
   const note =
     source === "none"
       ? cleanText(record.payment_instructions) || "Betaling aftales direkte med arrangøren."

@@ -13,6 +13,7 @@ type BookingNotificationInput = {
   participantEmail: string;
   participantPhone: string | null;
   participantMessage?: string | null;
+  registrationMode?: "direct" | "approval_required";
   seats: number;
 };
 
@@ -24,17 +25,21 @@ async function buildHtml(input: BookingNotificationInput) {
   const rows: Array<[string, string]> = [
     ["Event", input.eventTitle],
     ["Dato", formatDate(input.eventStartsAt)],
-    ["Antal reserverede pladser", formatSeats(input.seats)],
+    [input.registrationMode === "direct" ? "Antal tilmeldte pladser" : "Antal reserverede pladser", formatSeats(input.seats)],
   ];
-  const heading = `${input.participantName} har reserveret ${formatSeats(input.seats)}`;
+  const isDirect = input.registrationMode === "direct";
+  const heading = `${input.participantName} har ${isDirect ? "tilmeldt sig" : "reserveret"} ${formatSeats(input.seats)}`;
 
   return renderEmailLayout({
     title: heading,
     children: `
       <p style="margin: -6px 0 16px; color: #6E6475; font-size: 16px; font-weight: 700;">til ${escapeHtml(input.eventTitle)}</p>
-      <p style="margin: 0 0 12px;">Du har modtaget en ny reservationsforespørgsel.</p>
-      <p style="margin: 0 0 18px; color: #2F2633; font-size: 17px; font-weight: 800;">Tilmeldingen er endnu ikke gyldig.</p>
-      <p style="margin: 0 0 18px;">Den bliver først endeligt bekræftet, når du aktivt godkender den i SoulEvents.</p>
+      <p style="margin: 0 0 12px;">Du har modtaget en ny ${isDirect ? "tilmelding" : "reservationsforespørgsel"}.</p>
+      ${
+        isDirect
+          ? '<p style="margin: 0 0 18px; color: #2F2633; font-size: 17px; font-weight: 800;">Tilmeldingen er registreret med det samme.</p><p style="margin: 0 0 18px;">Betaling håndteres uden for SoulEvents og kan markeres manuelt i deltageroversigten.</p>'
+          : '<p style="margin: 0 0 18px; color: #2F2633; font-size: 17px; font-weight: 800;">Tilmeldingen er endnu ikke gyldig.</p><p style="margin: 0 0 18px;">Den bliver først endeligt bekræftet, når du aktivt godkender den i SoulEvents.</p>'
+      }
       <div style="margin: 20px 0 0; border-radius: 16px; background: #F7F2FB; padding: 16px;">
         ${rows
           .map(
@@ -47,34 +52,36 @@ async function buildHtml(input: BookingNotificationInput) {
           )
           .join("")}
       </div>
-      ${renderEmailButton(input.bookingsUrl, "Bekræft tilmelding")}
+      ${renderEmailButton(input.bookingsUrl, isDirect ? "Se tilmelding" : "Bekræft tilmelding")}
     `,
   });
 }
 
 function buildText(input: BookingNotificationInput) {
   const heading = `${input.participantName} har reserveret ${formatSeats(input.seats)}`;
+  const isDirect = input.registrationMode === "direct";
   return [
-    heading,
+    isDirect ? `${input.participantName} har tilmeldt sig ${formatSeats(input.seats)}` : heading,
     `til ${input.eventTitle}`,
     "",
-    "Du har modtaget en ny reservationsforespørgsel.",
+    `Du har modtaget en ny ${isDirect ? "tilmelding" : "reservationsforespørgsel"}.`,
     "",
-    "Tilmeldingen er endnu ikke gyldig.",
-    "Den bliver først endeligt bekræftet, når du aktivt godkender den i SoulEvents.",
+    ...(isDirect
+      ? ["Tilmeldingen er registreret med det samme.", "Betaling håndteres uden for SoulEvents og kan markeres manuelt i deltageroversigten."]
+      : ["Tilmeldingen er endnu ikke gyldig.", "Den bliver først endeligt bekræftet, når du aktivt godkender den i SoulEvents."]),
     "",
     `Event: ${input.eventTitle}`,
     `Dato: ${formatDate(input.eventStartsAt)}`,
-    `Antal reserverede pladser: ${formatSeats(input.seats)}`,
+    `${isDirect ? "Antal tilmeldte pladser" : "Antal reserverede pladser"}: ${formatSeats(input.seats)}`,
     "",
-    "Bekræft tilmelding:",
+    isDirect ? "Se tilmelding:" : "Bekræft tilmelding:",
     input.bookingsUrl,
     ...renderPlainTextFooter(),
   ].join("\n");
 }
 
 export async function sendBookingNotification(input: BookingNotificationInput) {
-  const subject = `Ny tilmelding: ${formatSeats(input.seats)} til ${input.eventTitle}`;
+  const subject = `${input.registrationMode === "direct" ? "Ny tilmelding" : "Ny reservation"}: ${formatSeats(input.seats)} til ${input.eventTitle}`;
 
   return sendLoggedEmail({
     type: "booking_created_facilitator",

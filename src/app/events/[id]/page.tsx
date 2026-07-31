@@ -11,6 +11,7 @@ import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { getUserFacingEventStatus, isEventPastEnd } from "@/lib/events/user-facing-status";
 import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
+import { buildPaymentMethods, paymentSettingsToInstructionsRecord, resolvePaymentRecord } from "@/lib/payment-instructions";
 import { buildEventJsonLd, buildEventMetadata } from "@/lib/seo/public-page-metadata";
 import { publicReturnLabel, safePublicReturnPath, withReturnTo } from "@/lib/return-to";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
@@ -387,6 +388,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
       latitude,
       longitude,
       price_cents,
+      registration_mode,
       event_format,
       online_description,
       online_url_or_note,
@@ -480,6 +482,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         latitude,
         longitude,
         price_cents,
+        registration_mode,
         event_format,
         online_description,
         online_url_or_note,
@@ -552,10 +555,55 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     permanentRedirect(withSearch(publicEventPath(event.slug), resolvedSearchParams));
   }
 
-  const availableSeats = await getAvailableEventSeats(createAdminClient(), event.id, event.capacity);
+  const adminSupabase = createAdminClient();
+  const availableSeats = await getAvailableEventSeats(adminSupabase, event.id, event.capacity);
   const facilitatorProfile = Array.isArray(event.facilitator_profiles)
     ? event.facilitator_profiles[0]
     : event.facilitator_profiles;
+  const registrationMode = event.price_cents > 0 && event.registration_mode === "direct" ? "direct" : "approval_required";
+  let externalRegistrationUrl: string | null = null;
+  let paymentPreview = null;
+
+  if (registrationMode === "direct" && event.price_cents > 0) {
+    const [{ data: eventPaymentSettings }, { data: facilitatorPaymentSettings }] = await Promise.all([
+      adminSupabase
+        .from("event_payment_settings")
+        .select("*")
+        .eq("event_id", event.id)
+        .eq("facilitator_id", event.facilitator_id)
+        .maybeSingle(),
+      adminSupabase
+        .from("facilitator_payment_settings")
+        .select("*")
+        .eq("facilitator_id", event.facilitator_id)
+        .maybeSingle(),
+    ]);
+    const paymentLinkMode =
+      eventPaymentSettings?.method_source === "custom" && eventPaymentSettings?.payment_link_mode === "external_registration"
+        ? "external_registration"
+        : "payment_only";
+    const { record, source } = resolvePaymentRecord({
+      event: {
+        ...paymentSettingsToInstructionsRecord(eventPaymentSettings),
+        payment_method_source: eventPaymentSettings?.method_source ?? "facilitator",
+      },
+      facilitator: paymentSettingsToInstructionsRecord(facilitatorPaymentSettings),
+    });
+    const methods = source === "none" ? [] : buildPaymentMethods(record);
+    externalRegistrationUrl =
+      source === "custom" && paymentLinkMode === "external_registration"
+        ? methods.find((method) => method.type === "external_link")?.url ?? null
+        : null;
+
+    paymentPreview =
+      !externalRegistrationUrl && (methods.length > 0 || record.payment_instructions)
+        ? {
+            deadlineDays: record.payment_deadline_days ?? null,
+            methods,
+            note: record.payment_instructions ?? null,
+          }
+        : null;
+  }
   const { data: facilitatorUpcomingEvents } = await supabase
     .from("events")
     .select(
@@ -1089,6 +1137,9 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               facilitatorProfileHref={facilitatorProfileHref}
               message={message}
               messageVariant={messageVariant}
+              externalRegistrationUrl={externalRegistrationUrl}
+              paymentPreview={paymentPreview}
+              registrationMode={registrationMode}
             />
           ) : (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">

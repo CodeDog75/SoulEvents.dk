@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendBookingNotification } from "@/lib/email/booking-notification";
+import { sendParticipantBookingResponse } from "@/lib/email/participant-booking-response";
 import { sendParticipantBookingReceipt } from "@/lib/email/participant-booking-receipt";
 import { getAppUrl } from "@/lib/app-url";
 import { participantCancelUrl } from "@/lib/bookings/participant-links";
@@ -13,6 +14,7 @@ import { env } from "@/lib/env";
 import { getAvailableEventSeats, syncEventCapacityStatus } from "@/lib/events/capacity";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { bookingAcceptanceTypes, getCurrentLegalDocumentVersions } from "@/lib/legal/documents";
+import { buildBookingPaymentInstructions, paymentSettingsToInstructionsRecord, type PaymentInstructionsSnapshot } from "@/lib/payment-instructions";
 import { publicEventPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -63,6 +65,7 @@ const eventSelect = [
   "starts_at,",
   "ends_at,",
   "price_cents,",
+  "registration_mode,",
   "practical_information,",
   "capacity,",
   "facilitator_id,",
@@ -90,6 +93,7 @@ type BookingEventResult = {
   id: string;
   slug?: string | null;
   price_cents: number;
+  registration_mode?: "direct" | "approval_required" | null;
   practical_information?: string | null;
   starts_at: string;
   ends_at: string;
@@ -100,6 +104,7 @@ type BookingEventResult = {
 type CreatedBookingResult = {
   booking_value_cents: number;
   id: string;
+  payment_reference: string;
   participant_access_token: string;
 };
 
@@ -234,12 +239,33 @@ export async function createBookingAction(formData: FormData) {
     seats,
     terms: commissionTerms,
   });
+  const registrationMode = event.price_cents > 0 && event.registration_mode === "direct" ? "direct" : "approval_required";
+  const { data: eventPaymentSettingsForMode } =
+    registrationMode === "direct" && event.price_cents > 0
+      ? await adminSupabase
+          .from("event_payment_settings")
+          .select("method_source, payment_link_mode, external_url")
+          .eq("event_id", event.id)
+          .eq("facilitator_id", event.facilitator_id)
+          .maybeSingle()
+      : { data: null };
+
+  if (
+    event.price_cents > 0 &&
+    registrationMode === "direct" &&
+    eventPaymentSettingsForMode?.method_source === "custom" &&
+    eventPaymentSettingsForMode.payment_link_mode === "external_registration"
+  ) {
+    bookingRedirect(eventId, "Tilmelding og betaling håndteres via arrangørens eksterne link.", event.slug);
+  }
+
+  const bookingStatus = registrationMode === "direct" ? "confirmed" : "pending";
   const { data: bookingResult, error } = await adminSupabase
     .from("bookings")
     .insert({
       event_id: event.id,
       facilitator_id: event.facilitator_id,
-      status: "pending",
+      status: bookingStatus,
       participant_name: participantName,
       participant_email: participantEmail,
       participant_phone: participantPhone,
@@ -259,7 +285,7 @@ export async function createBookingAction(formData: FormData) {
       reporting_month: commissionSnapshot.reporting_month,
       reporting_month_locked_at: commissionSnapshot.reporting_month_locked_at,
     })
-    .select("id, booking_value_cents, participant_access_token")
+    .select("id, booking_value_cents, payment_reference, participant_access_token")
     .single();
 
   const booking = bookingResult as CreatedBookingResult | null;
@@ -276,6 +302,55 @@ export async function createBookingAction(formData: FormData) {
   }
 
   await syncEventCapacityStatus(adminSupabase, event.id);
+
+  let paymentInstructions: PaymentInstructionsSnapshot | null = null;
+
+  if (registrationMode === "direct" && booking.booking_value_cents > 0) {
+    const [{ data: eventPaymentSettings }, { data: facilitatorPaymentSettings }] = await Promise.all([
+      adminSupabase
+        .from("event_payment_settings")
+        .select("*")
+        .eq("event_id", event.id)
+        .eq("facilitator_id", event.facilitator_id)
+        .maybeSingle(),
+      adminSupabase
+        .from("facilitator_payment_settings")
+        .select("*")
+        .eq("facilitator_id", event.facilitator_id)
+        .maybeSingle(),
+    ]);
+
+    paymentInstructions = buildBookingPaymentInstructions({
+      amountCents: booking.booking_value_cents,
+      confirmedAt: new Date(),
+      event: {
+        ...paymentSettingsToInstructionsRecord(eventPaymentSettings),
+        payment_method_source: eventPaymentSettings?.method_source ?? "facilitator",
+      },
+      eventStartsAt: event.starts_at,
+      facilitator: paymentSettingsToInstructionsRecord(facilitatorPaymentSettings),
+      reference: booking.payment_reference,
+    });
+
+    if (paymentInstructions) {
+      const { error: paymentSnapshotError } = await adminSupabase
+        .from("bookings")
+        .update({
+          payment_instructions_snapshot: paymentInstructions,
+          payment_due_at: paymentInstructions.dueAt,
+          payment_snapshot_created_at: paymentInstructions.generatedAt,
+        })
+        .eq("id", booking.id);
+
+      if (paymentSnapshotError) {
+        console.error("Direct booking payment snapshot could not be saved", {
+          bookingId: booking.id,
+          error: paymentSnapshotError.message,
+          eventId: event.id,
+        });
+      }
+    }
+  }
 
   const { error: bookingAcceptanceError } = await adminSupabase.from("booking_legal_acceptances").insert({
     booking_id: booking.id,
@@ -336,18 +411,36 @@ export async function createBookingAction(formData: FormData) {
       participantPhone,
       participantMessage: message,
       seats,
+      registrationMode,
     }),
-    sendParticipantBookingReceipt({
-      bookingId: booking.id,
-      cancelUrl: participantCancelUrl(booking.participant_access_token, requestOrigin),
-      eventId: event.id,
-      eventTitle: event.title,
-      eventStartsAt: event.starts_at,
-      facilitatorName,
-      participantName,
-      participantEmail,
-      seats,
-    }),
+    registrationMode === "direct"
+      ? sendParticipantBookingResponse({
+          bookingId: booking.id,
+          cancelUrl: participantCancelUrl(booking.participant_access_token, requestOrigin),
+          calendarUrl: null,
+          eventId: event.id,
+          eventStartsAt: event.starts_at,
+          eventTitle: event.title,
+          eventUrl: bookingAdminAppUrl(requestOrigin) + publicEventPath(event.slug || event.id),
+          facilitatorName,
+          isDirectRegistration: true,
+          participantEmail,
+          participantName,
+          paymentInstructions,
+          seats,
+          status: "confirmed",
+        })
+      : sendParticipantBookingReceipt({
+          bookingId: booking.id,
+          cancelUrl: participantCancelUrl(booking.participant_access_token, requestOrigin),
+          eventId: event.id,
+          eventTitle: event.title,
+          eventStartsAt: event.starts_at,
+          facilitatorName,
+          participantName,
+          participantEmail,
+          seats,
+        }),
   ]).then(([facilitatorMailResult, participantMailResult]) => {
     const facilitatorMailSent = facilitatorMailResult.status === "fulfilled" && facilitatorMailResult.value;
     const participantMailSent = participantMailResult.status === "fulfilled" && participantMailResult.value;
@@ -368,7 +461,9 @@ export async function createBookingAction(formData: FormData) {
   });
 
   const successMessage =
-    "Din tilmelding er modtaget, men endnu ikke endeligt bekræftet. Arrangøren skal først godkende den. Du modtager en ny e-mail, så snart det sker.";
+    registrationMode === "direct"
+      ? "Din tilmelding er registreret. Du modtager en kvitteringsmail med betalingsoplysninger."
+      : "Din tilmelding er modtaget, men endnu ikke endeligt bekræftet. Arrangøren skal først godkende den. Du modtager en ny e-mail, så snart det sker.";
 
   revalidatePath("/events/" + eventId);
   if (event.slug) {

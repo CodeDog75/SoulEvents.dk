@@ -3,6 +3,7 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type AppRole = "admin" | "facilitator";
 export type FacilitatorStatus = "draft" | "pending" | "pending_review" | "approved" | "disabled" | "changes_requested";
 export type EventStatus = "draft" | "pending_review" | "active" | "rejected" | "sold_out" | "cancelled" | "completed" | "archived";
+export type EventRegistrationMode = "direct" | "approval_required";
 export type BookingStatus =
   | "pending"
   | "confirmed"
@@ -200,6 +201,7 @@ export type Database = {
           id: string;
           facilitator_id: string;
           status: EventStatus;
+          registration_mode: EventRegistrationMode;
           title: string;
           slug: string;
           short_description: string;
@@ -236,8 +238,8 @@ export type Database = {
           event_id: string;
           facilitator_id: string;
           status: BookingStatus;
-          participant_name: string;
-          participant_email: string;
+          participant_name: string | null;
+          participant_email: string | null;
           participant_phone: string | null;
           seats: number;
           message: string | null;
@@ -296,6 +298,7 @@ export type Database = {
           event_id: string;
           facilitator_id: string;
           method_source: "facilitator" | "custom" | "none";
+          payment_link_mode: "external_registration" | "payment_only";
           mobilepay_number: string | null;
           bank_registration_number: string | null;
           bank_account_number: string | null;
@@ -308,6 +311,25 @@ export type Database = {
         }>;
         Insert: Insert<Database["public"]["Tables"]["event_payment_settings"]["Row"]>;
         Update: Update<Database["public"]["Tables"]["event_payment_settings"]["Row"]>;
+        Relationships: [];
+      };
+      external_event_participants: {
+        Row: Row<{
+          id: string;
+          event_id: string;
+          facilitator_id: string;
+          participant_name: string | null;
+          participant_email: string | null;
+          participant_phone: string | null;
+          seats: number;
+          internal_note: string | null;
+          source: "manual" | "provider_sync";
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["external_event_participants"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["external_event_participants"]["Row"]>;
         Relationships: [];
       };
       commission_settings: {

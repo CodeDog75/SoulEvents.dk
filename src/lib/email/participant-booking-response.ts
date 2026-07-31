@@ -16,6 +16,7 @@ type ParticipantBookingResponseInput = {
   eventStartsAt: string;
   facilitatorName: string;
   eventUrl?: string | null;
+  isDirectRegistration?: boolean;
   paymentInstructions?: PaymentInstructionsSnapshot | null;
 };
 
@@ -125,6 +126,12 @@ function getBody(input: ParticipantBookingResponseInput) {
 
   const seatsLabel = formatSeats(input.seats);
 
+  if (input.isDirectRegistration) {
+    return seatsLabel
+      ? `Din tilmelding til ${seatsLabel} er registreret. Betaling håndteres direkte mellem dig og arrangøren.`
+      : "Din tilmelding er registreret. Betaling håndteres direkte mellem dig og arrangøren.";
+  }
+
   return seatsLabel
     ? `Arrangøren har nu bekræftet din tilmelding til ${seatsLabel}.`
     : (statusText.confirmed?.body ?? "Arrangøren har nu bekræftet din tilmelding.");
@@ -141,7 +148,7 @@ async function buildHtml(input: ParticipantBookingResponseInput) {
   ];
 
   return renderEmailLayout({
-    title: copy?.headline ?? "Status på tilmelding",
+    title: input.status === "confirmed" && input.isDirectRegistration ? "Din tilmelding er registreret" : (copy?.headline ?? "Status på tilmelding"),
     children: `
       <p style="margin: 0 0 16px;">Hej ${escapeHtml(input.participantName)}</p>
       <p style="margin: 0 0 20px;">${escapeHtml(getBody(input))}</p>
@@ -197,9 +204,13 @@ export async function sendParticipantBookingResponse(input: ParticipantBookingRe
 
   const seatsLabel = formatSeats(input.seats);
   const subject =
-    input.status === "confirmed" && seatsLabel
-      ? `Din tilmelding til ${seatsLabel} er bekræftet`
-      : copy.subject;
+    input.status === "confirmed" && input.isDirectRegistration && seatsLabel
+      ? `Din tilmelding til ${seatsLabel} er registreret`
+      : input.status === "confirmed" && input.isDirectRegistration
+        ? "Din tilmelding er registreret"
+        : input.status === "confirmed" && seatsLabel
+          ? `Din tilmelding til ${seatsLabel} er bekræftet`
+          : copy.subject;
 
   return sendLoggedEmail({
     type: `booking_${input.status}_participant`,

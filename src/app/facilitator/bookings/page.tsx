@@ -36,7 +36,7 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
   const { data: eventOptions } = facilitatorProfile
     ? await supabase
         .from("events")
-        .select("id, title, starts_at, ends_at, status, capacity, address_line, city, cover_image_path, bookings(id, status, seats), event_main_categories(main_categories(name, color_hex, image_path))")
+        .select("id, title, starts_at, ends_at, status, capacity, address_line, city, cover_image_path, price_cents, registration_mode, bookings(id, status, seats), event_payment_settings(method_source, payment_link_mode), event_main_categories(main_categories(name, color_hex, image_path))")
         .eq("facilitator_id", facilitatorProfile.id)
         .in("status", ["active", "sold_out"])
         .order("starts_at", { ascending: true })
@@ -50,6 +50,7 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
 
   let bookingsErrorMessage: string | null = null;
   let bookings: unknown[] = [];
+  let externalParticipants: unknown[] = [];
 
   if (selectedEvent && facilitatorProfile) {
     const adminSupabase = createAdminClient();
@@ -82,6 +83,16 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
       bookings = bookingResult.data ?? [];
       bookingsErrorMessage = bookingResult.error?.message ?? null;
     }
+
+    const externalParticipantsResult = await adminSupabase
+      .from("external_event_participants")
+      .select("id, event_id, participant_name, participant_email, participant_phone, seats, internal_note, source, created_at")
+      .eq("event_id", selectedEvent.id)
+      .eq("facilitator_id", facilitatorProfile.id)
+      .order("created_at", { ascending: false });
+
+    externalParticipants = externalParticipantsResult.data ?? [];
+    bookingsErrorMessage = bookingsErrorMessage ?? externalParticipantsResult.error?.message ?? null;
   }
 
   return (
@@ -117,6 +128,7 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
         <BookingList
           bookings={(bookings ?? []) as never}
           eventOptions={currentEventOptions as never}
+          externalParticipants={(externalParticipants ?? []) as never}
           initialExpandedBookingId={booking ?? null}
           selectedEventId={selectedEvent?.id ?? null}
         />

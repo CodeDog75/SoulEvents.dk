@@ -56,6 +56,79 @@ function isLikelyEmail(value: string | null | undefined) {
   return Boolean(value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value));
 }
 
+function getOptionalText(formData: FormData, key: string) {
+  const value = getString(formData, key).trim();
+  return value.length > 0 ? value : null;
+}
+
+function getOptionalEmailText(formData: FormData, key: string) {
+  const value = getOptionalText(formData, key);
+  return value ? value.toLowerCase() : null;
+}
+
+function isExternalRegistrationEvent(event: {
+  price_cents?: number | null;
+  registration_mode?: string | null;
+  event_payment_settings?: Array<{ method_source?: string | null; payment_link_mode?: string | null }> | { method_source?: string | null; payment_link_mode?: string | null } | null;
+}) {
+  const paymentSettings = firstRelation(event.event_payment_settings);
+  return (
+    (event.price_cents ?? 0) > 0 &&
+    event.registration_mode === "direct" &&
+    paymentSettings?.method_source === "custom" &&
+    paymentSettings.payment_link_mode === "external_registration"
+  );
+}
+
+async function getReservedSeatsForEvent(
+  supabase: ReturnType<typeof createAdminClient>,
+  input: { eventId: string; excludeExternalParticipantId?: string | null },
+) {
+  const [
+    { data: bookings, error: bookingsError },
+    { data: externalParticipants, error: externalParticipantsError },
+  ] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select("seats")
+      .eq("event_id", input.eventId)
+      .in("status", ["pending", "confirmed"]),
+    supabase
+      .from("external_event_participants")
+      .select("id, seats")
+      .eq("event_id", input.eventId),
+  ]);
+
+  if (bookingsError) {
+    throw bookingsError;
+  }
+
+  if (externalParticipantsError) {
+    throw externalParticipantsError;
+  }
+
+  const bookingSeats = (bookings ?? []).reduce((sum, booking) => sum + (booking.seats ?? 0), 0);
+  const externalSeats = (externalParticipants ?? [])
+    .filter((participant) => participant.id !== input.excludeExternalParticipantId)
+    .reduce((sum, participant) => sum + (participant.seats ?? 0), 0);
+
+  return bookingSeats + externalSeats;
+}
+
+async function getOwnExternalRegistrationEvent(
+  supabase: ReturnType<typeof createClient> extends Promise<infer T> ? T : never,
+  input: { eventId: string; facilitatorId: string },
+) {
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, slug, facilitator_id, capacity, status, price_cents, registration_mode, event_payment_settings(method_source, payment_link_mode)")
+    .eq("id", input.eventId)
+    .eq("facilitator_id", input.facilitatorId)
+    .maybeSingle();
+
+  return event;
+}
+
 export async function updateBookingStatusAction(formData: FormData) {
   const profile = await requireRole("facilitator");
   const bookingId = getString(formData, "booking_id");
@@ -722,4 +795,304 @@ export async function markEventSoldOutAction(formData: FormData) {
   revalidatePath("/facilitator/bookings");
   revalidatePath("/events/" + eventId);
   bookingsRedirect("Eventet er markeret som udsolgt. Eksisterende tilmeldinger er ikke ændret.", eventId);
+}
+
+export async function addExternalEventParticipantAction(formData: FormData) {
+  const profile = await requireRole("facilitator");
+  const eventId = getString(formData, "event_id");
+  const participantName = getOptionalText(formData, "participant_name");
+  const participantEmail = getOptionalEmailText(formData, "participant_email");
+  const participantPhone = getOptionalText(formData, "participant_phone");
+  const internalNote = getOptionalText(formData, "internal_note");
+  const seats = getSeats(formData);
+
+  if (!eventId) {
+    bookingsRedirect("Vælg et event først.");
+  }
+
+  if (!participantName && !participantEmail && !participantPhone && !internalNote) {
+    bookingsRedirect("Tilføj mindst én oplysning om deltageren.", eventId);
+  }
+
+  if (participantName && participantName.length > 120) {
+    bookingsRedirect("Navn må højst være 120 tegn.", eventId);
+  }
+
+  if (participantEmail && (!isLikelyEmail(participantEmail) || participantEmail.length > 160)) {
+    bookingsRedirect("Indtast en gyldig e-mailadresse.", eventId);
+  }
+
+  if (participantPhone && participantPhone.length > 50) {
+    bookingsRedirect("Telefonnummer må højst være 50 tegn.", eventId);
+  }
+
+  if (internalNote && internalNote.length > 500) {
+    bookingsRedirect("Intern note må højst være 500 tegn.", eventId);
+  }
+
+  if (seats < 1 || seats > 500) {
+    bookingsRedirect("Antal pladser skal være mellem 1 og 500.", eventId);
+  }
+
+  const supabase = await createClient();
+  const { data: facilitatorProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .single();
+
+  if (!facilitatorProfile) {
+    bookingsRedirect("Arrangørprofilen mangler.", eventId);
+  }
+
+  const event = await getOwnExternalRegistrationEvent(supabase, {
+    eventId,
+    facilitatorId: facilitatorProfile.id,
+  });
+
+  if (!event) {
+    bookingsRedirect("Eventet kunne ikke findes.", eventId);
+  }
+
+  if (!isExternalRegistrationEvent(event)) {
+    bookingsRedirect("Manuelle eksterne deltagere kan kun tilføjes på events med ekstern tilmelding.", eventId);
+  }
+
+  if (typeof event.capacity === "number" && event.capacity > 0) {
+    const admin = createAdminClient();
+    let occupiedSeats = 0;
+
+    try {
+      occupiedSeats = await getReservedSeatsForEvent(admin, { eventId: event.id });
+    } catch (error) {
+      console.error("[external-participants] Capacity could not be checked", {
+        error,
+        eventId,
+      });
+      bookingsRedirect("Kapaciteten kunne ikke kontrolleres.", eventId);
+    }
+
+    const remainingSeats = Math.max(event.capacity - occupiedSeats, 0);
+
+    if (seats > remainingSeats) {
+      bookingsRedirect("Der er kun " + remainingSeats + " pladser tilbage i dit manuelle overblik.", eventId);
+    }
+  }
+
+  const { error } = await supabase.from("external_event_participants").insert({
+    event_id: event.id,
+    facilitator_id: facilitatorProfile.id,
+    participant_name: participantName,
+    participant_email: participantEmail,
+    participant_phone: participantPhone,
+    seats,
+    internal_note: internalNote,
+    source: "manual",
+    created_by: profile.id,
+  });
+
+  if (error) {
+    console.error("[external-participants] Participant could not be added", {
+      code: error.code,
+      details: error.details,
+      eventId,
+      hint: error.hint,
+      message: error.message,
+    });
+    bookingsRedirect("Deltageren kunne ikke tilføjes.", eventId);
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/bookings");
+  if (event.slug) {
+    revalidatePath(publicEventPath(event.slug));
+  }
+  revalidatePath("/");
+  bookingsRedirect("Deltageren er tilføjet som ekstern tilmelding.", eventId);
+}
+
+export async function updateExternalEventParticipantAction(formData: FormData) {
+  const profile = await requireRole("facilitator");
+  const participantId = getString(formData, "participant_id");
+  const eventId = getString(formData, "event_id");
+  const participantName = getOptionalText(formData, "participant_name");
+  const participantEmail = getOptionalEmailText(formData, "participant_email");
+  const participantPhone = getOptionalText(formData, "participant_phone");
+  const internalNote = getOptionalText(formData, "internal_note");
+  const seats = getSeats(formData);
+
+  if (!participantId || !eventId) {
+    bookingsRedirect("Deltageren kunne ikke findes.", eventId);
+  }
+
+  if (!participantName && !participantEmail && !participantPhone && !internalNote) {
+    bookingsRedirect("Tilføj mindst én oplysning om deltageren.", eventId);
+  }
+
+  if (participantName && participantName.length > 120) {
+    bookingsRedirect("Navn må højst være 120 tegn.", eventId);
+  }
+
+  if (participantEmail && (!isLikelyEmail(participantEmail) || participantEmail.length > 160)) {
+    bookingsRedirect("Indtast en gyldig e-mailadresse.", eventId);
+  }
+
+  if (participantPhone && participantPhone.length > 50) {
+    bookingsRedirect("Telefonnummer må højst være 50 tegn.", eventId);
+  }
+
+  if (internalNote && internalNote.length > 500) {
+    bookingsRedirect("Intern note må højst være 500 tegn.", eventId);
+  }
+
+  if (seats < 1 || seats > 500) {
+    bookingsRedirect("Antal pladser skal være mellem 1 og 500.", eventId);
+  }
+
+  const supabase = await createClient();
+  const { data: facilitatorProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .single();
+
+  if (!facilitatorProfile) {
+    bookingsRedirect("Arrangørprofilen mangler.", eventId);
+  }
+
+  const { data: existingParticipant } = await supabase
+    .from("external_event_participants")
+    .select("id, event_id, facilitator_id, seats")
+    .eq("id", participantId)
+    .eq("event_id", eventId)
+    .eq("facilitator_id", facilitatorProfile.id)
+    .maybeSingle();
+
+  if (!existingParticipant) {
+    bookingsRedirect("Deltageren kunne ikke findes.", eventId);
+  }
+
+  const event = await getOwnExternalRegistrationEvent(supabase, {
+    eventId,
+    facilitatorId: facilitatorProfile.id,
+  });
+
+  if (!event || !isExternalRegistrationEvent(event)) {
+    bookingsRedirect("Manuelle eksterne deltagere kan kun redigeres på events med ekstern tilmelding.", eventId);
+  }
+
+  if (typeof event.capacity === "number" && event.capacity > 0) {
+    const admin = createAdminClient();
+    let occupiedSeatsWithoutCurrentParticipant = 0;
+
+    try {
+      occupiedSeatsWithoutCurrentParticipant = await getReservedSeatsForEvent(admin, {
+        eventId: event.id,
+        excludeExternalParticipantId: existingParticipant.id,
+      });
+    } catch (error) {
+      console.error("[external-participants] Capacity could not be checked before update", {
+        error,
+        eventId,
+        participantId,
+      });
+      bookingsRedirect("Kapaciteten kunne ikke kontrolleres.", eventId);
+    }
+
+    const remainingSeats = Math.max(event.capacity - occupiedSeatsWithoutCurrentParticipant, 0);
+
+    if (seats > remainingSeats) {
+      bookingsRedirect("Der er kun " + remainingSeats + " ledige pladser tilbage.", eventId);
+    }
+  }
+
+  const { error } = await supabase
+    .from("external_event_participants")
+    .update({
+      participant_name: participantName,
+      participant_email: participantEmail,
+      participant_phone: participantPhone,
+      seats,
+      internal_note: internalNote,
+    })
+    .eq("id", existingParticipant.id)
+    .eq("facilitator_id", facilitatorProfile.id);
+
+  if (error) {
+    console.error("[external-participants] Participant could not be updated", {
+      code: error.code,
+      details: error.details,
+      eventId,
+      hint: error.hint,
+      message: error.message,
+      participantId,
+    });
+    bookingsRedirect("Deltageren kunne ikke opdateres.", eventId);
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/bookings");
+  if (event.slug) {
+    revalidatePath(publicEventPath(event.slug));
+  }
+  revalidatePath("/");
+  bookingsRedirect("Deltageren er opdateret.", eventId);
+}
+
+export async function deleteExternalEventParticipantAction(formData: FormData) {
+  const profile = await requireRole("facilitator");
+  const participantId = getString(formData, "participant_id");
+  const eventId = getString(formData, "event_id");
+  const confirmDelete = getString(formData, "confirm_delete");
+
+  if (!participantId || !eventId || confirmDelete !== "yes") {
+    bookingsRedirect("Deltageren blev ikke fjernet.", eventId);
+  }
+
+  const supabase = await createClient();
+  const { data: facilitatorProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("id")
+    .eq("profile_id", profile.id)
+    .single();
+
+  if (!facilitatorProfile) {
+    bookingsRedirect("Arrangørprofilen mangler.", eventId);
+  }
+
+  const event = await getOwnExternalRegistrationEvent(supabase, {
+    eventId,
+    facilitatorId: facilitatorProfile.id,
+  });
+
+  if (!event || !isExternalRegistrationEvent(event)) {
+    bookingsRedirect("Manuelle eksterne deltagere kan kun fjernes på events med ekstern tilmelding.", eventId);
+  }
+
+  const { error } = await supabase
+    .from("external_event_participants")
+    .delete()
+    .eq("id", participantId)
+    .eq("event_id", eventId)
+    .eq("facilitator_id", facilitatorProfile.id);
+
+  if (error) {
+    console.error("[external-participants] Participant could not be deleted", {
+      code: error.code,
+      details: error.details,
+      eventId,
+      hint: error.hint,
+      message: error.message,
+      participantId,
+    });
+    bookingsRedirect("Deltageren kunne ikke fjernes.", eventId);
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/bookings");
+  if (event.slug) {
+    revalidatePath(publicEventPath(event.slug));
+  }
+  revalidatePath("/");
+  bookingsRedirect("Deltageren er fjernet fra dit manuelle overblik.", eventId);
 }

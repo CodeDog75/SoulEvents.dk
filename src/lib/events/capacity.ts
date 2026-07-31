@@ -1,16 +1,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const capacityStatuses = ["active", "sold_out"];
+const activeBookingStatuses = ["pending", "confirmed"];
+
+function sumSeats(rows: Array<{ seats?: number | null }> | null | undefined) {
+  return rows?.reduce((sum: number, row) => sum + (row.seats ?? 0), 0) ?? 0;
+}
 
 export async function getAvailableEventSeats(adminSupabase: SupabaseClient, eventId: string, capacity: number) {
-  const { data: bookings } = await adminSupabase
-    .from("bookings")
-    .select("seats")
-    .eq("event_id", eventId)
-    .in("status", ["pending", "confirmed"]);
+  const [{ data: bookings }, { data: externalParticipants }] = await Promise.all([
+    adminSupabase
+      .from("bookings")
+      .select("seats")
+      .eq("event_id", eventId)
+      .in("status", activeBookingStatuses),
+    adminSupabase
+      .from("external_event_participants")
+      .select("seats")
+      .eq("event_id", eventId),
+  ]);
 
-  const reservedSeats =
-    bookings?.reduce((sum: number, booking: { seats?: number | null }) => sum + (booking.seats ?? 0), 0) ?? 0;
+  const reservedSeats = sumSeats(bookings) + sumSeats(externalParticipants);
 
   return Math.max(capacity - reservedSeats, 0);
 }
@@ -26,17 +36,30 @@ export async function getAvailableEventSeatsByEventId(
     return new Map<string, number | null>();
   }
 
-  const { data: bookings } = await adminSupabase
-    .from("bookings")
-    .select("event_id, seats")
-    .in("event_id", eventIds)
-    .in("status", ["pending", "confirmed"]);
+  const [{ data: bookings }, { data: externalParticipants }] = await Promise.all([
+    adminSupabase
+      .from("bookings")
+      .select("event_id, seats")
+      .in("event_id", eventIds)
+      .in("status", activeBookingStatuses),
+    adminSupabase
+      .from("external_event_participants")
+      .select("event_id, seats")
+      .in("event_id", eventIds),
+  ]);
 
   for (const booking of bookings ?? []) {
     const eventId = booking.event_id as string | null;
     if (!eventId) continue;
 
     reservedSeatsByEventId.set(eventId, (reservedSeatsByEventId.get(eventId) ?? 0) + (booking.seats ?? 0));
+  }
+
+  for (const participant of externalParticipants ?? []) {
+    const eventId = participant.event_id as string | null;
+    if (!eventId) continue;
+
+    reservedSeatsByEventId.set(eventId, (reservedSeatsByEventId.get(eventId) ?? 0) + (participant.seats ?? 0));
   }
 
   return new Map(
