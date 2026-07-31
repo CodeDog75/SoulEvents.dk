@@ -1272,7 +1272,7 @@ export async function createEventAction(formData: FormData) {
     [instagramUrl, 300, "Instagram-link"],
     [onlineDescription, 500, "Online-beskrivelse"],
     [onlineUrlOrNote, 500, "Online-link eller tekst"],
-    [practicalInformation, 800, "Praktiske oplysninger"],
+    [practicalInformation, 1500, "Praktiske oplysninger"],
     [paymentMobilepayNumber, 40, "MobilePay"],
     [paymentBankRegistrationNumber, 20, "Bank reg.nr."],
     [paymentBankAccountNumber, 40, "Bank kontonr."],
@@ -1300,8 +1300,8 @@ export async function createEventAction(formData: FormData) {
     eventsRedirect("Beskrivelse af event skal være mindst 20 tegn.");
   }
 
-  if (eventDescription.length > 2000) {
-    eventsRedirect("Beskrivelse af event må højst være 2000 tegn.");
+  if (eventDescription.length > 5000) {
+    eventsRedirect("Beskrivelse af event må højst være 5000 tegn.");
   }
 
   if ((status === "active" || status === "sold_out") && !currentCoverImagePath && !hasSubmittedEventCoverImage(formData)) {

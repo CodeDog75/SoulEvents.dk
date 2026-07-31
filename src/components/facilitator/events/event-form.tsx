@@ -337,7 +337,7 @@ function normalizeCoOrganizerSearchText(value: string | null | undefined) {
 
 const legacyEventDraftStorageKey = "soulevents:event-form-draft:v1";
 const eventDraftStoragePrefix = "soulevents:event-form-draft:v2";
-const maxEventDescriptionLength = 2000;
+const maxEventDescriptionLength = 5000;
 const maxEventTags = 4;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 const danishTimeZone = "Europe/Copenhagen";
@@ -3216,7 +3216,7 @@ export function EventForm({
               defaultValue={value(draftEvent?.practical_information)}
               name="practical_information"
               placeholder="Medbring yogamåtte. Kom i behageligt tøj. Dørene åbner 15 minutter før."
-              help="Valgfrit. Brug kun feltet, hvis der er noget praktisk deltageren skal vide." maxLength={800}
+              help="Valgfrit. Brug kun feltet, hvis der er noget praktisk deltageren skal vide." maxLength={1500}
             />
           </div>
         </details>
