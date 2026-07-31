@@ -78,7 +78,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
     supabase
       .from("facilitator_profiles")
       .select(
-        "id, slug, host_reference_id, company_name, profile_image_path, short_description, city, is_online_facilitator, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))",
+        "id, slug, host_reference_id, company_name, profile_image_path, short_description, city, show_public_location, is_online_facilitator, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name, slug), facilitator_categories(categories(id, name, color_hex))",
       )
       .eq("status", "approved")
       .eq("is_paused", false)
@@ -105,8 +105,9 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
       const categoryIds = categoryRows.map((category: any) => category.id);
       const categoryNames = categoryRows.map((category: any) => category.name);
       const onlineWords = facilitator.is_online_facilitator ? ["online", "online arrangør"] : [];
+      const showPublicLocation = facilitator.show_public_location !== false;
       const haystack = normalize(
-        [name, facilitator.short_description, facilitator.city, region?.name, ...categoryNames, ...onlineWords]
+        [name, facilitator.short_description, showPublicLocation ? facilitator.city : null, showPublicLocation ? region?.name : null, ...categoryNames, ...onlineWords]
           .filter(Boolean)
           .join(" "),
       );
@@ -249,7 +250,11 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
                     ))}
                   </div>
                   <h2 className="mt-3 text-2xl font-medium leading-7 text-olive">{name}</h2>
-                  <p className="mt-1 text-sm text-ink/58">{[facilitator.city, region?.name].filter(Boolean).join(", ")}</p>
+                  <p className="mt-1 text-sm text-ink/58">
+                    {facilitator.show_public_location === false
+                      ? "Danmark"
+                      : [facilitator.city, region?.name].filter(Boolean).join(", ")}
+                  </p>
                   <SoulEventsIdTag className="mt-2" hostReferenceId={facilitator.host_reference_id} />
                   <p className="mt-3 line-clamp-3 text-sm leading-6 text-ink/66">{facilitator.short_description || "Arrangørens profiltekst kommer snart."}</p>
                   <p className="mt-4 flex items-center gap-2 text-sm font-semibold text-olive">

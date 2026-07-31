@@ -903,7 +903,7 @@ async function getLocalServiceProviders(selected: {
   const { data: providers } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, service_description, city, country, country_name, region_text, latitude, longitude, offers_services, show_in_local_service_results, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name, slug), facilitator_categories(categories(name, slug)), facilitator_tags(tags(name))",
+      "id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, service_description, city, country, country_name, region_text, show_public_location, latitude, longitude, offers_services, show_in_local_service_results, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name, slug), facilitator_categories(categories(name, slug)), facilitator_tags(tags(name))",
     )
     .eq("status", "approved")
     .eq("is_paused", false)
@@ -960,8 +960,10 @@ async function getLocalServiceProviders(selected: {
           ? supabase.storage.from("media").getPublicUrl(provider.profile_image_path).data.publicUrl
           : null,
         serviceLabels: visibleServiceLabels,
-        city: provider.city || null,
-        area: region?.name || provider.region_text || profileCountryName(provider.country, provider.country_name) || null,
+        city: provider.show_public_location === false ? "Danmark" : provider.city || null,
+        area: provider.show_public_location === false
+          ? null
+          : region?.name || provider.region_text || profileCountryName(provider.country, provider.country_name) || null,
         description: provider.service_description || provider.short_description || "",
         latitude: provider.latitude,
         longitude: provider.longitude,
@@ -1043,7 +1045,7 @@ function mapFacilitatorCard(facilitator: any, supabase: Awaited<ReturnType<typeo
     imageUrl: facilitator.profile_image_path
       ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
       : null,
-    city: facilitator.city,
+    city: facilitator.show_public_location === false ? "Danmark" : facilitator.city,
     tagline: facilitator.short_description || "",
     primaryCategory: categories[0]?.name ?? null,
     primaryCategoryExtraCount: Math.max(categories.length - 1, 0),
@@ -1061,7 +1063,7 @@ async function getFeaturedHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex, sort_order))")
+    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, show_public_location, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex, sort_order))")
     .eq("status", "approved")
     .eq("is_paused", false)
     .eq("is_disabled", false)
@@ -1085,7 +1087,7 @@ async function getNewHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex, sort_order))")
+    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, show_public_location, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex, sort_order))")
     .eq("status", "approved")
     .eq("is_paused", false)
     .eq("is_disabled", false)
@@ -1108,7 +1110,7 @@ async function getHomeFacilitators(queryText: string) {
   const { data: facilitators } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, slug, host_reference_id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, country_name, region_text, is_online_facilitator, is_active_host, is_experienced_host, website_url, facebook_url, instagram_url, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, color_hex, sort_order)), facilitator_tags(tags(name))",
+      "id, slug, host_reference_id, company_name, profile_image_path, short_description, long_description, city, postal_code, country, country_name, region_text, show_public_location, is_online_facilitator, is_active_host, is_experienced_host, website_url, facebook_url, instagram_url, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, color_hex, sort_order)), facilitator_tags(tags(name))",
     )
     .eq("status", "approved")
     .eq("is_paused", false)
@@ -1133,12 +1135,12 @@ async function getHomeFacilitators(queryText: string) {
       profile?.full_name,
       facilitator.short_description,
       facilitator.long_description,
-      facilitator.city,
-      facilitator.postal_code,
-      facilitator.country,
-      facilitator.country_name,
-      facilitator.region_text,
-      region?.name,
+      facilitator.show_public_location === false ? null : facilitator.city,
+      facilitator.show_public_location === false ? null : facilitator.postal_code,
+      facilitator.show_public_location === false ? "Danmark" : facilitator.country,
+      facilitator.show_public_location === false ? null : facilitator.country_name,
+      facilitator.show_public_location === false ? null : facilitator.region_text,
+      facilitator.show_public_location === false ? null : region?.name,
       categoryNames,
       tagNames,
       onlineWords,
@@ -1163,7 +1165,9 @@ async function getHomeFacilitators(queryText: string) {
         ? supabase.storage.from("media").getPublicUrl(facilitator.profile_image_path).data.publicUrl
         : null,
       tagline: facilitator.short_description || "",
-      city: facilitator.city || region?.name || facilitator.region_text || profileCountryName(facilitator.country, facilitator.country_name) || null,
+      city: facilitator.show_public_location === false
+        ? "Danmark"
+        : facilitator.city || region?.name || facilitator.region_text || profileCountryName(facilitator.country, facilitator.country_name) || null,
       isActiveHost: Boolean(facilitator.is_active_host),
       isExperiencedHost: Boolean(facilitator.is_experienced_host),
       categories,

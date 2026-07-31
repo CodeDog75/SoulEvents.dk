@@ -127,11 +127,11 @@ function isMissingHeroKeyColumn(error: { code?: string; message?: string } | nul
 }
 
 const facilitatorMetadataSelectWithHero =
-  "id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, service_description, city, country, country_name, region_text, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
+  "id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, service_description, city, country, country_name, region_text, show_public_location, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
 const facilitatorMetadataSelectLegacy =
   "id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, long_description, service_description, city, country, country_name, region_text, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
 const facilitatorSelectWithHero =
-  "id, profile_id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, country_name, region_text, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
+  "id, profile_id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, country_name, region_text, show_public_location, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 const facilitatorSelectLegacy =
   "id, profile_id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, country_name, region_text, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 const publicEventSelect =
@@ -226,13 +226,13 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
     .limit(2);
   const metadata = buildFacilitatorMetadata({
     categories: facilitatorCategories(facilitator).map((category: any) => category.name),
-    city: facilitator.city,
+    city: (facilitator as any).show_public_location === false ? null : facilitator.city,
     country: facilitator.country,
     countryName: (facilitator as any).country_name,
     eventTitles: (upcomingEvents ?? []).map((event) => event.title),
     name,
     presentationText: facilitator.long_description || facilitator.short_description,
-    region: first((facilitator as any).regions)?.name || (facilitator as any).region_text,
+    region: (facilitator as any).show_public_location === false ? null : first((facilitator as any).regions)?.name || (facilitator as any).region_text,
     serviceDescription: (facilitator as any).service_description,
     specialties: normalizeSpecialtyText((facilitator as any).specialties) ? [normalizeSpecialtyText((facilitator as any).specialties)] : [],
   });
@@ -439,6 +439,12 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     isExperiencedHost: facilitatorData.is_experienced_host,
   });
   const presentationText = facilitatorData.long_description || facilitatorData.short_description || null;
+  const showPublicLocation = facilitatorData.show_public_location !== false;
+  const publicCity = showPublicLocation ? facilitatorData.city : null;
+  const publicRegion = showPublicLocation ? region?.name || facilitatorData.region_text : null;
+  const publicCountry = showPublicLocation
+    ? profileCountryName(facilitatorData.country, facilitatorData.country_name)
+    : "Danmark";
   const publicGalleryImages = galleryWithFallback.isUsingFallback
     ? []
     : galleryWithFallback.images.map((image: any) => ({
@@ -450,7 +456,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   const profileJsonLd = buildProfilePageJsonLd({
     canonicalUrl: canonicalProfileUrl,
     categories: categories.map((category: any) => category.name),
-    city: facilitatorData.city,
+    city: publicCity,
     country: facilitatorData.country,
     countryName: facilitatorData.country_name,
     email: publicEmail,
@@ -460,7 +466,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     name,
     phone: publicPhone,
     presentationText,
-    region: region?.name || facilitatorData.region_text,
+    region: publicRegion,
     serviceDescription: facilitatorData.offers_services ? facilitatorData.service_description : null,
     specialties: specialty ? [specialty] : [],
   });
@@ -484,13 +490,13 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
           name: category.name,
         }))}
         contact={{
-          city: facilitatorData.city,
-          country: profileCountryName(facilitatorData.country, facilitatorData.country_name),
+          city: publicCity,
+          country: publicCountry,
           email: publicEmail,
           isOnline: facilitatorData.is_online_facilitator,
           links,
           phone: publicPhone,
-          region: region?.name || facilitatorData.region_text,
+          region: publicRegion,
         }}
         coverImage={coverImage}
         eventReturnTo={currentProfilePath}

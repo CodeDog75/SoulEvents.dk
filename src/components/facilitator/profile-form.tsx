@@ -131,6 +131,7 @@ type FacilitatorProfile = {
   is_online_facilitator?: boolean | null;
   region_id: string | null;
   region_text?: string | null;
+  show_public_location?: boolean | null;
   payment_mobilepay_number?: string | null;
   payment_bank_registration_number?: string | null;
   payment_bank_account_number?: string | null;
@@ -1154,6 +1155,9 @@ export function ProfileForm({
   const [isOnlineFacilitator, setIsOnlineFacilitator] = useState(
     Boolean(facilitatorProfile.is_online_facilitator),
   );
+  const [showPublicLocation, setShowPublicLocation] = useState(
+    facilitatorProfile.show_public_location !== false,
+  );
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [profileImageUrl, setProfileImageUrl] = useState(
     facilitatorProfile.profile_image_path
@@ -1687,6 +1691,7 @@ export function ProfileForm({
             : isOnlineFacilitator,
         postal_code: nextPostalCode,
         region_text: nextRegionText,
+        show_public_location: showPublicLocation,
       },
     };
   }
@@ -1842,6 +1847,7 @@ export function ProfileForm({
           is_online_facilitator: isOnlineFacilitator,
           postal_code: postalCode,
           region_text: regionText,
+          show_public_location: showPublicLocation,
         },
       });
 
@@ -2850,6 +2856,36 @@ export function ProfileForm({
               </span>
             </button>
           ) : null}
+
+          <button
+            aria-pressed={showPublicLocation}
+            className="flex min-h-20 items-center justify-between gap-4 rounded-[24px] border border-[#D8D0C1] bg-white px-4 text-left shadow-[0_8px_22px_rgba(47,36,55,0.045)] transition hover:border-sage-700"
+            onClick={() => setShowPublicLocation((current) => !current)}
+            type="button"
+          >
+            <span className="flex items-start gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-sage-50 text-sage-700">
+                <MapPin className="size-5" aria-hidden="true" />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold leading-6 text-midnight">
+                  Vis postnummer og by på min offentlige profil
+                </span>
+                <span className="mt-1 block text-sm leading-6 text-ink/55">
+                  Slå fra, hvis du arbejder fra din private bopæl. Så vises kun Danmark offentligt.
+                </span>
+              </span>
+            </span>
+            <span
+              className={
+                showPublicLocation
+                  ? "flex h-10 w-[4.5rem] shrink-0 items-center justify-end rounded-full bg-sage-700 p-1"
+                  : "flex h-10 w-[4.5rem] shrink-0 items-center justify-start rounded-full bg-midnight/15 p-1"
+              }
+            >
+              <span className="size-8 rounded-full bg-white shadow-soft" />
+            </span>
+          </button>
 
           <label className="grid gap-2 text-sm font-semibold text-midnight/82">
             Land

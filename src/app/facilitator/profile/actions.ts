@@ -1470,6 +1470,7 @@ export async function autosaveFacilitatorProfileAction(
     updates.postal_code = locationFields.postalCode;
     updates.region_id = regionId;
     updates.region_text = locationFields.regionText || null;
+    updates.show_public_location = input.values.show_public_location !== false;
   }
 
   if (section === "social") {
@@ -2671,7 +2672,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   let existingProfileQuery = supabase
     .from("facilitator_profiles")
     .select(
-      "id, profile_id, address_line, city, company_name, country, facebook_url, instagram_url, individual_service_other_title, individual_service_types, is_online_facilitator, long_description, offers_services, postal_code, profile_image_path, public_email, public_phone, region_id, service_description, short_description, show_in_local_service_results, status, tiktok_url, website_url, youtube_url, facilitator_categories(category_id), facilitator_images(id, image_path, sort_order), facilitator_tags(tag_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)",
+      "id, profile_id, address_line, city, company_name, country, facebook_url, instagram_url, individual_service_other_title, individual_service_types, is_online_facilitator, long_description, offers_services, postal_code, profile_image_path, public_email, public_phone, region_id, service_description, short_description, show_in_local_service_results, show_public_location, status, tiktok_url, website_url, youtube_url, facilitator_categories(category_id), facilitator_images(id, image_path, sort_order), facilitator_tags(tag_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)",
     );
 
   existingProfileQuery = isAdminEdit
@@ -3163,6 +3164,9 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     facilitatorUpdates.postal_code = postalCode;
     facilitatorUpdates.region_id = regionId;
     facilitatorUpdates.region_text = locationFields.regionText || null;
+    facilitatorUpdates.show_public_location = formData.has("show_public_location")
+      ? formData.get("show_public_location") === "on"
+      : existingProfile.show_public_location !== false;
   }
 
   if (savesSection(section, "images")) {

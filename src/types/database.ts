@@ -172,6 +172,7 @@ export type Database = {
           city: string | null;
           region_id: string | null;
           region_text: string | null;
+          show_public_location: boolean;
           latitude: number | null;
           longitude: number | null;
           max_ticket_price_per_person: number | null;
