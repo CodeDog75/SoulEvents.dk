@@ -6,6 +6,8 @@ import type { ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowDown,
+  ArrowUp,
   CalendarPlus,
   ChevronDown,
   CreditCard,
@@ -31,6 +33,7 @@ import { cancelCoOrganizerInvitationAction, createEventAction, resendCoOrganizer
 import { sortTagsByDanishLabel } from "@/lib/events/tags";
 import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
 import { fetchDanishPostalCity, getLocalDanishPostalCity } from "@/lib/locations/danish-postal-codes";
+import { hasStandardPaymentMethod } from "@/lib/payment-instructions";
 import type { EventRegistrationMode } from "@/types/database";
 
 type Region = {
@@ -66,6 +69,15 @@ type CoverCropState = {
   zoom: number;
 };
 
+type EventGalleryImageState = {
+  file?: File;
+  fileName?: string;
+  id: string;
+  imagePath?: string | null;
+  objectUrl?: boolean;
+  previewUrl: string;
+};
+
 type DraftEvent = {
   id: string;
   status?: string | null;
@@ -75,6 +87,12 @@ type DraftEvent = {
   long_description?: string | null;
   cover_image_path?: string | null;
   coverImageUrl?: string | null;
+  eventImages?: Array<{
+    altText?: string | null;
+    imagePath: string;
+    imageUrl: string | null;
+    sortOrder: number;
+  }>;
   starts_at?: string | null;
   ends_at?: string | null;
   address_line?: string | null;
@@ -130,9 +148,29 @@ type CoOrganizerCandidate = {
   specialties?: string | null;
 };
 
+const maxEventGalleryImages = 3;
+
+function initialEventGalleryImages(draftEvent?: DraftEvent | null): EventGalleryImageState[] {
+  return (draftEvent?.eventImages ?? [])
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .slice(0, maxEventGalleryImages)
+    .map((image) => ({
+      id: image.imagePath,
+      imagePath: image.imagePath,
+      previewUrl: image.imageUrl ?? "",
+    }));
+}
+
 type EventFormProps = {
   regions: Region[];
   categories: Category[];
+  adminContext?: {
+    eventOwnerName: string;
+    facilitatorId: string;
+    returnHref: string;
+    soulEventsId?: string | null;
+  } | null;
   activeLimitMessage?: string | null;
   mainCategories?: MainCategory[];
   subcategories?: Subcategory[];
@@ -789,6 +827,7 @@ function CheckboxPill({
 
 export function EventForm({
   regions,
+  adminContext = null,
   activeLimitMessage,
   mainCategories = [],
   subcategories = [],
@@ -859,14 +898,12 @@ export function EventForm({
   const standardPaymentBankAccountNumber = value(facilitator.paymentBankAccountNumber);
   const standardPaymentBankAccountName = value(facilitator.paymentBankAccountName);
   const standardPaymentExternalUrl = value(facilitator.paymentExternalUrl);
-  const standardPaymentInstructions = value(facilitator.paymentInstructions);
-  const hasStandardPaymentSettings = Boolean(
-    standardPaymentMobilepayNumber.trim() ||
-      standardPaymentBankRegistrationNumber.trim() ||
-      standardPaymentBankAccountNumber.trim() ||
-      standardPaymentExternalUrl.trim() ||
-      standardPaymentInstructions.trim(),
-  );
+  const hasStandardPaymentSettings = hasStandardPaymentMethod({
+    payment_bank_account_number: standardPaymentBankAccountNumber,
+    payment_bank_registration_number: standardPaymentBankRegistrationNumber,
+    payment_external_url: standardPaymentExternalUrl,
+    payment_mobilepay_number: standardPaymentMobilepayNumber,
+  });
   const initialPaymentMethodChoice: PaymentMethodChoice = hasCustomPaymentSettings || !hasStandardPaymentSettings ? "unique_link" : "standard";
   const initialPaymentLinkMode: PaymentLinkMode =
     draftEvent?.payment_link_mode === "external_registration" || draftEvent?.payment_link_mode === "payment_only"
@@ -909,6 +946,9 @@ export function EventForm({
   const [coverFileName, setCoverFileName] = useState("");
   const [coverPreviewUrl, setCoverPreviewUrl] = useState("");
   const [coverCrop, setCoverCrop] = useState<CoverCropState | null>(null);
+  const galleryFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [galleryImageErrorMessage, setGalleryImageErrorMessage] = useState("");
+  const [galleryImages, setGalleryImages] = useState<EventGalleryImageState[]>(() => initialEventGalleryImages(draftEvent));
   const [showParticipantNotificationDialog, setShowParticipantNotificationDialog] = useState(false);
   const [pendingSubmitStatus, setPendingSubmitStatus] = useState("");
   const [isSavingWithoutEmail, setIsSavingWithoutEmail] = useState(false);
@@ -920,6 +960,8 @@ export function EventForm({
   const isDanishPhysicalEvent = showAddress && !isForeignLocation;
   const selectedRegionName = regions.find((region) => region.id === regionId)?.name ?? "";
   const currentCoverImageUrl = coverPreviewUrl || draftEvent?.coverImageUrl || "";
+  const visibleGalleryImages = galleryImages.filter((image) => image.previewUrl || image.imagePath || image.fileName);
+  const canAddGalleryImage = visibleGalleryImages.length < maxEventGalleryImages;
   const [titleValue, setTitleValue] = useState(value(draftEvent?.title) || prefillTitle);
   const [coOrganizerSearchOpen, setCoOrganizerSearchOpen] = useState(false);
   const [coOrganizerSearchQuery, setCoOrganizerSearchQuery] = useState("");
@@ -937,6 +979,7 @@ export function EventForm({
   const isEditingPublishedEvent = draftEventStatus === "active" || draftEventStatus === "sold_out";
   const activeBookingCount = draftEvent?.activeBookingCount ?? 0;
   const registrationModeLocked = Boolean(draftEvent?.id && activeBookingCount > 0);
+  const isAdminEditing = Boolean(adminContext);
   const isSubmittingEventUpdate = isSavingWithoutEmail || isSavingAndSending;
   const primarySubmitStatus = isEditingPublishedEvent && draftEventStatus ? draftEventStatus : "active";
   const userDraftStorageKey = `${eventDraftStoragePrefix}:${facilitator.id}`;
@@ -1288,6 +1331,115 @@ export function EventForm({
       setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: "" } : currentPreview));
       setCoverImageErrorMessage("Billedet kunne ikke læses. Prøv et andet billede.");
     }
+  }
+
+  async function prepareGalleryInputFile(input: HTMLInputElement) {
+    let file = input.files?.[0];
+
+    if (!file) {
+      return null;
+    }
+
+    try {
+      if (file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif")) {
+        setGalleryImageErrorMessage("Konverterer HEIC til JPG...");
+      }
+
+      file = await prepareImageFileForUpload(file);
+      replaceInputFile(input, file);
+      setGalleryImageErrorMessage("");
+      return file;
+    } catch (error) {
+      input.value = "";
+      setGalleryImageErrorMessage(error instanceof Error ? error.message : "Stemningsbilledet kunne ikke klargøres til upload.");
+      return null;
+    }
+  }
+
+  async function handleAddGalleryImage(event: React.ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+
+    if (visibleGalleryImages.length >= maxEventGalleryImages) {
+      input.value = "";
+      setGalleryImageErrorMessage("Du kan højst tilføje tre stemningsbilleder.");
+      return;
+    }
+
+    const file = await prepareGalleryInputFile(input);
+
+    if (!file) {
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setGalleryImages((currentImages) => [
+      ...currentImages,
+      {
+        file,
+        fileName: file.name,
+        id: crypto.randomUUID(),
+        objectUrl: true,
+        previewUrl,
+      },
+    ]);
+  }
+
+  async function handleReplaceGalleryImage(imageId: string, event: React.ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = await prepareGalleryInputFile(input);
+
+    if (!file) {
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+
+    setGalleryImages((currentImages) =>
+      currentImages.map((image) => {
+        if (image.id !== imageId) {
+          return image;
+        }
+
+        if (image.objectUrl && image.previewUrl) {
+          URL.revokeObjectURL(image.previewUrl);
+        }
+
+        return {
+          ...image,
+          file,
+          fileName: file.name,
+          objectUrl: true,
+          previewUrl,
+        };
+      }),
+    );
+  }
+
+  function removeGalleryImage(imageId: string) {
+    setGalleryImages((currentImages) => {
+      const image = currentImages.find((currentImage) => currentImage.id === imageId);
+      if (image?.objectUrl && image.previewUrl) {
+        URL.revokeObjectURL(image.previewUrl);
+      }
+
+      return currentImages.filter((currentImage) => currentImage.id !== imageId);
+    });
+  }
+
+  function moveGalleryImage(imageId: string, direction: -1 | 1) {
+    setGalleryImages((currentImages) => {
+      const currentIndex = currentImages.findIndex((image) => image.id === imageId);
+      const nextIndex = currentIndex + direction;
+
+      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= currentImages.length) {
+        return currentImages;
+      }
+
+      const nextImages = [...currentImages];
+      const [image] = nextImages.splice(currentIndex, 1);
+      nextImages.splice(nextIndex, 0, image);
+      return nextImages;
+    });
   }
 
   async function reopenCoverCropTool() {
@@ -2469,6 +2621,7 @@ export function EventForm({
 
         if (
           isPrimarySubmit &&
+          !isAdminEditing &&
           isEditingPublishedEvent &&
           activeBookingCount > 0 &&
           hasActualFormChanges() &&
@@ -2495,9 +2648,19 @@ export function EventForm({
       }}
       ref={formRef}
     >
+      {adminContext ? (
+        <>
+          <input name="admin_event_edit" type="hidden" value="yes" />
+          <input name="admin_return_to" type="hidden" value={adminContext.returnHref} />
+        </>
+      ) : null}
       {draftEvent?.id ? <input name="event_id" type="hidden" value={draftEvent.id} /> : null}
       <input name="current_step" type="hidden" value={currentStep} />
       <input name="current_cover_image_path" type="hidden" value={value(draftEvent?.cover_image_path)} />
+      <input name="event_gallery_image_count" type="hidden" value={visibleGalleryImages.length} />
+      {visibleGalleryImages.map((image, index) => (
+        <input key={image.id + "-existing-path"} name={`event_gallery_existing_image_${index}`} type="hidden" value={value(image.imagePath)} />
+      ))}
       {selectedCoOrganizers.map((coOrganizer) => (
         <input key={coOrganizer.id} name="co_organizer_profile_ids" type="hidden" value={coOrganizer.id} />
       ))}
@@ -2555,6 +2718,42 @@ export function EventForm({
             </button>
           </section>
         </div>
+      ) : null}
+
+      {adminContext ? (
+        <section className="rounded-card border border-[#D8CBE4] bg-[#F7F2FB] p-5 shadow-soft sm:p-6">
+          <p className="text-sm font-bold uppercase tracking-wide text-[#7A5D91]">
+            Du redigerer dette event som administrator
+          </p>
+          <h2 className="mt-2 font-serif text-2xl font-semibold text-midnight">
+            Ændringerne gemmes på vegne af arrangøren.
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-ink/70">
+            Arrangør: <span className="font-semibold text-midnight">{adminContext.eventOwnerName}</span>
+            {adminContext.soulEventsId ? " · SoulEvents-ID: " + adminContext.soulEventsId : ""}
+          </p>
+          <div className="mt-4 grid gap-2">
+            <label className="text-sm font-semibold text-midnight" htmlFor="admin-support-note">
+              Intern supportnote
+            </label>
+            <textarea
+              className="min-h-24 rounded-[18px] border border-[#D8CBE4] bg-white px-4 py-3 text-sm leading-6 text-midnight outline-none transition focus:border-[#7A5D91] focus:ring-4 focus:ring-[#E5DDEA]"
+              id="admin-support-note"
+              maxLength={500}
+              name="admin_support_note"
+              placeholder="Fx Rettet tidspunkt efter telefonisk aftale med arrangøren."
+            />
+            <label className="flex items-start gap-2 text-sm font-semibold leading-6 text-ink/70">
+              <input
+                className="mt-1 size-4 accent-[#7A5D91]"
+                name="admin_note_visible_to_facilitator"
+                type="checkbox"
+                value="yes"
+              />
+              Vis supportnoten for arrangøren i Beskedcenteret.
+            </label>
+          </div>
+        </section>
       ) : null}
       <div className="grid min-w-0 max-w-full gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
         <div className="grid min-w-0 max-w-full gap-5">
@@ -3222,8 +3421,13 @@ export function EventForm({
                     MobilePay, bankkonto eller betalingslink fra din arrangørprofil sendes automatisk til deltageren.
                   </span>
                   {!hasStandardPaymentSettings ? (
-                    <span className="mt-2 block font-semibold text-[#8B5B68]">
-                      Du har endnu ikke gemt standardbetalingsoplysninger.
+                    <span className="mt-2 grid gap-2 rounded-[16px] border border-[#E8D6A8] bg-[#FFF8E8] px-3 py-2 text-[#8A6A2E]">
+                      <span className="block font-semibold">
+                        Du har endnu ikke gemt standardbetalingsoplysninger.
+                      </span>
+                      <Link className="w-fit font-semibold text-[#7A4EAB] underline-offset-4 hover:underline" href="/facilitator/settings/payment">
+                        Opsæt betalingsoplysninger
+                      </Link>
                     </span>
                   ) : null}
                 </span>
@@ -3263,7 +3467,7 @@ export function EventForm({
               <p className="rounded-card border border-[#E5D4F7] bg-white px-4 py-3 text-sm leading-6 text-ink/62">
                 Du kan også{" "}
                 <Link className="font-semibold text-[#7A4EAB] underline-offset-4 hover:underline" href="/facilitator/settings/payment">
-                  opsætte standardbetalingsoplysninger
+                  opsætte betalingsoplysninger
                 </Link>{" "}
                 og bruge dem på fremtidige events.
               </p>
@@ -3513,6 +3717,104 @@ export function EventForm({
             {coverImageErrorMessage ? (
               <p className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold leading-6 text-red-900">{coverImageErrorMessage}</p>
             ) : null}
+            <section className="border-b border-[#E5D4F7] px-5 py-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Stemningsbilleder – valgfrit</p>
+                  <p className="mt-2 text-sm leading-6 text-ink/64">
+                    Tilføj op til tre billeder, der viser stemningen, stedet eller oplevelsen. Eventets primære billede vises fortsat øverst.
+                  </p>
+                </div>
+                <span className="rounded-full border border-[#D8CBE4] bg-[#F7F2FB] px-3 py-1 text-xs font-semibold text-[#7A4EAB]">
+                  {visibleGalleryImages.length} af {maxEventGalleryImages} billeder
+                </span>
+              </div>
+              <div className="mt-4 grid gap-3">
+                {visibleGalleryImages.map((image, index) => (
+                  <div className="overflow-hidden rounded-[18px] border border-[#E5D4F7] bg-[#FAF8FC] shadow-sm" key={image.id}>
+                    <div className="relative aspect-[4/3] bg-[#F4F0F7]">
+                      {image.previewUrl ? (
+                        <img alt={`Preview af stemningsbillede ${index + 1}`} className="h-full w-full object-cover" src={image.previewUrl} />
+                      ) : (
+                        <div className="grid h-full place-items-center text-sm font-semibold text-ink/45">Stemningsbillede {index + 1}</div>
+                      )}
+                    </div>
+                    <div className="grid gap-3 p-3">
+                      {image.fileName ? <p className="text-xs font-semibold text-[#7A4EAB]">Valgt fil: {image.fileName}</p> : null}
+                      <div className="flex flex-wrap gap-2">
+                        <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full border border-[#D8CBE4] bg-white px-3 text-xs font-semibold text-[#7A5D91] transition hover:border-[#BFA7D8] hover:bg-[#F7F2FB]">
+                          <ImagePlus className="size-4" aria-hidden="true" />
+                          Udskift
+                          <input
+                            accept={imageUploadAccept}
+                            className="sr-only"
+                            name={`event_gallery_file_${index}`}
+                            onChange={(event) => void handleReplaceGalleryImage(image.id, event)}
+                            ref={(node) => {
+                              galleryFileInputRefs.current[image.id] = node;
+                              if (node && image.file && (!node.files || node.files.length === 0)) {
+                                replaceInputFile(node, image.file);
+                              }
+                            }}
+                            type="file"
+                          />
+                        </label>
+                        <button
+                          className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#E5D4F7] bg-white px-3 text-xs font-semibold text-ink/68 transition hover:border-[#CDB4EA] hover:bg-[#F7F2FB] disabled:cursor-not-allowed disabled:opacity-45"
+                          disabled={index === 0}
+                          onClick={() => moveGalleryImage(image.id, -1)}
+                          type="button"
+                        >
+                          <ArrowUp className="size-4" aria-hidden="true" />
+                          Op
+                        </button>
+                        <button
+                          className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#E5D4F7] bg-white px-3 text-xs font-semibold text-ink/68 transition hover:border-[#CDB4EA] hover:bg-[#F7F2FB] disabled:cursor-not-allowed disabled:opacity-45"
+                          disabled={index === visibleGalleryImages.length - 1}
+                          onClick={() => moveGalleryImage(image.id, 1)}
+                          type="button"
+                        >
+                          <ArrowDown className="size-4" aria-hidden="true" />
+                          Ned
+                        </button>
+                        <button
+                          className="inline-flex min-h-10 items-center gap-2 rounded-full border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 transition hover:bg-red-50"
+                          onClick={() => removeGalleryImage(image.id)}
+                          type="button"
+                        >
+                          <X className="size-4" aria-hidden="true" />
+                          Slet
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {canAddGalleryImage ? (
+                  <label className="grid min-h-28 cursor-pointer place-items-center rounded-[18px] border border-dashed border-[#D8CBE4] bg-white/80 px-4 py-5 text-center text-sm font-semibold text-[#7A5D91] transition hover:border-[#BFA7D8] hover:bg-[#F7F2FB]">
+                    <span className="inline-flex items-center gap-2">
+                      <ImagePlus className="size-4" aria-hidden="true" />
+                      Tilføj stemningsbillede
+                    </span>
+                    <input
+                      accept={imageUploadAccept}
+                      className="sr-only"
+                      name="event_gallery_file_new"
+                      onChange={(event) => void handleAddGalleryImage(event)}
+                      type="file"
+                    />
+                  </label>
+                ) : (
+                  <p className="rounded-[16px] border border-[#E5D4F7] bg-[#F7F2FB] px-4 py-3 text-sm font-semibold text-[#7A4EAB]">
+                    Du har tilføjet tre billeder. Slet eller udskift et billede, hvis du vil ændre galleriet.
+                  </p>
+                )}
+              </div>
+              {galleryImageErrorMessage ? (
+                <p className="mt-3 rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-900">
+                  {galleryImageErrorMessage}
+                </p>
+              ) : null}
+            </section>
             <div className="grid gap-4 p-5">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#B56F8A]">

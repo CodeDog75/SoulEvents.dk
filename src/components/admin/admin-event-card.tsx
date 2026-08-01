@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Archive, CalendarDays, Check, Clock3, Eye, MoreHorizontal, RotateCcw, Slash, UserRound } from "lucide-react";
+import { Archive, CalendarDays, Check, Clock3, Eye, MoreHorizontal, Pencil, RotateCcw, Slash, UserRound } from "lucide-react";
 import { markAdminEventReviewedAction, updateAdminEventStatusAction } from "@/app/admin/events/actions";
 import { AdminActionMenu } from "@/components/admin/action-menu";
 import { getUserFacingEventStatus, getUserFacingEventStatusLabel } from "@/lib/events/user-facing-status";
@@ -186,6 +186,13 @@ export function AdminEventCard({
           >
             <Eye className="size-4" aria-hidden="true" />
             Åbn
+          </Link>
+          <Link
+            className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-[#D8CBE4] bg-[#F7F2FB] px-4 text-sm font-semibold text-[#6E5285] transition hover:border-[#C8B8D7] hover:bg-[#F1EAF5]"
+            href={`/admin/events/${event.id}/edit?returnTo=${encodeURIComponent("/admin/events")}`}
+          >
+            <Pencil className="size-4" aria-hidden="true" />
+            Rediger event
           </Link>
 
           {canMarkReviewed ? (

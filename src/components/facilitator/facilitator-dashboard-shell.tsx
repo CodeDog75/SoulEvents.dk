@@ -49,6 +49,7 @@ type NavigationItem = {
 
 function isActivePath(pathname: string, href: string) {
   if (href === "/facilitator") return pathname === href;
+  if (href === "/facilitator/settings") return pathname === href;
   return pathname === href || pathname.startsWith(href + "/");
 }
 

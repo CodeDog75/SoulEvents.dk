@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth/roles";
+import { requireProfile, requireRole } from "@/lib/auth/roles";
 import {
   formatEventUpdateDate,
   formatEventUpdateMoney,
@@ -11,6 +11,7 @@ import {
 import { sendCoOrganizerInvitationEmail, sendCoOrganizerRemovedEmail, sendCoOrganizerStatusEmail } from "@/lib/email/co-organizer-invitation";
 import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
+import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
 import { getUserFacingEventStatus } from "@/lib/events/user-facing-status";
 import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
@@ -19,7 +20,7 @@ import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readi
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes, recordLegalAcceptances } from "@/lib/legal/documents";
 import { geocodeDanishAddress } from "@/lib/mapbox/geocode";
-import { hasPaymentInstructions, paymentSettingsToInstructionsRecord, type PaymentMethodSource } from "@/lib/payment-instructions";
+import { hasStandardPaymentMethod, paymentSettingsToInstructionsRecord, type PaymentMethodSource } from "@/lib/payment-instructions";
 import { inferRegionSlug } from "@/lib/regions/infer-region";
 import { createSlug, publicEventPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -31,14 +32,16 @@ const allowedFormats = ["physical", "online"] as const;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 const missingCoverPublishMessage = "Tilføj et coverbillede, før eventet kan offentliggøres.";
 const danishTimeZone = "Europe/Copenhagen";
+const maxEventGalleryImages = 3;
 type ActiveCoOrganizerStatus = (typeof activeCoOrganizerStatuses)[number];
 
 const facilitatorProfileEventSelect =
-  "id, status, is_paused, is_disabled, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)";
+  "id, profile_id, host_reference_id, status, is_paused, is_disabled, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)";
 type AdminClient = ReturnType<typeof createAdminClient>;
 type PaymentLinkMode = "external_registration" | "payment_only";
 type EventUpdateSnapshot = {
   address_line: string | null;
+  capacity?: number | null;
   city: string | null;
   country?: string | null;
   ends_at: string;
@@ -55,6 +58,19 @@ type EventUpdateSnapshot = {
 
 function eventsRedirect(message: string): never {
   redirect(`/facilitator/events?message=${encodeURIComponent(message)}`);
+}
+
+function adminEventEditRedirect(message: string, eventId?: string | null, returnTo?: string | null): never {
+  const params = new URLSearchParams();
+  params.set("message", message);
+  if (returnTo) {
+    params.set("returnTo", returnTo);
+  }
+  redirect(`/admin/events/${eventId ?? ""}/edit?${params.toString()}`);
+}
+
+function adminEventEditSuccessRedirect(message: string, returnTo?: string | null): never {
+  redirect((returnTo && returnTo.startsWith("/admin") ? returnTo : "/admin/events") + (returnTo?.includes("?") ? "&" : "?") + "message=" + encodeURIComponent(message));
 }
 
 function eventFormRedirect(message: string, input: { eventId?: string | null; step?: string | null } = {}): never {
@@ -285,6 +301,228 @@ async function uploadEventCoverImage(formData: FormData, currentImagePath: strin
   }
 
   return imagePath;
+}
+
+function eventImageExtension(file: File) {
+  const allowedTypes = new Map([
+    ["image/jpeg", "jpg"],
+    ["image/png", "png"],
+    ["image/webp", "webp"],
+  ]);
+  return allowedTypes.get(file.type) ?? null;
+}
+
+async function uploadEventGalleryImage(adminClient: AdminClient, eventId: string, file: File) {
+  const extension = eventImageExtension(file);
+
+  if (!extension) {
+    throw new Error("Stemningsbilleder skal være JPG, PNG eller WebP. HEIC skal konverteres i browseren før upload.");
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error("Stemningsbilleder må højst være 10 MB pr. billede.");
+  }
+
+  const imagePath = "events/gallery/" + eventId + "/" + crypto.randomUUID() + "." + extension;
+  const { error } = await adminClient.storage.from("media").upload(imagePath, file, {
+    cacheControl: "3600",
+    contentType: file.type,
+    upsert: false,
+  });
+
+  if (error) {
+    console.error("Event gallery image upload error", error);
+    throw new Error("Stemningsbilledet kunne ikke uploades.");
+  }
+
+  return imagePath;
+}
+
+async function removeEventGalleryStorageFiles(adminClient: AdminClient, imagePaths: string[]) {
+  const uniquePaths = [...new Set(imagePaths.filter(Boolean))];
+
+  if (uniquePaths.length === 0) {
+    return;
+  }
+
+  const { error } = await adminClient.storage.from("media").remove(uniquePaths);
+
+  if (error) {
+    console.error("Event gallery image cleanup error", error);
+  }
+}
+
+function imageContentTypeFromPath(imagePath: string) {
+  const extension = imagePath.split(".").pop()?.toLowerCase();
+
+  if (extension === "png") return "image/png";
+  if (extension === "webp") return "image/webp";
+  return "image/jpeg";
+}
+
+async function copyEventGalleryImages(adminClient: AdminClient, input: { sourceEventId: string; targetEventId: string }) {
+  const { data: sourceImages, error: sourceImagesError } = await adminClient
+    .from("event_images")
+    .select("image_path, alt_text, sort_order")
+    .eq("event_id", input.sourceEventId)
+    .order("sort_order", { ascending: true })
+    .limit(maxEventGalleryImages);
+
+  if (sourceImagesError) {
+    console.error("Event gallery image copy select error", sourceImagesError);
+    return;
+  }
+
+  const copiedRows: Array<{ alt_text: string | null; event_id: string; image_path: string; sort_order: number }> = [];
+  const uploadedPaths: string[] = [];
+
+  for (const image of sourceImages ?? []) {
+    if (!image.image_path) {
+      continue;
+    }
+
+    const { data: fileData, error: downloadError } = await adminClient.storage.from("media").download(image.image_path);
+
+    if (downloadError || !fileData) {
+      console.error("Event gallery image copy download error", downloadError);
+      continue;
+    }
+
+    const extension = image.image_path.split(".").pop()?.toLowerCase() || "jpg";
+    const imagePath = "events/gallery/" + input.targetEventId + "/" + crypto.randomUUID() + "." + extension;
+    const { error: uploadError } = await adminClient.storage.from("media").upload(imagePath, fileData, {
+      cacheControl: "3600",
+      contentType: imageContentTypeFromPath(image.image_path),
+      upsert: false,
+    });
+
+    if (uploadError) {
+      console.error("Event gallery image copy upload error", uploadError);
+      continue;
+    }
+
+    uploadedPaths.push(imagePath);
+    copiedRows.push({
+      alt_text: image.alt_text ?? null,
+      event_id: input.targetEventId,
+      image_path: imagePath,
+      sort_order: copiedRows.length,
+    });
+  }
+
+  if (copiedRows.length === 0) {
+    return;
+  }
+
+  const { error: insertError } = await adminClient.from("event_images").insert(copiedRows);
+
+  if (insertError) {
+    console.error("Event gallery image copy insert error", insertError);
+    await removeEventGalleryStorageFiles(adminClient, uploadedPaths);
+  }
+}
+
+async function syncEventGalleryImages(adminClient: AdminClient, formData: FormData, input: { eventId: string; title: string }) {
+  const requestedCount = Number(getOptionalString(formData, "event_gallery_image_count") ?? 0);
+
+  if (!Number.isFinite(requestedCount) || requestedCount < 0 || requestedCount > maxEventGalleryImages) {
+    throw new Error("Du kan højst tilføje tre stemningsbilleder.");
+  }
+
+  const { data: existingRows, error: existingError } = await adminClient
+    .from("event_images")
+    .select("id, image_path, sort_order")
+    .eq("event_id", input.eventId);
+
+  if (existingError) {
+    console.error("Event gallery image select error", existingError);
+    throw new Error("Stemningsbillederne kunne ikke hentes.");
+  }
+
+  const existingImagesByPath = new Map((existingRows ?? []).filter((row) => row.image_path).map((row) => [row.image_path, row]));
+  const existingPaths = new Set(existingImagesByPath.keys());
+  const finalRows: Array<{ alt_text: string; event_id: string; id?: string; image_path: string; sort_order: number }> = [];
+  const uploadedPaths: string[] = [];
+
+  for (let index = 0; index < maxEventGalleryImages; index += 1) {
+    const existingPath = getOptionalString(formData, `event_gallery_existing_image_${index}`);
+    const file = formData.get(`event_gallery_file_${index}`);
+
+    if (file instanceof File && file.size > 0) {
+      const imagePath = await uploadEventGalleryImage(adminClient, input.eventId, file);
+      uploadedPaths.push(imagePath);
+      finalRows.push({
+        alt_text: "Stemningsbillede fra " + input.title,
+        event_id: input.eventId,
+        image_path: imagePath,
+        sort_order: finalRows.length,
+      });
+      continue;
+    }
+
+    if (existingPath && existingImagesByPath.has(existingPath)) {
+      const existingImage = existingImagesByPath.get(existingPath);
+      finalRows.push({
+        alt_text: "Stemningsbillede fra " + input.title,
+        event_id: input.eventId,
+        id: existingImage?.id,
+        image_path: existingPath,
+        sort_order: finalRows.length,
+      });
+    }
+  }
+
+  if (finalRows.length > maxEventGalleryImages) {
+    await removeEventGalleryStorageFiles(adminClient, uploadedPaths);
+    throw new Error("Du kan højst tilføje tre stemningsbilleder.");
+  }
+
+  const finalPaths = new Set(finalRows.map((row) => row.image_path));
+  const removedPaths = [...existingPaths].filter((imagePath) => !finalPaths.has(imagePath));
+  const newRows = finalRows.filter((row) => !row.id).map(({ id: _id, ...row }) => row);
+  const existingRowsToUpdate = finalRows.filter((row) => row.id);
+
+  for (const row of existingRowsToUpdate) {
+    const { error: updateError } = await adminClient
+      .from("event_images")
+      .update({
+        alt_text: row.alt_text,
+        sort_order: row.sort_order,
+      })
+      .eq("id", row.id)
+      .eq("event_id", input.eventId);
+
+    if (updateError) {
+      await removeEventGalleryStorageFiles(adminClient, uploadedPaths);
+      console.error("Event gallery image update error", updateError);
+      throw new Error("Stemningsbillederne kunne ikke opdateres.");
+    }
+  }
+
+  if (newRows.length > 0) {
+    const { error: insertError } = await adminClient.from("event_images").insert(newRows);
+
+    if (insertError) {
+      await removeEventGalleryStorageFiles(adminClient, uploadedPaths);
+      console.error("Event gallery image insert error", insertError);
+      throw new Error("Stemningsbillederne kunne ikke gemmes.");
+    }
+  }
+
+  if (removedPaths.length > 0) {
+    const { error: deleteError } = await adminClient
+      .from("event_images")
+      .delete()
+      .eq("event_id", input.eventId)
+      .in("image_path", removedPaths);
+
+    if (deleteError) {
+      console.error("Event gallery image delete error", deleteError);
+      throw new Error("Stemningsbillederne blev gemt, men slettede billeder kunne ikke fjernes fra listen.");
+    }
+  }
+
+  await removeEventGalleryStorageFiles(adminClient, removedPaths);
 }
 
 function hasSubmittedEventCoverImage(formData: FormData) {
@@ -1063,20 +1301,81 @@ function isProfileReady(input: {
 }
 
 export async function createEventAction(formData: FormData) {
-  const profile = await requireRole("facilitator");
   const supabase = createAdminClient();
-  const { data: initialFacilitatorProfile, error: facilitatorLookupError } = await supabase
-    .from("facilitator_profiles")
-    .select(facilitatorProfileEventSelect)
-    .eq("profile_id", profile.id)
-    .maybeSingle();
+  const isAdminEventEdit = getString(formData, "admin_event_edit") === "yes";
+  const adminReturnTo = getOptionalString(formData, "admin_return_to");
+  const existingEventId = getOptionalString(formData, "event_id");
+  const actorProfile = isAdminEventEdit ? await requireRole("admin") : await requireProfile();
+  const redirectWithMessage = (message: string): never => {
+    if (isAdminEventEdit) {
+      adminEventEditRedirect(message, existingEventId, adminReturnTo);
+    }
+
+    eventsRedirect(message);
+  };
+
+  if (!isAdminEventEdit && actorProfile.role !== "facilitator") {
+    redirect("/dashboard");
+  }
+
+  if (isAdminEventEdit && !existingEventId) {
+    adminEventEditRedirect("Eventet kunne ikke genkendes.", existingEventId, adminReturnTo);
+  }
+
+  let initialFacilitatorProfile = null;
+  let facilitatorLookupError = null;
+  let profile = actorProfile;
+
+  if (isAdminEventEdit && existingEventId) {
+    const { data: eventForAdmin, error: adminEventLookupError } = await supabase
+      .from("events")
+      .select(
+        "id, facilitator_id, facilitator_profiles!events_facilitator_id_fkey(" +
+          facilitatorProfileEventSelect +
+          ")",
+      )
+      .eq("id", existingEventId)
+      .maybeSingle();
+
+    if (adminEventLookupError || !eventForAdmin) {
+      adminEventEditRedirect("Eventet kunne ikke findes.", existingEventId, adminReturnTo);
+    }
+
+    const adminEventRow = eventForAdmin as any;
+    const adminFacilitatorProfile = Array.isArray(adminEventRow.facilitator_profiles)
+      ? adminEventRow.facilitator_profiles[0]
+      : adminEventRow.facilitator_profiles;
+    initialFacilitatorProfile = adminFacilitatorProfile ?? null;
+    const ownerProfile = Array.isArray(adminFacilitatorProfile?.profiles)
+      ? adminFacilitatorProfile?.profiles[0]
+      : adminFacilitatorProfile?.profiles;
+
+    profile = {
+      ...actorProfile,
+      full_name: ownerProfile?.full_name ?? adminFacilitatorProfile?.company_name ?? actorProfile.full_name,
+      id: adminFacilitatorProfile?.profile_id ?? actorProfile.id,
+      phone: ownerProfile?.phone ?? null,
+    };
+  } else {
+    const result = await supabase
+      .from("facilitator_profiles")
+      .select(facilitatorProfileEventSelect)
+      .eq("profile_id", actorProfile.id)
+      .maybeSingle();
+    initialFacilitatorProfile = result.data;
+    facilitatorLookupError = result.error;
+  }
+
   let facilitatorProfile = initialFacilitatorProfile;
 
   if (facilitatorLookupError) {
-    eventsRedirect("Arrangørprofilen kunne ikke hentes. Tjek at Supabase-migrationerne er kørt.");
+    redirectWithMessage("Arrangørprofilen kunne ikke hentes. Tjek at Supabase-migrationerne er kørt.");
   }
 
   if (!facilitatorProfile) {
+    if (isAdminEventEdit) {
+      adminEventEditRedirect("Arrangørprofilen kunne ikke hentes.", existingEventId, adminReturnTo);
+    }
     redirect("/auth/oauth-profile");
   }
 
@@ -1086,32 +1385,33 @@ export async function createEventAction(formData: FormData) {
     .eq("facilitator_id", facilitatorProfile.id)
     .maybeSingle();
 
-  const onboardingState = await getFacilitatorOnboardingStateForProfile(supabase, {
-    fullName: profile.full_name,
-    profileId: profile.id,
-  });
+  const onboardingState = isAdminEventEdit
+    ? "approved"
+    : await getFacilitatorOnboardingStateForProfile(supabase, {
+        fullName: profile.full_name,
+        profileId: profile.id,
+      });
 
   if (onboardingState === "onboarding" || onboardingState === "changes_requested") {
-    eventsRedirect("Færdiggør og indsend din arrangørprofil, før du opretter events.");
+    redirectWithMessage("Færdiggør og indsend din arrangørprofil, før du opretter events.");
   }
 
   const requestedStatusValues = getAllStrings(formData, "status");
   const requestedStatus = (requestedStatusValues.includes("draft")
     ? "draft"
     : requestedStatusValues[0] || getString(formData, "status")) as EventStatus;
-  const notifyParticipants = getString(formData, "notify_participants") === "yes";
+  const notifyParticipants = !isAdminEventEdit && getString(formData, "notify_participants") === "yes";
   const participantUpdateMessage = getOptionalString(formData, "participant_update_message");
-  const existingEventId = getOptionalString(formData, "event_id");
   const currentStep = getString(formData, "current_step") || "0";
   const safeStep = ["0", "1", "2", "3", "4"].includes(currentStep) ? currentStep : "0";
   const requestedCoOrganizerProfileIds = getAllStrings(formData, "co_organizer_profile_ids");
 
   if (!allowedStatuses.includes(requestedStatus)) {
-    eventsRedirect("Ugyldig eventstatus.");
+    redirectWithMessage("Ugyldig eventstatus.");
   }
 
   if (participantUpdateMessage && participantUpdateMessage.length > 500) {
-    eventsRedirect("Beskeden til deltagerne må højst være 500 tegn.");
+    redirectWithMessage("Beskeden til deltagerne må højst være 500 tegn.");
   }
 
   let existingEventStatus: EventStatus | null = null;
@@ -1123,24 +1423,32 @@ export async function createEventAction(formData: FormData) {
   let previousEventSnapshot: EventUpdateSnapshot | null = null;
 
   if (existingEventId) {
-    const { data: existingEvent } = await supabase
+    let existingEventQuery = supabase
       .from("events")
-      .select("id, slug, status, published_at, cover_image_path, title, starts_at, ends_at, address_line, postal_code, city, country, price_cents, registration_mode, event_format, online_description, online_url_or_note")
-      .eq("id", existingEventId)
-      .eq("facilitator_id", facilitatorProfile.id)
-      .maybeSingle();
+      .select("id, slug, status, published_at, cover_image_path, title, starts_at, ends_at, address_line, postal_code, city, country, price_cents, capacity, registration_mode, event_format, online_description, online_url_or_note")
+      .eq("id", existingEventId);
 
-    if (!existingEvent) {
-      eventsRedirect("Eventet kunne ikke findes.");
+    if (!isAdminEventEdit) {
+      existingEventQuery = existingEventQuery.eq("facilitator_id", facilitatorProfile.id);
     }
 
-    existingEventStatus = existingEvent.status as EventStatus;
-    existingEventSlug = existingEvent.slug ?? null;
-    existingEventTitle = existingEvent.title ?? null;
-    existingEventPublishedAt = existingEvent.published_at ?? null;
-    existingEventCoverImagePath = existingEvent.cover_image_path ?? null;
-    existingEventRegistrationMode = normalizeRegistrationMode(existingEvent.registration_mode ?? "");
-    previousEventSnapshot = existingEvent as EventUpdateSnapshot;
+    const { data: existingEvent } = await existingEventQuery.maybeSingle();
+
+    if (!existingEvent) {
+      if (isAdminEventEdit) {
+        adminEventEditRedirect("Eventet kunne ikke findes.", existingEventId, adminReturnTo);
+      }
+      redirectWithMessage("Eventet kunne ikke findes.");
+    }
+
+    const foundExistingEvent = existingEvent!;
+    existingEventStatus = foundExistingEvent.status as EventStatus;
+    existingEventSlug = foundExistingEvent.slug ?? null;
+    existingEventTitle = foundExistingEvent.title ?? null;
+    existingEventPublishedAt = foundExistingEvent.published_at ?? null;
+    existingEventCoverImagePath = foundExistingEvent.cover_image_path ?? null;
+    existingEventRegistrationMode = normalizeRegistrationMode(foundExistingEvent.registration_mode ?? "");
+    previousEventSnapshot = foundExistingEvent as EventUpdateSnapshot;
   }
 
   const preservedPublishedStatus =
@@ -1160,7 +1468,7 @@ export async function createEventAction(formData: FormData) {
     facilitatorProfile.facilitator_categories?.map((row: { category_id: string }) => row.category_id) ?? [];
 
   if (!isDraft && (facilitatorProfile.status !== "approved" || facilitatorProfile.is_paused || facilitatorProfile.is_disabled)) {
-    eventsRedirect(
+    redirectWithMessage(
       "Din arrangørprofil skal være aktiv og godkendt, før eventet kan offentliggøres. Gem eventet som kladde indtil da.",
     );
   }
@@ -1176,30 +1484,30 @@ export async function createEventAction(formData: FormData) {
       shortDescription: facilitatorProfile.short_description,
     })
   ) {
-      eventsRedirect("Færdiggør din profil, før du offentliggør eventet.");
+      redirectWithMessage("Færdiggør din profil, før du offentliggør eventet.");
   }
 
   if (!allowedStatuses.includes(status)) {
-    eventsRedirect("Ugyldig eventstatus.");
+    redirectWithMessage("Ugyldig eventstatus.");
   }
 
-  if (!existingEventId) {
+  if (!existingEventId && !isAdminEventEdit) {
     const limitStatus = await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id);
 
     if (isDraft && limitStatus.draftCount >= limitStatus.maxDraftEvents) {
-      eventsRedirect(draftLimitMessage(limitStatus.maxDraftEvents));
+      redirectWithMessage(draftLimitMessage(limitStatus.maxDraftEvents));
     }
 
     if (status === "active" && limitStatus.activeCount >= limitStatus.maxActiveEvents) {
-      eventsRedirect(activeLimitMessage(limitStatus.maxActiveEvents));
+      redirectWithMessage(activeLimitMessage(limitStatus.maxActiveEvents));
     }
-  } else if (status === "active" && !shouldPreservePublishedStatus) {
+  } else if (status === "active" && !shouldPreservePublishedStatus && !isAdminEventEdit) {
     const limitStatus = await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id, {
       excludeEventId: existingEventId,
     });
 
     if (limitStatus.activeCount >= limitStatus.maxActiveEvents) {
-      eventsRedirect(activeLimitMessage(limitStatus.maxActiveEvents));
+      redirectWithMessage(activeLimitMessage(limitStatus.maxActiveEvents));
     }
   }
 
@@ -1283,12 +1591,12 @@ export async function createEventAction(formData: FormData) {
       .in("status", ["pending", "confirmed"]);
 
     if ((activeBookingCount ?? 0) > 0) {
-      eventsRedirect("Tilmeldingsmodellen kan ikke ændres, når eventet allerede har reservationer eller tilmeldinger.");
+      redirectWithMessage("Tilmeldingsmodellen kan ikke ændres, når eventet allerede har reservationer eller tilmeldinger.");
     }
   }
 
   if (!allowedFormats.includes(eventFormat as "physical" | "online")) {
-    eventsRedirect("Vælg om eventet er fysisk eller online.");
+    redirectWithMessage("Vælg om eventet er fysisk eller online.");
   }
 
   const lengthChecks: Array<[string | null, number, string]> = [
@@ -1315,29 +1623,29 @@ export async function createEventAction(formData: FormData) {
 
   for (const [value, maxLength, label] of lengthChecks) {
     if (value && value.length > maxLength) {
-      eventsRedirect(label + " må højst være " + maxLength + " tegn.");
+      redirectWithMessage(label + " må højst være " + maxLength + " tegn.");
     }
   }
 
 
   if (!isDraft && (!rawTitle || !slugBase)) {
-    eventsRedirect("Titel er påkrævet.");
+    redirectWithMessage("Titel er påkrævet.");
   }
 
   if (rawTitle.length > 80) {
-    eventsRedirect("Eventtitel må højst være 80 tegn.");
+    redirectWithMessage("Eventtitel må højst være 80 tegn.");
   }
 
   if (!isDraft && (!eventDescription || eventDescription.length < 20)) {
-    eventsRedirect("Beskrivelse af event skal være mindst 20 tegn.");
+    redirectWithMessage("Beskrivelse af event skal være mindst 20 tegn.");
   }
 
   if (eventDescription.length > 5000) {
-    eventsRedirect("Beskrivelse af event må højst være 5000 tegn.");
+    redirectWithMessage("Beskrivelse af event må højst være 5000 tegn.");
   }
 
   if ((status === "active" || status === "sold_out") && !currentCoverImagePath && !hasSubmittedEventCoverImage(formData)) {
-    eventsRedirect(missingCoverPublishMessage);
+    redirectWithMessage(missingCoverPublishMessage);
   }
 
   if (isDraft && startsAt && (!endsAt || new Date(endsAt) <= new Date(startsAt))) {
@@ -1345,71 +1653,89 @@ export async function createEventAction(formData: FormData) {
   }
 
   if (!startsAt || !endsAt || new Date(endsAt) <= new Date(startsAt)) {
-    eventsRedirect("Sluttidspunkt skal være efter starttidspunkt.");
+    redirectWithMessage("Sluttidspunkt skal være efter starttidspunkt.");
   }
 
   if (capacityText && !/^\d{1,3}$/.test(capacityText)) {
-    eventsRedirect("Antal deltagere skal være et tal på højst 3 cifre.");
+    redirectWithMessage("Antal deltagere skal være et tal på højst 3 cifre.");
   }
 
   if (!isDraft && capacity <= 0) {
-    eventsRedirect("Kapacitet skal være mindst 1.");
+    redirectWithMessage("Kapacitet skal være mindst 1.");
   }
 
   if (capacity > 500) {
-    eventsRedirect("Maks. antal deltagere er 500.");
+    redirectWithMessage("Maks. antal deltagere er 500.");
+  }
+
+  if (existingEventId && capacity > 0) {
+    const availableSeats = await getAvailableEventSeats(supabase, existingEventId, capacity);
+
+    if (availableSeats === 0) {
+      const availableWithLargeCapacity = await getAvailableEventSeats(supabase, existingEventId, 500);
+      const reservedSeats = Math.max(500 - availableWithLargeCapacity, 0);
+
+      if (reservedSeats > capacity) {
+        const message =
+          "Kapaciteten kan ikke sættes lavere end de allerede reserverede eller manuelt registrerede pladser.";
+        if (isAdminEventEdit) {
+          adminEventEditRedirect(message, existingEventId, adminReturnTo);
+        }
+        redirectWithMessage(message);
+      }
+    }
   }
 
   if (paymentDeadlineDays !== null && Number.isNaN(paymentDeadlineDays)) {
-    eventsRedirect("Betalingsfrist skal være mellem 0 og 60 dage.");
+    redirectWithMessage("Betalingsfrist skal være mellem 0 og 60 dage.");
   }
 
   if (paymentExternalUrl && !isValidUrl(paymentExternalUrl)) {
-    eventsRedirect("Betalingslink skal være et gyldigt link, fx https://...");
+    redirectWithMessage("Betalingslink skal være et gyldigt link, fx https://...");
   }
 
   if (!isDraft && priceCents > 0 && paymentMethodSource === "custom" && !paymentExternalUrl) {
-    eventsRedirect("Betalingslink er påkrævet, når du bruger et unikt betalingslink til eventet.");
+    redirectWithMessage("Betalingslink er påkrævet, når du bruger et unikt betalingslink til eventet.");
   }
 
   if (!isDraft && priceCents > 0 && paymentMethodSource === "custom" && paymentLinkMode === "external_registration" && registrationMode !== "direct") {
-    eventsRedirect("Ekstern tilmelding og betaling kan kun bruges sammen med direkte tilmelding.");
+    redirectWithMessage("Ekstern tilmelding og betaling kan kun bruges sammen med direkte tilmelding.");
   }
 
   if (
     !isDraft &&
     priceCents > 0 &&
     paymentMethodSource === "facilitator" &&
-    !hasPaymentInstructions(paymentSettingsToInstructionsRecord(facilitatorPaymentSettings))
+    !hasStandardPaymentMethod(paymentSettingsToInstructionsRecord(facilitatorPaymentSettings))
   ) {
-    eventsRedirect("Tilføj standardbetalingsoplysninger på din profil, eller vælg et unikt betalingslink til eventet.");
+    redirectWithMessage("Du har endnu ikke gemt standardbetalingsoplysninger. Opsæt betalingsoplysninger, eller vælg et unikt betalingslink til dette event.");
   }
 
   if (mainCategoryIds.length > 3 || categoryIds.length > 3 || tagIds.length > 4) {
-    eventsRedirect("Du kan vælge op til 3 kategorier og op til 4 tags.");
+    redirectWithMessage("Du kan vælge op til 3 kategorier og op til 4 tags.");
   }
 
   if (!isDraft && mainCategoryIds.length < 1) {
-    eventsRedirect("Vælg mindst én hovedkategori til eventet.");
+    redirectWithMessage("Vælg mindst én hovedkategori til eventet.");
   }
 
   if (!isDraft && eventFormat === "physical" && (!addressLine || !postalCode || !city || !country)) {
-    eventsRedirect("Adresse, postnummer, by og land skal udfyldes for fysiske events.");
+    redirectWithMessage("Adresse, postnummer, by og land skal udfyldes for fysiske events.");
   }
 
   if (!isDraft && isDanishPhysicalEvent && postalCode && !/^\d{4}$/.test(postalCode)) {
-    eventsRedirect("Danske events skal have et postnummer på 4 cifre.");
+    redirectWithMessage("Danske events skal have et postnummer på 4 cifre.");
   }
 
   if (!isDraft && eventFormat === "online" && !onlineUrlOrNote) {
-    eventsRedirect("Tilføj et gyldigt online-link.");
+    redirectWithMessage("Tilføj et gyldigt online-link.");
   }
 
   if (!isDraft && eventFormat === "online" && onlineUrlOrNote && !isValidUrl(onlineUrlOrNote)) {
-    eventsRedirect("Online-link skal være et gyldigt link, fx https://zoom.us/...");
+    redirectWithMessage("Online-link skal være et gyldigt link, fx https://zoom.us/...");
   }
 
-  if (!isDraft) {
+  if (!isDraft && !isAdminEventEdit) {
     const missingAcceptances = await getMissingRequiredLegalAcceptances(supabase, profile.id, organizerAcceptanceTypes);
     const acceptedOrganizerTerms = formData.get("accepted_organizer_terms") === "yes";
 
@@ -1446,7 +1772,7 @@ export async function createEventAction(formData: FormData) {
   }
 
   if (!isDraft && isDanishPhysicalEvent && !regionId) {
-    eventsRedirect("Postnummeret kunne ikke kobles til et område. Tjek postnummeret.");
+    redirectWithMessage("Postnummeret kunne ikke kobles til et område. Tjek postnummeret.");
   }
 
   if (!isDraft) {
@@ -1474,6 +1800,7 @@ export async function createEventAction(formData: FormData) {
   if (existingEventId) {
     const nextEventSnapshot: EventUpdateSnapshot = {
       address_line: addressLine,
+      capacity,
       city,
       country,
       ends_at: endsAt,
@@ -1487,6 +1814,18 @@ export async function createEventAction(formData: FormData) {
       status,
       title,
     };
+    const adminChangedFields = previousEventSnapshot
+      ? getEventUpdateFields(previousEventSnapshot, nextEventSnapshot).map((field) => field.label)
+      : [];
+
+    if (previousEventSnapshot && previousEventSnapshot.status !== status) {
+      adminChangedFields.push("Status");
+    }
+
+    if (previousEventSnapshot && previousEventSnapshot.capacity !== capacity) {
+      adminChangedFields.push("Kapacitet");
+    }
+
     const publishedAt =
       status === "active" || status === "sold_out"
         ? existingEventPublishedAt ?? new Date().toISOString()
@@ -1531,7 +1870,7 @@ export async function createEventAction(formData: FormData) {
     if (updateError) {
       console.error("Event update error", updateError);
       const errorMessage = updateError.message ? ": " + updateError.message : "";
-      eventsRedirect(isDraft ? "Kladde kunne ikke gemmes" + errorMessage : "Eventet kunne ikke opdateres" + errorMessage);
+      redirectWithMessage(isDraft ? "Kladde kunne ikke gemmes" + errorMessage : "Eventet kunne ikke opdateres" + errorMessage);
     }
 
     if (hasExistingEventBeenPublic && existingEventSlug && nextEventSlug && existingEventSlug !== nextEventSlug) {
@@ -1545,7 +1884,7 @@ export async function createEventAction(formData: FormData) {
 
       if (slugHistoryError) {
         console.error("Event slug history insert error", slugHistoryError);
-        eventsRedirect("Eventets URL-historik kunne ikke gemmes.");
+        redirectWithMessage("Eventets URL-historik kunne ikke gemmes.");
       }
     }
 
@@ -1558,7 +1897,7 @@ export async function createEventAction(formData: FormData) {
 
       if (currentSlugAliasError) {
         console.error("Event current slug alias cleanup error", currentSlugAliasError);
-        eventsRedirect("Eventets URL-historik kunne ikke opdateres.");
+        redirectWithMessage("Eventets URL-historik kunne ikke opdateres.");
       }
     }
 
@@ -1578,7 +1917,13 @@ export async function createEventAction(formData: FormData) {
 
     if (paymentSettingsError) {
       console.error("Event payment settings update error", paymentSettingsError);
-      eventsRedirect("Eventet blev gemt, men betalingsoplysningerne kunne ikke gemmes.");
+      redirectWithMessage("Eventet blev gemt, men betalingsoplysningerne kunne ikke gemmes.");
+    }
+
+    try {
+      await syncEventGalleryImages(supabase, formData, { eventId: existingEventId, title });
+    } catch (error) {
+      redirectWithMessage(error instanceof Error ? error.message : "Eventet blev gemt, men stemningsbillederne kunne ikke gemmes.");
     }
 
     await replaceEventRelations(supabase, existingEventId, {
@@ -1681,6 +2026,65 @@ export async function createEventAction(formData: FormData) {
       revalidatePath(publicEventPath(nextEventSlug));
     }
 
+    if (isAdminEventEdit) {
+      const supportNote = getOptionalString(formData, "admin_support_note");
+      const noteVisibleToFacilitator = getString(formData, "admin_note_visible_to_facilitator") === "yes";
+      const changedFields = Array.from(new Set(adminChangedFields));
+      const safeChangedFields = changedFields.length > 0 ? changedFields : ["Eventoplysninger"];
+      const adminMessage =
+        "SoulEvents-support har opdateret dit event “" +
+        title +
+        "”. " +
+        (noteVisibleToFacilitator && supportNote ? "\n\nNote fra support: " + supportNote : "");
+
+      const [{ error: adminEventLogError }, { error: adminAuditLogError }, { error: adminMessageError }] =
+        await Promise.all([
+          supabase.from("admin_event_change_log").insert({
+            admin_profile_id: actorProfile.id,
+            changed_fields: safeChangedFields,
+            event_id: existingEventId,
+            facilitator_id: facilitatorProfile.id,
+            note_visible_to_facilitator: noteVisibleToFacilitator,
+            support_note: supportNote,
+          }),
+          supabase.from("admin_audit_log").insert({
+            action: "event_updated_by_admin",
+            actor_profile_id: actorProfile.id,
+            event_id: existingEventId,
+            facilitator_id: facilitatorProfile.id,
+            new_value: safeChangedFields.join(", "),
+            reason: supportNote ?? "admin_support_edit",
+          }),
+          supabase.from("facilitator_admin_messages").insert({
+            facilitator_id: facilitatorProfile.id,
+            message: adminMessage.slice(0, 500),
+            profile_id: facilitatorProfile.profile_id,
+            status: "unread",
+            subject: "SoulEvents har opdateret dit event",
+            type: "admin_reply",
+          }),
+        ]);
+
+      if (adminEventLogError) {
+        console.error("Admin event change log insert error", adminEventLogError);
+        adminEventEditRedirect("Eventet blev gemt, men audit-loggen kunne ikke oprettes.", existingEventId, adminReturnTo);
+      }
+
+      if (adminAuditLogError) {
+        console.error("Admin audit log insert error", adminAuditLogError);
+      }
+
+      if (adminMessageError) {
+        console.error("Admin event message insert error", adminMessageError);
+      }
+
+      revalidatePath("/admin/events");
+      revalidatePath(`/admin/events/${existingEventId}/edit`);
+      revalidatePath("/facilitator");
+      revalidatePath("/facilitator/events");
+      adminEventEditSuccessRedirect("Eventet er opdateret som administrator.", adminReturnTo);
+    }
+
     if (isDraft) {
       redirect("/facilitator?tab=drafts&message=" + encodeURIComponent("Eventet er gemt som kladde") + "#mine-events");
     }
@@ -1753,15 +2157,16 @@ export async function createEventAction(formData: FormData) {
   if (eventError || !event) {
     console.error("Event insert error", eventError);
     const errorMessage = eventError?.message ? ": " + eventError.message : "";
-    eventsRedirect(
+    redirectWithMessage(
       isDraft
         ? "Kladde kunne ikke gemmes" + errorMessage
         : "Eventet kunne ikke oprettes" + errorMessage,
     );
   }
+  const createdEvent = event!;
 
   const { error: paymentSettingsError } = await upsertEventPaymentSettings(supabase, {
-    eventId: event.id,
+    eventId: createdEvent.id,
     facilitatorId: facilitatorProfile.id,
     methodSource: paymentMethodSource,
     mobilepayNumber: paymentMobilepayNumber,
@@ -1776,13 +2181,19 @@ export async function createEventAction(formData: FormData) {
 
   if (paymentSettingsError) {
     console.error("Event payment settings insert error", paymentSettingsError);
-    eventsRedirect("Eventet blev oprettet, men betalingsoplysningerne kunne ikke gemmes.");
+    redirectWithMessage("Eventet blev oprettet, men betalingsoplysningerne kunne ikke gemmes.");
+  }
+
+  try {
+    await syncEventGalleryImages(supabase, formData, { eventId: createdEvent.id, title });
+  } catch (error) {
+    redirectWithMessage(error instanceof Error ? error.message : "Eventet blev oprettet, men stemningsbillederne kunne ikke gemmes.");
   }
 
   if (mainCategoryIds.length > 0) {
     await supabase.from("event_main_categories").insert(
       mainCategoryIds.map((mainCategoryId) => ({
-        event_id: event.id,
+        event_id: createdEvent.id,
         main_category_id: mainCategoryId,
       })),
     );
@@ -1791,7 +2202,7 @@ export async function createEventAction(formData: FormData) {
   if (subcategoryIds.length > 0) {
     await supabase.from("event_subcategories").insert(
       subcategoryIds.map((subcategoryId) => ({
-        event_id: event.id,
+        event_id: createdEvent.id,
         subcategory_id: subcategoryId,
       })),
     );
@@ -1800,7 +2211,7 @@ export async function createEventAction(formData: FormData) {
   if (tagIds.length > 0) {
     await supabase.from("event_tags").insert(
       tagIds.map((tagId) => ({
-        event_id: event.id,
+        event_id: createdEvent.id,
         tag_id: tagId,
       })),
     );
@@ -1809,18 +2220,18 @@ export async function createEventAction(formData: FormData) {
   if (categoryIds.length > 0) {
     const { error: categoryError } = await supabase.from("event_categories").insert(
       categoryIds.map((categoryId) => ({
-        event_id: event.id,
+        event_id: createdEvent.id,
         category_id: categoryId,
       })),
     );
 
     if (categoryError) {
-      eventsRedirect("Eventet blev oprettet, men kategorierne kunne ikke gemmes.");
+      redirectWithMessage("Eventet blev oprettet, men kategorierne kunne ikke gemmes.");
     }
   }
 
   await createCoOrganizerInvitations(supabase, {
-    eventId: event.id,
+    eventId: createdEvent.id,
     eventStartsAt: startsAt,
     eventTitle: title,
     invitedByUserId: profile.id,
@@ -1840,13 +2251,13 @@ export async function createEventAction(formData: FormData) {
     await supabase.from("admin_audit_log").insert({
       actor_profile_id: profile.id,
       facilitator_id: facilitatorProfile.id,
-      event_id: event.id,
+      event_id: createdEvent.id,
       action: "event_published_by_facilitator",
       new_value: "active",
       reason: "direct_publish",
     });
-    await notifySubscribersWithoutBlockingPublication(event.id);
-    redirect("/facilitator/events?receipt=published&event=" + event.id);
+    await notifySubscribersWithoutBlockingPublication(createdEvent.id);
+    redirect("/facilitator/events?receipt=published&event=" + createdEvent.id);
   }
 
   redirect("/facilitator/events?receipt=review");
@@ -2284,6 +2695,7 @@ export async function copyEventAsDraftAction(formData: FormData) {
     subcategoryIds: sourceEvent.event_subcategories?.map((row: { subcategory_id: string }) => row.subcategory_id) ?? [],
     tagIds: sourceEvent.event_tags?.map((row: { tag_id: string }) => row.tag_id) ?? [],
   });
+  await copyEventGalleryImages(supabase, { sourceEventId, targetEventId: copiedEvent.id });
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/events");

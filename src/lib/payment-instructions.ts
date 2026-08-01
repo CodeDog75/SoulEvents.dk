@@ -88,6 +88,21 @@ export function hasPaymentInstructions(record: PaymentInstructionsRecord | null 
   );
 }
 
+export function hasStandardPaymentMethod(record: PaymentInstructionsRecord | null | undefined) {
+  if (!record) {
+    return false;
+  }
+
+  const hasMobilePay = Boolean(cleanText(record.payment_mobilepay_number));
+  const hasExternalUrl = Boolean(cleanText(record.payment_external_url));
+  const hasCompleteBankDetails = Boolean(
+    cleanText(record.payment_bank_registration_number) &&
+      cleanText(record.payment_bank_account_number),
+  );
+
+  return hasMobilePay || hasExternalUrl || hasCompleteBankDetails;
+}
+
 export function resolvePaymentRecord({
   event,
   facilitator,

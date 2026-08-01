@@ -915,12 +915,12 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
 
           {images.length > 0 && (
             <section className="rounded-card bg-white p-8 shadow-soft">
-              <h2 className="text-4xl font-medium text-olive">Billeder</h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <h2 className="text-4xl font-medium text-olive">Stemningsbilleder</h2>
+              <div className={`mt-4 grid gap-3 ${images.length === 1 ? "" : images.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
                 {images.map((image: { image_path: string; alt_text: string | null }) => (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    alt={image.alt_text || "Eventbillede"}
+                    alt={image.alt_text || `Stemningsbillede fra ${event.title}`}
                     className="aspect-[4/3] w-full rounded-[18px] object-cover shadow-soft"
                     key={image.image_path}
                     src={supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl}

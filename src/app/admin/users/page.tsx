@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Eye, Ticket } from "lucide-react";
+import { ArrowLeft, CalendarDays, Eye, Pencil, Ticket } from "lucide-react";
 import { getFacilitatorAdminStatus, type FacilitatorAdminStatus } from "@/components/admin/facilitator-status-badge";
 import { AdminUserSearchForm } from "@/components/admin/users/admin-user-search-form";
 import { UserRoleTable } from "@/components/admin/users/user-role-table";
@@ -761,6 +761,13 @@ function EventSearchResults({
                   >
                     <CalendarDays className="size-4" aria-hidden="true" />
                     Eventværktøjer
+                  </Link>
+                  <Link
+                    className="inline-flex h-9 items-center gap-2 rounded-md border border-[#D8CBE4] bg-[#F7F2FB] px-3 text-sm font-semibold text-[#6E5285] transition hover:border-[#C8B8D7] hover:bg-[#F1EAF5]"
+                    href={`/admin/events/${event.id}/edit?returnTo=${encodeURIComponent(returnHref)}`}
+                  >
+                    <Pencil className="size-4" aria-hidden="true" />
+                    Rediger event
                   </Link>
                   {event.facilitator_id ? (
                     <Link

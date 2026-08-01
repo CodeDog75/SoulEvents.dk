@@ -324,7 +324,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
             activeLimitMessage={hasReachedActiveLimit && limitStatus ? activeLimitMessage(limitStatus.maxActiveEvents) : null}
             initialStep={initialStep}
             message={eventFormMessage}
-            key={[prefillSource, prefillDate, prefillTitle].filter(Boolean).join(":") || "event-form"}
+            key={selectedDraft?.id ?? ([prefillSource, prefillDate, prefillTitle].filter(Boolean).join(":") || "event-form")}
             prefill={{
               date: prefillDate,
               source: prefillSource,
@@ -344,6 +344,16 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
                 ? {
                     ...selectedDraft,
                     coverImageUrl: selectedDraft.cover_image_path ? supabase.storage.from("media").getPublicUrl(selectedDraft.cover_image_path).data.publicUrl : null,
+                    eventImages:
+                      selectedDraft.event_images
+                        ?.slice()
+                        .sort((a: { sort_order: number | null }, b: { sort_order: number | null }) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+                        .map((image: { alt_text: string | null; image_path: string; sort_order: number | null }) => ({
+                          altText: image.alt_text ?? null,
+                          imagePath: image.image_path,
+                          imageUrl: image.image_path ? supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl : null,
+                          sortOrder: image.sort_order ?? 0,
+                        })) ?? [],
                     categoryIds: selectedDraft.event_categories?.map((row: CategoryRelationRow) => row.category_id) ?? [],
                     mainCategoryIds: selectedDraft.event_main_categories?.map((row: MainCategoryRelationRow) => row.main_category_id) ?? [],
                     subcategoryIds: selectedDraft.event_subcategories?.map((row: SubcategoryRelationRow) => row.subcategory_id) ?? [],

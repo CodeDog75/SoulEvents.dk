@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   Copy,
+  CreditCard,
   Eye,
   Inbox,
   Leaf,
@@ -40,6 +41,7 @@ import { parseProfileChangeRequest, type ProfileChangeRequest } from "@/lib/faci
 import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
 import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
 import { getFacilitatorUnreadAdminMessageCount } from "@/lib/facilitator/dashboard-data";
+import { hasStandardPaymentMethod, paymentSettingsToInstructionsRecord } from "@/lib/payment-instructions";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getMoonData, type MoonData } from "@/lib/weather/moon-data";
@@ -738,6 +740,33 @@ function BookingAttentionCard({
   );
 }
 
+function MissingPaymentSettingsCard() {
+  return (
+    <section className="rounded-[32px] border border-[#D8CBE4] bg-white p-5 shadow-[0_18px_45px_rgba(47,36,55,0.07)] sm:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <span className="mt-0.5 grid size-11 shrink-0 place-items-center rounded-full bg-[#F4F0F7] text-[#7A4EAB]">
+            <CreditCard className="size-5" aria-hidden="true" />
+          </span>
+          <div>
+            <h2 className="text-xl font-semibold text-[#2F2437]">Hvordan skal deltagerne betale?</h2>
+            <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-[#6E6475]">
+              Gem dine standardbetalingsoplysninger én gang, så du nemt kan genbruge dem på dine events.
+            </p>
+          </div>
+        </div>
+        <Link
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-[#D8CBE4] bg-[#F7F2FB] px-5 text-sm font-semibold text-[#6E5285] shadow-soft transition hover:-translate-y-0.5 hover:border-[#BFA9CF] hover:bg-[#F1EAF5]"
+          href="/facilitator/settings/payment"
+        >
+          Vælg betalingsmetode
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function ProfileChangesRequestedCard({
   canSubmit,
   request,
@@ -1225,6 +1254,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     { data: pendingBookingRows },
     { data: coOrganizerInvitations },
     { data: latestChangeRequest },
+    { data: facilitatorPaymentSettings },
   ] =
     facilitatorProfile
       ? await Promise.all([
@@ -1251,9 +1281,15 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
+          supabase
+            .from("facilitator_payment_settings")
+            .select("mobilepay_number, bank_registration_number, bank_account_number, bank_account_name, external_url, instructions, deadline_days")
+            .eq("facilitator_id", facilitatorProfile.id)
+            .maybeSingle(),
         ])
-      : [[], 0, { data: [] }, { data: [] }, { data: null }];
+      : [[], 0, { data: [] }, { data: [] }, { data: null }, { data: null }];
   const moonData = await moonDataPromise;
+  const hasReusablePaymentSettings = hasStandardPaymentMethod(paymentSettingsToInstructionsRecord(facilitatorPaymentSettings));
 
   const eventRows = events as any[];
   const currentPendingBookingRows = ((pendingBookingRows ?? []) as Array<{
@@ -1360,6 +1396,8 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           {onboardingState === "changes_requested" ? (
             <ProfileChangesRequestedCard canSubmit={profileReadiness.isComplete} request={profileChangeRequest} />
           ) : null}
+
+          {!hasReusablePaymentSettings ? <MissingPaymentSettingsCard /> : null}
 
           {profileReadiness.isComplete ? (
             <BookingAttentionCard
