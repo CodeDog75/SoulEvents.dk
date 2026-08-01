@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { cancelCoOrganizerInvitationAction, createEventAction, resendCoOrganizerInvitationAction, searchCoOrganizerCandidatesAction } from "@/app/facilitator/events/actions";
+import { formattedMaxEventDescriptionLength, maxEventDescriptionLength } from "@/lib/events/event-content-limits";
 import { sortTagsByDanishLabel } from "@/lib/events/tags";
 import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
 import { fetchDanishPostalCity, getLocalDanishPostalCity } from "@/lib/locations/danish-postal-codes";
@@ -386,7 +387,6 @@ function normalizeCoOrganizerSearchText(value: string | null | undefined) {
 
 const legacyEventDraftStorageKey = "soulevents:event-form-draft:v1";
 const eventDraftStoragePrefix = "soulevents:event-form-draft:v2";
-const maxEventDescriptionLength = 5000;
 const maxEventTags = 4;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 const danishTimeZone = "Europe/Copenhagen";
@@ -772,7 +772,8 @@ function EventDescriptionField({ defaultValue = "" }: { defaultValue?: string })
         required
       />
       <span className="text-xs leading-5 text-ink/52">
-        Fortæl kort, hvad der skal ske, hvem eventet er for, og hvad deltagerne kan forvente. Minimum {minimumCharacters} tegn.
+        Fortæl kort, hvad der skal ske, hvem eventet er for, og hvad deltagerne kan forvente. Minimum {minimumCharacters} tegn. Maks.{" "}
+        {formattedMaxEventDescriptionLength} tegn.
       </span>
       <span
         className={

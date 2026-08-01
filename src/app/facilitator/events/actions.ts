@@ -10,6 +10,7 @@ import {
 } from "@/lib/email/event-update-notification";
 import { sendCoOrganizerInvitationEmail, sendCoOrganizerRemovedEmail, sendCoOrganizerStatusEmail } from "@/lib/email/co-organizer-invitation";
 import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
+import { formattedMaxEventDescriptionLength, maxEventDescriptionLength } from "@/lib/events/event-content-limits";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
@@ -1640,8 +1641,8 @@ export async function createEventAction(formData: FormData) {
     redirectWithMessage("Beskrivelse af event skal være mindst 20 tegn.");
   }
 
-  if (eventDescription.length > 5000) {
-    redirectWithMessage("Beskrivelse af event må højst være 5000 tegn.");
+  if (eventDescription.length > maxEventDescriptionLength) {
+    redirectWithMessage("Beskrivelse af event må højst være " + formattedMaxEventDescriptionLength + " tegn.");
   }
 
   if ((status === "active" || status === "sold_out") && !currentCoverImagePath && !hasSubmittedEventCoverImage(formData)) {
