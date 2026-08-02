@@ -41,64 +41,60 @@ function moonDiscPath() {
   return "M 50 0 A 50 50 0 1 1 49.99 0 Z";
 }
 
-function circleSegmentAreaFraction(x: number) {
+function circleOverlapFraction(distance: number) {
   const radius = 50;
-  const offset = x - radius;
-  const clampedOffset = Math.min(radius, Math.max(-radius, offset));
+  const clampedDistance = Math.min(radius * 2, Math.max(0, distance));
+
+  if (clampedDistance <= 0) return 1;
+  if (clampedDistance >= radius * 2) return 0;
+
   const area =
-    clampedOffset * Math.sqrt(Math.max(0, radius * radius - clampedOffset * clampedOffset)) +
-    radius * radius * Math.asin(clampedOffset / radius) +
-    (Math.PI * radius * radius) / 2;
+    2 * radius * radius * Math.acos(clampedDistance / (2 * radius)) -
+    (clampedDistance / 2) * Math.sqrt(Math.max(0, 4 * radius * radius - clampedDistance * clampedDistance));
 
   return area / (Math.PI * radius * radius);
 }
 
-function xForCircleSegmentFraction(fraction: number) {
+function overlapDistanceForFraction(fraction: number) {
+  const target = Math.min(1, Math.max(0, fraction));
   let low = 0;
   let high = 100;
 
   for (let index = 0; index < 32; index += 1) {
     const mid = (low + high) / 2;
-    if (circleSegmentAreaFraction(mid) < fraction) {
-      low = mid;
-    } else {
+    if (circleOverlapFraction(mid) < target) {
       high = mid;
+    } else {
+      low = mid;
     }
   }
 
   return (low + high) / 2;
 }
 
-function moonShadowPath(direction: MoonDirection, percentage: number) {
+function moonShadowMask(direction: MoonDirection, percentage: number) {
   const shadow = clampIllumination(percentage);
 
   if (shadow <= 0.5) {
-    return "";
+    return null;
   }
 
   if (shadow >= 99.5) {
-    return moonDiscPath();
+    return {
+      fullShadow: true,
+      lightCenterX: 50,
+    };
   }
 
-  const shadowFraction = shadow / 100;
+  const illuminatedFraction = 1 - shadow / 100;
   const shadowSide = direction === "waxing" ? "left" : "right";
-  const x =
-    shadowSide === "left"
-      ? xForCircleSegmentFraction(shadowFraction)
-      : xForCircleSegmentFraction(1 - shadowFraction);
-  const radius = 50;
-  const yOffset = Math.sqrt(Math.max(0, radius * radius - (x - radius) * (x - radius)));
-  const yTop = radius - yOffset;
-  const yBottom = radius + yOffset;
-  const formattedX = x.toFixed(2);
-  const formattedTop = yTop.toFixed(2);
-  const formattedBottom = yBottom.toFixed(2);
+  const overlapDistance = overlapDistanceForFraction(illuminatedFraction);
+  const lightCenterX = 50 + (shadowSide === "left" ? overlapDistance : -overlapDistance);
 
-  if (shadowSide === "left") {
-    return `M ${formattedX} ${formattedTop} A 50 50 0 0 0 ${formattedX} ${formattedBottom} L ${formattedX} ${formattedTop} Z`;
-  }
-
-  return `M ${formattedX} ${formattedTop} L ${formattedX} ${formattedBottom} A 50 50 0 0 0 ${formattedX} ${formattedTop} Z`;
+  return {
+    fullShadow: false,
+    lightCenterX,
+  };
 }
 
 export function MoonPhase({
@@ -123,11 +119,11 @@ export function MoonPhase({
     phase.replace(/[^a-z0-9]+/gi, "-").toLowerCase() +
     "-" +
     Math.round(safeIllumination);
-  const shadowPath = moonShadowPath(shadowDirection, shadowPercentage);
-  const shadowClipId = clipId + "-shadow";
+  const shadowMask = moonShadowMask(shadowDirection, shadowPercentage);
+  const shadowMaskId = clipId + "-shadow";
   const moonTextureFilter = "brightness(1.12) contrast(1.16) saturate(0.58)";
   const shadowFillOpacity = safeIllumination <= 1 ? 0.9 : 0.82;
-  const hasShadowArea = Boolean(shadowPath);
+  const hasShadowArea = Boolean(shadowMask);
 
   return (
     <div
@@ -142,16 +138,20 @@ export function MoonPhase({
         aria-hidden="true"
       />
       <svg
-        className="soulevents-moon-body relative z-10 size-full overflow-visible"
+        className="soulevents-moon-body relative z-10 size-full overflow-hidden rounded-full"
         role="img"
         aria-label={altText}
         viewBox="0 0 100 100"
       >
         <defs>
-          {hasShadowArea ? (
-            <clipPath id={shadowClipId} clipPathUnits="userSpaceOnUse">
-              <path d={shadowPath} />
-            </clipPath>
+          {shadowMask ? (
+            <mask id={shadowMaskId} maskUnits="userSpaceOnUse">
+              <rect fill="black" height="100" width="100" x="0" y="0" />
+              <path d={moonDiscPath()} fill="white" />
+              {shadowMask.fullShadow ? null : (
+                <circle cx={shadowMask.lightCenterX} cy="50" fill="black" r="50" />
+              )}
+            </mask>
           ) : null}
         </defs>
 
@@ -168,11 +168,11 @@ export function MoonPhase({
         </g>
 
         {hasShadowArea ? (
-          <g clipPath={"url(#" + shadowClipId + ")"}>
+          <g mask={"url(#" + shadowMaskId + ")"}>
             <circle
               cx="50"
               cy="50"
-              fill="#2F3130"
+              fill="#252927"
               opacity={shadowFillOpacity}
               r="50"
             />
