@@ -37,7 +37,7 @@ const maxEventGalleryImages = 3;
 type ActiveCoOrganizerStatus = (typeof activeCoOrganizerStatuses)[number];
 
 const facilitatorProfileEventSelect =
-  "id, profile_id, host_reference_id, status, is_paused, is_disabled, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)";
+  "id, profile_id, host_reference_id, status, is_paused, is_disabled, company_name, city, postal_code, short_description, public_email, public_phone, facebook_url, instagram_url, max_ticket_price_per_person, allow_approval_required_registration, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)";
 type AdminClient = ReturnType<typeof createAdminClient>;
 type PaymentLinkMode = "external_registration" | "payment_only";
 type EventUpdateSnapshot = {
@@ -1540,7 +1540,15 @@ export async function createEventAction(formData: FormData) {
   const country = getOptionalString(formData, "country") || "Danmark";
   let regionId = getOptionalString(formData, "region_id");
   const priceCents = getPriceCents(formData);
-  const registrationMode = priceCents > 0 ? normalizeRegistrationMode(getString(formData, "registration_mode")) : "direct";
+  const requestedRegistrationMode = priceCents > 0 ? normalizeRegistrationMode(getString(formData, "registration_mode")) : "direct";
+  const canUseApprovalRequiredRegistration =
+    isAdminEventEdit || Boolean((facilitatorProfile as { allow_approval_required_registration?: boolean | null }).allow_approval_required_registration);
+  const canPreserveExistingApprovalRequired =
+    existingEventRegistrationMode === "approval_required" && requestedRegistrationMode === "approval_required";
+  const registrationMode =
+    priceCents > 0 && requestedRegistrationMode === "approval_required" && (canUseApprovalRequiredRegistration || canPreserveExistingApprovalRequired)
+      ? "approval_required"
+      : "direct";
   const paymentMethodSource = priceCents > 0 ? normalizePaymentMethodSource(getString(formData, "payment_method_source")) : "none";
   const paymentLinkMode: PaymentLinkMode =
     priceCents > 0 && paymentMethodSource === "custom" ? normalizePaymentLinkMode(getString(formData, "payment_link_mode")) : "payment_only";

@@ -334,6 +334,23 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
                 <input className="size-4 accent-sage-700" defaultChecked={Boolean(facilitator.auto_approve_events)} name="auto_approve_events" type="checkbox" />
                 Automatisk godkendelse af events
               </label>
+              <label className="flex items-start gap-3 rounded-md border border-[#D8CBE4] bg-white p-3 text-sm text-midnight md:col-span-2">
+                <input
+                  className="mt-1 size-4 accent-[#7A5D91]"
+                  defaultChecked={Boolean(facilitator.allow_approval_required_registration)}
+                  name="allow_approval_required_registration"
+                  type="checkbox"
+                />
+                <span>
+                  <span className="block font-semibold">Tillad reservation med godkendelse</span>
+                  <span className="mt-1 block leading-6 text-ink/62">
+                    Når denne er slået til, kan arrangøren vælge, at deltagere reserverer en plads, som arrangøren godkender før betaling.
+                  </span>
+                  <span className="mt-1 block leading-6 text-ink/52">
+                    Direkte tilmelding anbefales til almindelige events. Aktivér kun denne mulighed, når arrangøren har et konkret behov for at godkende deltagere.
+                  </span>
+                </span>
+              </label>
               <label className="flex items-center gap-3 rounded-md border border-midnight/10 bg-white p-3 text-sm font-semibold text-midnight">
                 <input className="size-4 accent-sage-700" defaultChecked={Boolean(facilitator.is_active_host)} name="is_active_host" type="checkbox" />
                 Aktiv Arrangør badge

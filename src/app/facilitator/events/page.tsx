@@ -115,7 +115,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
     supabase
       .from("facilitator_profiles")
       .select(
-        "id, status, company_name, short_description, address_line, postal_code, city, region_id, max_ticket_price_per_person, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)",
+        "id, status, company_name, short_description, address_line, postal_code, city, region_id, max_ticket_price_per_person, allow_approval_required_registration, facilitator_categories(category_id), profiles!facilitator_profiles_profile_id_fkey(email, phone)",
       )
       .eq("profile_id", profile.id)
       .single(),
@@ -426,6 +426,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
               paymentExternalUrl: facilitatorPaymentSettings?.external_url ?? null,
               paymentInstructions: facilitatorPaymentSettings?.instructions ?? null,
               paymentDeadlineDays: facilitatorPaymentSettings?.deadline_days ?? 14,
+              allowApprovalRequiredRegistration: facilitatorProfile.allow_approval_required_registration ?? false,
             }}
             regions={regions ?? []}
           />

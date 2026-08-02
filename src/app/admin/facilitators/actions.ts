@@ -1047,6 +1047,7 @@ export async function updateFacilitatorAdminSettingsAction(formData: FormData) {
 
   const supabase = createAdminClient();
   const updatePayload: Record<string, boolean | number | null> = {
+    allow_approval_required_registration: formData.get("allow_approval_required_registration") === "on",
     auto_approve_events: formData.get("auto_approve_events") === "on",
     featured_sort_order: Number.isFinite(featuredSortOrder) ? featuredSortOrder : 0,
     is_active_host: formData.get("is_active_host") === "on",
@@ -1109,6 +1110,8 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   const isActiveHost = formData.get("is_active_host") === "on";
   const isExperiencedHost = formData.get("is_experienced_host") === "on";
   const autoApproveEvents = formData.get("auto_approve_events") === "on";
+  const allowApprovalRequiredRegistration = formData.get("allow_approval_required_registration") === "on";
+  const hasApprovalRequiredRegistrationField = formData.has("allow_approval_required_registration");
   const featuredSortOrder = Number(getOptionalString(formData, "featured_sort_order") ?? 0);
   const hasUnlimitedTicketPrice = formData.get("unlimited_ticket_price") === "on";
   const rawMaxTicketPrice = getOptionalString(formData, "max_ticket_price_per_person");
@@ -1186,6 +1189,9 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
     is_experienced_host: isExperiencedHost,
     featured_sort_order: Number.isFinite(featuredSortOrder) ? featuredSortOrder : 0,
   };
+  if (hasApprovalRequiredRegistrationField) {
+    facilitatorUpdate.allow_approval_required_registration = allowApprovalRequiredRegistration;
+  }
   if (hasTicketPriceFields) {
     facilitatorUpdate.max_ticket_price_per_person = hasUnlimitedTicketPrice ? null : parsedMaxTicketPrice;
   }

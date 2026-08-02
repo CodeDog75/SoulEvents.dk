@@ -176,6 +176,7 @@ export type Database = {
           latitude: number | null;
           longitude: number | null;
           max_ticket_price_per_person: number | null;
+          allow_approval_required_registration: boolean;
           accepted_terms_at: string | null;
           accepted_privacy_at: string | null;
           accepted_guidelines_at: string | null;

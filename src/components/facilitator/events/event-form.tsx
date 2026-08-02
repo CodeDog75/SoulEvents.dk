@@ -206,6 +206,7 @@ type EventFormProps = {
     paymentExternalUrl?: string | null;
     paymentInstructions?: string | null;
     paymentDeadlineDays?: number | null;
+    allowApprovalRequiredRegistration?: boolean | null;
   };
 };
 
@@ -891,7 +892,7 @@ export function EventForm({
     draftEvent ? ((draftEvent.price_cents ?? 0) > 0 ? "paid" : "free") : "",
   );
   const [isFree, setIsFree] = useState((draftEvent?.price_cents ?? 0) === 0);
-  const initialRegistrationMode: EventRegistrationMode = draftEvent?.registration_mode ?? (draftEvent ? "approval_required" : "direct");
+  const initialRegistrationMode: EventRegistrationMode = draftEvent?.registration_mode ?? "direct";
   const [registrationMode, setRegistrationMode] = useState<EventRegistrationMode>(initialRegistrationMode);
   const hasCustomPaymentSettings = draftEvent?.payment_method_source === "custom";
   const standardPaymentMobilepayNumber = value(facilitator.paymentMobilepayNumber);
@@ -981,11 +982,16 @@ export function EventForm({
   const activeBookingCount = draftEvent?.activeBookingCount ?? 0;
   const registrationModeLocked = Boolean(draftEvent?.id && activeBookingCount > 0);
   const isAdminEditing = Boolean(adminContext);
+  const facilitatorAllowsApprovalRequired = Boolean(facilitator.allowApprovalRequiredRegistration);
+  const isExistingApprovalRequiredEvent = draftEvent?.registration_mode === "approval_required";
+  const canUseApprovalRequiredRegistration = isAdminEditing || facilitatorAllowsApprovalRequired || isExistingApprovalRequiredEvent;
+  const showRegistrationModeChoice = priceMode === "paid" && canUseApprovalRequiredRegistration;
+  const safeRegistrationMode = canUseApprovalRequiredRegistration ? registrationMode : "direct";
   const isSubmittingEventUpdate = isSavingWithoutEmail || isSavingAndSending;
   const primarySubmitStatus = isEditingPublishedEvent && draftEventStatus ? draftEventStatus : "active";
   const userDraftStorageKey = `${eventDraftStoragePrefix}:${facilitator.id}`;
   const draftStorageKey = draftEvent?.id ? `${userDraftStorageKey}:event:${draftEvent.id}` : `${userDraftStorageKey}:new`;
-  const effectiveRegistrationMode = priceMode === "paid" ? registrationMode : "direct";
+  const effectiveRegistrationMode = priceMode === "paid" ? safeRegistrationMode : "direct";
   const effectivePaymentMethodSource = priceMode === "paid" ? (paymentMethodChoice === "unique_link" ? "custom" : "facilitator") : "none";
   const usesExternalRegistrationLink =
     priceMode === "paid" && paymentMethodChoice === "unique_link" && paymentLinkMode === "external_registration";
@@ -3264,7 +3270,7 @@ export function EventForm({
         <input name="payment_instructions" type="hidden" value={priceMode === "paid" && !usesExternalRegistrationLink ? paymentInstructions : ""} />
         <input name="payment_deadline_days" type="hidden" value={priceMode === "paid" && !usesExternalRegistrationLink ? paymentDeadlineDays : ""} />
 
-        {priceMode === "paid" ? (
+        {showRegistrationModeChoice ? (
           <section className="grid min-w-0 gap-4 rounded-card border border-[#E5D4F7] bg-[#FBF8FE] p-4 sm:p-5">
             <div className="flex min-w-0 items-start gap-3">
               <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-[#7A4EAB] shadow-soft">
@@ -3277,6 +3283,16 @@ export function EventForm({
                 </p>
               </div>
             </div>
+            {isExistingApprovalRequiredEvent && !facilitatorAllowsApprovalRequired && !isAdminEditing ? (
+              <p className="rounded-card border border-[#E5D4F7] bg-white/75 px-4 py-3 text-sm leading-6 text-ink/66">
+                Dette eksisterende event bruger reservation med godkendelse. Du kan bevare modellen eller skifte til direkte tilmelding, men kan ikke vælge den igen på nye events uden hjælp fra SoulEvents.
+              </p>
+            ) : null}
+            {facilitatorAllowsApprovalRequired && !isAdminEditing ? (
+              <p className="rounded-card border border-[#E5D4F7] bg-white/75 px-4 py-3 text-sm leading-6 text-ink/66">
+                Denne ekstra tilmeldingsmulighed er aktiveret af SoulEvents.
+              </p>
+            ) : null}
 
             <div className="grid gap-3 md:grid-cols-2">
               <label
@@ -3340,7 +3356,7 @@ export function EventForm({
                   />
                 </span>
                 <span className="grid gap-2">
-                  <span className="block font-semibold">Godkend tilmeldinger først</span>
+                  <span className="block font-semibold">Reservation med godkendelse</span>
                   <span className="block leading-6 text-ink/62">
                     Deltageren reserverer en plads. Du godkender tilmeldingen, før betalingsoplysninger sendes.
                   </span>
@@ -3358,7 +3374,7 @@ export function EventForm({
           </section>
         ) : null}
 
-        {priceMode === "paid" ? (
+        {showRegistrationModeChoice ? (
           <div className="flex min-w-0 items-start gap-3 rounded-card border border-[#DDE8D7] bg-[#F4FAF2] p-4 text-sm text-sage-700">
             <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-sage-700 shadow-soft">
               <Lightbulb className="size-4" aria-hidden="true" />
@@ -3369,7 +3385,7 @@ export function EventForm({
                 <strong>Vælg “Direkte”</strong>, hvis alle må tilmelde sig med det samme.
               </p>
               <p className="leading-6">
-                <strong>Vælg “Godkend først”</strong>, hvis du ønsker at vurdere deltagerne, før de får en plads.
+                <strong>Vælg “Reservation med godkendelse”</strong>, hvis du ønsker at vurdere deltagerne, før de får en plads.
               </p>
             </div>
           </div>
