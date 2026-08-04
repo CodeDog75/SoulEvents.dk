@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import NextImage from "next/image";
-import type { ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,14 +14,16 @@ import {
   Eye,
   Hourglass,
   ImagePlus,
+  Info,
+  Landmark,
   Lightbulb,
-  Link as LinkIcon,
   Mail,
   MapPin,
   MonitorSmartphone,
   Plus,
   Save,
   Send,
+  Smartphone,
   Tags,
   Ticket,
   WalletCards,
@@ -205,7 +207,6 @@ type EventFormProps = {
     paymentBankAccountName?: string | null;
     paymentExternalUrl?: string | null;
     paymentInstructions?: string | null;
-    paymentDeadlineDays?: number | null;
     allowApprovalRequiredRegistration?: boolean | null;
   };
 };
@@ -222,6 +223,11 @@ type MissingInvitationItem = {
   label: string;
   step: number;
   targetId: string;
+};
+
+type SegmentedChoiceOption<Value extends string> = {
+  label: string;
+  value: Value;
 };
 
 function value(input: string | number | null | undefined) {
@@ -248,6 +254,87 @@ function readableTextColor(hex: string) {
 function softTagColor(index: number) {
   const palette = ["#7A5D91", "#86A478", "#C0808F", "#6B7F9E", "#C9A66B", "#8C6F5B", "#6FA89C", "#A47FB5"];
   return palette[index % palette.length];
+}
+
+function SegmentedChoice<Value extends string>({
+  "aria-labelledby": ariaLabelledBy,
+  name,
+  onValueChange,
+  options,
+  value: selectedValue,
+}: {
+  "aria-labelledby": string;
+  name?: string;
+  onValueChange: (value: Value) => void;
+  options: Array<SegmentedChoiceOption<Value>>;
+  value: Value | "";
+}) {
+  const selectedIndex = options.findIndex((option) => option.value === selectedValue);
+  const tabbableIndex = selectedIndex >= 0 ? selectedIndex : 0;
+
+  function moveSelection(event: KeyboardEvent<HTMLButtonElement>, nextIndex: number) {
+    event.preventDefault();
+    const nextOption = options[nextIndex];
+    if (!nextOption) return;
+    onValueChange(nextOption.value);
+    event.currentTarget.parentElement
+      ?.querySelectorAll<HTMLButtonElement>("[role='radio']")
+      [nextIndex]?.focus();
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      moveSelection(event, (index + 1) % options.length);
+      return;
+    }
+
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      moveSelection(event, (index - 1 + options.length) % options.length);
+      return;
+    }
+
+    if (event.key === "Home") {
+      moveSelection(event, 0);
+      return;
+    }
+
+    if (event.key === "End") {
+      moveSelection(event, options.length - 1);
+    }
+  }
+
+  return (
+    <div
+      aria-labelledby={ariaLabelledBy}
+      className="inline-grid w-full min-w-0 cursor-default grid-cols-2 gap-1 rounded-full border border-[#D8CBE4] bg-white/70 p-1 shadow-sm sm:w-auto sm:min-w-[245px]"
+      role="radiogroup"
+    >
+      {name ? <input name={name} type="hidden" value={selectedValue} /> : null}
+      {options.map((option, index) => {
+        const checked = selectedValue === option.value;
+
+        return (
+          <button
+            aria-checked={checked}
+            className={
+              "inline-flex h-8 cursor-pointer items-center justify-center rounded-full border px-3 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A5D91] active:translate-y-px sm:h-9 sm:text-sm " +
+              (checked
+                ? "border-[#7A5D91] bg-[#7A5D91] text-white shadow-soft"
+                : "border-transparent bg-white text-[#2F2437] hover:border-[#7A5D91]/55 hover:bg-[#F7F1FC]")
+            }
+            key={option.value}
+            onClick={() => onValueChange(option.value)}
+            onKeyDown={(event) => handleKeyDown(event, index)}
+            role="radio"
+            tabIndex={index === tabbableIndex ? 0 : -1}
+            type="button"
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function MainCategoryCard({
@@ -391,12 +478,6 @@ const eventDraftStoragePrefix = "soulevents:event-form-draft:v2";
 const maxEventTags = 4;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 const danishTimeZone = "Europe/Copenhagen";
-const paymentDeadlineOptions = [
-  { label: "3 dage efter bekræftelse", value: "3" },
-  { label: "5 dage efter bekræftelse", value: "5" },
-  { label: "14 dage efter bekræftelse", value: "14" },
-  { label: "Senest på eventdagen", value: "60" },
-];
 const timeOptions = Array.from({ length: 96 }, (_, index) => {
   const hour = String(Math.floor(index / 4)).padStart(2, "0");
   const minute = String((index % 4) * 15).padStart(2, "0");
@@ -889,7 +970,7 @@ export function EventForm({
   const [hasChosenEventFormat, setHasChosenEventFormat] = useState(Boolean(draftEvent?.event_format));
   const [sendOnlineLinkLater, setSendOnlineLinkLater] = useState(draftEvent?.online_url_or_note === onlineLinkLaterText);
   const [priceMode, setPriceMode] = useState<"" | "free" | "paid">(
-    draftEvent ? ((draftEvent.price_cents ?? 0) > 0 ? "paid" : "free") : "",
+    draftEvent ? ((draftEvent.price_cents ?? 0) > 0 ? "paid" : "free") : "paid",
   );
   const [isFree, setIsFree] = useState((draftEvent?.price_cents ?? 0) === 0);
   const initialRegistrationMode: EventRegistrationMode = draftEvent?.registration_mode ?? "direct";
@@ -900,27 +981,50 @@ export function EventForm({
   const standardPaymentBankAccountNumber = value(facilitator.paymentBankAccountNumber);
   const standardPaymentBankAccountName = value(facilitator.paymentBankAccountName);
   const standardPaymentExternalUrl = value(facilitator.paymentExternalUrl);
+  const standardPaymentInstructions = value(facilitator.paymentInstructions);
   const hasStandardPaymentSettings = hasStandardPaymentMethod({
     payment_bank_account_number: standardPaymentBankAccountNumber,
     payment_bank_registration_number: standardPaymentBankRegistrationNumber,
     payment_external_url: standardPaymentExternalUrl,
+    payment_instructions: standardPaymentInstructions,
     payment_mobilepay_number: standardPaymentMobilepayNumber,
   });
-  const initialPaymentMethodChoice: PaymentMethodChoice = hasCustomPaymentSettings || !hasStandardPaymentSettings ? "unique_link" : "standard";
+  const standardPaymentMethodBadges: Array<{ icon: ReactNode; label: string }> = [];
+
+  if (standardPaymentMobilepayNumber) {
+    standardPaymentMethodBadges.push({
+      icon: <Smartphone className="size-3.5" aria-hidden="true" />,
+      label: "MobilePay",
+    });
+  }
+
+  if (standardPaymentBankRegistrationNumber && standardPaymentBankAccountNumber) {
+    standardPaymentMethodBadges.push({
+      icon: <Landmark className="size-3.5" aria-hidden="true" />,
+      label: "Bank",
+    });
+  }
+
+  if (standardPaymentInstructions) {
+    standardPaymentMethodBadges.push({
+      icon: <WalletCards className="size-3.5" aria-hidden="true" />,
+      label: "Kontant",
+    });
+  }
+
+  const initialPaymentMethodChoice: PaymentMethodChoice = hasCustomPaymentSettings ? "unique_link" : "standard";
   const initialPaymentLinkMode: PaymentLinkMode =
     draftEvent?.payment_link_mode === "external_registration" || draftEvent?.payment_link_mode === "payment_only"
       ? draftEvent.payment_link_mode
       : draftEvent
         ? "payment_only"
-        : "external_registration";
+        : "payment_only";
   const initialPaymentExternalUrl = hasCustomPaymentSettings ? value(draftEvent?.payment_external_url) : "";
-  const initialPaymentInstructions = value(draftEvent?.payment_instructions);
-  const initialPaymentDeadlineDays = value(draftEvent?.payment_deadline_days ?? facilitator.paymentDeadlineDays ?? 14);
   const [paymentMethodChoice, setPaymentMethodChoice] = useState<PaymentMethodChoice>(initialPaymentMethodChoice);
   const [paymentLinkMode, setPaymentLinkMode] = useState<PaymentLinkMode>(initialPaymentLinkMode);
   const [paymentExternalUrl, setPaymentExternalUrl] = useState(initialPaymentExternalUrl);
-  const [paymentInstructions, setPaymentInstructions] = useState(initialPaymentInstructions);
-  const [paymentDeadlineDays, setPaymentDeadlineDays] = useState(initialPaymentDeadlineDays);
+  const [isPaymentInfoOpen, setIsPaymentInfoOpen] = useState(false);
+  const paymentInfoRef = useRef<HTMLDivElement | null>(null);
   const [selectedMainCategoryIds, setSelectedMainCategoryIds] = useState<string[]>(draftEvent?.mainCategoryIds ?? []);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>((draftEvent?.tagIds ?? []).slice(0, maxEventTags));
   const sortedTags = useMemo(() => sortTagsByDanishLabel(tags), [tags]);
@@ -985,16 +1089,22 @@ export function EventForm({
   const facilitatorAllowsApprovalRequired = Boolean(facilitator.allowApprovalRequiredRegistration);
   const isExistingApprovalRequiredEvent = draftEvent?.registration_mode === "approval_required";
   const canUseApprovalRequiredRegistration = isAdminEditing || facilitatorAllowsApprovalRequired || isExistingApprovalRequiredEvent;
-  const showRegistrationModeChoice = priceMode === "paid" && canUseApprovalRequiredRegistration;
+  const showRegistrationModeChoice = priceMode === "paid" && isExistingApprovalRequiredEvent && canUseApprovalRequiredRegistration;
   const safeRegistrationMode = canUseApprovalRequiredRegistration ? registrationMode : "direct";
   const isSubmittingEventUpdate = isSavingWithoutEmail || isSavingAndSending;
   const primarySubmitStatus = isEditingPublishedEvent && draftEventStatus ? draftEventStatus : "active";
   const userDraftStorageKey = `${eventDraftStoragePrefix}:${facilitator.id}`;
   const draftStorageKey = draftEvent?.id ? `${userDraftStorageKey}:event:${draftEvent.id}` : `${userDraftStorageKey}:new`;
-  const effectiveRegistrationMode = priceMode === "paid" ? safeRegistrationMode : "direct";
-  const effectivePaymentMethodSource = priceMode === "paid" ? (paymentMethodChoice === "unique_link" ? "custom" : "facilitator") : "none";
-  const usesExternalRegistrationLink =
-    priceMode === "paid" && paymentMethodChoice === "unique_link" && paymentLinkMode === "external_registration";
+  const paymentSettingsReturnTo = "/facilitator/events?" + new URLSearchParams({
+    ...(draftEvent?.id ? { draft: draftEvent.id } : {}),
+    step: "2",
+  }).toString();
+  const paymentSettingsHref = "/facilitator/settings/payment?return_to=" + encodeURIComponent(paymentSettingsReturnTo);
+  const usesExternalRegistrationLink = priceMode === "paid" && paymentLinkMode === "external_registration";
+  const usesClassicPayment = priceMode === "paid" && !usesExternalRegistrationLink;
+  const requiresExternalUrl = usesExternalRegistrationLink;
+  const effectiveRegistrationMode = priceMode === "paid" && !usesExternalRegistrationLink ? safeRegistrationMode : "direct";
+  const effectivePaymentMethodSource = usesExternalRegistrationLink ? "custom" : priceMode === "paid" ? "facilitator" : "none";
   const statusHelp = useMemo(
     () =>
       "Når du gør eventet offentligt, bliver det synligt med det samme, hvis din arrangørprofil er godkendt og eventet er klar.",
@@ -1058,14 +1168,14 @@ export function EventForm({
   const steps: Step[] = [
     { icon: <CalendarPlus className="size-4" />, label: "Invitation", title: "Hvad vil du invitere til?" },
     { icon: <MapPin className="size-4" />, label: "Sted", title: "Hvor foregår oplevelsen?" },
-    { icon: <Ticket className="size-4" />, label: "Pris", title: "Pris & antal deltagere" },
+    { icon: <Ticket className="size-4" />, label: "Pris", title: "Pris & betaling" },
     { icon: <Tags className="size-4" />, label: "Findbarhed", title: "Vælg 1-3 kategorier, som bedst beskriver dit event." },
   ];
 
   const stepDescriptions = [
     "Giv eventet et navn, beskriv oplevelsen og vælg tidspunkt.",
     "Vælg om eventet foregår fysisk eller online.",
-    "Tilføj pris, antal deltagere og eventuelle praktiske oplysninger.",
+    "Vælg pris og hvordan deltagerne skal betale.",
     "Vælg brede hovedkategorier og eventuelle tags.",
   ];
   const [missingInvitationItems, setMissingInvitationItems] = useState<MissingInvitationItem[]>([]);
@@ -1719,7 +1829,7 @@ export function EventForm({
       date: startDateValue === endDateValue ? formatReviewDate(startDateValue) : formatReviewDate(startDateValue) + " - " + formatReviewDate(endDateValue),
       time: startTimeValue && endTimeValue ? startTimeValue + " - " + endTimeValue : "Tidspunkt mangler",
       location: eventFormat === "online" ? onlineLink || "Online-link mangler" : address || "Adresse mangler",
-      capacity: String(data.get("capacity") ?? "").trim() || "Ikke angivet",
+      capacity: usesExternalRegistrationLink ? "Styres i dit betalingssystem" : String(data.get("capacity") ?? "").trim() || "Ikke angivet",
       categories: categoryNames,
       tags: tagNames,
       coverImageUrl: currentCoverImageUrl,
@@ -1754,9 +1864,9 @@ export function EventForm({
       const numericPrice = Number(priceValue || 0);
       if (priceMode !== "free" && priceMode !== "paid") return "missing";
       if (priceMode === "paid" && (!hasValidPrice || numericPrice <= 0)) return "missing";
-      if (priceMode === "paid" && paymentMethodChoice === "standard" && !hasStandardPaymentSettings) return "missing";
-      if (priceMode === "paid" && paymentMethodChoice === "unique_link" && !isValidHttpUrl(paymentExternalUrl.trim())) return "missing";
-      if (usesExternalRegistrationLink && registrationMode !== "direct") return "missing";
+      if (usesClassicPayment && !hasStandardPaymentSettings) return "missing";
+      if (priceMode === "paid" && requiresExternalUrl && !isValidHttpUrl(paymentExternalUrl.trim())) return "missing";
+      if (usesExternalRegistrationLink) return "complete";
       return capacityValue > 0 && capacityValue <= 500 ? "complete" : "missing";
     }
 
@@ -1772,6 +1882,7 @@ export function EventForm({
     const data = form ? new FormData(form) : null;
     const text = (name: string) => String(data?.get(name) || "").trim();
     const selectedCategories = data?.getAll("main_category_ids").map(String).filter(Boolean) ?? [];
+    const stepCapacityValue = Number(text("capacity") || 0);
     const missing: MissingInvitationItem[] = [];
     const addMissing = (item: MissingInvitationItem) => {
       if (!missing.some((currentItem) => currentItem.key === item.key)) {
@@ -1805,37 +1916,27 @@ export function EventForm({
       addMissing({ key: "price-mode", label: "Prisvalg", step: 2, targetId: "event-price-field" });
     }
 
-    if (getStepStatus(2) !== "complete") {
+    if (!usesExternalRegistrationLink && (stepCapacityValue <= 0 || stepCapacityValue > 500)) {
       addMissing({ focusSelector: "[name='capacity']", key: "capacity", label: "Pris og antal deltagere", step: 2, targetId: "event-price-field" });
     }
 
-    if (priceMode === "paid" && paymentMethodChoice === "standard" && !hasStandardPaymentSettings) {
+    if (usesClassicPayment && !hasStandardPaymentSettings) {
       addMissing({
-        focusSelector: "[name='payment_method_choice'][value='standard']",
+        focusSelector: "[name='payment_method_choice'][value='classic']",
         key: "payment-standard",
-        label: "Standardbetalingsoplysninger",
+        label: "Betalingsmetoder",
         step: 2,
         targetId: "event-payment-field",
       });
     }
 
-    if (priceMode === "paid" && paymentMethodChoice === "unique_link" && !isValidHttpUrl(paymentExternalUrl.trim())) {
+    if (priceMode === "paid" && requiresExternalUrl && !isValidHttpUrl(paymentExternalUrl.trim())) {
       addMissing({
         focusSelector: "[name='payment_external_url']",
         key: "payment-link",
         label: "Betalingslink",
         step: 2,
         targetId: "event-payment-field",
-      });
-    }
-
-    if (usesExternalRegistrationLink && registrationMode !== "direct") {
-      addMissing({
-        focusSelector: "[name='registration_mode_choice'][value='direct']",
-        key: "registration-mode-external-link",
-        label: "Direkte tilmelding",
-        step: 2,
-        targetId: "event-price-field",
       });
     }
 
@@ -1970,9 +2071,7 @@ export function EventForm({
           eventFormat: String(formData.get("event_format") || eventFormat),
           hasChosenEventFormat,
           isForeignLocation,
-          paymentDeadlineDays,
           paymentExternalUrl,
-          paymentInstructions,
           paymentLinkMode,
           paymentMethodChoice,
           registrationMode,
@@ -2106,8 +2205,6 @@ export function EventForm({
         : initialPaymentLinkMode,
     );
     setPaymentExternalUrl(draft.state?.paymentExternalUrl ?? initialPaymentExternalUrl);
-    setPaymentInstructions(draft.state?.paymentInstructions ?? initialPaymentInstructions);
-    setPaymentDeadlineDays(draft.state?.paymentDeadlineDays ?? initialPaymentDeadlineDays);
     setSendOnlineLinkLater(Boolean(draft.state?.sendOnlineLinkLater));
     setCapacityValue(draft.state?.capacityValue ?? String(draftEvent?.capacity ?? 12));
     setSelectedMainCategoryIds(Array.isArray(draft.state?.selectedMainCategoryIds) ? draft.state.selectedMainCategoryIds : []);
@@ -2202,9 +2299,7 @@ export function EventForm({
     hasChosenEventFormat,
     isForeignLocation,
     isFree,
-    paymentDeadlineDays,
     paymentExternalUrl,
-    paymentInstructions,
     paymentLinkMode,
     paymentMethodChoice,
     postalCode,
@@ -2216,6 +2311,30 @@ export function EventForm({
     startDate,
     startTime,
   ]);
+
+  useEffect(() => {
+    if (!isPaymentInfoOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && paymentInfoRef.current?.contains(target)) return;
+      setIsPaymentInfoOpen(false);
+    }
+
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsPaymentInfoOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isPaymentInfoOpen]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -2271,12 +2390,37 @@ export function EventForm({
       : "border-[#D8CBE4] bg-[#F4F0F7] text-[#7A5D91]";
     const headerLayoutClass =
       index === 1 || index === 2 ? "flex-col items-stretch sm:flex-row sm:items-center" : "items-center";
-    const radioGroupClass = "grid w-full min-w-0 grid-cols-2 gap-2 sm:w-auto sm:min-w-[245px]";
-    const radioPillClass = (checked: boolean) =>
-      "inline-flex h-9 cursor-pointer items-center justify-center rounded-full border px-3 text-xs font-semibold transition sm:h-10 sm:text-sm " +
-      (checked
-        ? "border-[#7A5D91] bg-[#7A5D91] text-white shadow-soft"
-        : "border-[#D8CBE4] bg-white text-[#2F2437] hover:border-[#7A5D91]");
+
+    function chooseEventFormat(nextFormat: "physical" | "online") {
+      writeDraft();
+      setEventFormat(nextFormat);
+      setHasChosenEventFormat(true);
+      openStep(1);
+      window.setTimeout(() => {
+        restoreDraftFields();
+        showPreview();
+        refreshFormValidationState();
+      }, 0);
+    }
+
+    function choosePriceMode(nextMode: "free" | "paid") {
+      writeDraft();
+      setPriceMode(nextMode);
+      openStep(2);
+      if (nextMode === "free") {
+        setIsFree(true);
+        setPriceValue("0");
+      }
+      if (nextMode === "paid") {
+        setIsFree(false);
+        if (priceValue === "0") setPriceValue("");
+      }
+      window.setTimeout(() => {
+        restoreDraftFields();
+        showPreview();
+        refreshFormValidationState();
+      }, 0);
+    }
 
     return (
       <div className={"flex w-full min-w-0 gap-3 rounded-[18px] border px-4 py-3 transition " + headerLayoutClass + " " + statusClass}>
@@ -2300,34 +2444,16 @@ export function EventForm({
           </span>
         ) : null}
         {index === 1 ? (
-          <div aria-labelledby="event-format-header-label" className={radioGroupClass} role="radiogroup">
-            {[
-              { label: "Personligt", value: "physical" },
+          <SegmentedChoice
+            aria-labelledby="event-format-header-label"
+            name="event_format"
+            onValueChange={chooseEventFormat}
+            options={[
+              { label: "Fysisk", value: "physical" },
               { label: "Online", value: "online" },
-            ].map((option) => (
-              <label className={radioPillClass(hasChosenEventFormat && eventFormat === option.value)} key={option.value}>
-                <input
-                  checked={hasChosenEventFormat && eventFormat === option.value}
-                  className="sr-only"
-                  name="event_format"
-                  onChange={() => {
-                    writeDraft();
-                    setEventFormat(option.value as "physical" | "online");
-                    setHasChosenEventFormat(true);
-                    openStep(1);
-                    window.setTimeout(() => {
-                      restoreDraftFields();
-                      showPreview();
-                      refreshFormValidationState();
-                    }, 0);
-                  }}
-                  type="radio"
-                  value={option.value}
-                />
-                {option.label}
-              </label>
-            ))}
-          </div>
+            ]}
+            value={hasChosenEventFormat ? eventFormat : ""}
+          />
         ) : null}
 
         {index === 2 ? (
@@ -2336,40 +2462,15 @@ export function EventForm({
           </span>
         ) : null}
         {index === 2 ? (
-          <div aria-labelledby="event-price-header-label" className={radioGroupClass} role="radiogroup">
-            {[
-              { label: "Gratis", value: "free" },
+          <SegmentedChoice
+            aria-labelledby="event-price-header-label"
+            onValueChange={choosePriceMode}
+            options={[
               { label: "Betaling", value: "paid" },
-            ].map((option) => (
-              <label className={radioPillClass(priceMode === option.value)} key={option.value}>
-                <input
-                  checked={priceMode === option.value}
-                  className="sr-only"
-                  onChange={() => {
-                    const nextMode = option.value as "free" | "paid";
-                    writeDraft();
-                    setPriceMode(nextMode);
-                    openStep(2);
-                    if (nextMode === "free") {
-                      setIsFree(true);
-                      setPriceValue("0");
-                    }
-                    if (nextMode === "paid") {
-                      setIsFree(false);
-                      if (priceValue === "0") setPriceValue("");
-                    }
-                    window.setTimeout(() => {
-                      restoreDraftFields();
-                      showPreview();
-                      refreshFormValidationState();
-                    }, 0);
-                  }}
-                  type="radio"
-                />
-                {option.label}
-              </label>
-            ))}
-          </div>
+              { label: "Gratis", value: "free" },
+            ]}
+            value={priceMode}
+          />
         ) : null}
 
         {index !== 1 && index !== 2 ? (
@@ -2574,6 +2675,7 @@ export function EventForm({
       action={createEventAction}
       autoComplete="off"
       className="grid w-full max-w-full gap-5 overflow-x-hidden sm:gap-6"
+      encType="multipart/form-data"
       noValidate
       onChange={() => {
         setFormVersion((version) => version + 1);
@@ -3207,53 +3309,250 @@ export function EventForm({
             Vælg først gratis eller betaling i trinlinjen ovenfor.
           </p>
         ) : null}
-        <div className="grid min-w-0 gap-4 md:grid-cols-2 md:items-stretch">
-          {priceMode === "paid" ? (
-            <label className="grid min-h-[180px] content-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-5 text-sm font-medium text-ink/72 shadow-soft">
-              <span>Pris i kr.</span>
-              <input
-                autoComplete="off"
-                className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(priceValue)}
-                inputMode="numeric"
-                maxLength={5}
-                name="price"
-                onChange={(event) => handlePriceChange(event.currentTarget.value)}
-                pattern="[0-9]*"
-                type="text"
-                value={priceValue}
-              />
-              <span className="text-xs leading-5 text-ink/52">Pris inklusive moms.</span>
-            </label>
-          ) : (
-            <input name="price" type="hidden" value="0" />
-          )}
+        {priceMode === "paid" ? (
+          <section
+            className="grid min-w-0 gap-3 rounded-card border border-[#E5D4F7] bg-[#FBF8FE] p-3 sm:p-4"
+            id="event-payment-field"
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-[#7A4EAB] shadow-soft">
+                <CreditCard className="size-4" aria-hidden="true" />
+              </span>
+              <div className="relative min-w-0" ref={paymentInfoRef}>
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <h3 className="text-base font-semibold text-midnight">Hvordan skal deltagerne betale?</h3>
+                  <button
+                    aria-controls="payment-method-info"
+                    aria-expanded={isPaymentInfoOpen}
+                    aria-label="Vis forskellen på betalingsmetoder"
+                    className="inline-grid size-7 shrink-0 cursor-pointer place-items-center rounded-full border border-[#D8CBE4] bg-white text-[#7A4EAB] transition hover:border-[#7A4EAB]/45 hover:bg-[#F7F1FC] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A4EAB]"
+                    onClick={() => setIsPaymentInfoOpen((current) => !current)}
+                    type="button"
+                  >
+                    <Info className="size-3.5" aria-hidden="true" />
+                  </button>
+                </span>
+                {isPaymentInfoOpen ? (
+                  <div
+                    aria-label="Forskel på betalingsmetoder"
+                    className="absolute left-0 top-full z-30 mt-2 grid w-[min(34rem,calc(100vw-3rem))] gap-3 rounded-card border border-[#E5D4F7] bg-white p-4 text-sm leading-6 text-ink/70 shadow-soft"
+                    id="payment-method-info"
+                    role="dialog"
+                  >
+                    <div>
+                      <p className="font-semibold text-midnight">Klassisk betaling</p>
+                      <p>SoulEvents registrerer deltagere, holder styr på ledige pladser og markerer automatisk eventet som udsolgt.</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-midnight">Betalingslink</p>
+                      <p>Deltageren sendes videre til dit eget betalingssystem. SoulEvents registrerer ikke deltagere eller ledige pladser. Du opdaterer selv eventets status til Udsolgt, indtil SoulEvents understøtter integration.</p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
 
-          {priceMode === "free" ? (
+            <div className="grid gap-2 md:grid-cols-2">
+              <label
+                className={
+                  "flex min-w-0 cursor-pointer items-center justify-between gap-3 rounded-card border bg-white px-3 py-2.5 text-sm text-midnight shadow-sm transition " +
+                  (usesClassicPayment
+                    ? "border-[#7A4EAB] bg-[#F7F1FC] ring-2 ring-[#CDB4EA]/65"
+                    : "border-midnight/10 hover:border-[#7A4EAB]/35")
+                }
+              >
+                <span className="grid gap-0.5">
+                  <span className="font-semibold">Klassisk betaling</span>
+                  <span className="block text-xs leading-5 text-ink/62">
+                    MobilePay, bank eller kontant.
+                  </span>
+                </span>
+                <input
+                  checked={usesClassicPayment}
+                  className="size-5 shrink-0 border-midnight/20 accent-[#7A4EAB]"
+                  name="payment_method_choice"
+                  onChange={() => {
+                    setIsPaymentInfoOpen(false);
+                    setPaymentMethodChoice("standard");
+                    setPaymentLinkMode("payment_only");
+                  }}
+                  type="radio"
+                  value="classic"
+                />
+              </label>
+
+              <label
+                className={
+                  "flex min-w-0 cursor-pointer items-center justify-between gap-3 rounded-card border bg-white px-3 py-2.5 text-sm text-midnight shadow-sm transition " +
+                  (usesExternalRegistrationLink
+                    ? "border-[#7A4EAB] bg-[#F7F1FC] ring-2 ring-[#CDB4EA]/65"
+                    : "border-midnight/10 hover:border-[#7A4EAB]/35")
+                }
+              >
+                <span className="grid gap-0.5">
+                  <span className="font-semibold">Betalingslink</span>
+                  <span className="block text-xs leading-5 text-ink/62">
+                    Billetto, EasyMe, NemTilmeld m.fl.
+                  </span>
+                </span>
+                <input
+                  checked={usesExternalRegistrationLink}
+                  className="size-5 shrink-0 border-midnight/20 accent-[#7A4EAB]"
+                  name="payment_method_choice"
+                  onChange={() => {
+                    setIsPaymentInfoOpen(false);
+                    setPaymentLinkMode("external_registration");
+                    setPaymentMethodChoice("unique_link");
+                    if (!registrationModeLocked) {
+                      setRegistrationMode("direct");
+                    }
+                  }}
+                  type="radio"
+                  value="payment_link"
+                />
+              </label>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              {requiresExternalUrl ? (
+                <div className="grid min-w-0 gap-3 rounded-card border border-[#D8CBE4] bg-white p-4 shadow-soft transition focus-within:border-[#7A4EAB] focus-within:bg-[#FBF8FE] focus-within:ring-4 focus-within:ring-[#CDB4EA]/70 md:col-span-2">
+                  <div>
+                    <h4 className="text-base font-semibold text-midnight">🔗 Dit betalingslink</h4>
+                    <p className="mt-1 text-sm leading-6 text-ink/62">
+                      Indsæt linket til den side, hvor deltageren gennemfører betaling eller tilmelding.
+                    </p>
+                  </div>
+                  <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
+                    Betalingslink
+                    <input
+                      className="h-14 min-w-0 rounded-card border border-midnight/10 bg-white px-4 text-base font-medium text-midnight outline-none transition placeholder:text-ink/38 focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                      maxLength={300}
+                      name="payment_external_url"
+                      onChange={(event) => {
+                        setPaymentExternalUrl(event.currentTarget.value);
+                      }}
+                      placeholder="https://billetto.dk/..."
+                      required
+                      type="url"
+                      value={paymentExternalUrl}
+                    />
+                  </label>
+                </div>
+              ) : null}
+
+              <label className={(usesExternalRegistrationLink ? "md:col-span-2 " : "") + "grid min-w-0 gap-2 text-sm font-semibold text-midnight"}>
+                Pris pr. deltager
+                <span className="relative block">
+                  <input
+                    autoComplete="off"
+                    className={"h-12 w-full min-w-0 rounded-card border py-0 pl-4 pr-14 text-base font-semibold text-midnight outline-none transition placeholder:text-sm placeholder:font-medium placeholder:text-ink/38 focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(priceValue)}
+                    inputMode="numeric"
+                    maxLength={5}
+                    name="price"
+                    onChange={(event) => handlePriceChange(event.currentTarget.value)}
+                    pattern="[0-9]*"
+                    placeholder="Indtast pris"
+                    type="text"
+                    value={priceValue}
+                  />
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-ink/58">
+                    kr.
+                  </span>
+                </span>
+                <span className="text-xs leading-5 text-ink/58">Prisen er pr. deltager og angives inkl. moms.</span>
+              </label>
+
+              {usesClassicPayment ? (
+                <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
+                  Maks. antal deltagere
+                  <input
+                    autoComplete="off"
+                    className={"h-12 w-full min-w-0 rounded-card border px-4 text-base font-normal text-midnight outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(capacityValue)}
+                    inputMode="numeric"
+                    maxLength={3}
+                    name="capacity"
+                    onChange={(event) => {
+                      const normalizedValue = event.currentTarget.value.replace(/\D/g, "").slice(0, 3);
+                      setCapacityValue(normalizedValue);
+                    }}
+                    pattern="[0-9]*"
+                    type="text"
+                    value={capacityValue}
+                  />
+                  <span className="text-xs leading-5 text-ink/52">Maks. 500 deltagere.</span>
+                </label>
+              ) : (
+                <input name="capacity" type="hidden" value={capacityValue || "1"} />
+              )}
+
+              {usesClassicPayment ? (
+                <div className="grid gap-3 rounded-card border border-[#E5D4F7] bg-white/70 p-3 text-sm text-midnight md:col-span-2">
+                  <span className="font-semibold">Betalingsmetoder</span>
+                  <span className="grid gap-2">
+                    <span className="text-sm leading-6 text-ink/62">Deltageren modtager dine betalingsoplysninger efter tilmelding.</span>
+                    {standardPaymentMethodBadges.length > 0 ? (
+                      <span className="flex flex-wrap gap-2" aria-label="Opsatte standardbetalingsmetoder">
+                        {standardPaymentMethodBadges.map((badge) => (
+                          <span
+                            className="inline-flex items-center gap-1.5 rounded-full border border-[#D8CBE4] bg-white/85 px-2.5 py-1 text-xs font-semibold text-[#6E5285]"
+                            key={badge.label}
+                          >
+                            {badge.icon}
+                            {badge.label}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
+                    {!hasStandardPaymentSettings ? (
+                      <span className="grid gap-2 rounded-[16px] border border-[#E8D6A8] bg-[#FFF8E8] px-3 py-2 text-[#8A6A2E]">
+                        <span className="block font-semibold">
+                          Du har endnu ikke gemt standardbetalingsoplysninger.
+                        </span>
+                        <Link
+                          className="w-fit font-semibold text-[#7A4EAB] underline-offset-4 hover:underline"
+                          href={paymentSettingsHref}
+                          onClick={writeDraft}
+                        >
+                          Opsæt betalingsoplysninger
+                        </Link>
+                      </span>
+                    ) : null}
+                  </span>
+                </div>
+              ) : null}
+
+            </div>
+          </section>
+        ) : null}
+        {priceMode !== "paid" ? (
+          <div className="grid min-w-0 gap-4 md:grid-cols-2 md:items-stretch">
+            <input name="price" type="hidden" value="0" />
+
             <div className="grid min-h-[180px] content-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-5 text-sm text-ink/70 shadow-soft">
               <h3 className="text-base font-semibold text-midnight">Gratis</h3>
               <p className="leading-6">Dette event er gratis for deltagerne.</p>
             </div>
-          ) : null}
 
-          <label className="grid min-h-[180px] content-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-5 text-sm font-medium text-ink/72 shadow-soft">
-            <span className="text-base font-semibold text-midnight">Maks. antal deltagere</span>
-            <input
-              autoComplete="off"
-              className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(capacityValue)}
-              inputMode="numeric"
-              maxLength={3}
-              name="capacity"
-              onChange={(event) => {
-                const normalizedValue = event.currentTarget.value.replace(/\D/g, "").slice(0, 3);
-                setCapacityValue(normalizedValue);
-              }}
-              pattern="[0-9]*"
-              type="text"
-              value={capacityValue}
-            />
-            <span className="text-xs leading-5 text-ink/52">Maks. 500 deltagere.</span>
-          </label>
-        </div>
+            <label className="grid min-h-[190px] content-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-5 text-sm font-medium text-ink/72 shadow-soft">
+              <span className="text-base font-semibold text-midnight">Maks. antal deltagere</span>
+              <input
+                autoComplete="off"
+                className={"h-14 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(capacityValue)}
+                inputMode="numeric"
+                maxLength={3}
+                name="capacity"
+                onChange={(event) => {
+                  const normalizedValue = event.currentTarget.value.replace(/\D/g, "").slice(0, 3);
+                  setCapacityValue(normalizedValue);
+                }}
+                pattern="[0-9]*"
+                type="text"
+                value={capacityValue}
+              />
+              <span className="text-xs leading-5 text-ink/52">Maks. 500 deltagere.</span>
+            </label>
+          </div>
+        ) : null}
 
         <input name="registration_mode" type="hidden" value={effectiveRegistrationMode} />
         <input name="payment_method_source" type="hidden" value={effectivePaymentMethodSource} />
@@ -3261,14 +3560,14 @@ export function EventForm({
         <input name="payment_bank_registration_number" type="hidden" value="" />
         <input name="payment_bank_account_number" type="hidden" value="" />
         <input name="payment_bank_account_name" type="hidden" value="" />
-        <input name="payment_external_url" type="hidden" value={priceMode === "paid" && paymentMethodChoice === "unique_link" ? paymentExternalUrl : ""} />
+        {requiresExternalUrl ? null : <input name="payment_external_url" type="hidden" value="" />}
         <input
           name="payment_link_mode"
           type="hidden"
-          value={priceMode === "paid" && paymentMethodChoice === "unique_link" ? paymentLinkMode : "payment_only"}
+          value={usesExternalRegistrationLink ? "external_registration" : "payment_only"}
         />
-        <input name="payment_instructions" type="hidden" value={priceMode === "paid" && !usesExternalRegistrationLink ? paymentInstructions : ""} />
-        <input name="payment_deadline_days" type="hidden" value={priceMode === "paid" && !usesExternalRegistrationLink ? paymentDeadlineDays : ""} />
+        <input name="payment_instructions" type="hidden" value="" />
+        <input name="payment_deadline_days" type="hidden" value="" />
 
         {showRegistrationModeChoice ? (
           <section className="grid min-w-0 gap-4 rounded-card border border-[#E5D4F7] bg-[#FBF8FE] p-4 sm:p-5">
@@ -3277,9 +3576,9 @@ export function EventForm({
                 <Ticket className="size-5" aria-hidden="true" />
               </span>
               <div>
-                <h3 className="text-base font-semibold text-midnight">Hvordan skal deltagerne tilmelde sig?</h3>
+                <h3 className="text-base font-semibold text-midnight">Legacy-tilmeldingsmodel</h3>
                 <p className="mt-1 text-sm leading-6 text-ink/62">
-                  Vælg om deltageren skal tilmeldes direkte eller først reservere en plads, som du godkender.
+                  Dette eksisterende event kan bevares med det gamle godkendelsesflow eller skiftes til direkte deltagerstyring.
                 </p>
               </div>
             </div>
@@ -3319,13 +3618,10 @@ export function EventForm({
                 </span>
                 <span className="grid gap-2">
                   <span className="flex flex-wrap items-center gap-2 font-semibold">
-                    Direkte tilmelding
-                    <span className="rounded-full bg-sage-50 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-[0.08em] text-sage-700">
-                      Anbefalet
-                    </span>
+                    Direkte deltagerstyring
                   </span>
                   <span className="block leading-6 text-ink/62">
-                    Deltageren får en plads med det samme og modtager straks betalingsoplysninger eller betalingslink.
+                    Deltageren tilmelder sig direkte på SoulEvents og modtager straks en bekræftelse.
                   </span>
                   <span className="block rounded-md bg-white/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink/56">
                     Flow: Deltager → Tilmelding → Betaling
@@ -3356,9 +3652,9 @@ export function EventForm({
                   />
                 </span>
                 <span className="grid gap-2">
-                  <span className="block font-semibold">Reservation med godkendelse</span>
+                  <span className="block font-semibold">Legacy: reservation med godkendelse</span>
                   <span className="block leading-6 text-ink/62">
-                    Deltageren reserverer en plads. Du godkender tilmeldingen, før betalingsoplysninger sendes.
+                    Deltageren reserverer en plads, som først bliver bekræftet manuelt. Brug kun dette for eksisterende legacy-events.
                   </span>
                   <span className="block rounded-md bg-white/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink/56">
                     Flow: Deltager → Reservation → Din godkendelse → Betaling
@@ -3382,252 +3678,15 @@ export function EventForm({
             <div>
               <h3 className="font-semibold text-midnight">Kort fortalt</h3>
               <p className="mt-1 leading-6">
-                <strong>Vælg “Direkte”</strong>, hvis alle må tilmelde sig med det samme.
+                <strong>Vælg “Direkte deltagerstyring”</strong>, hvis alle må tilmelde sig med det samme.
               </p>
               <p className="leading-6">
-                <strong>Vælg “Reservation med godkendelse”</strong>, hvis du ønsker at vurdere deltagerne, før de får en plads.
+                <strong>Behold kun legacy-flowet</strong>, hvis dette eksisterende event fortsat skal håndteres manuelt.
               </p>
             </div>
           </div>
         ) : null}
 
-        {priceMode === "paid" ? (
-          <section
-            className="grid min-w-0 gap-4 rounded-card border border-[#E5D4F7] bg-[#FBF8FE] p-4 sm:p-5"
-            id="event-payment-field"
-          >
-            <div className="flex min-w-0 items-start gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-[#7A4EAB] shadow-soft">
-                <CreditCard className="size-5" aria-hidden="true" />
-              </span>
-              <div>
-                <h3 className="text-base font-semibold text-midnight">Hvordan skal deltagerne betale?</h3>
-                <p className="mt-1 text-sm leading-6 text-ink/62">
-                  Betalingsoplysningerne sendes kun til de deltagere, du bekræfter. De vises ikke på dit event eller din arrangørprofil.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <label
-                className={
-                  "grid min-w-0 cursor-pointer gap-3 rounded-card border bg-white p-4 text-sm text-midnight shadow-soft transition " +
-                  (paymentMethodChoice === "standard"
-                    ? "border-[#7A4EAB] bg-[#F7F1FC] ring-2 ring-[#CDB4EA]/65"
-                    : "border-midnight/10 hover:border-[#7A4EAB]/35") +
-                  (!hasStandardPaymentSettings ? " cursor-not-allowed opacity-60" : "")
-                }
-              >
-                <span className="flex items-start justify-between gap-3">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#F7F1FC] text-[#7A4EAB]">
-                    <WalletCards className="size-5" aria-hidden="true" />
-                  </span>
-                  <input
-                    checked={paymentMethodChoice === "standard"}
-                    className="mt-2 size-5 border-midnight/20 accent-[#7A4EAB]"
-                    disabled={!hasStandardPaymentSettings}
-                    name="payment_method_choice"
-                    onChange={() => setPaymentMethodChoice("standard")}
-                    type="radio"
-                    value="standard"
-                  />
-                </span>
-                <span className="grid gap-2">
-                  <span className="block font-semibold">Brug mine standardbetalingsoplysninger</span>
-                  <span className="block leading-6 text-ink/62">
-                    MobilePay, bankkonto eller betalingslink fra din arrangørprofil sendes automatisk til deltageren.
-                  </span>
-                  {!hasStandardPaymentSettings ? (
-                    <span className="mt-2 grid gap-2 rounded-[16px] border border-[#E8D6A8] bg-[#FFF8E8] px-3 py-2 text-[#8A6A2E]">
-                      <span className="block font-semibold">
-                        Du har endnu ikke gemt standardbetalingsoplysninger.
-                      </span>
-                      <Link className="w-fit font-semibold text-[#7A4EAB] underline-offset-4 hover:underline" href="/facilitator/settings/payment">
-                        Opsæt betalingsoplysninger
-                      </Link>
-                    </span>
-                  ) : null}
-                </span>
-              </label>
-
-              <label
-                className={
-                  "grid min-w-0 cursor-pointer gap-3 rounded-card border bg-white p-4 text-sm text-midnight shadow-soft transition " +
-                  (paymentMethodChoice === "unique_link"
-                    ? "border-[#7A4EAB] bg-[#F7F1FC] ring-2 ring-[#CDB4EA]/65"
-                    : "border-midnight/10 hover:border-[#7A4EAB]/35")
-                }
-              >
-                <span className="flex items-start justify-between gap-3">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#F7F1FC] text-[#7A4EAB]">
-                    <LinkIcon className="size-5" aria-hidden="true" />
-                  </span>
-                  <input
-                    checked={paymentMethodChoice === "unique_link"}
-                    className="mt-2 size-5 border-midnight/20 accent-[#7A4EAB]"
-                    name="payment_method_choice"
-                    onChange={() => setPaymentMethodChoice("unique_link")}
-                    type="radio"
-                    value="unique_link"
-                  />
-                </span>
-                <span className="grid gap-2">
-                  <span className="block font-semibold">Brug et unikt betalingslink til dette event</span>
-                  <span className="block leading-6 text-ink/62">
-                    Brug et særligt betalingslink til dette event, f.eks. Billetto, EasyMe eller Stripe Checkout.
-                  </span>
-                </span>
-              </label>
-            </div>
-
-            {!hasStandardPaymentSettings ? (
-              <p className="rounded-card border border-[#E5D4F7] bg-white px-4 py-3 text-sm leading-6 text-ink/62">
-                Du kan også{" "}
-                <Link className="font-semibold text-[#7A4EAB] underline-offset-4 hover:underline" href="/facilitator/settings/payment">
-                  opsætte betalingsoplysninger
-                </Link>{" "}
-                og bruge dem på fremtidige events.
-              </p>
-            ) : null}
-
-            <div className="grid gap-3 md:grid-cols-2">
-              {paymentMethodChoice === "unique_link" ? (
-                <>
-                  <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight md:col-span-2">
-                    Betalingslink
-                    <input
-                      className="h-12 min-w-0 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
-                      maxLength={300}
-                      name="payment_external_url"
-                      onChange={(event) => {
-                        setPaymentExternalUrl(event.currentTarget.value);
-                      }}
-                      placeholder="Indsæt betalingslink"
-                      required
-                      type="url"
-                      value={paymentExternalUrl}
-                    />
-                  </label>
-
-                  <div className="grid gap-3 md:col-span-2">
-                    <div>
-                      <h4 className="text-sm font-semibold text-midnight">Hvad håndterer linket?</h4>
-                      <p className="mt-1 text-sm leading-6 text-ink/58">
-                        Vælg om SoulEvents stadig skal registrere deltagere, eller om linket håndterer hele flowet.
-                      </p>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <label
-                        className={
-                          "flex min-w-0 cursor-pointer items-start gap-3 rounded-card border bg-white p-4 text-sm text-midnight shadow-soft transition " +
-                          (paymentLinkMode === "external_registration"
-                            ? "border-[#7A4EAB] bg-[#F7F1FC] ring-2 ring-[#CDB4EA]/65"
-                            : "border-midnight/10 hover:border-[#7A4EAB]/35")
-                        }
-                      >
-                        <input
-                          checked={paymentLinkMode === "external_registration"}
-                          className="mt-1 size-5 border-midnight/20 accent-[#7A4EAB]"
-                          name="payment_link_mode_choice"
-                          onChange={() => {
-                            setPaymentLinkMode("external_registration");
-                            if (!registrationModeLocked) {
-                              setRegistrationMode("direct");
-                            }
-                          }}
-                          type="radio"
-                          value="external_registration"
-                        />
-                        <span>
-                          <span className="block font-semibold">Tilmelding og betaling foregår via linket</span>
-                          <span className="mt-1 block leading-6 text-ink/62">
-                            Deltageren sendes videre til en ekstern løsning, som håndterer navn, antal pladser, tilmelding og betaling.
-                          </span>
-                        </span>
-                      </label>
-
-                      <label
-                        className={
-                          "flex min-w-0 cursor-pointer items-start gap-3 rounded-card border bg-white p-4 text-sm text-midnight shadow-soft transition " +
-                          (paymentLinkMode === "payment_only"
-                            ? "border-[#7A4EAB] bg-[#F7F1FC] ring-2 ring-[#CDB4EA]/65"
-                            : "border-midnight/10 hover:border-[#7A4EAB]/35")
-                        }
-                      >
-                        <input
-                          checked={paymentLinkMode === "payment_only"}
-                          className="mt-1 size-5 border-midnight/20 accent-[#7A4EAB]"
-                          name="payment_link_mode_choice"
-                          onChange={() => setPaymentLinkMode("payment_only")}
-                          type="radio"
-                          value="payment_only"
-                        />
-                        <span>
-                          <span className="block font-semibold">Linket bruges kun til betaling</span>
-                          <span className="mt-1 block leading-6 text-ink/62">
-                            Deltageren tilmelder sig først på SoulEvents og bruger derefter linket til at betale.
-                          </span>
-                        </span>
-                      </label>
-                    </div>
-
-                    <p
-                      className={
-                        "rounded-card border px-4 py-3 text-sm leading-6 " +
-                        (usesExternalRegistrationLink
-                          ? "border-[#E8D6A8] bg-[#FFF8E8] text-[#6E5528]"
-                          : "border-[#DDE8D7] bg-[#EEF7F0] text-sage-700")
-                      }
-                    >
-                      {usesExternalRegistrationLink
-                        ? "SoulEvents kan ikke se, hvor mange der tilmelder sig eller betaler via den eksterne løsning. Husk derfor selv at opdatere eller lukke eventet, hvis det bliver udsolgt."
-                        : "Deltageren vælger antal pladser og tilmelder sig på SoulEvents. Linket skal derfor kun bruges til selve betalingen."}
-                    </p>
-                  </div>
-                </>
-              ) : null}
-
-              {!usesExternalRegistrationLink ? (
-                <>
-                  <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
-                    Betalingsfrist
-                    <select
-                      className="h-12 min-w-0 rounded-card border border-midnight/10 bg-white px-4 text-sm font-normal text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
-                      onChange={(event) => {
-                        setPaymentDeadlineDays(event.currentTarget.value);
-                      }}
-                      value={paymentDeadlineOptions.some((option) => option.value === paymentDeadlineDays) ? paymentDeadlineDays : "14"}
-                    >
-                      {paymentDeadlineOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight md:col-span-2">
-                    Betalingsvejledning
-                    <textarea
-                      className="min-h-28 min-w-0 resize-y rounded-card border border-midnight/10 bg-white px-4 py-3 text-sm font-normal leading-6 text-midnight outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
-                      maxLength={800}
-                      onChange={(event) => {
-                        setPaymentInstructions(event.currentTarget.value);
-                      }}
-                      placeholder="Skriv betalingsvejledning til dette event"
-                      value={paymentInstructions}
-                    />
-                  </label>
-                </>
-              ) : null}
-            </div>
-
-            <p className="text-sm leading-6 text-ink/58">
-              Valget gælder kun dette event og ændrer ikke dine standardbetalingsoplysninger på arrangørprofilen.
-            </p>
-          </section>
-        ) : null}
       </section>
 
 <section className={isStepOpen(2) ? "grid w-full min-w-0 max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>

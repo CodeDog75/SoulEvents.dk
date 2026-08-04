@@ -31,6 +31,7 @@ import { DashboardEventVisibilityAction } from "@/components/facilitator/events/
 import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireRole } from "@/lib/auth/roles";
+import { getReservedEventSeatsByEventId } from "@/lib/events/capacity";
 import { draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
 import { getUserFacingEventStatus, getUserFacingEventStatusLabel, isEventPastEnd } from "@/lib/events/user-facing-status";
@@ -134,10 +135,10 @@ function eventTabHref(tab: EventTab) {
 }
 
 const dashboardEventSelect =
-  "id, slug, title, status, starts_at, ends_at, created_at, updated_at, dashboard_hidden_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), bookings(id)";
+  "id, slug, title, status, starts_at, ends_at, created_at, updated_at, dashboard_hidden_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, registration_mode, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), event_payment_settings(method_source, payment_link_mode)";
 
 const dashboardEventSelectWithoutVisibility =
-  "id, slug, title, status, starts_at, ends_at, created_at, updated_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), bookings(id)";
+  "id, slug, title, status, starts_at, ends_at, created_at, updated_at, address_line, postal_code, city, country, long_description, cover_image_path, event_format, online_url_or_note, price_cents, capacity, registration_mode, event_reference_id, event_categories(categories(name)), event_main_categories(main_category_id), event_tags(tag_id), event_payment_settings(method_source, payment_link_mode)";
 
 const statusStyles: Record<string, string> = {
   draft: "bg-[#E9E6E1] text-[#6A6258]",
@@ -159,7 +160,36 @@ function isMissingDashboardVisibilityColumn(error: { code?: string; message?: st
   return error?.code === "42703" || Boolean(error?.message?.includes("dashboard_hidden_at"));
 }
 
+function usesExternalRegistration(event: {
+  event_payment_settings?:
+    | Array<{ method_source?: string | null; payment_link_mode?: string | null }>
+    | { method_source?: string | null; payment_link_mode?: string | null }
+    | null;
+  price_cents?: number | null;
+  registration_mode?: string | null;
+}) {
+  const paymentSettings = first(event.event_payment_settings);
+  return (
+    (event.price_cents ?? 0) > 0 &&
+    event.registration_mode === "direct" &&
+    paymentSettings?.method_source === "custom" &&
+    paymentSettings.payment_link_mode === "external_registration"
+  );
+}
+
 async function getDashboardEvents(supabase: ReturnType<typeof createAdminClient>, facilitatorId: string) {
+  const withReservedSeats = async (events: any[]) => {
+    const reservedSeatsByEventId = await getReservedEventSeatsByEventId(
+      supabase,
+      events.map((event) => event.id).filter((eventId): eventId is string => Boolean(eventId)),
+    );
+
+    return events.map((event) => ({
+      ...event,
+      reserved_seats: reservedSeatsByEventId.get(event.id) ?? 0,
+    }));
+  };
+
   const eventQuery = (select: string) =>
     supabase
       .from("events")
@@ -170,7 +200,7 @@ async function getDashboardEvents(supabase: ReturnType<typeof createAdminClient>
   const result = await eventQuery(dashboardEventSelect);
 
   if (!result.error) {
-    return result.data ?? [];
+    return withReservedSeats(result.data ?? []);
   }
 
   if (!isMissingDashboardVisibilityColumn(result.error)) {
@@ -201,10 +231,12 @@ async function getDashboardEvents(supabase: ReturnType<typeof createAdminClient>
     return [];
   }
 
-  return ((fallback.data ?? []) as any[]).map((event) => ({
-    ...event,
-    dashboard_hidden_at: null,
-  }));
+  return withReservedSeats(
+    ((fallback.data ?? []) as any[]).map((event) => ({
+      ...event,
+      dashboard_hidden_at: null,
+    })),
+  );
 }
 
 function formatDate(value: string) {
@@ -867,7 +899,8 @@ function EventCard({
   isExpiringSoon?: boolean;
   variant: DashboardEventVariant;
 }) {
-  const bookingCount = event.bookings?.length ?? 0;
+  const isExternalRegistration = usesExternalRegistration(event);
+  const reservedSeats = event.reserved_seats ?? 0;
   const location = event.event_format === "online" ? "Online" : event.city || "Lokation kommer";
   const isDraft = event.status === "draft";
   const isPendingReview = event.status === "pending_review";
@@ -947,7 +980,7 @@ function EventCard({
         </p>
         <p className="inline-flex items-center gap-2">
           <Ticket className="size-4 text-[#7A5D91]" aria-hidden="true" />
-          {bookingCount} tilmeldinger
+          {isExternalRegistration ? "Ekstern tilmelding" : `${reservedSeats} ${reservedSeats === 1 ? "tilmelding" : "tilmeldinger"}`}
         </p>
       </div>
       {statusMessage ? (

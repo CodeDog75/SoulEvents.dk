@@ -56,6 +56,7 @@ import {
 import { validateSocialProfileLink } from "@/lib/social-profile-links";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { ensureMediaStorageBucket } from "@/lib/supabase/storage-buckets";
 
 export type ChangePasswordFormState = {
   fieldErrors?: {
@@ -1899,17 +1900,7 @@ async function ensureMediaBucket(
   errorSection: EditableProfileSection = "images",
   adminReturnTo?: string | null,
 ) {
-  const { data: bucket } = await supabase.storage.getBucket("media");
-
-  if (bucket) {
-    return;
-  }
-
-  const { error } = await supabase.storage.createBucket("media", {
-    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
-    fileSizeLimit: 100 * 1024 * 1024,
-    public: true,
-  });
+  const error = await ensureMediaStorageBucket(supabase);
 
   if (error && !error.message.toLowerCase().includes("already exists")) {
     if (adminReturnTo) {

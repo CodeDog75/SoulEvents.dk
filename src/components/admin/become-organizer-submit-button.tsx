@@ -2,7 +2,15 @@
 
 import { useFormStatus } from "react-dom";
 
-export function BecomeOrganizerSubmitButton() {
+type BecomeOrganizerSubmitButtonProps = {
+  idleLabel?: string;
+  pendingLabel?: string;
+};
+
+export function BecomeOrganizerSubmitButton({
+  idleLabel = "Gem ændringer",
+  pendingLabel = "Gemmer...",
+}: BecomeOrganizerSubmitButtonProps) {
   const { pending } = useFormStatus();
 
   return (
@@ -11,7 +19,7 @@ export function BecomeOrganizerSubmitButton() {
       disabled={pending}
       type="submit"
     >
-      {pending ? "Gemmer..." : "Gem ændringer"}
+      {pending ? pendingLabel : idleLabel}
     </button>
   );
 }

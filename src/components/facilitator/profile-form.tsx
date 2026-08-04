@@ -295,7 +295,7 @@ const steps: Array<{
   {
     eyebrow: "Betaling",
     id: "payment",
-    text: "Gem dine standardbetalingsoplysninger. De sendes først til deltageren, når du bekræfter en tilmelding.",
+    text: "Gem dine standardbetalingsoplysninger. De sendes automatisk til deltageren ved SoulEvents-tilmelding.",
     title: "Standardbetaling for dine events",
   },
   {
@@ -1243,11 +1243,8 @@ export function ProfileForm({
   const [paymentExternalUrl, setPaymentExternalUrl] = useState(
     value(facilitatorProfile.payment_external_url),
   );
-  const [paymentInstructions, setPaymentInstructions] = useState(
-    value(facilitatorProfile.payment_instructions),
-  );
-  const [paymentDeadlineDays, setPaymentDeadlineDays] = useState(
-    String(facilitatorProfile.payment_deadline_days ?? 14),
+  const [paymentCashEnabled, setPaymentCashEnabled] = useState(
+    Boolean(value(facilitatorProfile.payment_instructions)),
   );
   const [offersIndividualServices, setOffersIndividualServices] = useState(
     Boolean(facilitatorProfile.offers_services),
@@ -2112,9 +2109,9 @@ export function ProfileForm({
           payment_bank_account_name: paymentBankAccountName,
           payment_bank_account_number: paymentBankAccountNumber,
           payment_bank_registration_number: paymentBankRegistrationNumber,
-          payment_deadline_days: paymentDeadlineDays,
+          payment_deadline_days: String(facilitatorProfile.payment_deadline_days ?? 14),
           payment_external_url: paymentExternalUrl,
-          payment_instructions: paymentInstructions,
+          payment_instructions: paymentCashEnabled ? "Kontant betaling tilbydes." : "",
           payment_mobilepay_number: paymentMobilepayNumber,
         },
       });
@@ -3538,8 +3535,8 @@ export function ProfileForm({
                   Privat betalingsinfo
                 </p>
                 <p className="mt-2 text-sm leading-6 text-ink/65">
-                  Betalingsoplysningerne vises ikke offentligt. De sendes først
-                  til deltageren, når du bekræfter en tilmelding. SoulEvents
+                  Betalingsoplysningerne vises kun til deltagere, der
+                  tilmelder sig et betalt event via SoulEvents. SoulEvents
                   modtager eller behandler ikke betalingen.
                 </p>
               </div>
@@ -3585,39 +3582,14 @@ export function ProfileForm({
             />
           </div>
 
-          <label className="grid gap-2 text-sm font-semibold text-midnight/82">
-            Standard betalingsfrist
+          <label className="flex min-w-0 items-center gap-3 rounded-card border border-[#E5D4F7] bg-white px-4 py-3 text-sm font-semibold text-midnight/82">
             <input
-              className={inputClass("max-w-44")}
-              max={60}
-              min={0}
-              onChange={(event) =>
-                setPaymentDeadlineDays(
-                  event.target.value.replace(/\D/g, "").slice(0, 2),
-                )
-              }
-              placeholder="14"
-              type="number"
-              value={paymentDeadlineDays}
+              checked={paymentCashEnabled}
+              className="size-4 accent-[#7A4EAB]"
+              onChange={(event) => setPaymentCashEnabled(event.currentTarget.checked)}
+              type="checkbox"
             />
-            <span className="text-xs leading-5 text-ink/55">
-              Antal dage efter bekræftet tilmelding. Fristen bliver aldrig sat
-              efter eventets startdato.
-            </span>
-          </label>
-
-          <label className="grid gap-2 text-sm font-semibold text-midnight/82">
-            Betalingsinstruktioner
-            <ClearableTextarea
-              maxLength={800}
-              onChange={setPaymentInstructions}
-              placeholder="F.eks. skriv eventnavn og betalingsreference i beskedfeltet ved betaling."
-              value={paymentInstructions}
-            />
-            <span className="text-xs leading-5 text-ink/55">
-              Brug feltet til praktiske detaljer, som deltageren skal kende
-              efter bekræftelse.
-            </span>
+            Jeg tilbyder også kontant betaling.
           </label>
         </div>
       )}

@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { createResendClient } from "@/lib/resend";
@@ -23,6 +25,18 @@ type UnknownMailError = {
 };
 
 const resendSendTimeoutMs = 15000;
+
+function shouldLogEmailLocally() {
+  return process.env.NODE_ENV === "development" && (env.emailDeliveryMode === "log" || process.env.DISABLE_OUTBOUND_EMAIL === "1");
+}
+
+function safeOutboxFilePart(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 80);
+}
 
 function sanitizeMailErrorMessage(message: string | null | undefined) {
   return (message || "Ukendt mailfejl.").replace(/[^\s@]+@[^\s@]+\.[^\s@]+/g, "[email]").slice(0, 240);
@@ -115,10 +129,59 @@ async function logEmail(input: {
   }
 }
 
+async function writeLocalEmailPreview(input: SendLoggedEmailInput) {
+  const outboxDir = env.localEmailOutboxDir || ".local-email-outbox";
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const filename = `${timestamp}-${safeOutboxFilePart(input.type)}-${safeOutboxFilePart(input.subject) || "mail"}.html`;
+  const outputPath = path.join(process.cwd(), outboxDir, filename);
+  const preview = `<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(input.subject)}</title>
+  </head>
+  <body>
+    <pre>To: ${escapeHtml(input.to ?? "")}
+Subject: ${escapeHtml(input.subject)}
+Type: ${escapeHtml(input.type)}
+Event ID: ${escapeHtml(input.eventId ?? "")}
+Booking ID: ${escapeHtml(input.bookingId ?? "")}</pre>
+    <hr />
+    ${input.html}
+    <hr />
+    <pre>${escapeHtml(input.text)}</pre>
+  </body>
+</html>
+`;
+
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, preview, "utf8");
+  return outputPath;
+}
+
 export async function sendLoggedEmail(input: SendLoggedEmailInput) {
   if (!input.to) {
     console.error("Mail delivery skipped: missing recipient", mailLogContext(input, { errorCode: "missing_recipient", errorMessage: "Modtager mangler." }));
     return false;
+  }
+
+  if (shouldLogEmailLocally()) {
+    const previewPath = await writeLocalEmailPreview(input);
+    console.info("Mail delivery skipped in local development", {
+      path: previewPath,
+      subject: input.subject,
+      type: input.type,
+    });
+    await logEmail({
+      type: input.type,
+      bookingId: input.bookingId,
+      eventId: input.eventId,
+      recipientEmail: input.to,
+      subject: input.subject,
+      status: "queued",
+      errorMessage: `Local preview written to ${previewPath}`,
+    });
+    return true;
   }
 
   if (!env.resendApiKey || !env.resendFromEmail) {

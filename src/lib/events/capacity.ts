@@ -1,51 +1,41 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const capacityStatuses = ["active", "sold_out"];
-const activeBookingStatuses = ["pending", "confirmed"];
+export const activeBookingStatuses = ["pending", "confirmed"] as const;
 
 function sumSeats(rows: Array<{ seats?: number | null }> | null | undefined) {
   return rows?.reduce((sum: number, row) => sum + (row.seats ?? 0), 0) ?? 0;
 }
 
-export async function getAvailableEventSeats(adminSupabase: SupabaseClient, eventId: string, capacity: number) {
-  const [{ data: bookings }, { data: externalParticipants }] = await Promise.all([
-    adminSupabase
-      .from("bookings")
-      .select("seats")
-      .eq("event_id", eventId)
-      .in("status", activeBookingStatuses),
-    adminSupabase
-      .from("external_event_participants")
-      .select("seats")
-      .eq("event_id", eventId),
-  ]);
-
-  const reservedSeats = sumSeats(bookings) + sumSeats(externalParticipants);
-
-  return Math.max(capacity - reservedSeats, 0);
+export function isActiveBookingStatus(status?: string | null) {
+  return activeBookingStatuses.includes(status as (typeof activeBookingStatuses)[number]);
 }
 
-export async function getAvailableEventSeatsByEventId(
-  adminSupabase: SupabaseClient,
-  events: Array<{ id: string; capacity?: number | null }>,
-) {
-  const eventIds = events.map((event) => event.id);
+export function getReservedSeatsFromRows(input: {
+  bookings?: Array<{ seats?: number | null; status?: string | null }> | null;
+  externalParticipants?: Array<{ seats?: number | null }> | null;
+}) {
+  return sumSeats(input.bookings?.filter((booking) => isActiveBookingStatus(booking.status))) + sumSeats(input.externalParticipants);
+}
+
+export async function getReservedEventSeatsByEventId(adminSupabase: SupabaseClient, eventIds: string[]) {
+  const uniqueEventIds = Array.from(new Set(eventIds));
   const reservedSeatsByEventId = new Map<string, number>();
 
-  if (eventIds.length === 0) {
-    return new Map<string, number | null>();
+  if (uniqueEventIds.length === 0) {
+    return reservedSeatsByEventId;
   }
 
   const [{ data: bookings }, { data: externalParticipants }] = await Promise.all([
     adminSupabase
       .from("bookings")
-      .select("event_id, seats")
-      .in("event_id", eventIds)
+      .select("event_id, seats, status")
+      .in("event_id", uniqueEventIds)
       .in("status", activeBookingStatuses),
     adminSupabase
       .from("external_event_participants")
       .select("event_id, seats")
-      .in("event_id", eventIds),
+      .in("event_id", uniqueEventIds),
   ]);
 
   for (const booking of bookings ?? []) {
@@ -61,6 +51,39 @@ export async function getAvailableEventSeatsByEventId(
 
     reservedSeatsByEventId.set(eventId, (reservedSeatsByEventId.get(eventId) ?? 0) + (participant.seats ?? 0));
   }
+
+  return reservedSeatsByEventId;
+}
+
+export async function getAvailableEventSeats(adminSupabase: SupabaseClient, eventId: string, capacity: number) {
+  const [{ data: bookings }, { data: externalParticipants }] = await Promise.all([
+    adminSupabase
+      .from("bookings")
+      .select("seats, status")
+      .eq("event_id", eventId)
+      .in("status", activeBookingStatuses),
+    adminSupabase
+      .from("external_event_participants")
+      .select("seats")
+      .eq("event_id", eventId),
+  ]);
+
+  const reservedSeats = getReservedSeatsFromRows({ bookings, externalParticipants });
+
+  return Math.max(capacity - reservedSeats, 0);
+}
+
+export async function getAvailableEventSeatsByEventId(
+  adminSupabase: SupabaseClient,
+  events: Array<{ id: string; capacity?: number | null }>,
+) {
+  const eventIds = events.map((event) => event.id);
+
+  if (eventIds.length === 0) {
+    return new Map<string, number | null>();
+  }
+
+  const reservedSeatsByEventId = await getReservedEventSeatsByEventId(adminSupabase, eventIds);
 
   return new Map(
     events.map((event) => [

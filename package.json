@@ -5,6 +5,10 @@
   "description": "SaaS-platform for events, facilitatorer og fællesskaber i Danmark.",
   "scripts": {
     "dev": "next dev --webpack -p 3001",
+    "dev:local": "npm run db:start && next dev --webpack -p 3001",
+    "db:start": "npx supabase start",
+    "db:stop": "npx supabase stop",
+    "db:reset": "npx supabase db reset",
     "dev:3000": "next dev --webpack -p 3000",
     "build": "next build --webpack",
     "start": "next start -p 3001",

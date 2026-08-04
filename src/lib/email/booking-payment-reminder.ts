@@ -1,6 +1,6 @@
 import { renderEmailLayout, renderEmailTable, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, formatDate, sendLoggedEmail } from "@/lib/email/resend-mail";
-import { formatPaymentAmount, formatPaymentDate, type PaymentInstructionsSnapshot } from "@/lib/payment-instructions";
+import { formatPaymentAmount, type PaymentInstructionsSnapshot } from "@/lib/payment-instructions";
 
 type BookingPaymentReminderInput = {
   bookingId: string;
@@ -43,14 +43,12 @@ function buildPaymentMethodsHtml(snapshot: PaymentInstructionsSnapshot) {
 }
 
 async function buildHtml(input: BookingPaymentReminderInput) {
-  const dueDate = formatPaymentDate(input.paymentInstructions.dueAt);
   const rows: Array<[string, string]> = [
     ["Event", input.eventTitle],
     ["Dato", formatDate(input.eventStartsAt)],
     ["Pladser", formatSeats(input.seats)],
     ["Bookingværdi", formatPaymentAmount(input.paymentInstructions.amountCents)],
     ["Reference", input.paymentInstructions.reference],
-    ...(dueDate ? [["Betalingsfrist", dueDate] as [string, string]] : []),
   ];
 
   return renderEmailLayout({
@@ -70,8 +68,6 @@ async function buildHtml(input: BookingPaymentReminderInput) {
 }
 
 function buildText(input: BookingPaymentReminderInput) {
-  const dueDate = formatPaymentDate(input.paymentInstructions.dueAt);
-
   return [
     "Påmindelse om betaling",
     "",
@@ -83,7 +79,6 @@ function buildText(input: BookingPaymentReminderInput) {
     formatDate(input.eventStartsAt),
     formatSeats(input.seats),
     `Bookingværdi: ${formatPaymentAmount(input.paymentInstructions.amountCents)}`,
-    dueDate ? `Betalingsfrist: ${dueDate}` : "",
     `Reference: ${input.paymentInstructions.reference}`,
     "",
     "Betalingsmuligheder:",

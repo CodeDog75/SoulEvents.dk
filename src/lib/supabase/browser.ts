@@ -1,5 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { supabaseCookieOptions } from "@/lib/supabase/auth-cookies";
+import { assertSafeSupabaseEnvironment } from "@/lib/supabase/environment";
 
 export function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -8,6 +9,8 @@ export function createClient() {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error("Supabase browser credentials are missing.");
   }
+
+  assertSafeSupabaseEnvironment(supabaseUrl, "Supabase browser client");
 
   const hostname = typeof window === "undefined" ? null : window.location.hostname;
 

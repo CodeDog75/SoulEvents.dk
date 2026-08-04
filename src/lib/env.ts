@@ -12,6 +12,8 @@ export const env = {
   resendApiKey: optionalEnv("RESEND_API_KEY"),
   resendFromEmail: optionalEnv("RESEND_FROM_EMAIL"),
   replyToEmail: optionalEnv("REPLY_TO_EMAIL"),
+  emailDeliveryMode: optionalEnv("EMAIL_DELIVERY_MODE"),
+  localEmailOutboxDir: optionalEnv("LOCAL_EMAIL_OUTBOX_DIR"),
 };
 
 export function assertServerEnv(keys: Array<keyof typeof env>) {

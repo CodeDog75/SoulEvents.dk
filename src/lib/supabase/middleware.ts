@@ -6,6 +6,7 @@ import {
   supabaseCookieDeleteOptions,
   supabaseCookieOptions,
 } from "@/lib/supabase/auth-cookies";
+import { assertSafeSupabaseEnvironment } from "@/lib/supabase/environment";
 
 export async function updateSession(request: NextRequest) {
   const nextWithPathHeader = () => {
@@ -25,6 +26,8 @@ export async function updateSession(request: NextRequest) {
   if (!supabaseUrl || !supabaseAnonKey) {
     return nextWithPathHeader();
   }
+
+  assertSafeSupabaseEnvironment(supabaseUrl, "Supabase middleware client");
 
   let response = nextWithPathHeader();
   const hostname = request.nextUrl.hostname;

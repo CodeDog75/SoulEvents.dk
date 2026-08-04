@@ -560,11 +560,11 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const facilitatorProfile = Array.isArray(event.facilitator_profiles)
     ? event.facilitator_profiles[0]
     : event.facilitator_profiles;
-  const registrationMode = event.price_cents > 0 && event.registration_mode === "direct" ? "direct" : "approval_required";
+  const registrationMode = "direct";
   let externalRegistrationUrl: string | null = null;
   let paymentPreview = null;
 
-  if (registrationMode === "direct" && event.price_cents > 0) {
+  if (event.price_cents > 0) {
     const [{ data: eventPaymentSettings }, { data: facilitatorPaymentSettings }] = await Promise.all([
       adminSupabase
         .from("event_payment_settings")
@@ -596,11 +596,10 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         : null;
 
     paymentPreview =
-      !externalRegistrationUrl && (methods.length > 0 || record.payment_instructions)
+      !externalRegistrationUrl && methods.length > 0
         ? {
-            deadlineDays: record.payment_deadline_days ?? null,
             methods,
-            note: record.payment_instructions ?? null,
+            note: null,
           }
         : null;
   }
@@ -625,7 +624,8 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     .order("starts_at", { ascending: true })
     .limit(4);
   const isPublishedEvent = ["active", "sold_out"].includes(event.status);
-  const isSoldOut = event.status === "sold_out" || availableSeats <= 0;
+  const usesExternalRegistration = Boolean(externalRegistrationUrl);
+  const isSoldOut = !usesExternalRegistration && (event.status === "sold_out" || availableSeats <= 0);
   const userFacingStatus = getUserFacingEventStatus(event);
   const isCancelledEvent = event.status === "cancelled";
   const isExpiredEvent = userFacingStatus === "held";
@@ -1139,6 +1139,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               messageVariant={messageVariant}
               externalRegistrationUrl={externalRegistrationUrl}
               paymentPreview={paymentPreview}
+              priceCents={event.price_cents}
               registrationMode={registrationMode}
             />
           ) : (

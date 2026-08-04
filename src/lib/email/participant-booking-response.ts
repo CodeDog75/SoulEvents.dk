@@ -1,6 +1,6 @@
 import { renderEmailButton, renderEmailLayout, renderEmailTable, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, formatDate, sendLoggedEmail } from "@/lib/email/resend-mail";
-import { formatPaymentAmount, formatPaymentDate, type PaymentInstructionsSnapshot } from "@/lib/payment-instructions";
+import { formatPaymentAmount, type PaymentInstructionsSnapshot } from "@/lib/payment-instructions";
 import type { BookingStatus } from "@/types/database";
 
 type ParticipantBookingResponseInput = {
@@ -67,7 +67,6 @@ function buildPaymentHtml(snapshot?: PaymentInstructionsSnapshot | null) {
     return "";
   }
 
-  const dueDate = formatPaymentDate(snapshot.dueAt);
   const methodHeading = snapshot.methods.length > 1 ? "Vælg én af følgende betalingsmuligheder" : "Betalingsmulighed";
 
   return `
@@ -75,7 +74,6 @@ function buildPaymentHtml(snapshot?: PaymentInstructionsSnapshot | null) {
       <p style="margin: 0 0 8px; color: #4F654A; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">Betaling</p>
       <p style="margin: 0 0 10px; color: #2D2338; font-size: 16px; font-weight: 700;">Beløb: ${escapeHtml(formatPaymentAmount(snapshot.amountCents))}</p>
       <p style="margin: 0 0 10px; color: #4F654A; font-size: 14px; font-weight: 700;">Betalingsreference: ${escapeHtml(snapshot.reference)}</p>
-      ${dueDate ? `<p style="margin: 0 0 14px; color: #4F654A; font-size: 14px;">Betalingsfrist: ${escapeHtml(dueDate)}</p>` : ""}
       ${
         snapshot.methods.length > 0
           ? `<p style="margin: 0 0 8px; color: #2D2338; font-size: 14px; font-weight: 700;">${methodHeading}</p>
@@ -103,13 +101,11 @@ function buildPaymentText(snapshot?: PaymentInstructionsSnapshot | null) {
     return [];
   }
 
-  const dueDate = formatPaymentDate(snapshot.dueAt);
   const lines = [
     "",
     "Betaling",
     `Beløb: ${formatPaymentAmount(snapshot.amountCents)}`,
     `Betalingsreference: ${snapshot.reference}`,
-    dueDate ? `Betalingsfrist: ${dueDate}` : "",
     snapshot.methods.length > 1 ? "Vælg én af følgende betalingsmuligheder:" : snapshot.methods.length === 1 ? "Betalingsmulighed:" : "",
     ...snapshot.methods.map((method) => `${method.label}: ${method.value}`),
     snapshot.note ? `Note: ${snapshot.note}` : "",

@@ -4,6 +4,7 @@ import { BrowserInjectedAttributeCleanup } from "@/components/browser-injected-a
 import { CookieConsentManager } from "@/components/cookie-consent-manager";
 import { getSiteFaviconUrl } from "@/lib/brand-logo";
 import { createPageMetadata, getHomepageOgImageUrl, siteBaseUrl } from "@/lib/open-graph";
+import { isLocalSupabaseDevelopment } from "@/lib/supabase/environment";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,6 +30,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const showLocalEnvironmentBadge = isLocalSupabaseDevelopment();
+
   return (
     <html lang="da">
       <head>
@@ -39,6 +42,11 @@ export default function RootLayout({
         />
       </head>
       <body>
+        {showLocalEnvironmentBadge ? (
+          <div className="fixed bottom-3 left-3 z-[1000] rounded-md border border-terracotta/30 bg-white/95 px-3 py-2 text-xs font-bold uppercase tracking-wide text-terracotta shadow-soft">
+            Lokalt testmiljø
+          </div>
+        ) : null}
         {children}
         <CookieConsentManager />
         <BrowserInjectedAttributeCleanup />

@@ -12,7 +12,6 @@ type ParticipantListRow = {
   manualPaymentNote: string | null;
   message: string | null;
   name: string;
-  paymentDueAt: string | null;
   paymentReference: string | null;
   paymentStatus: "Afventer" | "Betalt" | "Ikke relevant";
   phone: string | null;
@@ -33,7 +32,7 @@ type FilterKey = "active" | "all" | "cancelled" | "confirmed" | "pending";
 const filterLabels: Record<FilterKey, string> = {
   active: "Aktive tilmeldinger",
   confirmed: "Kun bekræftede",
-  pending: "Afventer bekræftelse",
+  pending: "Legacy: afventer",
   cancelled: "Annullerede",
   all: "Alle",
 };
@@ -145,7 +144,7 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
     }
     headers.push("Tilmeldingsdato");
     if (includePayment) {
-      headers.push("Betalingsfrist", "Betalingsreference");
+      headers.push("Betalingsreference");
     }
     if (includeNote) {
       headers.push("Intern note");
@@ -168,7 +167,7 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
       }
       values.push(formatDateTime(row.createdAt));
       if (includePayment) {
-        values.push(row.paymentDueAt ? formatDateTime(row.paymentDueAt) : "", row.paymentReference || "");
+        values.push(row.paymentReference || "");
       }
       if (includeNote) {
         values.push(row.manualPaymentNote || "");

@@ -2,11 +2,14 @@ import { cookies, headers } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { env } from "@/lib/env";
 import { normalizeSupabaseCookieOptions, supabaseCookieOptions } from "@/lib/supabase/auth-cookies";
+import { assertSafeSupabaseEnvironment } from "@/lib/supabase/environment";
 
 export async function createClient() {
   if (!env.supabaseUrl || !env.supabaseAnonKey) {
     throw new Error("Supabase server credentials are missing.");
   }
+
+  assertSafeSupabaseEnvironment(env.supabaseUrl, "Supabase server client");
 
   const cookieStore = await cookies();
   const headerStore = await headers();

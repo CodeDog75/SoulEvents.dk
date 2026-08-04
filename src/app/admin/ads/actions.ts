@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureMediaStorageBucket } from "@/lib/supabase/storage-buckets";
 
 const maxAdImageBytes = 20 * 1024 * 1024;
 const maxAdVideoBytes = 100 * 1024 * 1024;
@@ -174,6 +175,18 @@ export async function createSignedAdUploadAction(input: {
 
   const imagePath = adMediaPath(slot, metadata);
   const supabase = createAdminClient();
+  const bucketError = await ensureMediaStorageBucket(supabase);
+
+  if (bucketError) {
+    console.error("Ad media bucket setup error", {
+      message: bucketError.message,
+      path: imagePath,
+      size: metadata.size,
+      type: metadata.contentType,
+    });
+    return { error: "Media-bucketten kunne ikke klargøres. Kør storage-migrationen og prøv igen.", path: null, token: null };
+  }
+
   const { data, error } = await supabase.storage.from("media").createSignedUploadUrl(imagePath, {
     upsert: false,
   });

@@ -12,7 +12,7 @@ import { sendCoOrganizerInvitationEmail, sendCoOrganizerRemovedEmail, sendCoOrga
 import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
 import { formattedMaxEventDescriptionLength, maxEventDescriptionLength } from "@/lib/events/event-content-limits";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
-import { getAvailableEventSeats } from "@/lib/events/capacity";
+import { activeBookingStatuses, getAvailableEventSeats } from "@/lib/events/capacity";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
 import { getUserFacingEventStatus } from "@/lib/events/user-facing-status";
 import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
@@ -25,6 +25,7 @@ import { hasStandardPaymentMethod, paymentSettingsToInstructionsRecord, type Pay
 import { inferRegionSlug } from "@/lib/regions/infer-region";
 import { createSlug, publicEventPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureMediaStorageBucket } from "@/lib/supabase/storage-buckets";
 import type { EventRegistrationMode, EventStatus } from "@/types/database";
 
 const allowedStatuses: EventStatus[] = ["draft", "pending_review", "active", "rejected", "sold_out", "cancelled", "completed", "archived"];
@@ -146,17 +147,6 @@ function normalizeRegistrationMode(value: string): EventRegistrationMode {
 
 function normalizePaymentLinkMode(value: string): PaymentLinkMode {
   return value === "external_registration" ? "external_registration" : "payment_only";
-}
-
-function getPaymentDeadlineDays(formData: FormData) {
-  const rawValue = getOptionalString(formData, "payment_deadline_days");
-
-  if (!rawValue) {
-    return null;
-  }
-
-  const deadlineDays = Number(rawValue);
-  return Number.isInteger(deadlineDays) && deadlineDays >= 0 && deadlineDays <= 60 ? deadlineDays : Number.NaN;
 }
 
 async function upsertEventPaymentSettings(
@@ -291,6 +281,13 @@ async function uploadEventCoverImage(formData: FormData, currentImagePath: strin
 
   const imagePath = "events/cover/" + crypto.randomUUID() + "." + extension;
   const adminClient = createAdminClient();
+  const bucketError = await ensureMediaStorageBucket(adminClient);
+
+  if (bucketError) {
+    console.error("Event cover media bucket setup error", bucketError);
+    eventsRedirect("Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
+  }
+
   const { error } = await adminClient.storage.from("media").upload(imagePath, file, {
     cacheControl: "3600",
     contentType: file.type,
@@ -325,6 +322,13 @@ async function uploadEventGalleryImage(adminClient: AdminClient, eventId: string
   }
 
   const imagePath = "events/gallery/" + eventId + "/" + crypto.randomUUID() + "." + extension;
+  const bucketError = await ensureMediaStorageBucket(adminClient);
+
+  if (bucketError) {
+    console.error("Event gallery media bucket setup error", bucketError);
+    throw new Error("Stemningsbilledet kunne ikke uploades.");
+  }
+
   const { error } = await adminClient.storage.from("media").upload(imagePath, file, {
     cacheControl: "3600",
     contentType: file.type,
@@ -1421,6 +1425,8 @@ export async function createEventAction(formData: FormData) {
   let existingEventPublishedAt: string | null = null;
   let existingEventCoverImagePath: string | null = null;
   let existingEventRegistrationMode: EventRegistrationMode | null = null;
+  let existingPaymentInstructions: string | null = null;
+  let existingPaymentDeadlineDays: number | null = null;
   let previousEventSnapshot: EventUpdateSnapshot | null = null;
 
   if (existingEventId) {
@@ -1450,6 +1456,15 @@ export async function createEventAction(formData: FormData) {
     existingEventCoverImagePath = foundExistingEvent.cover_image_path ?? null;
     existingEventRegistrationMode = normalizeRegistrationMode(foundExistingEvent.registration_mode ?? "");
     previousEventSnapshot = foundExistingEvent as EventUpdateSnapshot;
+
+    const { data: existingPaymentSettings } = await supabase
+      .from("event_payment_settings")
+      .select("instructions, deadline_days")
+      .eq("event_id", existingEventId)
+      .maybeSingle();
+
+    existingPaymentInstructions = existingPaymentSettings?.instructions ?? null;
+    existingPaymentDeadlineDays = existingPaymentSettings?.deadline_days ?? null;
   }
 
   const preservedPublishedStatus =
@@ -1557,14 +1572,8 @@ export async function createEventAction(formData: FormData) {
   const paymentBankAccountNumber = null;
   const paymentBankAccountName = null;
   const paymentExternalUrl = priceCents > 0 && paymentMethodSource === "custom" ? getOptionalString(formData, "payment_external_url") : null;
-  const paymentInstructions =
-    priceCents > 0 && !(paymentMethodSource === "custom" && paymentLinkMode === "external_registration")
-      ? getOptionalString(formData, "payment_instructions")
-      : null;
-  const paymentDeadlineDays =
-    priceCents > 0 && !(paymentMethodSource === "custom" && paymentLinkMode === "external_registration")
-      ? getPaymentDeadlineDays(formData)
-      : null;
+  const paymentInstructions = existingEventId ? existingPaymentInstructions : null;
+  const paymentDeadlineDays = existingEventId ? existingPaymentDeadlineDays : null;
   const capacityText = getString(formData, "capacity");
   const rawCapacity = getInteger(formData, "capacity");
   const capacity = isDraft && rawCapacity <= 0 ? 1 : rawCapacity;
@@ -1597,7 +1606,7 @@ export async function createEventAction(formData: FormData) {
       .from("bookings")
       .select("id", { count: "exact", head: true })
       .eq("event_id", existingEventId)
-      .in("status", ["pending", "confirmed"]);
+      .in("status", activeBookingStatuses);
 
     if ((activeBookingCount ?? 0) > 0) {
       redirectWithMessage("Tilmeldingsmodellen kan ikke ændres, når eventet allerede har reservationer eller tilmeldinger.");
@@ -1627,7 +1636,6 @@ export async function createEventAction(formData: FormData) {
     [paymentBankAccountNumber, 40, "Bank kontonr."],
     [paymentBankAccountName, 120, "Kontonavn"],
     [paymentExternalUrl, 300, "Betalingslink"],
-    [paymentInstructions, 800, "Betalingsinstruktioner"],
   ];
 
   for (const [value, maxLength, label] of lengthChecks) {
@@ -1695,20 +1703,16 @@ export async function createEventAction(formData: FormData) {
     }
   }
 
-  if (paymentDeadlineDays !== null && Number.isNaN(paymentDeadlineDays)) {
-    redirectWithMessage("Betalingsfrist skal være mellem 0 og 60 dage.");
-  }
-
   if (paymentExternalUrl && !isValidUrl(paymentExternalUrl)) {
     redirectWithMessage("Betalingslink skal være et gyldigt link, fx https://...");
   }
 
   if (!isDraft && priceCents > 0 && paymentMethodSource === "custom" && !paymentExternalUrl) {
-    redirectWithMessage("Betalingslink er påkrævet, når du bruger et unikt betalingslink til eventet.");
+    redirectWithMessage("Betalingslink er påkrævet, når deltagerne skal sendes videre til dit betalingslink.");
   }
 
   if (!isDraft && priceCents > 0 && paymentMethodSource === "custom" && paymentLinkMode === "external_registration" && registrationMode !== "direct") {
-    redirectWithMessage("Ekstern tilmelding og betaling kan kun bruges sammen med direkte tilmelding.");
+    redirectWithMessage("Betalingslink kan kun bruges uden manuel godkendelse af deltagere.");
   }
 
   if (
@@ -1717,7 +1721,7 @@ export async function createEventAction(formData: FormData) {
     paymentMethodSource === "facilitator" &&
     !hasStandardPaymentMethod(paymentSettingsToInstructionsRecord(facilitatorPaymentSettings))
   ) {
-    redirectWithMessage("Du har endnu ikke gemt standardbetalingsoplysninger. Opsæt betalingsoplysninger, eller vælg et unikt betalingslink til dette event.");
+    redirectWithMessage("Du har endnu ikke gemt standardbetalingsoplysninger. Opsæt betalingsoplysninger, eller vælg betalingslink til dette event.");
   }
 
   if (mainCategoryIds.length > 3 || categoryIds.length > 3 || tagIds.length > 4) {
@@ -1962,7 +1966,7 @@ export async function createEventAction(formData: FormData) {
             event_title_snapshot: title,
           })
           .eq("event_id", existingEventId)
-          .in("status", ["pending", "confirmed"]);
+          .in("status", activeBookingStatuses);
       }
 
       if (notifyParticipants) {
@@ -1971,7 +1975,7 @@ export async function createEventAction(formData: FormData) {
             .from("bookings")
             .select("id, participant_email, participant_name, seats, status")
             .eq("event_id", existingEventId)
-            .in("status", ["pending", "confirmed"]);
+            .in("status", activeBookingStatuses);
 
           const recipients = (participants ?? []).map((participant) => ({
             bookingId: participant.id,

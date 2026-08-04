@@ -12,6 +12,7 @@ import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile } from "
 
 type BecomeOrganizerImageFieldsProps = {
   content: BecomeOrganizerPageContent;
+  keys?: BecomeOrganizerImageKey[];
 };
 
 const maxImageWidth = 1800;
@@ -78,9 +79,10 @@ function imageForField(content: BecomeOrganizerPageContent, key: BecomeOrganizer
   return getBecomeOrganizerSection(content, "final-cta", "cta")?.image;
 }
 
-export function BecomeOrganizerImageFields({ content }: BecomeOrganizerImageFieldsProps) {
+export function BecomeOrganizerImageFields({ content, keys }: BecomeOrganizerImageFieldsProps) {
   const [messages, setMessages] = useState<Partial<Record<BecomeOrganizerImageKey, string>>>({});
   const [previews, setPreviews] = useState<Partial<Record<BecomeOrganizerImageKey, string>>>({});
+  const fields = keys ? becomeOrganizerImageFields.filter((field) => keys.includes(field.key)) : becomeOrganizerImageFields;
 
   useEffect(() => {
     return () => {
@@ -124,7 +126,7 @@ export function BecomeOrganizerImageFields({ content }: BecomeOrganizerImageFiel
     <section className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
       <h2 className="font-semibold text-midnight">Billeder</h2>
       <div className="grid gap-4 md:grid-cols-3">
-        {becomeOrganizerImageFields.map((field) => {
+        {fields.map((field) => {
           const image = imageForField(content, field.key) ?? { alt: "", path: null };
           const previewUrl = previews[field.key] ?? publicMediaUrl(image.path);
 

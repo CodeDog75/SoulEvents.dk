@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowLeft, CalendarPlus, CheckCircle2 } from "lucide-rea
 import { AuthMessage } from "@/components/auth/auth-message";
 import { EventForm } from "@/components/facilitator/events/event-form";
 import { requireRole } from "@/lib/auth/roles";
+import { isActiveBookingStatus } from "@/lib/events/capacity";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
 import { getFacilitatorProfileReadiness } from "@/lib/facilitators/profile-readiness";
@@ -369,7 +370,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
                     payment_instructions: selectedDraftPaymentSettings?.instructions ?? null,
                     payment_deadline_days: selectedDraftPaymentSettings?.deadline_days ?? null,
                     activeBookingCount:
-                      selectedDraft.bookings?.filter((booking: BookingRelationRow) => ["pending", "confirmed"].includes(booking.status ?? "")).length ?? 0,
+                      selectedDraft.bookings?.filter((booking: BookingRelationRow) => isActiveBookingStatus(booking.status)).length ?? 0,
                     coOrganizerInvitations: ((coOrganizerInvitations ?? []) as CoOrganizerInvitationRow[]).map((invitation) => {
                       const coOrganizerProfile = first(invitation.facilitator_profiles);
                       const coOrganizerUser = first(coOrganizerProfile?.profiles);
@@ -425,7 +426,6 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
               paymentBankAccountName: facilitatorPaymentSettings?.bank_account_name ?? null,
               paymentExternalUrl: facilitatorPaymentSettings?.external_url ?? null,
               paymentInstructions: facilitatorPaymentSettings?.instructions ?? null,
-              paymentDeadlineDays: facilitatorPaymentSettings?.deadline_days ?? 14,
               allowApprovalRequiredRegistration: facilitatorProfile.allow_approval_required_registration ?? false,
             }}
             regions={regions ?? []}

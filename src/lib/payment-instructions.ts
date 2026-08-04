@@ -94,13 +94,13 @@ export function hasStandardPaymentMethod(record: PaymentInstructionsRecord | nul
   }
 
   const hasMobilePay = Boolean(cleanText(record.payment_mobilepay_number));
-  const hasExternalUrl = Boolean(cleanText(record.payment_external_url));
+  const hasManualInstructions = Boolean(cleanText(record.payment_instructions));
   const hasCompleteBankDetails = Boolean(
     cleanText(record.payment_bank_registration_number) &&
       cleanText(record.payment_bank_account_number),
   );
 
-  return hasMobilePay || hasExternalUrl || hasCompleteBankDetails;
+  return hasMobilePay || hasCompleteBankDetails || hasManualInstructions;
 }
 
 export function resolvePaymentRecord({
@@ -121,11 +121,7 @@ export function resolvePaymentRecord({
   }
 
   return {
-    record: {
-      ...facilitator,
-      payment_deadline_days: event.payment_deadline_days ?? facilitator.payment_deadline_days,
-      payment_instructions: event.payment_instructions ?? facilitator.payment_instructions,
-    },
+    record: facilitator,
     source: "facilitator" as const,
   };
 }
@@ -137,6 +133,7 @@ export function buildPaymentMethods(record: PaymentInstructionsRecord) {
   const accountNumber = cleanText(record.payment_bank_account_number);
   const accountName = cleanText(record.payment_bank_account_name);
   const externalUrl = normalizeUrl(record.payment_external_url);
+  const manualInstructions = cleanText(record.payment_instructions);
 
   if (mobilepay) {
     methods.push({ label: "MobilePay", type: "mobilepay", value: mobilepay });
@@ -160,41 +157,17 @@ export function buildPaymentMethods(record: PaymentInstructionsRecord) {
     methods.push({ label: "Betalingslink", type: "external_link", url: externalUrl, value: externalUrl });
   }
 
+  if (manualInstructions) {
+    methods.push({ label: "Kontant", type: "manual", value: manualInstructions });
+  }
+
   return methods;
-}
-
-function resolveDueAt({
-  confirmedAt,
-  deadlineDays,
-  eventStartsAt,
-  source,
-}: {
-  confirmedAt: Date;
-  deadlineDays: number | null | undefined;
-  eventStartsAt: string;
-  source: PaymentMethodSource;
-}) {
-  if (source === "none") {
-    return null;
-  }
-
-  const safeDeadlineDays = Number.isInteger(deadlineDays) ? Math.max(0, Math.min(deadlineDays ?? 14, 60)) : 14;
-  const dueAt = new Date(confirmedAt);
-  dueAt.setDate(dueAt.getDate() + safeDeadlineDays);
-
-  const eventDate = new Date(eventStartsAt);
-  if (!Number.isNaN(eventDate.getTime()) && dueAt > eventDate) {
-    return eventDate.toISOString();
-  }
-
-  return dueAt.toISOString();
 }
 
 export function buildBookingPaymentInstructions({
   amountCents,
   confirmedAt,
   event,
-  eventStartsAt,
   facilitator,
   reference,
 }: {
@@ -214,7 +187,7 @@ export function buildBookingPaymentInstructions({
   const note =
     source === "none"
       ? cleanText(record.payment_instructions) || "Betaling aftales direkte med arrangøren."
-      : cleanText(record.payment_instructions) || null;
+      : null;
 
   if (source !== "none" && methods.length === 0 && !note) {
     return null;
@@ -224,12 +197,7 @@ export function buildBookingPaymentInstructions({
     amountCents,
     currency: "DKK",
     disclaimer: paymentDisclaimer,
-    dueAt: resolveDueAt({
-      confirmedAt,
-      deadlineDays: record.payment_deadline_days,
-      eventStartsAt,
-      source,
-    }),
+    dueAt: null,
     generatedAt: confirmedAt.toISOString(),
     methods,
     note,

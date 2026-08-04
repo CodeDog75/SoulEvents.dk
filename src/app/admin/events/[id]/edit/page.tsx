@@ -231,7 +231,6 @@ export default async function AdminEventEditPage({ params, searchParams }: Admin
             paymentBankAccountName: facilitatorPaymentSettings?.bank_account_name ?? null,
             paymentBankAccountNumber: facilitatorPaymentSettings?.bank_account_number ?? null,
             paymentBankRegistrationNumber: facilitatorPaymentSettings?.bank_registration_number ?? null,
-            paymentDeadlineDays: facilitatorPaymentSettings?.deadline_days ?? 14,
             paymentExternalUrl: facilitatorPaymentSettings?.external_url ?? null,
             paymentInstructions: facilitatorPaymentSettings?.instructions ?? null,
             paymentMobilepayNumber: facilitatorPaymentSettings?.mobilepay_number ?? null,

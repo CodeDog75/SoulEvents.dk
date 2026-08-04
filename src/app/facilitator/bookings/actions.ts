@@ -7,7 +7,7 @@ import { sendBookingPaymentReminder } from "@/lib/email/booking-payment-reminder
 import { sendParticipantBookingResponse, sendParticipantBookingSeatsUpdated } from "@/lib/email/participant-booking-response";
 import { env } from "@/lib/env";
 import { participantCalendarUrl, participantCancelUrl } from "@/lib/bookings/participant-links";
-import { syncEventCapacityStatus } from "@/lib/events/capacity";
+import { activeBookingStatuses, getReservedSeatsFromRows, isActiveBookingStatus, syncEventCapacityStatus } from "@/lib/events/capacity";
 import { getString } from "@/lib/forms/form-data";
 import { requireRole } from "@/lib/auth/roles";
 import {
@@ -21,7 +21,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { BookingStatus } from "@/types/database";
 
-const responseStatuses: BookingStatus[] = ["confirmed", "cancelled"];
+const responseStatuses: BookingStatus[] = ["cancelled"];
 const paymentReminderCooldownMs = 24 * 60 * 60 * 1000;
 
 function firstRelation<T>(value: T | T[] | null | undefined) {
@@ -90,9 +90,9 @@ async function getReservedSeatsForEvent(
   ] = await Promise.all([
     supabase
       .from("bookings")
-      .select("seats")
+      .select("seats, status")
       .eq("event_id", input.eventId)
-      .in("status", ["pending", "confirmed"]),
+      .in("status", activeBookingStatuses),
     supabase
       .from("external_event_participants")
       .select("id, seats")
@@ -107,12 +107,11 @@ async function getReservedSeatsForEvent(
     throw externalParticipantsError;
   }
 
-  const bookingSeats = (bookings ?? []).reduce((sum, booking) => sum + (booking.seats ?? 0), 0);
   const externalSeats = (externalParticipants ?? [])
     .filter((participant) => participant.id !== input.excludeExternalParticipantId)
     .reduce((sum, participant) => sum + (participant.seats ?? 0), 0);
 
-  return bookingSeats + externalSeats;
+  return getReservedSeatsFromRows({ bookings }) + externalSeats;
 }
 
 async function getOwnExternalRegistrationEvent(
@@ -183,7 +182,7 @@ export async function updateBookingStatusAction(formData: FormData) {
     bookingsRedirect("Kun afventende tilmeldinger kan bekræftes.", booking.event_id);
   }
 
-  if (status === "cancelled" && !["pending", "confirmed"].includes(booking.status)) {
+  if (status === "cancelled" && !isActiveBookingStatus(booking.status)) {
     bookingsRedirect("Kun afventende eller bekræftede tilmeldinger kan aflyses.", booking.event_id);
   }
 
@@ -289,145 +288,14 @@ export async function updateBookingStatusAction(formData: FormData) {
 }
 
 export async function confirmAllPendingBookingsAction(formData: FormData) {
-  const profile = await requireRole("facilitator");
+  await requireRole("facilitator");
   const eventId = getString(formData, "event_id");
 
   if (!eventId) {
     bookingsRedirect("Vælg et event først.");
   }
 
-  const supabase = await createClient();
-  const { data: facilitatorProfile } = await supabase
-    .from("facilitator_profiles")
-    .select("id")
-    .eq("profile_id", profile.id)
-    .single();
-
-  if (!facilitatorProfile) {
-    bookingsRedirect("Arrangørprofilen mangler.", eventId);
-  }
-
-  const [{ data: event }, { data: bookings }] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id, starts_at, facilitator_id")
-      .eq("id", eventId)
-      .eq("facilitator_id", facilitatorProfile.id)
-      .maybeSingle(),
-    supabase
-      .from("bookings")
-      .select(
-        `
-        id,
-        event_id,
-        facilitator_id,
-        participant_name,
-        participant_email,
-        status,
-        seats,
-        booking_value_cents,
-        payment_reference,
-        participant_access_token,
-        event_title_snapshot,
-        event_starts_at_snapshot,
-        facilitator_name_snapshot,
-        events(slug)
-      `,
-      )
-      .eq("event_id", eventId)
-      .eq("facilitator_id", facilitatorProfile.id)
-      .eq("status", "pending")
-      .order("created_at", { ascending: true }),
-  ]);
-
-  if (!event) {
-    bookingsRedirect("Eventet kunne ikke findes.", eventId);
-  }
-
-  if (!bookings || bookings.length === 0) {
-    bookingsRedirect("Der er ingen afventende tilmeldinger at bekræfte.", eventId);
-  }
-
-  const [{ data: eventPaymentSettings }, { data: facilitatorPaymentSettings }] = await Promise.all([
-    supabase
-      .from("event_payment_settings")
-      .select("*")
-      .eq("event_id", eventId)
-      .eq("facilitator_id", facilitatorProfile.id)
-      .maybeSingle(),
-    supabase
-      .from("facilitator_payment_settings")
-      .select("*")
-      .eq("facilitator_id", facilitatorProfile.id)
-      .maybeSingle(),
-  ]);
-
-  const eventPaymentRecord = {
-    ...paymentSettingsToInstructionsRecord(eventPaymentSettings),
-    payment_method_source: eventPaymentSettings?.method_source ?? "facilitator",
-  };
-  const facilitatorPaymentRecord = paymentSettingsToInstructionsRecord(facilitatorPaymentSettings);
-  const requestHeaders = await headers();
-  const requestOrigin = requestHeaders.get("origin");
-  let failedMails = 0;
-
-  for (const booking of bookings) {
-    const paymentInstructions = buildBookingPaymentInstructions({
-      amountCents: booking.booking_value_cents,
-      confirmedAt: new Date(),
-      event: eventPaymentRecord,
-      eventStartsAt: event.starts_at,
-      facilitator: facilitatorPaymentRecord,
-      reference: booking.payment_reference,
-    });
-    const bookingUpdates: Record<string, unknown> = { status: "confirmed" };
-
-    if (paymentInstructions) {
-      bookingUpdates.payment_instructions_snapshot = paymentInstructions;
-      bookingUpdates.payment_due_at = paymentInstructions.dueAt;
-      bookingUpdates.payment_snapshot_created_at = paymentInstructions.generatedAt;
-    }
-
-    const { error } = await supabase.from("bookings").update(bookingUpdates).eq("id", booking.id).eq("status", "pending");
-
-    if (error) {
-      bookingsRedirect("Alle tilmeldinger kunne ikke bekræftes.", eventId);
-    }
-
-    const participantMailSent = await sendParticipantBookingResponse({
-      bookingId: booking.id,
-      eventId: booking.event_id,
-      status: "confirmed",
-      participantEmail: booking.participant_email,
-      participantName: booking.participant_name,
-      seats: booking.seats,
-      eventTitle: booking.event_title_snapshot,
-      eventStartsAt: booking.event_starts_at_snapshot,
-      facilitatorName: booking.facilitator_name_snapshot,
-      eventUrl: publicEventUrl(booking.event_id, firstRelation(booking.events)?.slug ?? null),
-      calendarUrl: participantCalendarUrl(booking.participant_access_token, requestOrigin),
-      cancelUrl: participantCancelUrl(booking.participant_access_token, requestOrigin),
-      paymentInstructions,
-    });
-
-    if (!participantMailSent) {
-      failedMails += 1;
-    }
-  }
-
-  await syncEventCapacityStatus(supabase, eventId);
-
-  revalidatePath("/facilitator");
-  revalidatePath("/facilitator/bookings");
-  revalidatePath("/");
-  revalidatePath("/events/" + eventId);
-
-  bookingsRedirect(
-    failedMails > 0
-      ? `${bookings.length} tilmeldinger er bekræftet, men ${failedMails} besked${failedMails === 1 ? "" : "er"} kunne ikke sendes.`
-      : `${bookings.length} tilmeldinger er bekræftet, og deltagerne har fået besked.`,
-    eventId,
-  );
+  bookingsRedirect("Manuel bekræftelse af tilmeldinger er udfaset. Nye SoulEvents-tilmeldinger bekræftes automatisk.", eventId);
 }
 
 export async function updateBookingSeatsAction(formData: FormData) {
@@ -465,7 +333,7 @@ export async function updateBookingSeatsAction(formData: FormData) {
     bookingsRedirect("Tilmeldingen kunne ikke findes.", currentEventId);
   }
 
-  if (!["pending", "confirmed"].includes(booking.status)) {
+  if (!isActiveBookingStatus(booking.status)) {
     bookingsRedirect("Kun aktive tilmeldinger kan justeres.", booking.event_id);
   }
 
@@ -481,7 +349,7 @@ export async function updateBookingSeatsAction(formData: FormData) {
         .from("bookings")
         .select("id, seats, status")
         .eq("event_id", booking.event_id)
-        .in("status", ["pending", "confirmed"])
+        .in("status", activeBookingStatuses)
         .neq("id", booking.id),
     ]);
 
@@ -798,249 +666,30 @@ export async function markEventSoldOutAction(formData: FormData) {
 }
 
 export async function addExternalEventParticipantAction(formData: FormData) {
-  const profile = await requireRole("facilitator");
+  await requireRole("facilitator");
   const eventId = getString(formData, "event_id");
-  const participantName = getOptionalText(formData, "participant_name");
-  const participantEmail = getOptionalEmailText(formData, "participant_email");
-  const participantPhone = getOptionalText(formData, "participant_phone");
-  const internalNote = getOptionalText(formData, "internal_note");
-  const seats = getSeats(formData);
 
   if (!eventId) {
     bookingsRedirect("Vælg et event først.");
   }
 
-  if (!participantName && !participantEmail && !participantPhone && !internalNote) {
-    bookingsRedirect("Tilføj mindst én oplysning om deltageren.", eventId);
-  }
-
-  if (participantName && participantName.length > 120) {
-    bookingsRedirect("Navn må højst være 120 tegn.", eventId);
-  }
-
-  if (participantEmail && (!isLikelyEmail(participantEmail) || participantEmail.length > 160)) {
-    bookingsRedirect("Indtast en gyldig e-mailadresse.", eventId);
-  }
-
-  if (participantPhone && participantPhone.length > 50) {
-    bookingsRedirect("Telefonnummer må højst være 50 tegn.", eventId);
-  }
-
-  if (internalNote && internalNote.length > 500) {
-    bookingsRedirect("Intern note må højst være 500 tegn.", eventId);
-  }
-
-  if (seats < 1 || seats > 500) {
-    bookingsRedirect("Antal pladser skal være mellem 1 og 500.", eventId);
-  }
-
-  const supabase = await createClient();
-  const { data: facilitatorProfile } = await supabase
-    .from("facilitator_profiles")
-    .select("id")
-    .eq("profile_id", profile.id)
-    .single();
-
-  if (!facilitatorProfile) {
-    bookingsRedirect("Arrangørprofilen mangler.", eventId);
-  }
-
-  const event = await getOwnExternalRegistrationEvent(supabase, {
-    eventId,
-    facilitatorId: facilitatorProfile.id,
-  });
-
-  if (!event) {
-    bookingsRedirect("Eventet kunne ikke findes.", eventId);
-  }
-
-  if (!isExternalRegistrationEvent(event)) {
-    bookingsRedirect("Manuelle eksterne deltagere kan kun tilføjes på events med ekstern tilmelding.", eventId);
-  }
-
-  if (typeof event.capacity === "number" && event.capacity > 0) {
-    const admin = createAdminClient();
-    let occupiedSeats = 0;
-
-    try {
-      occupiedSeats = await getReservedSeatsForEvent(admin, { eventId: event.id });
-    } catch (error) {
-      console.error("[external-participants] Capacity could not be checked", {
-        error,
-        eventId,
-      });
-      bookingsRedirect("Kapaciteten kunne ikke kontrolleres.", eventId);
-    }
-
-    const remainingSeats = Math.max(event.capacity - occupiedSeats, 0);
-
-    if (seats > remainingSeats) {
-      bookingsRedirect("Der er kun " + remainingSeats + " pladser tilbage i dit manuelle overblik.", eventId);
-    }
-  }
-
-  const { error } = await supabase.from("external_event_participants").insert({
-    event_id: event.id,
-    facilitator_id: facilitatorProfile.id,
-    participant_name: participantName,
-    participant_email: participantEmail,
-    participant_phone: participantPhone,
-    seats,
-    internal_note: internalNote,
-    source: "manual",
-    created_by: profile.id,
-  });
-
-  if (error) {
-    console.error("[external-participants] Participant could not be added", {
-      code: error.code,
-      details: error.details,
-      eventId,
-      hint: error.hint,
-      message: error.message,
-    });
-    bookingsRedirect("Deltageren kunne ikke tilføjes.", eventId);
-  }
-
-  revalidatePath("/facilitator");
-  revalidatePath("/facilitator/bookings");
-  if (event.slug) {
-    revalidatePath(publicEventPath(event.slug));
-  }
-  revalidatePath("/");
-  bookingsRedirect("Deltageren er tilføjet som ekstern tilmelding.", eventId);
+  bookingsRedirect("Ekstern tilmelding håndteres uden deltagerstyring i SoulEvents.", eventId);
 }
 
 export async function updateExternalEventParticipantAction(formData: FormData) {
-  const profile = await requireRole("facilitator");
+  await requireRole("facilitator");
   const participantId = getString(formData, "participant_id");
   const eventId = getString(formData, "event_id");
-  const participantName = getOptionalText(formData, "participant_name");
-  const participantEmail = getOptionalEmailText(formData, "participant_email");
-  const participantPhone = getOptionalText(formData, "participant_phone");
-  const internalNote = getOptionalText(formData, "internal_note");
-  const seats = getSeats(formData);
 
   if (!participantId || !eventId) {
     bookingsRedirect("Deltageren kunne ikke findes.", eventId);
   }
 
-  if (!participantName && !participantEmail && !participantPhone && !internalNote) {
-    bookingsRedirect("Tilføj mindst én oplysning om deltageren.", eventId);
-  }
-
-  if (participantName && participantName.length > 120) {
-    bookingsRedirect("Navn må højst være 120 tegn.", eventId);
-  }
-
-  if (participantEmail && (!isLikelyEmail(participantEmail) || participantEmail.length > 160)) {
-    bookingsRedirect("Indtast en gyldig e-mailadresse.", eventId);
-  }
-
-  if (participantPhone && participantPhone.length > 50) {
-    bookingsRedirect("Telefonnummer må højst være 50 tegn.", eventId);
-  }
-
-  if (internalNote && internalNote.length > 500) {
-    bookingsRedirect("Intern note må højst være 500 tegn.", eventId);
-  }
-
-  if (seats < 1 || seats > 500) {
-    bookingsRedirect("Antal pladser skal være mellem 1 og 500.", eventId);
-  }
-
-  const supabase = await createClient();
-  const { data: facilitatorProfile } = await supabase
-    .from("facilitator_profiles")
-    .select("id")
-    .eq("profile_id", profile.id)
-    .single();
-
-  if (!facilitatorProfile) {
-    bookingsRedirect("Arrangørprofilen mangler.", eventId);
-  }
-
-  const { data: existingParticipant } = await supabase
-    .from("external_event_participants")
-    .select("id, event_id, facilitator_id, seats")
-    .eq("id", participantId)
-    .eq("event_id", eventId)
-    .eq("facilitator_id", facilitatorProfile.id)
-    .maybeSingle();
-
-  if (!existingParticipant) {
-    bookingsRedirect("Deltageren kunne ikke findes.", eventId);
-  }
-
-  const event = await getOwnExternalRegistrationEvent(supabase, {
-    eventId,
-    facilitatorId: facilitatorProfile.id,
-  });
-
-  if (!event || !isExternalRegistrationEvent(event)) {
-    bookingsRedirect("Manuelle eksterne deltagere kan kun redigeres på events med ekstern tilmelding.", eventId);
-  }
-
-  if (typeof event.capacity === "number" && event.capacity > 0) {
-    const admin = createAdminClient();
-    let occupiedSeatsWithoutCurrentParticipant = 0;
-
-    try {
-      occupiedSeatsWithoutCurrentParticipant = await getReservedSeatsForEvent(admin, {
-        eventId: event.id,
-        excludeExternalParticipantId: existingParticipant.id,
-      });
-    } catch (error) {
-      console.error("[external-participants] Capacity could not be checked before update", {
-        error,
-        eventId,
-        participantId,
-      });
-      bookingsRedirect("Kapaciteten kunne ikke kontrolleres.", eventId);
-    }
-
-    const remainingSeats = Math.max(event.capacity - occupiedSeatsWithoutCurrentParticipant, 0);
-
-    if (seats > remainingSeats) {
-      bookingsRedirect("Der er kun " + remainingSeats + " ledige pladser tilbage.", eventId);
-    }
-  }
-
-  const { error } = await supabase
-    .from("external_event_participants")
-    .update({
-      participant_name: participantName,
-      participant_email: participantEmail,
-      participant_phone: participantPhone,
-      seats,
-      internal_note: internalNote,
-    })
-    .eq("id", existingParticipant.id)
-    .eq("facilitator_id", facilitatorProfile.id);
-
-  if (error) {
-    console.error("[external-participants] Participant could not be updated", {
-      code: error.code,
-      details: error.details,
-      eventId,
-      hint: error.hint,
-      message: error.message,
-      participantId,
-    });
-    bookingsRedirect("Deltageren kunne ikke opdateres.", eventId);
-  }
-
-  revalidatePath("/facilitator");
-  revalidatePath("/facilitator/bookings");
-  if (event.slug) {
-    revalidatePath(publicEventPath(event.slug));
-  }
-  revalidatePath("/");
-  bookingsRedirect("Deltageren er opdateret.", eventId);
+  bookingsRedirect("Ekstern tilmelding håndteres uden deltagerstyring i SoulEvents.", eventId);
 }
 
 export async function deleteExternalEventParticipantAction(formData: FormData) {
-  const profile = await requireRole("facilitator");
+  await requireRole("facilitator");
   const participantId = getString(formData, "participant_id");
   const eventId = getString(formData, "event_id");
   const confirmDelete = getString(formData, "confirm_delete");
@@ -1049,50 +698,5 @@ export async function deleteExternalEventParticipantAction(formData: FormData) {
     bookingsRedirect("Deltageren blev ikke fjernet.", eventId);
   }
 
-  const supabase = await createClient();
-  const { data: facilitatorProfile } = await supabase
-    .from("facilitator_profiles")
-    .select("id")
-    .eq("profile_id", profile.id)
-    .single();
-
-  if (!facilitatorProfile) {
-    bookingsRedirect("Arrangørprofilen mangler.", eventId);
-  }
-
-  const event = await getOwnExternalRegistrationEvent(supabase, {
-    eventId,
-    facilitatorId: facilitatorProfile.id,
-  });
-
-  if (!event || !isExternalRegistrationEvent(event)) {
-    bookingsRedirect("Manuelle eksterne deltagere kan kun fjernes på events med ekstern tilmelding.", eventId);
-  }
-
-  const { error } = await supabase
-    .from("external_event_participants")
-    .delete()
-    .eq("id", participantId)
-    .eq("event_id", eventId)
-    .eq("facilitator_id", facilitatorProfile.id);
-
-  if (error) {
-    console.error("[external-participants] Participant could not be deleted", {
-      code: error.code,
-      details: error.details,
-      eventId,
-      hint: error.hint,
-      message: error.message,
-      participantId,
-    });
-    bookingsRedirect("Deltageren kunne ikke fjernes.", eventId);
-  }
-
-  revalidatePath("/facilitator");
-  revalidatePath("/facilitator/bookings");
-  if (event.slug) {
-    revalidatePath(publicEventPath(event.slug));
-  }
-  revalidatePath("/");
-  bookingsRedirect("Deltageren er fjernet fra dit manuelle overblik.", eventId);
+  bookingsRedirect("Ekstern tilmelding håndteres uden deltagerstyring i SoulEvents.", eventId);
 }

@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendBookingNotification } from "@/lib/email/booking-notification";
 import { sendParticipantBookingResponse } from "@/lib/email/participant-booking-response";
-import { sendParticipantBookingReceipt } from "@/lib/email/participant-booking-receipt";
 import { getAppUrl } from "@/lib/app-url";
 import { participantCancelUrl } from "@/lib/bookings/participant-links";
 import { maxSeatsPerBooking } from "@/lib/bookings/limits";
@@ -239,9 +238,9 @@ export async function createBookingAction(formData: FormData) {
     seats,
     terms: commissionTerms,
   });
-  const registrationMode = event.price_cents > 0 && event.registration_mode === "direct" ? "direct" : "approval_required";
+  const registrationMode = "direct";
   const { data: eventPaymentSettingsForMode } =
-    registrationMode === "direct" && event.price_cents > 0
+    event.price_cents > 0
       ? await adminSupabase
           .from("event_payment_settings")
           .select("method_source, payment_link_mode, external_url")
@@ -259,7 +258,7 @@ export async function createBookingAction(formData: FormData) {
     bookingRedirect(eventId, "Tilmelding og betaling håndteres via arrangørens eksterne link.", event.slug);
   }
 
-  const bookingStatus = registrationMode === "direct" ? "confirmed" : "pending";
+  const bookingStatus = "confirmed";
   const { data: bookingResult, error } = await adminSupabase
     .from("bookings")
     .insert({
@@ -305,7 +304,7 @@ export async function createBookingAction(formData: FormData) {
 
   let paymentInstructions: PaymentInstructionsSnapshot | null = null;
 
-  if (registrationMode === "direct" && booking.booking_value_cents > 0) {
+  if (booking.booking_value_cents > 0) {
     const [{ data: eventPaymentSettings }, { data: facilitatorPaymentSettings }] = await Promise.all([
       adminSupabase
         .from("event_payment_settings")
@@ -413,8 +412,7 @@ export async function createBookingAction(formData: FormData) {
       seats,
       registrationMode,
     }),
-    registrationMode === "direct"
-      ? sendParticipantBookingResponse({
+    sendParticipantBookingResponse({
           bookingId: booking.id,
           cancelUrl: participantCancelUrl(booking.participant_access_token, requestOrigin),
           calendarUrl: null,
@@ -429,17 +427,6 @@ export async function createBookingAction(formData: FormData) {
           paymentInstructions,
           seats,
           status: "confirmed",
-        })
-      : sendParticipantBookingReceipt({
-          bookingId: booking.id,
-          cancelUrl: participantCancelUrl(booking.participant_access_token, requestOrigin),
-          eventId: event.id,
-          eventTitle: event.title,
-          eventStartsAt: event.starts_at,
-          facilitatorName,
-          participantName,
-          participantEmail,
-          seats,
         }),
   ]).then(([facilitatorMailResult, participantMailResult]) => {
     const facilitatorMailSent = facilitatorMailResult.status === "fulfilled" && facilitatorMailResult.value;
@@ -461,9 +448,9 @@ export async function createBookingAction(formData: FormData) {
   });
 
   const successMessage =
-    registrationMode === "direct"
+    booking.booking_value_cents > 0
       ? "Din tilmelding er registreret. Du modtager en kvitteringsmail med betalingsoplysninger."
-      : "Din tilmelding er modtaget, men endnu ikke endeligt bekræftet. Arrangøren skal først godkende den. Du modtager en ny e-mail, så snart det sker.";
+      : "Din tilmelding er registreret. Du modtager en bekræftelsesmail.";
 
   revalidatePath("/events/" + eventId);
   if (event.slug) {

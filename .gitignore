@@ -11,3 +11,5 @@ dist
 coverage
 *.log
 supabase/.temp/
+.codex/
+.local-email-outbox/

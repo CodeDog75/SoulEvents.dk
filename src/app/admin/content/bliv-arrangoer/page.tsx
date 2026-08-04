@@ -1,6 +1,16 @@
 import Link from "next/link";
 import { ArrowLeft, FileText, ExternalLink } from "lucide-react";
-import { updateBecomeOrganizerPageContentAction } from "@/app/admin/content/bliv-arrangoer/actions";
+import {
+  updateBecomeOrganizerBenefitsAction,
+  updateBecomeOrganizerCtaAction,
+  updateBecomeOrganizerFaqAction,
+  updateBecomeOrganizerHeroAction,
+  updateBecomeOrganizerImagesAction,
+  updateBecomeOrganizerIntroImageAction,
+  updateBecomeOrganizerIntroTextAction,
+  updateBecomeOrganizerSeoAction,
+  updateBecomeOrganizerVideoAction,
+} from "@/app/admin/content/bliv-arrangoer/actions";
 import { BecomeFacilitatorPresentationSectionCard } from "@/components/admin/become-facilitator-presentation-section-card";
 import { BecomeOrganizerImageFields } from "@/components/admin/become-organizer-image-fields";
 import { BecomeOrganizerSubmitButton } from "@/components/admin/become-organizer-submit-button";
@@ -62,6 +72,15 @@ function CtaFields({ labelPrefix, namePrefix, primaryLabel, primaryHref }: { lab
       <Field label={`${labelPrefix} link`}>
         <input className={inputClass} defaultValue={primaryHref} name={`${namePrefix}Href`} />
       </Field>
+    </div>
+  );
+}
+
+function FormFooter({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="flex flex-col gap-3 border-t border-midnight/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm text-ink/64">{text}</p>
+      <BecomeOrganizerSubmitButton idleLabel={label} />
     </div>
   );
 }
@@ -132,160 +151,167 @@ export default async function AdminBecomeOrganizerPage({ searchParams }: AdminBe
           Rediger den permanente landingsside “Bliv arrangør”. Alt indhold hentes fra databasen og kan ændres her uden kodeændringer.
         </section>
 
-        <form action={updateBecomeOrganizerPageContentAction} className="grid gap-6">
-          <section className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
-            <h2 className="font-semibold text-midnight">SEO</h2>
-            <Field label="SEO-titel">
-              <input className={inputClass} defaultValue={content.seoTitle} name="seoTitle" />
-            </Field>
-            <Field label="SEO-beskrivelse">
-              <textarea className={textareaClass} defaultValue={content.seoDescription} name="seoDescription" />
-            </Field>
-          </section>
+        <form action={updateBecomeOrganizerSeoAction} className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
+          <h2 className="font-semibold text-midnight">SEO</h2>
+          <Field label="SEO-titel">
+            <input className={inputClass} defaultValue={content.seoTitle} name="seoTitle" />
+          </Field>
+          <Field label="SEO-beskrivelse">
+            <textarea className={textareaClass} defaultValue={content.seoDescription} name="seoDescription" />
+          </Field>
+          <FormFooter label="Gem SEO" text="Gemmer titel og beskrivelse for søgemaskiner og delinger." />
+        </form>
 
-          <section className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
-            <SectionHeader checkboxName="heroIsEnabled" defaultChecked={hero.isEnabled} title="Hero" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Eyebrow">
-                <input className={inputClass} defaultValue={hero.eyebrow} name="heroEyebrow" />
-              </Field>
-              <Field label="Overskrift">
-                <input className={inputClass} defaultValue={hero.title} name="heroTitle" />
-              </Field>
-            </div>
-            <Field label="Tekst">
-              <textarea className={textareaClass} defaultValue={hero.text} name="heroText" />
+        <form action={updateBecomeOrganizerHeroAction} className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
+          <SectionHeader checkboxName="heroIsEnabled" defaultChecked={hero.isEnabled} title="Hero" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Eyebrow">
+              <input className={inputClass} defaultValue={hero.eyebrow} name="heroEyebrow" />
             </Field>
-            <CtaFields labelPrefix="Primær CTA" namePrefix="heroPrimaryCta" primaryHref={hero.primaryCta.href} primaryLabel={hero.primaryCta.label} />
-            <CtaFields labelPrefix="Sekundær CTA" namePrefix="heroSecondaryCta" primaryHref={hero.secondaryCta.href} primaryLabel={hero.secondaryCta.label} />
-          </section>
+            <Field label="Overskrift">
+              <input className={inputClass} defaultValue={hero.title} name="heroTitle" />
+            </Field>
+          </div>
+          <Field label="Tekst">
+            <textarea className={textareaClass} defaultValue={hero.text} name="heroText" />
+          </Field>
+          <CtaFields labelPrefix="Primær CTA" namePrefix="heroPrimaryCta" primaryHref={hero.primaryCta.href} primaryLabel={hero.primaryCta.label} />
+          <CtaFields labelPrefix="Sekundær CTA" namePrefix="heroSecondaryCta" primaryHref={hero.secondaryCta.href} primaryLabel={hero.secondaryCta.label} />
+          <FormFooter label="Gem hero" text="Gemmer kun hero-tekst og CTA’er." />
+        </form>
 
-          <section className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
-            <SectionHeader checkboxName="introTextIsEnabled" defaultChecked={introText.isEnabled} title="Tekstsektion" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Eyebrow">
-                <input className={inputClass} defaultValue={introText.eyebrow} name="introTextEyebrow" />
-              </Field>
-              <Field label="Overskrift">
-                <input className={inputClass} defaultValue={introText.title} name="introTextTitle" />
-              </Field>
-            </div>
-            <Field label="Tekst">
-              <textarea className={textareaClass} defaultValue={introText.text} name="introTextText" />
+        <form action={updateBecomeOrganizerIntroTextAction} className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
+          <SectionHeader checkboxName="introTextIsEnabled" defaultChecked={introText.isEnabled} title="Tekstsektion" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Eyebrow">
+              <input className={inputClass} defaultValue={introText.eyebrow} name="introTextEyebrow" />
             </Field>
-          </section>
+            <Field label="Overskrift">
+              <input className={inputClass} defaultValue={introText.title} name="introTextTitle" />
+            </Field>
+          </div>
+          <Field label="Tekst">
+            <textarea className={textareaClass} defaultValue={introText.text} name="introTextText" />
+          </Field>
+          <FormFooter label="Gem tekstsektion" text="Gemmer kun tekstsektionen." />
+        </form>
 
-          <section className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
-            <SectionHeader checkboxName="introImageIsEnabled" defaultChecked={introImage.isEnabled} title="Billedsektion" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Eyebrow">
-                <input className={inputClass} defaultValue={introImage.eyebrow} name="introImageEyebrow" />
-              </Field>
-              <Field label="Overskrift">
-                <input className={inputClass} defaultValue={introImage.title} name="introImageTitle" />
-              </Field>
-            </div>
-            <Field label="Tekst">
-              <textarea className={textareaClass} defaultValue={introImage.text} name="introImageText" />
+        <form action={updateBecomeOrganizerIntroImageAction} className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
+          <SectionHeader checkboxName="introImageIsEnabled" defaultChecked={introImage.isEnabled} title="Billedsektion" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Eyebrow">
+              <input className={inputClass} defaultValue={introImage.eyebrow} name="introImageEyebrow" />
             </Field>
-            <Field label="Billedplacering">
-              <select className={inputClass} defaultValue={introImage.imagePosition} name="introImagePosition">
-                <option value="right">Højre</option>
-                <option value="left">Venstre</option>
-              </select>
+            <Field label="Overskrift">
+              <input className={inputClass} defaultValue={introImage.title} name="introImageTitle" />
             </Field>
-          </section>
+          </div>
+          <Field label="Tekst">
+            <textarea className={textareaClass} defaultValue={introImage.text} name="introImageText" />
+          </Field>
+          <Field label="Billedplacering">
+            <select className={inputClass} defaultValue={introImage.imagePosition} name="introImagePosition">
+              <option value="right">Højre</option>
+              <option value="left">Venstre</option>
+            </select>
+          </Field>
+          <FormFooter label="Gem billedsektion" text="Gemmer kun billedsektionens tekst og placering." />
+        </form>
 
-          <section className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
-            <SectionHeader checkboxName="benefitsIsEnabled" defaultChecked={benefits.isEnabled} title="Fordele" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Eyebrow">
-                <input className={inputClass} defaultValue={benefits.eyebrow} name="benefitsEyebrow" />
-              </Field>
-              <Field label="Overskrift">
-                <input className={inputClass} defaultValue={benefits.title} name="benefitsTitle" />
-              </Field>
-            </div>
-            <Field label="Intro-tekst">
-              <textarea className={textareaClass} defaultValue={benefits.text} name="benefitsText" />
+        <form action={updateBecomeOrganizerBenefitsAction} className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
+          <SectionHeader checkboxName="benefitsIsEnabled" defaultChecked={benefits.isEnabled} title="Fordele" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Eyebrow">
+              <input className={inputClass} defaultValue={benefits.eyebrow} name="benefitsEyebrow" />
             </Field>
-            <div className="grid gap-3">
-              {padBenefits(benefits.items).map((item, index) => (
-                <div className="grid gap-3 rounded-md border border-midnight/10 bg-[#fbfaf7] p-4 md:grid-cols-[0.8fr_1.2fr]" key={index}>
-                  <Field label={`Fordel ${index + 1} · titel`}>
-                    <input className={inputClass} defaultValue={item.title} name={`benefit${index}Title`} />
-                  </Field>
-                  <Field label={`Fordel ${index + 1} · tekst`}>
-                    <input className={inputClass} defaultValue={item.text} name={`benefit${index}Text`} />
-                  </Field>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
-            <SectionHeader checkboxName="videoIsEnabled" defaultChecked={video.isEnabled} title="Video" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Eyebrow">
-                <input className={inputClass} defaultValue={video.eyebrow} name="videoEyebrow" />
-              </Field>
-              <Field label="Overskrift">
-                <input className={inputClass} defaultValue={video.title} name="videoTitle" />
-              </Field>
-            </div>
-            <Field label="Tekst">
-              <textarea className={textareaClass} defaultValue={video.text} name="videoText" />
+            <Field label="Overskrift">
+              <input className={inputClass} defaultValue={benefits.title} name="benefitsTitle" />
             </Field>
-            <Field label="YouTube- eller Vimeo-link">
-              <input className={inputClass} defaultValue={video.videoUrl} name="videoUrl" placeholder="https://www.youtube.com/watch?v=..." />
+          </div>
+          <Field label="Intro-tekst">
+            <textarea className={textareaClass} defaultValue={benefits.text} name="benefitsText" />
+          </Field>
+          <div className="grid gap-3">
+            {padBenefits(benefits.items).map((item, index) => (
+              <div className="grid gap-3 rounded-md border border-midnight/10 bg-[#fbfaf7] p-4 md:grid-cols-[0.8fr_1.2fr]" key={index}>
+                <Field label={`Fordel ${index + 1} · titel`}>
+                  <input className={inputClass} defaultValue={item.title} name={`benefit${index}Title`} />
+                </Field>
+                <Field label={`Fordel ${index + 1} · tekst`}>
+                  <input className={inputClass} defaultValue={item.text} name={`benefit${index}Text`} />
+                </Field>
+              </div>
+            ))}
+          </div>
+          <FormFooter label="Gem fordele" text="Gemmer kun fordelsafsnittet." />
+        </form>
+
+        <form action={updateBecomeOrganizerVideoAction} className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
+          <SectionHeader checkboxName="videoIsEnabled" defaultChecked={video.isEnabled} title="Video" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Eyebrow">
+              <input className={inputClass} defaultValue={video.eyebrow} name="videoEyebrow" />
             </Field>
-          </section>
-
-          <section className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
-            <SectionHeader checkboxName="faqIsEnabled" defaultChecked={faq.isEnabled} title="FAQ" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Eyebrow">
-                <input className={inputClass} defaultValue={faq.eyebrow} name="faqEyebrow" />
-              </Field>
-              <Field label="Overskrift">
-                <input className={inputClass} defaultValue={faq.title} name="faqTitle" />
-              </Field>
-            </div>
-            <div className="grid gap-3">
-              {padFaq(faq.items).map((item, index) => (
-                <div className="grid gap-3 rounded-md border border-midnight/10 bg-[#fbfaf7] p-4" key={index}>
-                  <Field label={`FAQ ${index + 1} · spørgsmål`}>
-                    <input className={inputClass} defaultValue={item.question} name={`faq${index}Question`} />
-                  </Field>
-                  <Field label={`FAQ ${index + 1} · svar`}>
-                    <textarea className={textareaClass} defaultValue={item.answer} name={`faq${index}Answer`} />
-                  </Field>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
-            <SectionHeader checkboxName="ctaIsEnabled" defaultChecked={cta.isEnabled} title="CTA nederst" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Eyebrow">
-                <input className={inputClass} defaultValue={cta.eyebrow} name="ctaEyebrow" />
-              </Field>
-              <Field label="Overskrift">
-                <input className={inputClass} defaultValue={cta.title} name="ctaTitle" />
-              </Field>
-            </div>
-            <Field label="Tekst">
-              <textarea className={textareaClass} defaultValue={cta.text} name="ctaText" />
+            <Field label="Overskrift">
+              <input className={inputClass} defaultValue={video.title} name="videoTitle" />
             </Field>
-            <CtaFields labelPrefix="Primær CTA" namePrefix="ctaPrimaryCta" primaryHref={cta.primaryCta.href} primaryLabel={cta.primaryCta.label} />
-            <CtaFields labelPrefix="Sekundær CTA" namePrefix="ctaSecondaryCta" primaryHref={cta.secondaryCta.href} primaryLabel={cta.secondaryCta.label} />
-          </section>
+          </div>
+          <Field label="Tekst">
+            <textarea className={textareaClass} defaultValue={video.text} name="videoText" />
+          </Field>
+          <Field label="YouTube- eller Vimeo-link">
+            <input className={inputClass} defaultValue={video.videoUrl} name="videoUrl" placeholder="https://www.youtube.com/watch?v=..." />
+          </Field>
+          <FormFooter label="Gem video" text="Gemmer kun videoafsnittet." />
+        </form>
 
+        <form action={updateBecomeOrganizerFaqAction} className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
+          <SectionHeader checkboxName="faqIsEnabled" defaultChecked={faq.isEnabled} title="FAQ" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Eyebrow">
+              <input className={inputClass} defaultValue={faq.eyebrow} name="faqEyebrow" />
+            </Field>
+            <Field label="Overskrift">
+              <input className={inputClass} defaultValue={faq.title} name="faqTitle" />
+            </Field>
+          </div>
+          <div className="grid gap-3">
+            {padFaq(faq.items).map((item, index) => (
+              <div className="grid gap-3 rounded-md border border-midnight/10 bg-[#fbfaf7] p-4" key={index}>
+                <Field label={`FAQ ${index + 1} · spørgsmål`}>
+                  <input className={inputClass} defaultValue={item.question} name={`faq${index}Question`} />
+                </Field>
+                <Field label={`FAQ ${index + 1} · svar`}>
+                  <textarea className={textareaClass} defaultValue={item.answer} name={`faq${index}Answer`} />
+                </Field>
+              </div>
+            ))}
+          </div>
+          <FormFooter label="Gem FAQ" text="Gemmer kun FAQ-afsnittet." />
+        </form>
+
+        <form action={updateBecomeOrganizerCtaAction} className="grid gap-4 rounded-card border border-midnight/10 bg-white p-5 shadow-soft">
+          <SectionHeader checkboxName="ctaIsEnabled" defaultChecked={cta.isEnabled} title="CTA nederst" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Eyebrow">
+              <input className={inputClass} defaultValue={cta.eyebrow} name="ctaEyebrow" />
+            </Field>
+            <Field label="Overskrift">
+              <input className={inputClass} defaultValue={cta.title} name="ctaTitle" />
+            </Field>
+          </div>
+          <Field label="Tekst">
+            <textarea className={textareaClass} defaultValue={cta.text} name="ctaText" />
+          </Field>
+          <CtaFields labelPrefix="Primær CTA" namePrefix="ctaPrimaryCta" primaryHref={cta.primaryCta.href} primaryLabel={cta.primaryCta.label} />
+          <CtaFields labelPrefix="Sekundær CTA" namePrefix="ctaSecondaryCta" primaryHref={cta.secondaryCta.href} primaryLabel={cta.secondaryCta.label} />
+          <FormFooter label="Gem CTA" text="Gemmer kun CTA-afsnittet." />
+        </form>
+
+        <form action={updateBecomeOrganizerImagesAction} className="grid gap-4">
           <BecomeOrganizerImageFields content={content} />
-
           <div className="flex flex-col gap-3 rounded-card border border-midnight/10 bg-white p-5 shadow-soft sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-ink/64">Gemmer alle sektioner, FAQ, CTA’er, video og billeder for den offentlige landingsside.</p>
+            <p className="text-sm text-ink/64">Gemmer kun billeder og alt-tekster for hero, billedsektion og nederste CTA.</p>
             <div className="flex flex-wrap gap-2">
               <Link
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-button border border-midnight/15 bg-white px-5 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700"
@@ -295,7 +321,7 @@ export default async function AdminBecomeOrganizerPage({ searchParams }: AdminBe
                 Se offentlig side
                 <ExternalLink className="size-4" aria-hidden="true" />
               </Link>
-              <BecomeOrganizerSubmitButton />
+              <BecomeOrganizerSubmitButton idleLabel="Gem billeder" />
             </div>
           </div>
         </form>
