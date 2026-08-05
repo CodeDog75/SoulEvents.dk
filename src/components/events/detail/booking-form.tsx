@@ -364,20 +364,10 @@ export function BookingForm({
   }
 
   if (usesExternalRegistration && externalRegistrationUrl) {
-    const capacityLabel =
-      typeof capacity === "number" && capacity > 0
-        ? `Maks. ${capacity} ${capacity === 1 ? "deltager" : "deltagere"}`
-        : null;
-
     return (
       <section className="rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_18px_45px_rgba(90,59,122,0.16)]">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7A4EAB]">Tilmelding</p>
         <h2 className="mt-1 text-3xl font-semibold text-olive">Tilmeld dig</h2>
-        {capacityLabel ? (
-          <div className="mt-4 rounded-md border border-white/70 bg-white/75 px-3 py-3 shadow-soft">
-            <p className="text-sm font-semibold text-olive">{capacityLabel}</p>
-          </div>
-        ) : null}
         <a
           className={`${bookingCtaClass} mt-5 inline-flex min-h-[4.25rem] w-full items-center justify-center gap-3`}
           href={externalRegistrationUrl}
