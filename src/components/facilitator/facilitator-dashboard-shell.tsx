@@ -7,7 +7,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  CalendarDays,
   CalendarPlus,
   CreditCard,
   HelpCircle,
@@ -149,7 +148,6 @@ export function FacilitatorDashboardShell({
   const primaryItems: NavigationItem[] = [
     { href: "/facilitator", icon: Home, label: "Startside" },
     { href: "/facilitator/events", icon: CalendarPlus, label: "Opret nyt event", isPrimary: true },
-    { href: "/facilitator#mine-events", icon: CalendarDays, label: "Mine events" },
     { badge: pendingBookingsCount, href: "/facilitator/bookings", icon: Inbox, label: "Tilmeldinger" },
     { badge: unreadMessagesCount, href: "/facilitator/messages", icon: Mail, label: "Beskedcenter" },
     { href: "/facilitator/year-rhythm", icon: MoonStar, label: "Årets rytme", secondaryLabel: yearRhythmMenuStatus },

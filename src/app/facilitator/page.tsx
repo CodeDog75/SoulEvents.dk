@@ -1588,11 +1588,6 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                 ) : null}
               </div>
               <div className="mt-6 grid gap-8 border-t border-[#EFE8F2] pt-6">
-                <BookingAttentionCard
-                  hasActiveEvents={activeEvents.length > 0}
-                  missingPaymentCount={missingPaymentBookingCount}
-                  missingPaymentHref={missingPaymentBookingsHref}
-                />
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
                   <h3 className="text-lg font-semibold text-[#2F2437]">
                     {selectedEventTab.title} ({selectedEventTabEvents.length})
@@ -1617,6 +1612,14 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                 )}
               </div>
             </section>
+          ) : null}
+
+          {profileReadiness.isComplete ? (
+            <BookingAttentionCard
+              hasActiveEvents={activeEvents.length > 0}
+              missingPaymentCount={missingPaymentBookingCount}
+              missingPaymentHref={missingPaymentBookingsHref}
+            />
           ) : null}
 
         </div>
