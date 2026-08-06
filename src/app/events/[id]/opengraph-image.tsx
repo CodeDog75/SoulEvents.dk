@@ -1,3 +1,4 @@
+import { isEventGalleryVideoPath } from "@/lib/events/gallery-media";
 import { fetchOpenGraphRows, getHomepageOpenGraphImageUrl } from "@/lib/open-graph-data";
 import { storagePublicUrl, stripHtml } from "@/lib/open-graph-core";
 import { renderOpenGraphImage } from "@/lib/open-graph-render";
@@ -34,7 +35,9 @@ type OpenGraphImageProps = {
 };
 
 function firstImagePath(images: EventOpenGraphRow["event_images"]) {
-  return [...(images ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).find((image) => image.image_path)?.image_path ?? null;
+  return [...(images ?? [])]
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .find((image) => image.image_path && !isEventGalleryVideoPath(image.image_path))?.image_path ?? null;
 }
 
 function firstCategoryImagePath(categories: EventOpenGraphRow["event_main_categories"]) {

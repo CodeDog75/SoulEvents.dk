@@ -22,6 +22,12 @@ import {
 } from "@/lib/co-organizers/external-invitations";
 import { notifyFacilitatorEventReminderSubscribers } from "@/lib/email/facilitator-new-event-reminder";
 import { formattedMaxEventDescriptionLength, maxEventDescriptionLength } from "@/lib/events/event-content-limits";
+import {
+  eventGalleryContentTypeFromPath,
+  eventGalleryFileExtension,
+  isEventGalleryVideoFile,
+  maxEventGalleryVideoFileSize,
+} from "@/lib/events/gallery-media";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { activeBookingStatuses, getAvailableEventSeats } from "@/lib/events/capacity";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
@@ -322,13 +328,21 @@ function eventImageExtension(file: File) {
 }
 
 async function uploadEventGalleryImage(adminClient: AdminClient, eventId: string, file: File) {
-  const extension = eventImageExtension(file);
+  const extension = eventGalleryFileExtension(file);
 
   if (!extension) {
-    throw new Error("Stemningsbilleder skal være JPG, PNG eller WebP. HEIC skal konverteres i browseren før upload.");
+    throw new Error("Stemningsmedier skal være JPG, PNG, WebP eller MP4. HEIC skal konverteres i browseren før upload.");
   }
 
-  if (file.size > 10 * 1024 * 1024) {
+  if (isEventGalleryVideoFile(file)) {
+    if (file.type !== "video/mp4") {
+      throw new Error("Stemningsvideoer skal være MP4.");
+    }
+
+    if (file.size > maxEventGalleryVideoFileSize) {
+      throw new Error("Stemningsvideoer må højst være 50 MB pr. MP4.");
+    }
+  } else if (file.size > 10 * 1024 * 1024) {
     throw new Error("Stemningsbilleder må højst være 10 MB pr. billede.");
   }
 
@@ -368,12 +382,12 @@ async function removeEventGalleryStorageFiles(adminClient: AdminClient, imagePat
   }
 }
 
-function imageContentTypeFromPath(imagePath: string) {
-  const extension = imagePath.split(".").pop()?.toLowerCase();
+function isOwnEventDraftGalleryPath(path: string | null | undefined, facilitatorId: string) {
+  return Boolean(path && path.startsWith(`events/drafts/${facilitatorId}/`) && path.includes("/gallery/"));
+}
 
-  if (extension === "png") return "image/png";
-  if (extension === "webp") return "image/webp";
-  return "image/jpeg";
+function imageContentTypeFromPath(imagePath: string) {
+  return eventGalleryContentTypeFromPath(imagePath);
 }
 
 async function copyEventGalleryImages(adminClient: AdminClient, input: { sourceEventId: string; targetEventId: string }) {
@@ -438,7 +452,7 @@ async function copyEventGalleryImages(adminClient: AdminClient, input: { sourceE
   }
 }
 
-async function syncEventGalleryImages(adminClient: AdminClient, formData: FormData, input: { eventId: string; title: string }) {
+async function syncEventGalleryImages(adminClient: AdminClient, formData: FormData, input: { eventId: string; facilitatorId: string; title: string }) {
   const requestedCount = Number(getOptionalString(formData, "event_gallery_image_count") ?? 0);
 
   if (!Number.isFinite(requestedCount) || requestedCount < 0 || requestedCount > maxEventGalleryImages) {
@@ -476,7 +490,7 @@ async function syncEventGalleryImages(adminClient: AdminClient, formData: FormDa
       continue;
     }
 
-    if (existingPath && existingImagesByPath.has(existingPath)) {
+    if (existingPath && (existingImagesByPath.has(existingPath) || isOwnEventDraftGalleryPath(existingPath, input.facilitatorId))) {
       const existingImage = existingImagesByPath.get(existingPath);
       finalRows.push({
         alt_text: "Stemningsbillede fra " + input.title,
@@ -2102,9 +2116,9 @@ export async function createEventAction(formData: FormData) {
     }
 
     try {
-      await syncEventGalleryImages(supabase, formData, { eventId: existingEventId, title });
+      await syncEventGalleryImages(supabase, formData, { eventId: existingEventId, facilitatorId: facilitatorProfile.id, title });
     } catch (error) {
-      redirectWithMessage(error instanceof Error ? error.message : "Eventet blev gemt, men stemningsbillederne kunne ikke gemmes.");
+      redirectWithMessage(error instanceof Error ? error.message : "Eventet blev gemt, men stemningsmedierne kunne ikke gemmes.");
     }
 
     await replaceEventRelations(supabase, existingEventId, {
@@ -2376,9 +2390,9 @@ export async function createEventAction(formData: FormData) {
   }
 
   try {
-    await syncEventGalleryImages(supabase, formData, { eventId: createdEvent.id, title });
+    await syncEventGalleryImages(supabase, formData, { eventId: createdEvent.id, facilitatorId: facilitatorProfile.id, title });
   } catch (error) {
-    redirectWithMessage(error instanceof Error ? error.message : "Eventet blev oprettet, men stemningsbillederne kunne ikke gemmes.");
+    redirectWithMessage(error instanceof Error ? error.message : "Eventet blev oprettet, men stemningsmedierne kunne ikke gemmes.");
   }
 
   if (mainCategoryIds.length > 0) {

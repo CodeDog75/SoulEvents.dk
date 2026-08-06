@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
-import { CalendarDays, Check, ChevronDown, Copy, Mail, MessageSquare, Phone, Search, Slash, Ticket, UserRound } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, Copy, Mail, MessageSquare, Phone, Search, Slash, Ticket } from "lucide-react";
 import {
   markEventSoldOutAction,
   updateBookingManualPaymentAction,
@@ -119,12 +119,6 @@ const statusBadgeClasses: Record<BookingStatus, string> = {
   completed: "bg-sand text-midnight",
   invoiced: "bg-midnight/10 text-midnight",
   paid: "bg-sage-50 text-sage-700",
-};
-
-const bookingCardClasses: Partial<Record<BookingStatus, string>> = {
-  pending: "border-[#E6D4A8] bg-white",
-  confirmed: "border-[#C9DAC1] bg-white",
-  cancelled: "border-[#E5DDEA] bg-white",
 };
 
 function formatMoney(cents: number) {
@@ -329,88 +323,79 @@ function BookingArticle({
   onToggle: () => void;
   showActions?: boolean;
 }) {
-  const cardClass = bookingCardClasses[booking.status] ?? "border-midnight/10 bg-white";
   const paymentSnapshot = parsePaymentInstructionsSnapshot(booking.payment_instructions_snapshot);
   const isPaidEventBooking = booking.booking_value_cents > 0;
   const isManuallyMarkedPaid = Boolean(booking.manually_marked_paid_at);
   const isCancelledBooking = booking.status === "cancelled";
   const reminderDisabledReason = canSendPaymentReminder(booking, paymentSnapshot);
-  const paymentLabel = isPaidEventBooking ? (isManuallyMarkedPaid ? "Betalt" : "Ikke registreret") : "Gratis";
+  const paymentLabel = !isPaidEventBooking ? "Gratis" : isManuallyMarkedPaid ? "Betalt" : isCancelledBooking ? "—" : "Ikke registreret";
   const statusLabel = statusLabels[booking.status];
   const statusClass = statusBadgeClasses[booking.status];
 
   return (
-    <article className={"overflow-hidden rounded-md border border-l-4 shadow-soft transition " + cardClass} id={`booking-${booking.id}`} key={booking.id}>
-      <div className="grid w-full gap-3 p-4 transition hover:bg-white/45">
-        <div className="grid w-full gap-3 md:grid-cols-[minmax(7rem,auto)_minmax(0,1.6fr)_repeat(2,minmax(7rem,auto))_minmax(11rem,auto)_auto] md:items-center">
+    <article className="border-b border-midnight/8 last:border-b-0 odd:bg-white even:bg-[#FCFAF7]" id={`booking-${booking.id}`} key={booking.id}>
+      <div className="grid gap-2 px-3 py-3 transition hover:bg-[#F7F2FB]/55 md:grid-cols-[7.5rem_minmax(10rem,1.5fr)_4.5rem_6.5rem_9rem_9.5rem_2.75rem] md:items-center md:gap-3 md:px-4 md:py-2.5">
+        <div className="flex items-center justify-between gap-3 md:block">
+          <span className={"inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-bold " + statusClass}>{statusLabel}</span>
           <button
             aria-expanded={isExpanded}
             aria-label={isExpanded ? "Luk tilmelding" : "Åbn tilmelding"}
-            className={"w-fit rounded-md px-3 py-2 text-left text-sm font-semibold transition hover:brightness-95 md:text-center " + statusClass}
+            className="grid size-8 shrink-0 place-items-center rounded-md border border-midnight/10 bg-white text-lavender transition hover:border-lavender hover:bg-lavender hover:text-white md:hidden"
             onClick={onToggle}
             type="button"
           >
-            {statusLabel}
+            <ChevronDown className={"size-4 transition " + (isExpanded ? "rotate-180" : "")} aria-hidden="true" />
           </button>
-          <button
-            aria-expanded={isExpanded}
-            className="min-w-0 rounded-md bg-[#FBF8F4] px-3 py-2 text-left transition hover:bg-[#F4EFE8]"
-            onClick={onToggle}
-            type="button"
-          >
-            <span className="flex min-w-0 items-center gap-2 text-base font-semibold text-midnight">
-              <UserRound className="size-4 shrink-0 text-lavender" aria-hidden="true" />
-              {booking.booking_number ? (
-                <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold text-lavender shadow-soft">#{booking.booking_number}</span>
-              ) : null}
-              <span className="min-w-0 truncate">{booking.participant_name}</span>
-              <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold text-ink/62 shadow-soft">
-                {booking.seats} {booking.seats === 1 ? "plads" : "pladser"}
-              </span>
-            </span>
-          </button>
-          <button
-            aria-expanded={isExpanded}
-            className="rounded-md bg-white/75 px-3 py-2 text-left text-sm font-semibold text-midnight shadow-soft transition hover:bg-white md:text-center"
-            onClick={onToggle}
-            type="button"
-          >
-            {formatMoney(booking.booking_value_cents)}
-          </button>
-          <button
-            aria-expanded={isExpanded}
-            className="rounded-md bg-white/75 px-3 py-2 text-left text-sm font-semibold text-midnight shadow-soft transition hover:bg-white md:text-center"
-            onClick={onToggle}
-            type="button"
-          >
-            {formatShortDateTime(booking.created_at)}
-          </button>
+        </div>
+        <button aria-expanded={isExpanded} className="min-w-0 text-left" onClick={onToggle} type="button">
+          <span className="flex min-w-0 items-center gap-2">
+            {booking.booking_number ? (
+              <span className="shrink-0 rounded-full bg-[#F4F0F7] px-2 py-0.5 text-[11px] font-bold text-lavender">#{booking.booking_number}</span>
+            ) : null}
+            <span className="min-w-0 truncate text-sm font-bold text-midnight md:text-[15px]">{booking.participant_name}</span>
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-ink/52 md:hidden">{booking.participant_email}</span>
+        </button>
+        <button aria-expanded={isExpanded} className="hidden text-left text-sm font-semibold text-midnight md:block" onClick={onToggle} type="button">
+          {booking.seats}
+        </button>
+        <button aria-expanded={isExpanded} className="hidden text-left text-sm font-semibold text-midnight md:block" onClick={onToggle} type="button">
+          {formatMoney(booking.booking_value_cents)}
+        </button>
+        <button aria-expanded={isExpanded} className="hidden text-left text-sm font-semibold text-ink/68 md:block" onClick={onToggle} type="button">
+          {formatShortDateTime(booking.created_at)}
+        </button>
+        <div className="flex items-center justify-between gap-3 md:block">
+          <span className="text-xs font-semibold text-ink/45 md:hidden">
+            {booking.seats} {booking.seats === 1 ? "plads" : "pladser"} · {formatMoney(booking.booking_value_cents)}
+          </span>
           {showActions && isPaidEventBooking && booking.status === "confirmed" && !isCancelledBooking ? (
             <RowPaymentAction booking={booking} currentEventId={currentEventId} />
           ) : (
             <span
               className={
-                "inline-flex min-h-10 items-center justify-center rounded-full px-3 py-2 text-sm font-semibold md:text-center " +
+                "inline-flex min-h-8 items-center justify-center rounded-full px-2.5 py-1 text-xs font-bold md:min-w-[7.5rem] " +
                 (!isPaidEventBooking
                   ? "bg-sand/45 text-ink/62"
                   : isManuallyMarkedPaid
                     ? "bg-[#EEF7F0] text-sage-700"
-                    : "bg-[#FFF8E8] text-[#6E5528]")
+                    : "bg-midnight/5 text-ink/50")
               }
             >
+              {isManuallyMarkedPaid ? <Check className="mr-1 size-3.5" aria-hidden="true" /> : null}
               {paymentLabel}
             </span>
           )}
-          <button
-            aria-expanded={isExpanded}
-            aria-label={isExpanded ? "Luk tilmelding" : "Åbn tilmelding"}
-            className="grid size-11 shrink-0 place-items-center justify-self-end rounded-md border border-midnight/10 bg-white text-lavender transition hover:border-lavender hover:bg-lavender hover:text-white"
-            onClick={onToggle}
-            type="button"
-          >
-            <ChevronDown className={"size-6 transition " + (isExpanded ? "rotate-180" : "")} aria-hidden="true" />
-          </button>
         </div>
+        <button
+          aria-expanded={isExpanded}
+          aria-label={isExpanded ? "Luk tilmelding" : "Åbn tilmelding"}
+          className="hidden size-8 shrink-0 place-items-center justify-self-end rounded-md border border-midnight/10 bg-white text-lavender transition hover:border-lavender hover:bg-lavender hover:text-white md:grid"
+          onClick={onToggle}
+          type="button"
+        >
+          <ChevronDown className={"size-4 transition " + (isExpanded ? "rotate-180" : "")} aria-hidden="true" />
+        </button>
       </div>
 
       {isExpanded ? (
@@ -562,10 +547,10 @@ function RowPaymentAction({
       <input name="current_event_id" type="hidden" value={currentEventId} />
       <SubmitButton
         className={
-          "inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold shadow-soft transition hover:brightness-95 md:min-w-[8.5rem] " +
+          "inline-flex min-h-8 w-full items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold transition hover:brightness-95 md:min-w-[7.5rem] " +
           (isMarkedPaid
             ? "border-[#C9DAC1] bg-[#EEF7F0] text-sage-700"
-            : "border-[#E8D6A8] bg-[#FFF8E8] text-[#6E5528]")
+            : "border-midnight/10 bg-white text-ink/68")
         }
         name="payment_action"
         value={nextAction}
@@ -915,7 +900,7 @@ export function BookingList({ bookings, eventOptions, externalParticipants, init
             </div>
           ) : null}
 
-          <div className="grid gap-4 bg-[#FBF8F4] p-4">
+          <div className="bg-[#FBF8F4] p-4">
             {bookings.length === 0 ? (
               <div className="rounded-md border border-midnight/10 bg-white p-8 text-center">
                 <h3 className="text-base font-semibold text-midnight">
@@ -933,16 +918,27 @@ export function BookingList({ bookings, eventOptions, externalParticipants, init
                 <p className="mt-2 text-sm text-ink/64">Prøv at ændre søgning, filter eller sortering.</p>
               </div>
             ) : (
-              visibleBookings.map((booking) => (
-                <BookingArticle
-                  booking={booking}
-                  currentEventId={selectedEvent.id}
-                  isExpanded={expandedBookingId === booking.id}
-                  key={booking.id}
-                  onToggle={() => setExpandedBookingId((currentId) => (currentId === booking.id ? null : booking.id))}
-                  showActions={booking.status !== "cancelled" && !selectedEventUsesExternalRegistration}
-                />
-              ))
+              <div className="overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
+                <div className="sticky top-0 z-10 hidden border-b border-midnight/10 bg-[#F4F0F7] px-4 py-2 text-xs font-bold uppercase tracking-wide text-ink/55 md:grid md:grid-cols-[7.5rem_minmax(10rem,1.5fr)_4.5rem_6.5rem_9rem_9.5rem_2.75rem] md:items-center md:gap-3">
+                  <span>Status</span>
+                  <span>Deltager</span>
+                  <span>Pladser</span>
+                  <span>Bookingværdi</span>
+                  <span>Tilmeldt</span>
+                  <span>Betalingsstatus</span>
+                  <span className="sr-only">Detaljer</span>
+                </div>
+                {visibleBookings.map((booking) => (
+                  <BookingArticle
+                    booking={booking}
+                    currentEventId={selectedEvent.id}
+                    isExpanded={expandedBookingId === booking.id}
+                    key={booking.id}
+                    onToggle={() => setExpandedBookingId((currentId) => (currentId === booking.id ? null : booking.id))}
+                    showActions={booking.status !== "cancelled" && !selectedEventUsesExternalRegistration}
+                  />
+                ))}
+              </div>
             )}
           </div>
         </section>

@@ -12,6 +12,7 @@ import { UserTextWithLinks } from "@/components/user-text-with-links";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { bookingReceiptCookieName } from "@/lib/bookings/receipt-cookie";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
+import { isEventGalleryVideoPath } from "@/lib/events/gallery-media";
 import { getUserFacingEventStatus, isEventPastEnd } from "@/lib/events/user-facing-status";
 import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
 import {
@@ -207,7 +208,7 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
       .map((row: any) => first(row.main_categories))
       .filter((category: any): category is { name: string | null; image_path: string | null } => Boolean(category)) ?? [];
   const categoryCoverPath = mainCategories.find((category) => category.image_path)?.image_path ?? null;
-  const eventImagePath = event.cover_image_path || images.find((image) => image.image_path)?.image_path || categoryCoverPath;
+  const eventImagePath = event.cover_image_path || images.find((image) => image.image_path && !isEventGalleryVideoPath(image.image_path))?.image_path || categoryCoverPath;
   const imageUrl = eventImagePath ? publicMediaUrl(supabase, eventImagePath) : null;
   const facilitatorUser = first(facilitator?.profiles);
   const facilitatorName = facilitator?.company_name || facilitatorUser?.full_name || "SoulEvents";
@@ -732,7 +733,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const contactEmail = event.contact_email?.trim() || null;
   const contactPhone = event.contact_phone?.trim() || null;
   const contactPhoneDigits = contactPhone?.replace(/\D/g, "") ?? "";
-  const firstEventImagePath = images[0]?.image_path ?? null;
+  const firstEventImagePath = images.find((image) => image.image_path && !isEventGalleryVideoPath(image.image_path))?.image_path ?? null;
   const categoryCoverPath = mainCategories.find((category) => category.image_path)?.image_path ?? null;
   const eventCoverPath = event.cover_image_path || firstEventImagePath || categoryCoverPath;
   const eventCoverUrl = eventCoverPath
@@ -958,15 +959,28 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             <section className="rounded-card bg-white p-8 shadow-soft">
               <h2 className="text-4xl font-medium text-olive">Stemningsbilleder</h2>
               <div className={`mt-4 grid gap-3 ${images.length === 1 ? "" : images.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
-                {images.map((image: { image_path: string; alt_text: string | null }) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    alt={image.alt_text || `Stemningsbillede fra ${event.title}`}
-                    className="aspect-[4/3] w-full rounded-[18px] object-cover shadow-soft"
-                    key={image.image_path}
-                    src={supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl}
-                  />
-                ))}
+                {images.map((image: { image_path: string; alt_text: string | null }) => {
+                  const mediaUrl = supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl;
+
+                  return isEventGalleryVideoPath(image.image_path) ? (
+                    <video
+                      className="aspect-[4/3] w-full rounded-[18px] bg-midnight/5 object-cover shadow-soft"
+                      controls
+                      key={image.image_path}
+                      playsInline
+                      preload="metadata"
+                      src={mediaUrl}
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      alt={image.alt_text || `Stemningsbillede fra ${event.title}`}
+                      className="aspect-[4/3] w-full rounded-[18px] object-cover shadow-soft"
+                      key={image.image_path}
+                      src={mediaUrl}
+                    />
+                  );
+                })}
               </div>
             </section>
           )}

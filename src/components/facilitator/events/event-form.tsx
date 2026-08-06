@@ -42,6 +42,14 @@ import {
   sendExternalCoOrganizerInvitationAction,
 } from "@/app/facilitator/events/actions";
 import { formattedMaxEventDescriptionLength, maxEventDescriptionLength } from "@/lib/events/event-content-limits";
+import {
+  eventGalleryFileExtension,
+  eventGalleryUploadAccept,
+  isEventGalleryVideoFile,
+  isEventGalleryVideoPath,
+  maxEventGalleryVideoFileSize,
+  supportedEventGalleryUploadText,
+} from "@/lib/events/gallery-media";
 import { sortTagsByDanishLabel } from "@/lib/events/tags";
 import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
 import { fetchDanishPostalCity, getLocalDanishPostalCity } from "@/lib/locations/danish-postal-codes";
@@ -89,6 +97,7 @@ type EventGalleryImageState = {
   fileName?: string;
   id: string;
   imagePath?: string | null;
+  mediaType?: "image" | "video";
   objectUrl?: boolean;
   previewUrl: string;
 };
@@ -183,6 +192,7 @@ function initialEventGalleryImages(draftEvent?: DraftEvent | null): EventGallery
     .map((image) => ({
       id: image.imagePath,
       imagePath: image.imagePath,
+      mediaType: isEventGalleryVideoPath(image.imagePath) ? "video" : "image",
       previewUrl: image.imageUrl ?? "",
     }));
 }
@@ -572,10 +582,8 @@ function isLegacyDefaultCapacityValue(value: unknown) {
   return String(value ?? "").trim() === "12";
 }
 
-function eventDraftImageExtension(file: File) {
-  if (file.type === "image/png") return "png";
-  if (file.type === "image/webp") return "webp";
-  return "jpg";
+function eventDraftMediaExtension(file: File) {
+  return eventGalleryFileExtension(file) ?? "jpg";
 }
 
 function isOwnEventDraftImagePath(path: string | null | undefined, profileId: string) {
@@ -1312,7 +1320,7 @@ export function EventForm({
   }
 
   function draftImagePath(kind: "cover" | "gallery", file: File) {
-    return `events/drafts/${facilitator.id}/${draftAssetScope}/${kind}/${crypto.randomUUID()}.${eventDraftImageExtension(file)}`;
+    return `events/drafts/${facilitator.id}/${draftAssetScope}/${kind}/${crypto.randomUUID()}.${eventDraftMediaExtension(file)}`;
   }
 
   async function uploadDraftImage(file: File, kind: "cover" | "gallery") {
@@ -1381,7 +1389,7 @@ export function EventForm({
 
   async function persistGalleryDraftImage(file: File, localPreviewUrl: string) {
     setIsGalleryDraftUploading(true);
-    setGalleryImageErrorMessage("Gemmer stemningsbilledet som kladde...");
+    setGalleryImageErrorMessage(isEventGalleryVideoFile(file) ? "Gemmer stemningsvideoen som kladde..." : "Gemmer stemningsbilledet som kladde...");
 
     try {
       const uploadedImage = await uploadDraftImage(file, "gallery");
@@ -1391,7 +1399,7 @@ export function EventForm({
       setGalleryImageErrorMessage("");
       return uploadedImage;
     } catch (error) {
-      setGalleryImageErrorMessage(error instanceof Error ? error.message : "Stemningsbilledet kunne ikke gemmes som kladde.");
+      setGalleryImageErrorMessage(error instanceof Error ? error.message : "Stemningsmediet kunne ikke gemmes som kladde.");
       return null;
     } finally {
       setIsGalleryDraftUploading(false);
@@ -1644,6 +1652,23 @@ export function EventForm({
       return null;
     }
 
+    if (isEventGalleryVideoFile(file)) {
+      if (file.type !== "video/mp4") {
+        input.value = "";
+        setGalleryImageErrorMessage("Videoen skal være en MP4-fil.");
+        return null;
+      }
+
+      if (file.size > maxEventGalleryVideoFileSize) {
+        input.value = "";
+        setGalleryImageErrorMessage("MP4-videoer må højst være 50 MB.");
+        return null;
+      }
+
+      setGalleryImageErrorMessage("");
+      return file;
+    }
+
     try {
       if (file.name.toLowerCase().endsWith(".heic") || file.name.toLowerCase().endsWith(".heif")) {
         setGalleryImageErrorMessage("Konverterer HEIC til JPG...");
@@ -1655,7 +1680,7 @@ export function EventForm({
       return file;
     } catch (error) {
       input.value = "";
-      setGalleryImageErrorMessage(error instanceof Error ? error.message : "Stemningsbilledet kunne ikke klargøres til upload.");
+      setGalleryImageErrorMessage(error instanceof Error ? error.message : "Stemningsmediet kunne ikke klargøres til upload.");
       return null;
     }
   }
@@ -1683,6 +1708,7 @@ export function EventForm({
         file,
         fileName: file.name,
         id: imageId,
+        mediaType: isEventGalleryVideoFile(file) ? "video" : "image",
         objectUrl: true,
         previewUrl,
       },
@@ -1702,6 +1728,7 @@ export function EventForm({
               ...image,
               draftImagePath: uploadedImage.imagePath,
               file: undefined,
+              mediaType: isEventGalleryVideoPath(uploadedImage.imagePath) ? "video" : "image",
               objectUrl: false,
               previewUrl: uploadedImage.previewUrl,
             }
@@ -1736,6 +1763,7 @@ export function EventForm({
           ...image,
           file,
           fileName: file.name,
+          mediaType: isEventGalleryVideoFile(file) ? "video" : "image",
           objectUrl: true,
           previewUrl,
         };
@@ -1755,6 +1783,7 @@ export function EventForm({
               ...image,
               draftImagePath: uploadedImage.imagePath,
               file: undefined,
+              mediaType: isEventGalleryVideoPath(uploadedImage.imagePath) ? "video" : "image",
               objectUrl: false,
               previewUrl: uploadedImage.previewUrl,
             }
@@ -2363,6 +2392,7 @@ export function EventForm({
             fileName: image.fileName ?? "",
             id: image.id,
             imagePath: image.imagePath ?? null,
+            mediaType: image.mediaType ?? (isEventGalleryVideoPath(image.imagePath || image.draftImagePath) ? "video" : "image"),
             previewUrl: image.previewUrl,
           })),
 
@@ -2520,7 +2550,7 @@ export function EventForm({
     }
     if (!draftEvent?.id && Array.isArray(draft.state?.galleryImages)) {
       const restoredGalleryImages = draft.state.galleryImages
-        .filter((image: unknown): image is { draftImagePath?: string | null; fileName?: string; id?: string; imagePath?: string | null; previewUrl?: string } => {
+        .filter((image: unknown): image is { draftImagePath?: string | null; fileName?: string; id?: string; imagePath?: string | null; mediaType?: "image" | "video"; previewUrl?: string } => {
           if (!image || typeof image !== "object") return false;
           const candidate = image as { draftImagePath?: unknown; imagePath?: unknown; previewUrl?: unknown };
           return (
@@ -2530,11 +2560,12 @@ export function EventForm({
           );
         })
         .slice(0, maxEventGalleryImages)
-        .map((image: { draftImagePath?: string | null; fileName?: string; id?: string; imagePath?: string | null; previewUrl?: string }) => ({
+        .map((image: { draftImagePath?: string | null; fileName?: string; id?: string; imagePath?: string | null; mediaType?: "image" | "video"; previewUrl?: string }) => ({
           draftImagePath: image.draftImagePath ?? null,
           fileName: image.fileName ?? "",
           id: image.id || crypto.randomUUID(),
           imagePath: image.imagePath ?? null,
+          mediaType: image.mediaType ?? (isEventGalleryVideoPath(image.imagePath || image.draftImagePath) ? "video" : "image"),
           objectUrl: false,
           previewUrl: image.previewUrl ?? "",
         }));
@@ -4390,23 +4421,33 @@ export function EventForm({
             <section className="border-b border-[#E5D4F7] px-5 py-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Stemningsbilleder – valgfrit</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Stemningsmedier – valgfrit</p>
                   <p className="mt-2 text-sm leading-6 text-ink/64">
-                    Tilføj op til tre billeder, der viser stemningen, stedet eller oplevelsen. Eventets primære billede vises fortsat øverst.
+                    Tilføj op til tre billeder eller korte MP4-videoer, der viser stemningen, stedet eller oplevelsen. Eventets primære billede vises fortsat øverst.
                   </p>
                 </div>
                 <span className="rounded-full border border-[#D8CBE4] bg-[#F7F2FB] px-3 py-1 text-xs font-semibold text-[#7A4EAB]">
-                  {visibleGalleryImages.length} af {maxEventGalleryImages} billeder
+                  {visibleGalleryImages.length} af {maxEventGalleryImages} medier
                 </span>
               </div>
+              <p className="mt-3 text-xs font-semibold text-ink/55">{supportedEventGalleryUploadText}</p>
               <div className="mt-4 grid gap-3">
                 {visibleGalleryImages.map((image, index) => (
                   <div className="overflow-hidden rounded-[18px] border border-[#E5D4F7] bg-[#FAF8FC] shadow-sm" key={image.id}>
                     <div className="relative aspect-[4/3] bg-[#F4F0F7]">
-                      {image.previewUrl ? (
+                      {image.previewUrl && (image.mediaType === "video" || isEventGalleryVideoPath(image.imagePath || image.draftImagePath || image.previewUrl)) ? (
+                        <video
+                          className="h-full w-full object-cover"
+                          controls
+                          muted
+                          playsInline
+                          preload="metadata"
+                          src={image.previewUrl}
+                        />
+                      ) : image.previewUrl ? (
                         <img alt={`Preview af stemningsbillede ${index + 1}`} className="h-full w-full object-cover" src={image.previewUrl} />
                       ) : (
-                        <div className="grid h-full place-items-center text-sm font-semibold text-ink/45">Stemningsbillede {index + 1}</div>
+                        <div className="grid h-full place-items-center text-sm font-semibold text-ink/45">Stemningsmedie {index + 1}</div>
                       )}
                     </div>
                     <div className="grid gap-3 p-3">
@@ -4416,7 +4457,7 @@ export function EventForm({
                           <ImagePlus className="size-4" aria-hidden="true" />
                           Udskift
                           <input
-                            accept={imageUploadAccept}
+                            accept={eventGalleryUploadAccept}
                             className="sr-only"
                             name={`event_gallery_file_${index}`}
                             onChange={(event) => void handleReplaceGalleryImage(image.id, event)}
@@ -4463,10 +4504,10 @@ export function EventForm({
                   <label className="grid min-h-28 cursor-pointer place-items-center rounded-[18px] border border-dashed border-[#D8CBE4] bg-white/80 px-4 py-5 text-center text-sm font-semibold text-[#7A5D91] transition hover:border-[#BFA7D8] hover:bg-[#F7F2FB]">
                     <span className="inline-flex items-center gap-2">
                       <ImagePlus className="size-4" aria-hidden="true" />
-                      Tilføj stemningsbillede
+                      Tilføj stemningsmedie
                     </span>
                     <input
-                      accept={imageUploadAccept}
+                      accept={eventGalleryUploadAccept}
                       className="sr-only"
                       name="event_gallery_file_new"
                       onChange={(event) => void handleAddGalleryImage(event)}
@@ -4475,7 +4516,7 @@ export function EventForm({
                   </label>
                 ) : (
                   <p className="rounded-[16px] border border-[#E5D4F7] bg-[#F7F2FB] px-4 py-3 text-sm font-semibold text-[#7A4EAB]">
-                    Du har tilføjet tre billeder. Slet eller udskift et billede, hvis du vil ændre galleriet.
+                    Du har tilføjet tre medier. Slet eller udskift et medie, hvis du vil ændre galleriet.
                   </p>
                 )}
               </div>
@@ -4486,7 +4527,7 @@ export function EventForm({
               ) : null}
               {isGalleryDraftUploading ? (
                 <p className="mt-3 rounded-[16px] border border-[#E8D6A8] bg-[#FFF8E8] px-4 py-3 text-sm font-semibold leading-6 text-[#8A6A2E]">
-                  Gemmer stemningsbillede som kladde...
+                  Gemmer stemningsmedie som kladde...
                 </p>
               ) : null}
             </section>
