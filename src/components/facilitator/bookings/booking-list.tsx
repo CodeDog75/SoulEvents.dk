@@ -104,7 +104,7 @@ type EventOption = {
 
 const statusLabels: Record<BookingStatus, string> = {
   pending: "Afventer",
-  confirmed: "Bekræftet",
+  confirmed: "Tilmeldt",
   sold_out: "Udsolgt",
   cancelled: "Annulleret",
   completed: "Afholdt",
@@ -243,12 +243,12 @@ type BookingFilter = "all" | "confirmed" | "pending" | "paid" | "unpaid" | "canc
 type BookingSort = "newest" | "oldest" | "name_asc" | "name_desc" | "unpaid_first" | "paid_first" | "value_desc" | "value_asc";
 
 const bookingFilters: Array<{ label: string; value: BookingFilter }> = [
-  { label: "Alle", value: "all" },
-  { label: "Bekræftet", value: "confirmed" },
-  { label: "Afventer", value: "pending" },
+  { label: "Tilmeldte", value: "confirmed" },
   { label: "Betalt", value: "paid" },
-  { label: "Mangler betaling", value: "unpaid" },
+  { label: "Ikke registreret", value: "unpaid" },
+  { label: "Afventer", value: "pending" },
   { label: "Annulleret", value: "cancelled" },
+  { label: "Alle", value: "all" },
 ];
 
 const bookingSortOptions: Array<{ label: string; value: BookingSort }> = [
@@ -256,7 +256,7 @@ const bookingSortOptions: Array<{ label: string; value: BookingSort }> = [
   { label: "Ældste først", value: "oldest" },
   { label: "Navn A-Å", value: "name_asc" },
   { label: "Navn Å-A", value: "name_desc" },
-  { label: "Mangler betaling først", value: "unpaid_first" },
+  { label: "Ikke registreret først", value: "unpaid_first" },
   { label: "Betalt først", value: "paid_first" },
   { label: "Bookingværdi høj/lav", value: "value_desc" },
   { label: "Bookingværdi lav/høj", value: "value_asc" },
@@ -723,7 +723,7 @@ function EventSelector({
 
 export function BookingList({ bookings, eventOptions, externalParticipants, initialExpandedBookingId, selectedEventId }: BookingListProps) {
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(initialExpandedBookingId ?? null);
-  const [filter, setFilter] = useState<BookingFilter>("all");
+  const [filter, setFilter] = useState<BookingFilter>("confirmed");
   const [searchTerm, setSearchTerm] = useState("");
   const [sort, setSort] = useState<BookingSort>("newest");
   const selectedEvent = eventOptions.find((event) => event.id === selectedEventId) ?? null;
