@@ -77,6 +77,7 @@ type EventOption = {
   price_cents?: number | null;
   registration_mode?: "direct" | "approval_required" | null;
   bookings?: Array<{
+    booking_value_cents: number;
     id: string;
     status: BookingStatus;
     seats: number;
@@ -225,10 +226,14 @@ function getEventBookingStats(event: EventOption, externalParticipants?: Externa
   const confirmedSeats = bookings
     .filter((booking) => booking.status === "confirmed")
     .reduce((sum, booking) => sum + booking.seats, 0);
+  const expectedRevenueCents = bookings
+    .filter((booking) => booking.status === "confirmed" && booking.booking_value_cents > 0)
+    .reduce((sum, booking) => sum + booking.booking_value_cents, 0);
 
   return {
     availableSeats: typeof event.capacity === "number" ? Math.max(event.capacity - totalSeats, 0) : null,
     confirmedSeats,
+    expectedRevenueCents,
     pendingSeats,
     totalSeats,
   };
@@ -399,54 +404,54 @@ function BookingArticle({
       </div>
 
       {isExpanded ? (
-        <div className="grid gap-5 border-t border-midnight/10 bg-white/90 p-5 shadow-[inset_0_12px_24px_rgba(46,36,52,0.04)] xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="grid gap-3 border-t border-midnight/10 bg-white/90 p-3 shadow-[inset_0_12px_24px_rgba(46,36,52,0.04)] xl:grid-cols-[minmax(0,1fr)_17rem]">
           <div className="min-w-0">
-            <h3 className="min-w-0 text-lg font-semibold leading-snug text-midnight">{booking.event_title_snapshot}</h3>
-            <div className="mt-4 grid auto-rows-fr gap-2 text-sm text-ink/72 md:grid-cols-2 xl:grid-cols-3">
-              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2">
-                <span className="block text-xs font-semibold uppercase tracking-wide text-ink/48">Bookingreference</span>
-                <span className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+            <h3 className="min-w-0 text-base font-semibold leading-snug text-midnight">{booking.event_title_snapshot}</h3>
+            <div className="mt-2 grid gap-1.5 text-sm text-ink/72 md:grid-cols-2 xl:grid-cols-3">
+              <p className="flex min-w-0 flex-col rounded-md border border-midnight/8 bg-white/80 px-2.5 py-1.5">
+                <span className="block text-[11px] font-semibold text-ink/48">Bookingreference</span>
+                <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
                   <span className="font-semibold text-midnight [overflow-wrap:anywhere]">{booking.booking_reference || booking.payment_reference || "Ikke oprettet"}</span>
                   {booking.booking_reference ? <CopyReferenceButton reference={booking.booking_reference} /> : null}
                 </span>
               </p>
-              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2">
-                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink/48">
+              <p className="flex min-w-0 flex-col rounded-md border border-midnight/8 bg-white/80 px-2.5 py-1.5">
+                <span className="flex items-center gap-1 text-[11px] font-semibold text-ink/48">
                   <Mail className="size-3.5" aria-hidden="true" />
                   E-mail
                 </span>
-                <span className="font-semibold text-midnight [overflow-wrap:anywhere]">{booking.participant_email}</span>
+                <span className="mt-0.5 font-semibold text-midnight [overflow-wrap:anywhere]">{booking.participant_email}</span>
               </p>
-              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2">
-                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink/48">
+              <p className="flex min-w-0 flex-col rounded-md border border-midnight/8 bg-white/80 px-2.5 py-1.5">
+                <span className="flex items-center gap-1 text-[11px] font-semibold text-ink/48">
                   <Phone className="size-3.5" aria-hidden="true" />
                   Telefon
                 </span>
-                <span className="font-semibold text-midnight [overflow-wrap:anywhere]">{booking.participant_phone || "Ikke angivet"}</span>
+                <span className="mt-0.5 font-semibold text-midnight [overflow-wrap:anywhere]">{booking.participant_phone || "Ikke angivet"}</span>
               </p>
-              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2">
-                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink/48">
+              <p className="flex min-w-0 flex-col rounded-md border border-midnight/8 bg-white/80 px-2.5 py-1.5">
+                <span className="flex items-center gap-1 text-[11px] font-semibold text-ink/48">
                   <Ticket className="size-3.5" aria-hidden="true" />
                   Pladser
                 </span>
-                <span className="font-semibold text-midnight">{booking.seats}</span>
+                <span className="mt-0.5 font-semibold text-midnight">{booking.seats}</span>
               </p>
-              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2">
-                <span className="block text-xs font-semibold uppercase tracking-wide text-ink/48">Bookingværdi</span>
-                <span className="font-semibold text-midnight">{formatMoney(booking.booking_value_cents)}</span>
+              <p className="flex min-w-0 flex-col rounded-md border border-midnight/8 bg-white/80 px-2.5 py-1.5">
+                <span className="block text-[11px] font-semibold text-ink/48">Bookingværdi</span>
+                <span className="mt-0.5 font-semibold text-midnight">{formatMoney(booking.booking_value_cents)}</span>
               </p>
-              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2 md:col-span-2">
-                <span className="block text-xs font-semibold uppercase tracking-wide text-ink/48">Eventdato</span>
-                <span className="font-semibold text-midnight">{formatShortDateTime(booking.event_starts_at_snapshot)}</span>
+              <p className="flex min-w-0 flex-col rounded-md border border-midnight/8 bg-white/80 px-2.5 py-1.5 md:col-span-2">
+                <span className="block text-[11px] font-semibold text-ink/48">Eventdato</span>
+                <span className="mt-0.5 font-semibold text-midnight">{formatShortDateTime(booking.event_starts_at_snapshot)}</span>
               </p>
-              <p className="flex min-w-0 flex-col justify-between rounded-md border border-midnight/8 bg-white/80 px-3 py-2">
-                <span className="block text-xs font-semibold uppercase tracking-wide text-ink/48">Tilmeldingsdato</span>
-                <span className="font-semibold text-midnight">{formatShortDateTime(booking.created_at)}</span>
+              <p className="flex min-w-0 flex-col rounded-md border border-midnight/8 bg-white/80 px-2.5 py-1.5">
+                <span className="block text-[11px] font-semibold text-ink/48">Tilmeldingsdato</span>
+                <span className="mt-0.5 font-semibold text-midnight">{formatShortDateTime(booking.created_at)}</span>
               </p>
             </div>
 
-            <div className="mt-4 max-w-3xl rounded-md border border-midnight/8 bg-white/70 p-3 text-sm leading-6 text-ink/70">
-              <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-ink/48">
+            <div className="mt-2 max-w-3xl rounded-md border border-midnight/8 bg-white/70 px-2.5 py-2 text-sm leading-5 text-ink/70">
+              <p className="mb-0.5 flex items-center gap-1.5 text-[11px] font-bold text-ink/48">
                 <MessageSquare className="size-3.5" aria-hidden="true" />
                 Deltagerens besked
               </p>
@@ -454,17 +459,17 @@ function BookingArticle({
             </div>
 
             {paymentSnapshot && !isCancelledBooking ? (
-              <div className="mt-4 grid gap-2 rounded-md border border-midnight/10 bg-white/80 p-3 text-sm leading-6 text-ink/72">
+              <div className="mt-2 grid gap-1.5 rounded-md border border-midnight/10 bg-white/80 px-2.5 py-2 text-sm leading-5 text-ink/72">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-sage-700">Betalingsoplysninger sendt</p>
-                  <p className="mt-1 font-semibold text-midnight">Beløb: {formatMoney(paymentSnapshot.amountCents)}</p>
-                  <p className="mt-1 font-semibold text-midnight">Reference: {paymentSnapshot.reference}</p>
+                  <p className="text-[11px] font-bold text-sage-700">Betalingsoplysninger sendt</p>
+                  <p className="mt-0.5 font-semibold text-midnight">Beløb: {formatMoney(paymentSnapshot.amountCents)}</p>
+                  <p className="font-semibold text-midnight">Reference: {paymentSnapshot.reference}</p>
                 </div>
                 {paymentSnapshot.methods.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {paymentSnapshot.methods.map((method) => (
                       <span
-                        className="rounded-full bg-white px-3 py-1 font-semibold text-sage-700 shadow-soft"
+                        className="rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-sage-700 shadow-soft"
                         key={`${booking.id}-${method.type}-${method.value}`}
                       >
                         {method.label}
@@ -480,33 +485,33 @@ function BookingArticle({
             {isPaidEventBooking && !isCancelledBooking ? (
               <div
                 className={
-                  "mt-4 grid gap-3 rounded-md border p-3 text-sm leading-6 " +
+                  "mt-2 rounded-md border px-2.5 py-2 text-sm leading-5 " +
                   (isManuallyMarkedPaid
                     ? "border-sage-700/15 bg-white/80 text-sage-700"
                     : "border-[#E8D6A8] bg-[#FFF8E8] text-[#6E5528]")
                 }
               >
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wide">Manuel betalingsregistrering</p>
-                  <p className="mt-1 font-semibold text-midnight">{isManuallyMarkedPaid ? "Betalt" : "Ikke registreret som betalt"}</p>
+                  <p className="text-[11px] font-bold">Manuel betalingsregistrering</p>
+                  <p className="mt-0.5 font-semibold text-midnight">{isManuallyMarkedPaid ? "Betalt" : "Ikke registreret"}</p>
                   {booking.manually_marked_paid_at ? (
                     <p className="text-ink/65">
                       Markeret{" "}
                       {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(booking.manually_marked_paid_at))}
                     </p>
                   ) : (
-                    <p className="text-ink/65">SoulEvents verificerer ikke betalingen. Markér kun efter egen kontrol.</p>
+                    <p className="text-ink/65">SoulEvents verificerer ikke betalinger.</p>
                   )}
-                  {booking.manual_payment_note ? <p className="mt-1 text-ink/65">Note: {booking.manual_payment_note}</p> : null}
+                  {booking.manual_payment_note ? <p className="mt-0.5 text-ink/65">Note: {booking.manual_payment_note}</p> : null}
                 </div>
               </div>
             ) : null}
           </div>
 
           {showActions ? (
-            <div className="flex h-full flex-col gap-3">
+            <div className="flex h-full flex-col gap-2">
               {isPaidEventBooking && booking.status === "confirmed" ? (
-                <div className="rounded-md border border-midnight/10 bg-white/80 p-3">
+                <div className="rounded-md border border-midnight/10 bg-white/80 p-2.5">
                   <PaymentReminderAction
                     bookingId={booking.id}
                     currentEventId={currentEventId}
@@ -574,15 +579,15 @@ function SeatAdjustmentAction({
   }
 
   return (
-    <form action={updateBookingSeatsAction} className="rounded-md border border-midnight/10 bg-white/80 p-3">
+    <form action={updateBookingSeatsAction} className="rounded-md border border-midnight/10 bg-white/80 p-2.5">
       <input name="booking_id" type="hidden" value={booking.id} />
       <input name="current_event_id" type="hidden" value={currentEventId} />
-      <label className="grid gap-1 text-sm font-semibold text-midnight" htmlFor={"booking-seats-" + booking.id}>
+      <label className="grid gap-0.5 text-sm font-semibold text-midnight" htmlFor={"booking-seats-" + booking.id}>
         Justér antal pladser
       </label>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <input
-          className="h-9 w-24 rounded-md border border-midnight/15 bg-white px-2 text-sm font-semibold text-midnight"
+          className="h-8 w-20 rounded-md border border-midnight/15 bg-white px-2 text-sm font-semibold text-midnight"
           defaultValue={booking.seats}
           id={"booking-seats-" + booking.id}
           min={1}
@@ -590,13 +595,13 @@ function SeatAdjustmentAction({
           type="number"
         />
         <button
-          className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700 sm:flex-none"
+          className="inline-flex h-8 flex-1 items-center justify-center gap-2 rounded-md border border-midnight/15 bg-white px-2.5 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700 sm:flex-none"
           type="submit"
         >
           Gem antal
         </button>
       </div>
-      <p className="mt-2 text-xs text-ink/55">Kan ændres, hvis der er ledig kapacitet. Betalingsstatus bevares.</p>
+      <p className="mt-1.5 text-xs leading-5 text-ink/55">Kan ændres, hvis der er ledig kapacitet. Betalingsstatus bevares.</p>
     </form>
   );
 }
@@ -795,9 +800,19 @@ export function BookingList({ bookings, eventOptions, externalParticipants, init
                 <h2 className="text-lg font-semibold text-midnight">{selectedEvent.title}</h2>
                 <p className="mt-1 text-sm text-ink/64">{formatEventDate(selectedEvent.starts_at)}</p>
                 {selectedEventStats && !selectedEventUsesExternalRegistration && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-ink/68">{selectedEventStats.totalSeats} tilmeldte</span>
-                    <CapacityBadge availableSeats={selectedEventStats.availableSeats} capacity={selectedEvent.capacity} />
+                  <div className="mt-3 flex flex-wrap items-stretch gap-2">
+                    <div className="inline-flex min-h-12 flex-col justify-center rounded-md border border-midnight/10 bg-[#FBF8F4] px-3 py-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-ink/45">Tilmeldinger</span>
+                      <span className="text-sm font-semibold text-midnight">{selectedEventStats.totalSeats} tilmeldte</span>
+                    </div>
+                    <div className="inline-flex min-h-12 items-center rounded-md border border-midnight/10 bg-[#FBF8F4] px-3 py-2">
+                      <CapacityBadge availableSeats={selectedEventStats.availableSeats} capacity={selectedEvent.capacity} />
+                    </div>
+                    <div className="inline-flex min-h-12 flex-col justify-center rounded-md border border-[#D8CBE4] bg-[#F7F2FB] px-3 py-2">
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-[#7A5D91]">Forventet omsætning</span>
+                      <span className="text-lg font-bold leading-tight text-midnight">{formatMoney(selectedEventStats.expectedRevenueCents)}</span>
+                      <span className="text-[11px] leading-4 text-ink/55">Baseret på bekræftede tilmeldinger.</span>
+                    </div>
                   </div>
                 )}
                 {selectedEventUsesExternalRegistration ? (

@@ -15,11 +15,11 @@ export function CancelBookingAction({ bookingId, currentEventId }: CancelBooking
   return (
     <>
       <button
-        className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700 sm:w-auto"
+        className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-red-300 bg-white px-2.5 text-sm font-semibold text-red-800 transition hover:border-red-400 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 sm:w-auto"
         onClick={() => setIsOpen(true)}
         type="button"
       >
-        <XCircle className="size-4" aria-hidden="true" />
+        <XCircle className="size-3.5" aria-hidden="true" />
         Annuller tilmelding
       </button>
 

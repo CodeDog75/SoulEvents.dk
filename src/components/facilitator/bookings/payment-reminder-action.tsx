@@ -55,19 +55,19 @@ export function PaymentReminderAction({
   return (
     <div className="grid gap-1">
       <button
-        className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-midnight/15 bg-white px-3 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700 disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto"
+        className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-midnight/15 bg-white px-2.5 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700 disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto"
         disabled={Boolean(disabledReason)}
         onClick={() => setIsOpen(true)}
         ref={openerRef}
         type="button"
       >
-        <Bell className="size-4" aria-hidden="true" />
+        <Bell className="size-3.5" aria-hidden="true" />
         Send betalingspåmindelse
       </button>
       {latestReminderAt ? (
-        <p className="text-xs text-ink/55">Seneste påmindelse sendt {formatDateTime(latestReminderAt)}</p>
+        <p className="text-xs leading-5 text-ink/55">Seneste påmindelse sendt {formatDateTime(latestReminderAt)}</p>
       ) : null}
-      {disabledReason ? <p className="text-xs text-ink/55">{disabledReason}</p> : null}
+      {disabledReason ? <p className="text-xs leading-5 text-ink/55">{disabledReason}</p> : null}
 
       {isOpen ? (
         <div
