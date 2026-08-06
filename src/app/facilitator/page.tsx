@@ -754,9 +754,7 @@ function BookingAttentionCard({
           <div>
             <h2 className="text-xl font-semibold text-[#2F2437]">Tilmeldinger</h2>
             <p className="mt-1 text-sm font-semibold leading-6 text-[#6E6475]">
-              {hasPending
-                ? `${pendingCount} ${pendingCount === 1 ? "deltager afventer dit svar" : "deltagere afventer dit svar"}`
-                : "Ingen tilmeldinger kræver handling"}
+              Du kan som arrangør løbende opdatere, hvilke deltagere der har betalt, og hvilke der endnu ikke er registreret som betalt.
             </p>
           </div>
         </div>
@@ -764,7 +762,7 @@ function BookingAttentionCard({
           className="inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285]"
           href={pendingHref}
         >
-          {hasPending ? "Behandl tilmeldinger" : "Se tilmeldinger"}
+          Klik her for at opdatere indbetalinger
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       </div>
