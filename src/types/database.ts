@@ -13,6 +13,7 @@ export type BookingStatus =
   | "invoiced"
   | "paid";
 export type CoOrganizerStatus = "pending" | "accepted" | "declined" | "cancelled" | "withdrawn";
+export type EventCoHostInvitationStatus = "pending" | "accepted" | "accepted_pending_profile_approval" | "declined" | "cancelled" | "expired";
 export type InvoiceStatus = "draft" | "approved" | "sent" | "paid" | "cancelled";
 export type EmailStatus = "queued" | "sent" | "failed";
 export type EmailChangeRequestStatus = "pending" | "completed" | "cancelled" | "expired";
@@ -472,6 +473,30 @@ export type Database = {
         }>;
         Insert: Insert<Database["public"]["Tables"]["event_co_organizers"]["Row"]>;
         Update: Update<Database["public"]["Tables"]["event_co_organizers"]["Row"]>;
+        Relationships: [];
+      };
+      event_cohost_invitations: {
+        Row: Row<{
+          id: string;
+          event_id: string;
+          inviter_profile_id: string | null;
+          inviter_facilitator_id: string;
+          email: string;
+          name: string | null;
+          status: EventCoHostInvitationStatus;
+          token_hash: string;
+          invited_user_id: string | null;
+          invited_facilitator_id: string | null;
+          expires_at: string;
+          accepted_at: string | null;
+          declined_at: string | null;
+          cancelled_at: string | null;
+          last_sent_at: string;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["event_cohost_invitations"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["event_cohost_invitations"]["Row"]>;
         Relationships: [];
       };
       event_slug_history: {

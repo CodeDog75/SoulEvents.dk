@@ -57,6 +57,10 @@ import { validateSocialProfileLink } from "@/lib/social-profile-links";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { ensureMediaStorageBucket } from "@/lib/supabase/storage-buckets";
+import {
+  danishPhoneValidationMessage,
+  normalizeDanishPhoneNumber,
+} from "@/lib/danish-phone";
 
 export type ChangePasswordFormState = {
   fieldErrors?: {
@@ -509,14 +513,6 @@ function isHeicImage(file: File) {
     extension === "heic" ||
     extension === "heif"
   );
-}
-
-function countDigits(value: string) {
-  return value.replace(/\D/g, "").length;
-}
-
-function isValidPhoneNumber(value: string) {
-  return /^[\d\s]+$/.test(value) && countDigits(value) === 8;
 }
 
 function isValidWebUrl(value: string) {
@@ -1378,7 +1374,8 @@ export async function autosaveFacilitatorProfileAction(
     const fullName = valueForAutosave(input.values.full_name);
     const firstName = valueForAutosave(input.values.first_name);
     const lastName = valueForAutosave(input.values.last_name);
-    const phone = valueForAutosave(input.values.phone);
+    const phoneInput = valueForAutosave(input.values.phone);
+    const phone = normalizeDanishPhoneNumber(phoneInput);
     const companyName = valueForAutosave(input.values.company_name);
     const shortDescription = valueForAutosave(input.values.short_description);
     const longDescription = valueForAutosave(input.values.long_description);
@@ -1394,9 +1391,9 @@ export async function autosaveFacilitatorProfileAction(
       return { message: "Et felt er længere end tilladt.", ok: false };
     }
 
-    if (phone && !isValidPhoneNumber(phone)) {
+    if (phoneInput && phone === null) {
       return {
-        message: "Telefonnummer skal bestå af præcis 8 tal.",
+        message: danishPhoneValidationMessage,
         ok: false,
       };
     }
@@ -1405,7 +1402,7 @@ export async function autosaveFacilitatorProfileAction(
       firstName,
       fullName,
       lastName,
-      phone,
+      phone: phone || null,
       profileId: profile.id,
     });
 
@@ -1632,6 +1629,13 @@ export async function autosaveFacilitatorProfileAction(
   }
 
   if (section === "services") {
+    if (typeof input.values.offers_services !== "boolean") {
+      return {
+        message: "Vælg, om du også tilbyder individuelle ydelser.",
+        ok: false,
+      };
+    }
+
     const offersServices = input.values.offers_services === true;
     const serviceDescription = valueForAutosave(
       input.values.service_description,
@@ -2637,7 +2641,8 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   const fullName = getString(formData, "full_name");
   const firstName = getOptionalString(formData, "first_name");
   const lastName = getOptionalString(formData, "last_name");
-  const phone = getOptionalString(formData, "phone");
+  const phoneInput = getOptionalString(formData, "phone") ?? "";
+  const normalizedPhone = normalizeDanishPhoneNumber(phoneInput);
   const companyName = getOptionalString(formData, "company_name");
   const shortDescription = getString(formData, "short_description");
   const longDescription = getString(formData, "long_description");
@@ -2951,16 +2956,20 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     );
   }
 
-  if (savesSection(section, "contact") && phone && !isValidPhoneNumber(phone)) {
+  if (
+    savesSection(section, "contact") &&
+    phoneInput &&
+    normalizedPhone === null
+  ) {
     if (isAdminEdit) {
       adminProfileRedirect(
-        "Telefonnummer skal bestå af præcis 8 tal. Kun tal og mellemrum er tilladt.",
+        danishPhoneValidationMessage,
         adminReturnTo,
         "contact",
       );
     }
     profileRedirect(
-      "Telefonnummer skal bestå af præcis 8 tal. Kun tal og mellemrum er tilladt.",
+      danishPhoneValidationMessage,
       redirectOrigin,
       "contact",
     );
@@ -3096,7 +3105,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       firstName: firstName ?? "",
       fullName,
       lastName: lastName ?? "",
-      phone,
+      phone: normalizedPhone || null,
       profileId: targetProfile.id,
     });
 

@@ -8,6 +8,7 @@ import { PublicFacilitatorProfile } from "@/components/facilitator/public-facili
 import { subscribeToFacilitatorReminderAction } from "./actions";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
+import { getUserFacingEventStatus } from "@/lib/events/user-facing-status";
 import { resolveFacilitatorHero } from "@/lib/facilitators/hero-collection";
 import { withFacilitatorMoodImageFallback } from "@/lib/facilitators/mood-image-fallback";
 import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
@@ -141,7 +142,15 @@ function sortEventsByStartDate<T extends { starts_at: string }>(events: T[]) {
   return [...events].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
 }
 
-function uniqueProfileEvents(primaryEvents: any[], coOrganizerEvents: any[]) {
+function sortEventsByEndDateDesc<T extends { ends_at?: string | null; starts_at: string }>(events: T[]) {
+  return [...events].sort((a, b) => {
+    const aEnd = new Date(a.ends_at || a.starts_at).getTime();
+    const bEnd = new Date(b.ends_at || b.starts_at).getTime();
+    return bEnd - aEnd;
+  });
+}
+
+function uniqueProfileEvents(primaryEvents: any[], coOrganizerEvents: any[], sortEvents = sortEventsByStartDate) {
   const byId = new Map<string, any>();
 
   for (const event of primaryEvents) {
@@ -154,7 +163,7 @@ function uniqueProfileEvents(primaryEvents: any[], coOrganizerEvents: any[]) {
     }
   }
 
-  return sortEventsByStartDate([...byId.values()]);
+  return sortEvents([...byId.values()]);
 }
 
 export async function generateMetadata({ params }: FacilitatorPageProps): Promise<Metadata> {
@@ -348,6 +357,10 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     notFound();
   }
 
+  const nowIso = new Date().toISOString();
+  const heldEventStatuses = ["active", "sold_out", "completed"];
+  const pastEventLimit = 12;
+
   const { data: events } = await supabase
     .from("events")
     .select(publicEventSelect)
@@ -356,7 +369,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     .eq("facilitator_profiles.status", "approved")
     .eq("facilitator_profiles.is_paused", false)
     .eq("facilitator_profiles.is_disabled", false)
-    .gte("ends_at", new Date().toISOString())
+    .gte("ends_at", nowIso)
     .order("starts_at", { ascending: true });
   const { data: coOrganizerRows } = await supabase
     .from("event_co_organizers")
@@ -370,13 +383,47 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     .in("events.status", ["active", "sold_out"])
     .eq("events.facilitator_profiles.status", "approved")
     .eq("events.facilitator_profiles.is_paused", false)
-	    .eq("events.facilitator_profiles.is_disabled", false)
-	    .gte("events.ends_at", new Date().toISOString());
+    .eq("events.facilitator_profiles.is_disabled", false)
+    .gte("events.ends_at", nowIso);
   const coOrganizerEvents =
     coOrganizerRows
       ?.map((row: any) => first(row.events))
       .filter((event: any) => Boolean(event)) ?? [];
   const profileEvents = uniqueProfileEvents(events ?? [], coOrganizerEvents);
+  const { data: pastPrimaryEvents } = await supabase
+    .from("events")
+    .select(publicEventSelect)
+    .eq("facilitator_id", facilitatorData.id)
+    .in("status", heldEventStatuses)
+    .eq("facilitator_profiles.status", "approved")
+    .eq("facilitator_profiles.is_paused", false)
+    .eq("facilitator_profiles.is_disabled", false)
+    .lt("ends_at", nowIso)
+    .order("ends_at", { ascending: false })
+    .limit(pastEventLimit);
+  const { data: pastCoOrganizerRows } = await supabase
+    .from("event_co_organizers")
+    .select(
+      "event_id, status, events!event_co_organizers_event_id_fkey!inner(" +
+        publicEventSelect +
+        ")",
+    )
+    .eq("co_organizer_profile_id", facilitatorData.id)
+    .eq("status", "accepted")
+    .in("events.status", heldEventStatuses)
+    .eq("events.facilitator_profiles.status", "approved")
+    .eq("events.facilitator_profiles.is_paused", false)
+    .eq("events.facilitator_profiles.is_disabled", false)
+    .lt("events.ends_at", nowIso)
+    .order("ends_at", { ascending: false, referencedTable: "events" })
+    .limit(pastEventLimit);
+  const pastCoOrganizerEvents =
+    pastCoOrganizerRows
+      ?.map((row: any) => first(row.events))
+      .filter((event: any) => Boolean(event)) ?? [];
+  const pastEvents = uniqueProfileEvents(pastPrimaryEvents ?? [], pastCoOrganizerEvents, sortEventsByEndDateDesc)
+    .filter((event: any) => getUserFacingEventStatus(event) === "held")
+    .slice(0, pastEventLimit);
   const availableSeatsByEventId = await getAvailableEventSeatsByEventId(createAdminClient(), profileEvents);
   const eventsWithCapacity = profileEvents.map((event: any) => ({
     ...event,
@@ -506,6 +553,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
         galleryImages={publicGalleryImages}
         hostReferenceId={facilitatorData.host_reference_id}
         name={name}
+        pastEvents={pastEvents}
         presentationText={presentationText}
         profileImageUrl={imageUrl}
         reminderFormAction={subscribeToFacilitatorReminderAction.bind(null, facilitatorData.id)}

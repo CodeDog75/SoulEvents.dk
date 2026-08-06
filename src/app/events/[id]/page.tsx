@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, Clock3, Leaf, Mail, MapPinned, Phone, Ticket } from "lucide-react";
@@ -7,11 +8,19 @@ import { BrandLogo } from "@/components/brand-logo";
 import { CapacityBadge } from "@/components/events/capacity-badge";
 import { BookingForm } from "@/components/events/detail/booking-form";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
+import { UserTextWithLinks } from "@/components/user-text-with-links";
 import { getCurrentProfile } from "@/lib/auth/roles";
+import { bookingReceiptCookieName } from "@/lib/bookings/receipt-cookie";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { getUserFacingEventStatus, isEventPastEnd } from "@/lib/events/user-facing-status";
 import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
-import { buildPaymentMethods, paymentSettingsToInstructionsRecord, resolvePaymentRecord } from "@/lib/payment-instructions";
+import {
+  buildPaymentMethods,
+  parsePaymentInstructionsSnapshot,
+  paymentSettingsToInstructionsRecord,
+  resolvePaymentRecord,
+  type PaymentInstructionsSnapshot,
+} from "@/lib/payment-instructions";
 import { buildEventJsonLd, buildEventMetadata } from "@/lib/seo/public-page-metadata";
 import { publicReturnLabel, safePublicReturnPath, withReturnTo } from "@/lib/return-to";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
@@ -32,6 +41,12 @@ type EventDetailPageProps = {
     return_to?: string;
     [key: string]: string | string[] | undefined;
   }>;
+};
+
+type BookingReceipt = {
+  bookingValueCents: number;
+  paymentInstructions: PaymentInstructionsSnapshot | null;
+  seats: number;
 };
 
 function first<T>(value: T | T[] | null | undefined) {
@@ -563,6 +578,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const registrationMode = "direct";
   let externalRegistrationUrl: string | null = null;
   let paymentPreview = null;
+  let receipt: BookingReceipt | null = null;
 
   if (event.price_cents > 0) {
     const [{ data: eventPaymentSettings }, { data: facilitatorPaymentSettings }] = await Promise.all([
@@ -603,6 +619,30 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           }
         : null;
   }
+
+  if (booking === "sent") {
+    const receiptToken = (await cookies()).get(bookingReceiptCookieName)?.value ?? null;
+
+    if (receiptToken) {
+      const { data: receiptBooking } = await adminSupabase
+        .from("bookings")
+        .select("event_id, seats, booking_value_cents, payment_instructions_snapshot")
+        .eq("event_id", event.id)
+        .eq("participant_access_token", receiptToken)
+        .maybeSingle();
+
+      if (receiptBooking) {
+        receipt = {
+          bookingValueCents: receiptBooking.booking_value_cents,
+          paymentInstructions:
+            receiptBooking.booking_value_cents > 0
+              ? parsePaymentInstructionsSnapshot(receiptBooking.payment_instructions_snapshot)
+              : null,
+          seats: receiptBooking.seats,
+        };
+      }
+    }
+  }
   const { data: facilitatorUpcomingEvents } = await supabase
     .from("events")
     .select(
@@ -631,9 +671,11 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const isExpiredEvent = userFacingStatus === "held";
   const isPreviouslyPublished = Boolean(event.published_at) || ["active", "sold_out", "completed", "cancelled", "archived"].includes(event.status);
   const isHeldEvent = isPreviouslyPublished && userFacingStatus === "held";
-  const isPublicEvent = isPublishedEvent && !isExpiredEvent && facilitatorProfile?.status === "approved" && !facilitatorProfile.is_paused && !facilitatorProfile.is_disabled;
+  const facilitatorIsPublic = facilitatorProfile?.status === "approved" && !facilitatorProfile.is_paused && !facilitatorProfile.is_disabled;
+  const isPublicEvent = isPublishedEvent && !isExpiredEvent && facilitatorIsPublic;
+  const isPublicHeldEvent = isHeldEvent && facilitatorIsPublic;
   const canPreviewEvent = viewer?.role === "admin" || viewer?.id === facilitatorProfile?.profile_id;
-  if (!isPublicEvent && !canPreviewEvent) {
+  if (!isPublicEvent && !isPublicHeldEvent && !canPreviewEvent) {
     if (viewer?.role === "facilitator") {
       redirect("/facilitator?message=" + encodeURIComponent("Eventet findes ikke længere eller er blevet fjernet."));
     }
@@ -860,10 +902,9 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           {isHeldEvent ? (
             <section className="rounded-card border border-[#E8DEC9] bg-[#FBF5E8] p-5 shadow-soft">
               <p className="text-sm font-semibold uppercase tracking-wide text-[#756758]">Afholdt event</p>
-              <h2 className="mt-1 text-2xl font-semibold text-midnight">Eventet er afholdt</h2>
+              <h2 className="mt-1 text-2xl font-semibold text-midnight">Dette event er afholdt.</h2>
               <p className="mt-2 text-sm leading-6 text-ink/70">
-                Dette event blev afholdt den{" "}
-                {new Intl.DateTimeFormat("da-DK", { dateStyle: "long" }).format(new Date(event.starts_at))}.
+                Siden vises som dokumentation og inspiration fra arrangørens tidligere arrangementer.
               </p>
             </section>
           ) : null}
@@ -908,7 +949,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               </div>
               <h2 className="mt-5 text-5xl font-medium leading-tight text-olive sm:text-6xl">{event.title}</h2>
               {eventDescription ? (
-                <div className="mt-6 max-w-3xl whitespace-pre-line text-base leading-8 text-ink/72">{eventDescription}</div>
+                <UserTextWithLinks className="mt-6 max-w-3xl whitespace-pre-wrap break-words text-base leading-8 text-ink/72 [overflow-wrap:anywhere]" text={eventDescription} />
               ) : null}
             </div>
           </section>
@@ -1078,7 +1119,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                   </span>
                   <div className="min-w-0 self-center">
                     <p className="text-sm font-bold leading-snug text-olive">Praktisk information til deltagere</p>
-                    <p className="mt-1 break-words text-sm leading-6 text-ink/72">{event.practical_information}</p>
+                    <UserTextWithLinks className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-ink/72 [overflow-wrap:anywhere]" text={event.practical_information} />
                   </div>
                 </div>
               ) : null}
@@ -1122,11 +1163,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               <h2 className="text-3xl font-medium text-olive">Eventet er afholdt</h2>
               <p className="mt-3 text-sm leading-6 text-ink/70">Tilmelding er lukket, fordi eventet allerede er afholdt.</p>
             </section>
-          ) : isSoldOut ? (
-            <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
-              <h2 className="text-3xl font-medium text-olive">Udsolgt</h2>
-            </section>
-          ) : isBookable ? (
+          ) : booking === "sent" || isBookable ? (
             <BookingForm
               availableSeats={availableSeats}
               bookingSent={booking === "sent"}
@@ -1140,8 +1177,13 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               externalRegistrationUrl={externalRegistrationUrl}
               paymentPreview={paymentPreview}
               priceCents={event.price_cents}
+              receipt={receipt}
               registrationMode={registrationMode}
             />
+          ) : isSoldOut ? (
+            <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
+              <h2 className="text-3xl font-medium text-olive">Udsolgt</h2>
+            </section>
           ) : (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
               <h2 className="text-3xl font-medium text-olive">Tilmelding er ikke åben</h2>

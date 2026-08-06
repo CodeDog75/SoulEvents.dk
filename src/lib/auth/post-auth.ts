@@ -270,13 +270,17 @@ export async function getPostAuthRedirect(context: PostAuthContext): Promise<Pos
       })
     : "onboarding";
 
-  if (onboardingState === "onboarding" || onboardingState === "changes_requested") {
-    const path = ensuredProfile.isNewProfile
-      ? "/facilitator/welcome"
-      : "/facilitator/profile";
-
+  if (onboardingState === "onboarding" && ensuredProfile.isNewProfile) {
     return {
-      path,
+      path: "/facilitator/welcome",
+      profile: ensuredProfile.profile,
+      type: "redirect",
+    };
+  }
+
+  if (onboardingState === "changes_requested") {
+    return {
+      path: "/facilitator/profile",
       profile: ensuredProfile.profile,
       type: "redirect",
     };

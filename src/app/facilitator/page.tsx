@@ -409,11 +409,11 @@ function getDashboardAction({
 
   if (!profileReadiness.isComplete) {
     return {
-      description: "Start med de oplysninger, der mangler, så dashboardet kan åbne næste skridt for dig.",
+      description: "Udfyld resten, når du er klar. Profilen bliver først offentlig, når den er sendt til godkendelse og godkendt.",
       href: "/facilitator/profile",
       icon: PencilLine,
       label: "Færdiggør profil",
-      title: "Næste skridt er din profil",
+      title: "Din profil er ikke færdig endnu",
     };
   }
 
@@ -721,16 +721,16 @@ function DashboardSupportAside() {
 }
 function BookingAttentionCard({
   hasActiveEvents,
-  pendingCount,
-  pendingHref,
+  missingPaymentCount,
+  missingPaymentHref,
 }: {
   hasActiveEvents: boolean;
-  pendingCount: number;
-  pendingHref: string;
+  missingPaymentCount: number;
+  missingPaymentHref: string;
 }) {
-  const hasPending = pendingCount > 0;
+  const hasMissingPayments = missingPaymentCount > 0;
 
-  if (!hasPending && !hasActiveEvents) {
+  if (!hasMissingPayments && !hasActiveEvents) {
     return null;
   }
 
@@ -738,7 +738,7 @@ function BookingAttentionCard({
     <section
       className={
         "rounded-[32px] border p-5 shadow-[0_18px_45px_rgba(47,36,55,0.08)] sm:p-6 " +
-        (hasPending ? "border-[#E8D6A8] bg-[#FFF8E8]" : "border-[#E5DDEA] bg-white")
+        (hasMissingPayments ? "border-[#E8D6A8] bg-[#FFF8E8]" : "border-[#E5DDEA] bg-white")
       }
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -746,10 +746,10 @@ function BookingAttentionCard({
           <span
             className={
               "mt-0.5 grid size-10 shrink-0 place-items-center rounded-full " +
-              (hasPending ? "bg-[#FFF1D6] text-[#8A6A2E]" : "bg-[#DDE8D7] text-[#4E6A45]")
+              (hasMissingPayments ? "bg-[#FFF1D6] text-[#8A6A2E]" : "bg-[#DDE8D7] text-[#4E6A45]")
             }
           >
-            {hasPending ? <Inbox className="size-5" aria-hidden="true" /> : <CheckCircle2 className="size-5" aria-hidden="true" />}
+            {hasMissingPayments ? <Inbox className="size-5" aria-hidden="true" /> : <CheckCircle2 className="size-5" aria-hidden="true" />}
           </span>
           <div>
             <h2 className="text-xl font-semibold text-[#2F2437]">Tilmeldinger</h2>
@@ -760,7 +760,7 @@ function BookingAttentionCard({
         </div>
         <Link
           className="inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-[#6E5285]"
-          href={pendingHref}
+          href={missingPaymentHref}
         >
           Klik her for at opdatere indbetalinger
           <ArrowRight className="size-4" aria-hidden="true" />
@@ -1282,8 +1282,9 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const [
     events,
     unreadAdminMessageCount,
-    { data: pendingBookingRows },
+    { data: missingPaymentBookingRows },
     { data: coOrganizerInvitations },
+    { data: externalCoOrganizerInvitations },
     { data: latestChangeRequest },
     { data: facilitatorPaymentSettings },
   ] =
@@ -1293,15 +1294,24 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
           getFacilitatorUnreadAdminMessageCount(facilitatorProfile.id),
           supabase
             .from("bookings")
-            .select("id, event_id, events!inner(id, facilitator_id, starts_at, ends_at, status)")
+            .select("id, event_id, booking_value_cents, manually_marked_paid_at, events!inner(id, facilitator_id, starts_at, ends_at, status)")
             .eq("events.facilitator_id", facilitatorProfile.id)
-            .eq("status", "pending")
+            .eq("status", "confirmed")
+            .gt("booking_value_cents", 0)
+            .is("manually_marked_paid_at", null)
             .in("events.status", ["active", "sold_out"]),
           supabase
             .from("event_co_organizers")
             .select("id, status, response_token, events!inner(id, slug, title, starts_at, ends_at, status, facilitator_profiles!events_facilitator_id_fkey(company_name, status, is_paused, is_disabled, profiles!facilitator_profiles_profile_id_fkey(full_name)))")
             .eq("co_organizer_profile_id", facilitatorProfile.id)
             .in("status", ["pending", "accepted"])
+            .in("events.status", ["active", "sold_out"])
+            .order("created_at", { ascending: false }),
+          (supabase as any)
+            .from("event_cohost_invitations")
+            .select("id, status, token_hash, email, events!inner(id, slug, title, starts_at, ends_at, status, facilitator_profiles!events_facilitator_id_fkey(company_name, status, is_paused, is_disabled, profiles!facilitator_profiles_profile_id_fkey(full_name)))")
+            .eq("email", profile.email.toLowerCase())
+            .eq("status", "pending")
             .in("events.status", ["active", "sold_out"])
             .order("created_at", { ascending: false }),
           supabase
@@ -1318,12 +1328,12 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             .eq("facilitator_id", facilitatorProfile.id)
             .maybeSingle(),
         ])
-      : [[], 0, { data: [] }, { data: [] }, { data: null }, { data: null }];
+      : [[], 0, { data: [] }, { data: [] }, { data: [] }, { data: null }, { data: null }];
   const moonData = await moonDataPromise;
   const hasReusablePaymentSettings = hasStandardPaymentMethod(paymentSettingsToInstructionsRecord(facilitatorPaymentSettings));
 
   const eventRows = events as any[];
-  const currentPendingBookingRows = ((pendingBookingRows ?? []) as Array<{
+  const currentMissingPaymentBookingRows = ((missingPaymentBookingRows ?? []) as Array<{
     event_id?: string | null;
     events?: { ends_at?: string | null; starts_at?: string | null } | Array<{ ends_at?: string | null; starts_at?: string | null }> | null;
   }>).filter((booking) => {
@@ -1331,9 +1341,9 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     const eventEndsAt = event?.ends_at ?? event?.starts_at;
     return eventEndsAt ? new Date(eventEndsAt) >= now : false;
   });
-  const pendingBookingCount = currentPendingBookingRows.length;
-  const pendingBookingsHref = currentPendingBookingRows[0]?.event_id
-    ? "/facilitator/bookings?event=" + currentPendingBookingRows[0].event_id
+  const missingPaymentBookingCount = currentMissingPaymentBookingRows.length;
+  const missingPaymentBookingsHref = currentMissingPaymentBookingRows[0]?.event_id
+    ? "/facilitator/bookings?event=" + currentMissingPaymentBookingRows[0].event_id
     : "/facilitator/bookings";
   const limitStatus = facilitatorProfile
     ? await getFacilitatorEventLimitStatus(supabase, facilitatorProfile.id)
@@ -1342,6 +1352,9 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const currentCoOrganizerRows = coOrganizerRows.filter((row) => isCurrentPublicCoOrganizerEvent(first(row.events), now));
   const pendingCoOrganizerInvitations = currentCoOrganizerRows.filter((row) => row.status === "pending");
   const acceptedCoOrganizerInvitations = currentCoOrganizerRows.filter((row) => row.status === "accepted");
+  const currentExternalCoOrganizerInvitations = ((externalCoOrganizerInvitations ?? []) as any[]).filter((row) =>
+    isCurrentPublicCoOrganizerEvent(first(row.events), now),
+  );
   const unreadMessageCount = unreadAdminMessageCount;
   const hiddenEvents = eventRows.filter((event) => event.dashboard_hidden_at);
   const visibleEventRows = eventRows.filter((event) => !event.dashboard_hidden_at);
@@ -1389,10 +1402,6 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     profileId: profile.id,
   });
 
-  if (onboardingState === "onboarding") {
-    redirect("/facilitator/profile");
-  }
-
   const profileChangeRequest = parseProfileChangeRequest(latestChangeRequest?.reason);
 
   const defaultPrimaryAction = getDashboardAction({
@@ -1428,13 +1437,34 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
             <ProfileChangesRequestedCard canSubmit={profileReadiness.isComplete} request={profileChangeRequest} />
           ) : null}
 
+          {onboardingState === "onboarding" ? (
+            <section className="rounded-[24px] border border-[#E7D59D] bg-[#FFF8DF] p-5 shadow-soft sm:p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7A5A15]">Profilkladde</p>
+                  <h2 className="mt-2 text-xl font-semibold text-midnight">Din profil er ikke færdig endnu</h2>
+                  <p className="mt-2 text-sm leading-6 text-ink/70">
+                    Du kan bruge dashboardet og fortsætte senere. Profilen bliver først sendt til SoulEvents, når du selv vælger at sende den til godkendelse.
+                  </p>
+                </div>
+                <Link
+                  className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-button bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700"
+                  href="/facilitator/profile"
+                >
+                  Færdiggør profil
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+              </div>
+            </section>
+          ) : null}
+
           {!hasReusablePaymentSettings ? <MissingPaymentSettingsCard /> : null}
 
           {profileReadiness.isComplete ? (
             <BookingAttentionCard
               hasActiveEvents={activeEvents.length > 0}
-              pendingCount={pendingBookingCount ?? 0}
-              pendingHref={pendingBookingsHref}
+              missingPaymentCount={missingPaymentBookingCount}
+              missingPaymentHref={missingPaymentBookingsHref}
             />
           ) : null}
 
@@ -1465,6 +1495,38 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                       </span>
                       <span className="text-sm font-semibold text-[#7A5D91]">Bekræft invitation</span>
                     </Link>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {currentExternalCoOrganizerInvitations.length > 0 ? (
+            <section className="rounded-[24px] border border-[#E5DDEA] bg-white p-5 shadow-soft sm:p-6">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Invitationer til events</p>
+              <h2 className="mt-2 text-2xl font-semibold text-[#2F2437]">Du er inviteret som medarrangør</h2>
+              <p className="mt-2 text-sm leading-6 text-ink/64">
+                Åbn linket fra invitationsmailen for at acceptere. Invitationen er bundet til din e-mailadresse.
+              </p>
+              <div className="mt-4 grid gap-3">
+                {currentExternalCoOrganizerInvitations.map((invitation) => {
+                  const event = first(invitation.events);
+                  const owner = first(event?.facilitator_profiles);
+                  const ownerUser = first(owner?.profiles);
+                  return (
+                    <div
+                      className="flex flex-col gap-2 rounded-[18px] border border-[#E5DDEA] bg-[#FAF8FC] p-4 sm:flex-row sm:items-center sm:justify-between"
+                      key={invitation.id}
+                    >
+                      <span>
+                        <span className="block font-semibold text-midnight">{event?.title ?? "Event"}</span>
+                        <span className="mt-1 block text-sm text-ink/62">
+                          {event?.starts_at ? formatDateTime(event.starts_at) + " · " : ""}
+                          Primær arrangør: {owner?.company_name || ownerUser?.full_name || "Arrangør"}
+                        </span>
+                      </span>
+                      <span className="text-sm font-semibold text-[#7A5D91]">Se invitationsmail</span>
+                    </div>
                   );
                 })}
               </div>

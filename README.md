@@ -136,6 +136,28 @@ supabase/
 
 Mappen indeholder blandt andet migrations og auth templates. Selve Node-projektet ligger i roden af repoet, ikke i `supabase`-mappen.
 
+### Faste lokale testkonti
+
+Efter en lokal Supabase reset:
+
+```powershell
+npx supabase db reset
+```
+
+kan du logge direkte ind med:
+
+```text
+Admin
+E-mail: admin@soulevents.test
+Password: Admin1234!
+
+Arrangør
+E-mail: arrangoer@soulevents.test
+Password: Arrangoer1234!
+```
+
+Kontiene seedes i `supabase/seed.sql` og er kun til lokal udvikling.
+
 ## Fejl og hurtige loesninger
 
 ### `npm` kan ikke koeres i PowerShell

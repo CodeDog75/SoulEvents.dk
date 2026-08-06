@@ -4,6 +4,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { OrganizerBadges, type OrganizerBadgeType } from "@/components/badges/organizer-badges";
 import { EventCardVisual } from "@/components/events/event-carousel-section";
 import type { PublicEvent } from "@/components/events/public-event-list";
+import { PastEventsSection } from "@/components/facilitator/past-events-section";
 import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
 import { PublicFacilitatorGallery } from "@/components/facilitator/public-facilitator-gallery";
 import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitator-button";
@@ -54,6 +55,7 @@ type PublicFacilitatorProfileProps = {
   galleryImages: GalleryImage[];
   hostReferenceId?: string | null;
   name: string;
+  pastEvents?: PublicEvent[];
   presentationText?: string | null;
   profileImageUrl?: string | null;
   reminderFormAction: (formData: FormData) => Promise<void>;
@@ -97,20 +99,21 @@ function FacilitatorEvents({ events, returnTo }: { events: PublicEvent[]; return
   const visibleEvents = events.slice(0, 3);
 
   return (
-    <section className="rounded-[32px] border border-[#E5DDEA] bg-white/82 p-6 shadow-[0_18px_45px_rgba(47,36,55,0.07)] sm:p-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <SectionTitle eyebrow="Events" title="Kommende events" />
-        {events.length > 3 ? (
-          <Link className="text-sm font-semibold text-[#7A4EAB] transition hover:text-olive" href="/#events">
-            Se alle events ({events.length})
-          </Link>
-        ) : (
-          <p className="max-w-md text-sm leading-6 text-[#6E6475]">Find den næste begivenhed og mærk, om den kalder på dig.</p>
-        )}
+    <section className="min-w-0 rounded-[32px] border border-[#E5DDEA] bg-white/82 p-6 shadow-[0_18px_45px_rgba(47,36,55,0.07)] sm:p-8">
+      <div className="grid min-w-0 gap-3">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <SectionTitle eyebrow="Events" title="Kommende events" />
+          {events.length > 3 ? (
+            <Link className="w-fit text-sm font-semibold text-[#7A4EAB] transition hover:text-olive" href="/#events">
+              Se alle events ({events.length})
+            </Link>
+          ) : null}
+        </div>
+        <p className="max-w-2xl text-sm leading-6 text-[#6E6475]">Find den næste begivenhed og mærk, om den kalder på dig.</p>
       </div>
-      <div className="mt-6 flex max-w-full snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain pb-3 [touch-action:pan-x_pan-y] [-webkit-overflow-scrolling:touch]">
+      <div className="mt-6 grid min-w-0 items-stretch gap-4 sm:grid-cols-2 2xl:grid-cols-3">
         {visibleEvents.map((event) => (
-          <EventCardVisual event={event} key={event.id} returnTo={returnTo} />
+          <EventCardVisual event={event} key={event.id} layout="grid" returnTo={returnTo} />
         ))}
       </div>
     </section>
@@ -130,6 +133,7 @@ export function PublicFacilitatorProfile({
   galleryImages,
   hostReferenceId,
   name,
+  pastEvents = [],
   presentationText,
   profileImageUrl,
   reminderFormAction,
@@ -171,8 +175,12 @@ export function PublicFacilitatorProfile({
         />
       </section>
 
-      <section className="mx-auto grid max-w-[1440px] gap-8 px-5 pb-16 sm:px-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="grid gap-8">
+      <section className="mx-auto grid max-w-[1440px] min-w-0 gap-8 px-5 pb-16 sm:px-8 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="grid min-w-0 gap-8">
+          <FacilitatorEvents events={events} returnTo={eventReturnTo} />
+
+          <PastEventsSection events={pastEvents} returnTo={eventReturnTo} />
+
           {presentationText ? (
             <section className="rounded-[32px] border border-[#E8DEC9] bg-[#FFFDF8] p-7 shadow-[0_18px_45px_rgba(47,36,55,0.06)] sm:p-10">
               <SectionTitle eyebrow="Mød arrangøren" title="Mit univers" />
@@ -195,11 +203,9 @@ export function PublicFacilitatorProfile({
           ) : null}
 
           <PublicFacilitatorGallery images={galleryImages} />
-
-          <FacilitatorEvents events={events} returnTo={eventReturnTo} />
         </div>
 
-        <aside className="grid content-start gap-5 lg:sticky lg:top-6">
+        <aside className="grid min-w-0 content-start gap-5 xl:sticky xl:top-6">
           {hasContact ? (
             <section className="rounded-[30px] border border-[#E5DDEA] bg-white/86 p-6 shadow-[0_18px_45px_rgba(47,36,55,0.06)]">
               <h2 className="font-serif text-3xl font-semibold text-[#2F2437]">Kontakt</h2>

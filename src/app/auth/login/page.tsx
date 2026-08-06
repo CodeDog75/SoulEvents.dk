@@ -23,6 +23,7 @@ type LoginPageProps = {
     confirmation?: string;
     email?: string;
     message?: string;
+    next?: string;
     role?: string;
     step?: string;
   }>;
@@ -41,10 +42,12 @@ function authStep(value?: string) {
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const [{ confirmation, email, message, role, step }, supabase] = await Promise.all([searchParams, createClient()]);
+  const [{ confirmation, email, message, next, role, step }, supabase] = await Promise.all([searchParams, createClient()]);
   const logoSources = await getBrandLogoSources(supabase as unknown as LogoSettingClient);
   const currentStep = authStep(step);
   const selectedEmail = normalizeEmail(email);
+  const safeNext = next && next.startsWith("/") && !next.startsWith("//") && !next.includes("://") ? next : "";
+  const nextParam = safeNext ? `&next=${encodeURIComponent(safeNext)}` : "";
   const loginRole = role === "admin" ? "admin" : role === "facilitator" ? "facilitator" : null;
   const showConfirmationHelp =
     confirmation === "needed" ||
@@ -95,6 +98,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         {currentStep === "email" ? (
           <>
             <form action={continueWithEmailAction} className="mt-7 grid gap-4">
+              {safeNext ? <input name="next" type="hidden" value={safeNext} /> : null}
               <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
                 E-mail
                 <input
@@ -129,6 +133,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         {currentStep === "password" ? (
           <>
             <form action={signInAction} className="mt-7 grid gap-4">
+              {safeNext ? <input name="next" type="hidden" value={safeNext} /> : null}
               <label className="grid gap-2 text-sm font-medium text-[#2F2633]/72">
                 E-mail
                 <input
@@ -200,7 +205,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               <div className="mt-5 grid gap-4">
                 <Link
                   className="inline-flex min-h-12 items-center justify-center rounded-full bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700"
-                  href={`/auth/login?step=signup&email=${encodeURIComponent(selectedEmail)}`}
+                  href={`/auth/login?step=signup&email=${encodeURIComponent(selectedEmail)}${nextParam}`}
                 >
                   Fortsæt og opret arrangørprofil
                 </Link>
@@ -208,7 +213,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   <p>Har du skrevet e-mailen forkert?</p>
                   <Link
                     className="font-semibold text-sage-700 hover:text-midnight"
-                    href={selectedEmail ? `/auth/login?email=${encodeURIComponent(selectedEmail)}` : "/auth/login"}
+                    href={selectedEmail ? `/auth/login?email=${encodeURIComponent(selectedEmail)}${nextParam}` : "/auth/login"}
                   >
                     Prøv en anden e-mailadresse
                   </Link>
@@ -223,12 +228,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <p className="mb-5 rounded-[1.25rem] border border-[#A8BFA3]/25 bg-[#F2F8EF] p-4 text-sm leading-6 text-[#2F2633]/70">
               Vi bruger e-mailen nedenfor til din konto. Juridisk accept kommer først, når din profil er klar til at blive sendt til godkendelse.
             </p>
-            <SignupForm initialEmail={selectedEmail} returnToEmailFirstLogin variant="onboarding" />
+            <SignupForm initialEmail={selectedEmail} nextPath={safeNext} returnToEmailFirstLogin variant="onboarding" />
             <p className="mt-5 text-center text-sm text-[#2F2633]/64">
               Har du allerede en konto?{" "}
               <Link
                 className="font-semibold text-sage-700 hover:text-midnight"
-                href={selectedEmail ? `/auth/login?step=password&email=${encodeURIComponent(selectedEmail)}` : "/auth/login"}
+                href={selectedEmail ? `/auth/login?step=password&email=${encodeURIComponent(selectedEmail)}${nextParam}` : "/auth/login"}
               >
                 Log ind i stedet
               </Link>

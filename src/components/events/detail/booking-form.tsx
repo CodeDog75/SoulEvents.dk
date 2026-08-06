@@ -7,7 +7,11 @@ import { createBookingAction } from "@/app/events/[id]/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { CapacityBadge } from "@/components/events/capacity-badge";
 import { maxSeatsPerBooking } from "@/lib/bookings/limits";
-import type { PaymentInstructionMethod } from "@/lib/payment-instructions";
+import {
+  paymentInstructionsDisplay,
+  type PaymentInstructionMethod,
+  type PaymentInstructionsSnapshot,
+} from "@/lib/payment-instructions";
 
 type BookingFormProps = {
   eventId: string;
@@ -25,6 +29,10 @@ type BookingFormProps = {
   paymentPreview?: {
     methods: PaymentInstructionMethod[];
     note: string | null;
+  } | null;
+  receipt?: {
+    paymentInstructions: PaymentInstructionsSnapshot | null;
+    seats: number;
   } | null;
 };
 
@@ -102,6 +110,7 @@ export function BookingForm({
   priceCents = null,
   registrationMode = "direct",
   paymentPreview = null,
+  receipt = null,
 }: BookingFormProps) {
   const isDirectRegistration = registrationMode === "direct";
   const usesExternalRegistration = isDirectRegistration && Boolean(externalRegistrationUrl);
@@ -141,6 +150,10 @@ export function BookingForm({
   const highSeatPersonLabel = seats === 1 ? "person" : "personer";
   const bookingPanelIsOpen = isFormOpen || (bookingSent && !receiptDismissed);
   const formattedEventDate = new Intl.DateTimeFormat("da-DK", { dateStyle: "full", timeStyle: "short" }).format(new Date(eventStartsAt));
+  const receiptPayment = receipt?.paymentInstructions ?? null;
+  const receiptPaymentDisplay = receiptPayment ? paymentInstructionsDisplay(receiptPayment) : null;
+  const receiptSeats = receipt?.seats ?? seats;
+  const receiptSeatsLabel = receiptSeats === 1 ? "1 plads" : `${receiptSeats} pladser`;
 
   const closeBookingForm = useCallback(() => {
     if (isSubmittingBooking) {
@@ -288,8 +301,8 @@ export function BookingForm({
           Din tilmelding er modtaget 💜
         </h2>
         <p className="mt-4 text-sm leading-6 text-ink/72">
-          {paymentPreview
-            ? "Du modtager en kvitteringsmail med betalingsoplysninger."
+          {receiptPayment
+            ? "Din tilmelding er bekræftet, men betalingen er endnu ikke registreret som modtaget."
             : "Du modtager en bekræftelsesmail."}
         </p>
         <div className="mt-6 rounded-md border border-[#E5D4F7] bg-white/80 px-4 py-3 text-sm leading-6 text-ink/72 shadow-soft">
@@ -299,7 +312,54 @@ export function BookingForm({
           <p>
             <span className="font-semibold text-midnight">Dato:</span> {formattedEventDate}
           </p>
+          <p>
+            <span className="font-semibold text-midnight">Antal pladser:</span> {receiptSeatsLabel}
+          </p>
         </div>
+        {receiptPaymentDisplay ? (
+          <div className="mt-5 rounded-md border border-[#DDE8D7] bg-[#EEF7F0] px-4 py-4 text-sm leading-6 text-sage-700 shadow-soft">
+            <p className="text-xs font-bold uppercase tracking-wide">Betaling</p>
+            <p className="mt-2 text-lg font-bold text-midnight">
+              Du skal betale: {receiptPaymentDisplay.amount}
+            </p>
+            {receiptPaymentDisplay.dueDate ? (
+              <p className="mt-1 font-semibold text-midnight">
+                Betal senest {receiptPaymentDisplay.dueDate}.
+              </p>
+            ) : null}
+            <p className="mt-3 text-ink/72">
+              {receiptPaymentDisplay.statusMessage}
+            </p>
+            {receiptPaymentDisplay.reference ? (
+              <p className="mt-3 rounded-card bg-white px-3 py-2 text-midnight shadow-soft">
+                <span className="font-semibold">Betalingsreference:</span> {receiptPaymentDisplay.reference}
+              </p>
+            ) : null}
+            {receiptPaymentDisplay.methods.length > 0 ? (
+              <div className="mt-3 grid gap-2">
+                {receiptPaymentDisplay.methods.map((method) =>
+                  method.url ? (
+                    <a
+                      className="inline-flex min-w-0 items-center justify-center rounded-full bg-white px-4 py-2 font-semibold text-[#7A4EAB] shadow-soft transition hover:-translate-y-0.5"
+                      href={method.url}
+                      key={`${method.type}-${method.value}`}
+                      rel="noopener noreferrer"
+                      target="_blank"
+                    >
+                      {method.label}: {method.value}
+                    </a>
+                  ) : (
+                    <p className="rounded-card bg-white px-3 py-2 text-midnight shadow-soft" key={`${method.type}-${method.value}`}>
+                      <span className="font-semibold">{method.label}:</span> {method.value}
+                    </p>
+                  ),
+                )}
+              </div>
+            ) : null}
+            {receiptPaymentDisplay.note ? <p className="mt-3 text-ink/70">{receiptPaymentDisplay.note}</p> : null}
+            <p className="mt-3 text-xs leading-5 text-ink/58">{receiptPaymentDisplay.disclaimer}</p>
+          </div>
+        ) : null}
         <div className="mt-6 grid gap-3">
           <Link
             className={`${primaryActionClass} inline-flex h-11 items-center justify-center`}

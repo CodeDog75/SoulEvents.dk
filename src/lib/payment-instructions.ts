@@ -41,6 +41,8 @@ export type PaymentInstructionsSnapshot = {
 
 export const paymentDisclaimer =
   "Betalingen foregår direkte mellem dig og arrangøren. SoulEvents modtager eller behandler ikke betalingen.";
+export const confirmedUnpaidPaymentMessage =
+  "Din tilmelding er bekræftet. Betalingen er endnu ikke registreret som modtaget.";
 
 export function paymentSettingsToInstructionsRecord(
   settings: PaymentSettingsRecord | null | undefined,
@@ -158,10 +160,22 @@ export function buildPaymentMethods(record: PaymentInstructionsRecord) {
   }
 
   if (manualInstructions) {
-    methods.push({ label: "Kontant", type: "manual", value: manualInstructions });
+    methods.push({ label: "Betalingsvejledning", type: "manual", value: manualInstructions });
   }
 
   return methods;
+}
+
+function paymentDueAt(confirmedAt: Date, record: PaymentInstructionsRecord) {
+  const deadlineDays = record.payment_deadline_days;
+
+  if (!Number.isInteger(deadlineDays) || deadlineDays === null || deadlineDays === undefined) {
+    return null;
+  }
+
+  const dueAt = new Date(confirmedAt);
+  dueAt.setDate(dueAt.getDate() + Math.max(0, deadlineDays));
+  return dueAt.toISOString();
 }
 
 export function buildBookingPaymentInstructions({
@@ -197,7 +211,7 @@ export function buildBookingPaymentInstructions({
     amountCents,
     currency: "DKK",
     disclaimer: paymentDisclaimer,
-    dueAt: null,
+    dueAt: paymentDueAt(confirmedAt, record),
     generatedAt: confirmedAt.toISOString(),
     methods,
     note,
@@ -216,6 +230,18 @@ export function formatPaymentDate(value: string | null | undefined) {
 
 export function formatPaymentAmount(cents: number) {
   return `${new Intl.NumberFormat("da-DK").format(cents / 100)} kr.`;
+}
+
+export function paymentInstructionsDisplay(snapshot: PaymentInstructionsSnapshot) {
+  return {
+    amount: formatPaymentAmount(snapshot.amountCents),
+    disclaimer: snapshot.disclaimer,
+    dueDate: formatPaymentDate(snapshot.dueAt),
+    methods: snapshot.methods,
+    note: snapshot.note,
+    reference: snapshot.reference,
+    statusMessage: confirmedUnpaidPaymentMessage,
+  };
 }
 
 export function parsePaymentInstructionsSnapshot(value: unknown): PaymentInstructionsSnapshot | null {

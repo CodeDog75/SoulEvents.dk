@@ -1,6 +1,6 @@
 import { renderEmailButton, renderEmailLayout, renderEmailTable, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, formatDate, sendLoggedEmail } from "@/lib/email/resend-mail";
-import { formatPaymentAmount, type PaymentInstructionsSnapshot } from "@/lib/payment-instructions";
+import { formatPaymentAmount, paymentInstructionsDisplay, type PaymentInstructionsSnapshot } from "@/lib/payment-instructions";
 import type { BookingStatus } from "@/types/database";
 
 type ParticipantBookingResponseInput = {
@@ -68,12 +68,15 @@ function buildPaymentHtml(snapshot?: PaymentInstructionsSnapshot | null) {
   }
 
   const methodHeading = snapshot.methods.length > 1 ? "Vælg én af følgende betalingsmuligheder" : "Betalingsmulighed";
+  const payment = paymentInstructionsDisplay(snapshot);
 
   return `
     <div style="margin: 22px 0 0; border-radius: 22px; background: #EEF7F0; padding: 18px;">
       <p style="margin: 0 0 8px; color: #4F654A; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">Betaling</p>
-      <p style="margin: 0 0 10px; color: #2D2338; font-size: 16px; font-weight: 700;">Beløb: ${escapeHtml(formatPaymentAmount(snapshot.amountCents))}</p>
-      <p style="margin: 0 0 10px; color: #4F654A; font-size: 14px; font-weight: 700;">Betalingsreference: ${escapeHtml(snapshot.reference)}</p>
+      <p style="margin: 0 0 10px; color: #2D2338; font-size: 14px; line-height: 1.7;">${escapeHtml(payment.statusMessage)} Arrangøren registrerer betalingen, når den er modtaget.</p>
+      <p style="margin: 0 0 10px; color: #2D2338; font-size: 16px; font-weight: 700;">Beløb: ${escapeHtml(payment.amount)}</p>
+      <p style="margin: 0 0 10px; color: #4F654A; font-size: 14px; font-weight: 700;">Betalingsreference: ${escapeHtml(payment.reference)}</p>
+      ${payment.dueDate ? `<p style="margin: 0 0 10px; color: #4F654A; font-size: 14px; font-weight: 700;">Betalingsfrist: ${escapeHtml(payment.dueDate)}</p>` : ""}
       ${
         snapshot.methods.length > 0
           ? `<p style="margin: 0 0 8px; color: #2D2338; font-size: 14px; font-weight: 700;">${methodHeading}</p>
@@ -90,8 +93,8 @@ function buildPaymentHtml(snapshot?: PaymentInstructionsSnapshot | null) {
              </ul>`
           : ""
       }
-      ${snapshot.note ? `<p style="margin: 0 0 12px; color: #2D2338; font-size: 14px; line-height: 1.7;">${escapeHtml(snapshot.note)}</p>` : ""}
-      <p style="margin: 0; color: #4F654A; font-size: 12px; line-height: 1.6;">${escapeHtml(snapshot.disclaimer)}</p>
+      ${payment.note ? `<p style="margin: 0 0 12px; color: #2D2338; font-size: 14px; line-height: 1.7;">${escapeHtml(payment.note)}</p>` : ""}
+      <p style="margin: 0; color: #4F654A; font-size: 12px; line-height: 1.6;">${escapeHtml(payment.disclaimer)}</p>
     </div>
   `;
 }
@@ -101,15 +104,18 @@ function buildPaymentText(snapshot?: PaymentInstructionsSnapshot | null) {
     return [];
   }
 
+  const payment = paymentInstructionsDisplay(snapshot);
   const lines = [
     "",
     "Betaling",
-    `Beløb: ${formatPaymentAmount(snapshot.amountCents)}`,
-    `Betalingsreference: ${snapshot.reference}`,
+    `${payment.statusMessage} Arrangøren registrerer betalingen, når den er modtaget.`,
+    `Beløb: ${payment.amount}`,
+    `Betalingsreference: ${payment.reference}`,
+    payment.dueDate ? `Betalingsfrist: ${payment.dueDate}` : "",
     snapshot.methods.length > 1 ? "Vælg én af følgende betalingsmuligheder:" : snapshot.methods.length === 1 ? "Betalingsmulighed:" : "",
     ...snapshot.methods.map((method) => `${method.label}: ${method.value}`),
-    snapshot.note ? `Note: ${snapshot.note}` : "",
-    snapshot.disclaimer,
+    payment.note ? `Note: ${payment.note}` : "",
+    payment.disclaimer,
   ];
 
   return lines.filter(Boolean);

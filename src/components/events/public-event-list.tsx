@@ -15,6 +15,7 @@ export type PublicEvent = {
   title: string;
   short_description: string;
   starts_at: string;
+  ends_at?: string | null;
   created_at?: string | null;
   city: string | null;
   price_cents: number;

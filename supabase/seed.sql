@@ -1,5 +1,8 @@
 -- Safe local-only seed data for SoulEvents development.
 -- Uses reserved .test email domains and fixed UUIDs. Never import production data here.
+-- Fixed local login accounts:
+-- - admin@soulevents.test / Admin1234!
+-- - arrangoer@soulevents.test / Arrangoer1234!
 
 insert into auth.users (
   instance_id,
@@ -29,7 +32,7 @@ values
     'authenticated',
     'authenticated',
     'admin@soulevents.test',
-    crypt('Test1234!', gen_salt('bf')),
+    crypt('Admin1234!', gen_salt('bf')),
     now(),
     '',
     '',
@@ -50,7 +53,7 @@ values
     'authenticated',
     'authenticated',
     'arrangoer@soulevents.test',
-    crypt('Test1234!', gen_salt('bf')),
+    crypt('Arrangoer1234!', gen_salt('bf')),
     now(),
     '',
     '',
@@ -152,7 +155,7 @@ set
 insert into public.profiles (id, role, full_name, email, phone)
 values
   ('11111111-1111-4111-8111-111111111111', 'admin', 'Lokal Admin', 'admin@soulevents.test', '+4500000001'),
-  ('22222222-2222-4222-8222-222222222222', 'facilitator', 'Test Arrangør', 'arrangoer@soulevents.test', '+4500000002'),
+  ('22222222-2222-4222-8222-222222222222', 'facilitator', 'Test Arrangør', 'arrangoer@soulevents.test', '12345678'),
   ('33333333-3333-4333-8333-333333333333', 'facilitator', 'Test Deltager', 'deltager@soulevents.test', '+4500000003')
 on conflict (id) do update
 set
@@ -186,7 +189,7 @@ values (
   'Fiktiv arrangør til lokal udvikling.',
   'Denne profil er kun seedet i lokal Supabase og må aldrig repræsentere en rigtig person.',
   'arrangoer@soulevents.test',
-  '+4500000002',
+  '12345678',
   'Testvej 1',
   '4000',
   'Roskilde',
@@ -251,7 +254,7 @@ values
     0,
     12,
     'arrangoer@soulevents.test',
-    '+4500000002',
+    '12345678',
     'physical',
     'Danmark',
     'direct'
@@ -273,7 +276,7 @@ values
     25000,
     20,
     'arrangoer@soulevents.test',
-    '+4500000002',
+    '12345678',
     'physical',
     'Danmark',
     'approval_required'
@@ -295,7 +298,7 @@ values
     15000,
     30,
     'arrangoer@soulevents.test',
-    '+4500000002',
+    '12345678',
     'physical',
     'Danmark',
     'approval_required'

@@ -9,6 +9,7 @@ import {
   ArrowDown,
   ArrowUp,
   CalendarPlus,
+  CheckCircle2,
   ChevronDown,
   CreditCard,
   Eye,
@@ -31,12 +32,21 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { cancelCoOrganizerInvitationAction, createEventAction, resendCoOrganizerInvitationAction, searchCoOrganizerCandidatesAction } from "@/app/facilitator/events/actions";
+import {
+  cancelCoOrganizerInvitationAction,
+  cancelExternalCoOrganizerInvitationAction,
+  createEventAction,
+  resendCoOrganizerInvitationAction,
+  resendExternalCoOrganizerInvitationAction,
+  searchCoOrganizerCandidatesAction,
+  sendExternalCoOrganizerInvitationAction,
+} from "@/app/facilitator/events/actions";
 import { formattedMaxEventDescriptionLength, maxEventDescriptionLength } from "@/lib/events/event-content-limits";
 import { sortTagsByDanishLabel } from "@/lib/events/tags";
 import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
 import { fetchDanishPostalCity, getLocalDanishPostalCity } from "@/lib/locations/danish-postal-codes";
 import { hasStandardPaymentMethod } from "@/lib/payment-instructions";
+import { createClient as createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type { EventRegistrationMode } from "@/types/database";
 
 type Region = {
@@ -60,6 +70,7 @@ type Tag = Category;
 
 type PaymentMethodChoice = "standard" | "unique_link";
 type PaymentLinkMode = "external_registration" | "payment_only";
+type CoOrganizerAddMethod = "" | "search" | "email";
 
 type CoverCropState = {
   cropX: number;
@@ -73,6 +84,7 @@ type CoverCropState = {
 };
 
 type EventGalleryImageState = {
+  draftImagePath?: string | null;
   file?: File;
   fileName?: string;
   id: string;
@@ -129,6 +141,7 @@ type DraftEvent = {
   tagIds?: string[];
   activeBookingCount?: number;
   coOrganizerInvitations?: CoOrganizerInvitation[];
+  externalCoOrganizerInvitations?: ExternalCoOrganizerInvitation[];
 };
 
 type CoOrganizerInvitation = {
@@ -140,6 +153,15 @@ type CoOrganizerInvitation = {
   profileIsActive?: boolean;
   profileId: string;
   status: "accepted" | "declined" | "pending";
+};
+
+type ExternalCoOrganizerInvitation = {
+  createdAt?: string | null;
+  email: string;
+  id: string;
+  lastSentAt?: string | null;
+  name?: string | null;
+  status: "pending" | "accepted_pending_profile_approval" | "accepted" | "declined" | "cancelled" | "expired";
 };
 
 type CoOrganizerCandidate = {
@@ -469,12 +491,58 @@ function coOrganizerStatusCopy(status: CoOrganizerInvitation["status"], profileI
   };
 }
 
+function externalCoOrganizerStatusCopy(status: ExternalCoOrganizerInvitation["status"]) {
+  if (status === "accepted_pending_profile_approval") {
+    return {
+      badgeClass: "border-[#E7D59D] bg-[#FFF8DF] text-[#7A5A15]",
+      description: "Invitationen er accepteret. Personen vises først, når arrangørprofilen er godkendt.",
+      label: "Afventer profil",
+    };
+  }
+
+  if (status === "declined") {
+    return {
+      badgeClass: "border-[#E8D2CC] bg-[#FFF8F6] text-[#9A4F45]",
+      description: "Personen har sagt nej tak til invitationen.",
+      label: "Afslået",
+    };
+  }
+
+  if (status === "expired") {
+    return {
+      badgeClass: "border-[#E8D2CC] bg-[#FFF8F6] text-[#9A4F45]",
+      description: "Invitationen er udløbet og kan sendes igen.",
+      label: "Udløbet",
+    };
+  }
+
+  if (status === "cancelled") {
+    return {
+      badgeClass: "border-midnight/10 bg-white text-ink/50",
+      description: "Invitationen er annulleret.",
+      label: "Annulleret",
+    };
+  }
+
+  return {
+    badgeClass: "border-[#E7D59D] bg-[#FFF8DF] text-[#7A5A15]",
+    description: "Invitationen er sendt og afventer oprettelse af profil og accept.",
+    label: "Invitation sendt",
+  };
+}
+
+function formatShortDateTime(value?: string | null) {
+  if (!value) return null;
+  return new Intl.DateTimeFormat("da-DK", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+
 function normalizeCoOrganizerSearchText(value: string | null | undefined) {
   return (value ?? "").toLowerCase().trim();
 }
 
 const legacyEventDraftStorageKey = "soulevents:event-form-draft:v1";
 const eventDraftStoragePrefix = "soulevents:event-form-draft:v2";
+const eventDraftSchemaVersion = 3;
 const maxEventTags = 4;
 const onlineLinkLaterText = "Deltagerne modtager linket senere i invitationen";
 const danishTimeZone = "Europe/Copenhagen";
@@ -498,6 +566,20 @@ function normalizeTimeInputValue(timeValue: string | undefined) {
   }
 
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function isLegacyDefaultCapacityValue(value: unknown) {
+  return String(value ?? "").trim() === "12";
+}
+
+function eventDraftImageExtension(file: File) {
+  if (file.type === "image/png") return "png";
+  if (file.type === "image/webp") return "webp";
+  return "jpg";
+}
+
+function isOwnEventDraftImagePath(path: string | null | undefined, profileId: string) {
+  return Boolean(path && path.startsWith(`events/drafts/${profileId}/`));
 }
 
 function formatLocalDateInputValue(date: Date) {
@@ -1029,7 +1111,7 @@ export function EventForm({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>((draftEvent?.tagIds ?? []).slice(0, maxEventTags));
   const sortedTags = useMemo(() => sortTagsByDanishLabel(tags), [tags]);
   const [categoryLimitMessage, setCategoryLimitMessage] = useState("");
-  const [capacityValue, setCapacityValue] = useState(String(draftEvent?.capacity ?? 12));
+  const [capacityValue, setCapacityValue] = useState(draftEvent?.capacity === null || draftEvent?.capacity === undefined ? "" : String(draftEvent.capacity));
   const [highlightedMissingKey, setHighlightedMissingKey] = useState("");
   const initialPriceValue = String((draftEvent?.price_cents ?? 0) / 100);
   const [priceValue, setPriceValue] = useState(initialPriceValue);
@@ -1051,9 +1133,12 @@ export function EventForm({
   const [coverImageErrorMessage, setCoverImageErrorMessage] = useState("");
   const [coverFileName, setCoverFileName] = useState("");
   const [coverPreviewUrl, setCoverPreviewUrl] = useState("");
+  const [coverDraftImagePath, setCoverDraftImagePath] = useState("");
+  const [isCoverDraftUploading, setIsCoverDraftUploading] = useState(false);
   const [coverCrop, setCoverCrop] = useState<CoverCropState | null>(null);
   const galleryFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [galleryImageErrorMessage, setGalleryImageErrorMessage] = useState("");
+  const [isGalleryDraftUploading, setIsGalleryDraftUploading] = useState(false);
   const [galleryImages, setGalleryImages] = useState<EventGalleryImageState[]>(() => initialEventGalleryImages(draftEvent));
   const [showParticipantNotificationDialog, setShowParticipantNotificationDialog] = useState(false);
   const [pendingSubmitStatus, setPendingSubmitStatus] = useState("");
@@ -1069,12 +1154,16 @@ export function EventForm({
   const visibleGalleryImages = galleryImages.filter((image) => image.previewUrl || image.imagePath || image.fileName);
   const canAddGalleryImage = visibleGalleryImages.length < maxEventGalleryImages;
   const [titleValue, setTitleValue] = useState(value(draftEvent?.title) || prefillTitle);
-  const [coOrganizerSearchOpen, setCoOrganizerSearchOpen] = useState(false);
+  const [coOrganizerAddPanelOpen, setCoOrganizerAddPanelOpen] = useState(false);
+  const [coOrganizerAddMethod, setCoOrganizerAddMethod] = useState<CoOrganizerAddMethod>("");
   const [coOrganizerSearchQuery, setCoOrganizerSearchQuery] = useState("");
   const [coOrganizerCandidates, setCoOrganizerCandidates] = useState<CoOrganizerCandidate[]>([]);
   const [coOrganizerExistingMatches, setCoOrganizerExistingMatches] = useState<CoOrganizerInvitation[]>([]);
   const [selectedCoOrganizers, setSelectedCoOrganizers] = useState<CoOrganizerCandidate[]>([]);
   const [coOrganizerSearchMessage, setCoOrganizerSearchMessage] = useState("");
+  const [externalCoOrganizerEmail, setExternalCoOrganizerEmail] = useState("");
+  const [externalCoOrganizerName, setExternalCoOrganizerName] = useState("");
+  const [externalInviteQueued, setExternalInviteQueued] = useState(false);
   const [isSearchingCoOrganizers, startCoOrganizerSearch] = useTransition();
   const [isUpdatingCoOrganizerInvitation, startCoOrganizerInvitationUpdate] = useTransition();
   const titleBoxStateClass = titleValue.trim()
@@ -1095,6 +1184,7 @@ export function EventForm({
   const primarySubmitStatus = isEditingPublishedEvent && draftEventStatus ? draftEventStatus : "active";
   const userDraftStorageKey = `${eventDraftStoragePrefix}:${facilitator.id}`;
   const draftStorageKey = draftEvent?.id ? `${userDraftStorageKey}:event:${draftEvent.id}` : `${userDraftStorageKey}:new`;
+  const draftAssetScope = draftEvent?.id ? `event-${draftEvent.id}` : "new-event";
   const paymentSettingsReturnTo = "/facilitator/events?" + new URLSearchParams({
     ...(draftEvent?.id ? { draft: draftEvent.id } : {}),
     step: "2",
@@ -1105,15 +1195,22 @@ export function EventForm({
   const requiresExternalUrl = usesExternalRegistrationLink;
   const effectiveRegistrationMode = priceMode === "paid" && !usesExternalRegistrationLink ? safeRegistrationMode : "direct";
   const effectivePaymentMethodSource = usesExternalRegistrationLink ? "custom" : priceMode === "paid" ? "facilitator" : "none";
+  const hasUnpersistedCoverImage = Boolean(coverPreviewUrl.startsWith("blob:") && !coverDraftImagePath);
+  const hasUnpersistedGalleryImage = visibleGalleryImages.some((image) => Boolean(image.objectUrl && !image.draftImagePath && !image.imagePath));
+  const imageDraftUploadBlocksNavigation = isCoverDraftUploading || isGalleryDraftUploading || hasUnpersistedCoverImage || hasUnpersistedGalleryImage;
   const statusHelp = useMemo(
     () =>
       "Når du gør eventet offentligt, bliver det synligt med det samme, hvis din arrangørprofil er godkendt og eventet er klar.",
     [],
   );
   const existingCoOrganizers = draftEvent?.coOrganizerInvitations ?? [];
+  const existingExternalCoOrganizers = draftEvent?.externalCoOrganizerInvitations ?? [];
   const activeExistingCoOrganizers = existingCoOrganizers.filter((coOrganizer) => coOrganizer.status === "pending" || coOrganizer.status === "accepted");
+  const activeExternalCoOrganizers = existingExternalCoOrganizers.filter((coOrganizer) => coOrganizer.status === "pending" || coOrganizer.status === "accepted_pending_profile_approval");
   const inactiveExistingCoOrganizers = activeExistingCoOrganizers.filter((coOrganizer) => coOrganizer.profileIsActive === false);
-  const activeCoOrganizerCount = activeExistingCoOrganizers.length + selectedCoOrganizers.length;
+  const activeCoOrganizerCount = activeExistingCoOrganizers.length + activeExternalCoOrganizers.length + selectedCoOrganizers.length;
+  const normalizedExternalCoOrganizerEmail = externalCoOrganizerEmail.trim();
+  const isExternalCoOrganizerEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedExternalCoOrganizerEmail);
   const coOrganizerSearchNeedle = normalizeCoOrganizerSearchText(coOrganizerSearchQuery);
   const localMatchingExistingCoOrganizers =
     coOrganizerSearchNeedle.length >= 2
@@ -1212,6 +1309,89 @@ export function EventForm({
     const transfer = new DataTransfer();
     transfer.items.add(file);
     input.files = transfer.files;
+  }
+
+  function draftImagePath(kind: "cover" | "gallery", file: File) {
+    return `events/drafts/${facilitator.id}/${draftAssetScope}/${kind}/${crypto.randomUUID()}.${eventDraftImageExtension(file)}`;
+  }
+
+  async function uploadDraftImage(file: File, kind: "cover" | "gallery") {
+    const supabase = createBrowserSupabaseClient();
+    const imagePath = draftImagePath(kind, file);
+    const { error } = await supabase.storage.from("media").upload(imagePath, file, {
+      cacheControl: "3600",
+      contentType: file.type,
+      upsert: false,
+    });
+
+    if (error) {
+      throw new Error(kind === "cover" ? "Coverbilledet kunne ikke gemmes som kladde." : "Stemningsbilledet kunne ikke gemmes som kladde.");
+    }
+
+    return {
+      imagePath,
+      previewUrl: supabase.storage.from("media").getPublicUrl(imagePath).data.publicUrl,
+    };
+  }
+
+  async function removeDraftImagePath(imagePath: string | null | undefined) {
+    if (!isOwnEventDraftImagePath(imagePath, facilitator.id)) {
+      return;
+    }
+
+    const supabase = createBrowserSupabaseClient();
+    const { error } = await supabase.storage.from("media").remove([imagePath]);
+
+    if (error) {
+      console.warn("Event draft image cleanup failed", error);
+    }
+  }
+
+  async function persistCoverDraftImage(file: File, localPreviewUrl: string) {
+    const previousDraftPath = coverDraftImagePath;
+    setIsCoverDraftUploading(true);
+    setCoverImageErrorMessage("Gemmer coverbilledet som kladde...");
+
+    try {
+      const uploadedImage = await uploadDraftImage(file, "cover");
+      if (coverFileInputRef.current) {
+        coverFileInputRef.current.value = "";
+      }
+      if (localPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(localPreviewUrl);
+      }
+      setCoverDraftImagePath(uploadedImage.imagePath);
+      setCoverPreviewUrl(uploadedImage.previewUrl);
+      setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: uploadedImage.previewUrl } : currentPreview));
+      setCoverImageErrorMessage("");
+      if (previousDraftPath && previousDraftPath !== uploadedImage.imagePath) {
+        void removeDraftImagePath(previousDraftPath);
+      }
+    } catch (error) {
+      setCoverDraftImagePath("");
+      setCoverImageErrorMessage(error instanceof Error ? error.message : "Coverbilledet kunne ikke gemmes som kladde.");
+    } finally {
+      setIsCoverDraftUploading(false);
+    }
+  }
+
+  async function persistGalleryDraftImage(file: File, localPreviewUrl: string) {
+    setIsGalleryDraftUploading(true);
+    setGalleryImageErrorMessage("Gemmer stemningsbilledet som kladde...");
+
+    try {
+      const uploadedImage = await uploadDraftImage(file, "gallery");
+      if (localPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(localPreviewUrl);
+      }
+      setGalleryImageErrorMessage("");
+      return uploadedImage;
+    } catch (error) {
+      setGalleryImageErrorMessage(error instanceof Error ? error.message : "Stemningsbilledet kunne ikke gemmes som kladde.");
+      return null;
+    } finally {
+      setIsGalleryDraftUploading(false);
+    }
   }
 
   function getCoverCropArea(crop: CoverCropState) {
@@ -1373,7 +1553,9 @@ export function EventForm({
     setCoverInputFile(croppedFile);
     setCoverFileName(croppedFileName);
     setCoverPreviewUrl(nextPreviewUrl);
+    setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: nextPreviewUrl } : currentPreview));
     closeCoverCrop();
+    void persistCoverDraftImage(croppedFile, nextPreviewUrl);
   }
 
   function formatReviewDate(dateValue: string) {
@@ -1426,6 +1608,7 @@ export function EventForm({
         setCoverPreviewUrl(imageUrl);
         setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: imageUrl } : currentPreview));
         setCoverCrop(null);
+        void persistCoverDraftImage(file, imageUrl);
         return;
       }
 
@@ -1489,16 +1672,38 @@ export function EventForm({
     }
 
     const previewUrl = URL.createObjectURL(file);
+    const imageId = crypto.randomUUID();
     setGalleryImages((currentImages) => [
       ...currentImages,
       {
         file,
         fileName: file.name,
-        id: crypto.randomUUID(),
+        id: imageId,
         objectUrl: true,
         previewUrl,
       },
     ]);
+    input.value = "";
+
+    const uploadedImage = await persistGalleryDraftImage(file, previewUrl);
+    if (!uploadedImage) {
+      setGalleryImages((currentImages) => currentImages.filter((image) => image.id !== imageId));
+      return;
+    }
+
+    setGalleryImages((currentImages) =>
+      currentImages.map((image) =>
+        image.id === imageId
+          ? {
+              ...image,
+              draftImagePath: uploadedImage.imagePath,
+              file: undefined,
+              objectUrl: false,
+              previewUrl: uploadedImage.previewUrl,
+            }
+          : image,
+      ),
+    );
   }
 
   async function handleReplaceGalleryImage(imageId: string, event: React.ChangeEvent<HTMLInputElement>) {
@@ -1510,6 +1715,7 @@ export function EventForm({
     }
 
     const previewUrl = URL.createObjectURL(file);
+    let previousDraftPath: string | null | undefined = null;
 
     setGalleryImages((currentImages) =>
       currentImages.map((image) => {
@@ -1520,6 +1726,7 @@ export function EventForm({
         if (image.objectUrl && image.previewUrl) {
           URL.revokeObjectURL(image.previewUrl);
         }
+        previousDraftPath = image.draftImagePath;
 
         return {
           ...image,
@@ -1530,6 +1737,29 @@ export function EventForm({
         };
       }),
     );
+    input.value = "";
+
+    const uploadedImage = await persistGalleryDraftImage(file, previewUrl);
+    if (!uploadedImage) {
+      return;
+    }
+
+    setGalleryImages((currentImages) =>
+      currentImages.map((image) =>
+        image.id === imageId
+          ? {
+              ...image,
+              draftImagePath: uploadedImage.imagePath,
+              file: undefined,
+              objectUrl: false,
+              previewUrl: uploadedImage.previewUrl,
+            }
+          : image,
+      ),
+    );
+    if (previousDraftPath && previousDraftPath !== uploadedImage.imagePath) {
+      void removeDraftImagePath(previousDraftPath);
+    }
   }
 
   function removeGalleryImage(imageId: string) {
@@ -1537,6 +1767,9 @@ export function EventForm({
       const image = currentImages.find((currentImage) => currentImage.id === imageId);
       if (image?.objectUrl && image.previewUrl) {
         URL.revokeObjectURL(image.previewUrl);
+      }
+      if (image?.draftImagePath) {
+        void removeDraftImagePath(image.draftImagePath);
       }
 
       return currentImages.filter((currentImage) => currentImage.id !== imageId);
@@ -1675,6 +1908,8 @@ export function EventForm({
     setCoOrganizerSearchQuery("");
     setCoOrganizerCandidates([]);
     setCoOrganizerSearchMessage("Medarrangøren inviteres, når eventet gemmes.");
+    setCoOrganizerAddPanelOpen(false);
+    setCoOrganizerAddMethod("");
   }
 
   function removeSelectedCoOrganizer(candidateId: string) {
@@ -1692,6 +1927,42 @@ export function EventForm({
     formData.set("invitation_id", invitationId);
     startCoOrganizerInvitationUpdate(() => {
       void action(formData);
+    });
+  }
+
+  function runExternalCoOrganizerInvitationAction(action: (formData: FormData) => Promise<void>, invitationId: string) {
+    if (!draftEvent?.id) {
+      setCoOrganizerSearchMessage("Invitationen kan først sendes, når eventet er gemt.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("event_id", draftEvent.id);
+    formData.set("invitation_id", invitationId);
+    startCoOrganizerInvitationUpdate(() => {
+      void action(formData);
+    });
+  }
+
+  function sendExternalCoOrganizerInvitation() {
+    if (!isExternalCoOrganizerEmailValid) {
+      setCoOrganizerSearchMessage("Skriv en gyldig e-mailadresse for at sende invitationen.");
+      return;
+    }
+
+    if (!draftEvent?.id) {
+      setExternalInviteQueued(true);
+      setCoOrganizerSearchMessage("Invitationen sendes, når eventet gemmes.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("event_id", draftEvent.id);
+    formData.set("external_co_organizer_email", normalizedExternalCoOrganizerEmail);
+    formData.set("external_co_organizer_name", externalCoOrganizerName);
+    setExternalInviteQueued(true);
+    startCoOrganizerInvitationUpdate(() => {
+      void sendExternalCoOrganizerInvitationAction(formData);
     });
   }
 
@@ -2062,6 +2333,7 @@ export function EventForm({
     window.localStorage.setItem(
       draftStorageKey,
       JSON.stringify({
+        schemaVersion: eventDraftSchemaVersion,
         fields,
         state: {
           city,
@@ -2079,6 +2351,16 @@ export function EventForm({
           isFree,
           sendOnlineLinkLater,
           capacityValue,
+          coverDraftImagePath,
+          coverFileName,
+          coverPreviewUrl,
+          galleryImages: visibleGalleryImages.map((image) => ({
+            draftImagePath: image.draftImagePath ?? null,
+            fileName: image.fileName ?? "",
+            id: image.id,
+            imagePath: image.imagePath ?? null,
+            previewUrl: image.previewUrl,
+          })),
 
           postalCode,
           regionId,
@@ -2127,7 +2409,10 @@ export function EventForm({
     return Boolean(initialSignature && formSignature() !== initialSignature);
   }
 
-  function applyDraftFields(fields: Record<string, string[]>, options: { keepEventFormat?: boolean } = {}) {
+  function applyDraftFields(
+    fields: Record<string, string[]>,
+    options: { ignoreLegacyDefaultCapacity?: boolean; keepEventFormat?: boolean } = {},
+  ) {
     const form = formRef.current;
     const restoredOnlineValues = Array.isArray(fields.online_url_or_note) ? fields.online_url_or_note : [];
 
@@ -2141,6 +2426,9 @@ export function EventForm({
 
     for (const [name, values] of Object.entries(fields) as Array<[string, string[]]>) {
       if ((options.keepEventFormat && name === "event_format") || name === "tag_ids") {
+        continue;
+      }
+      if (!draftEvent?.id && options.ignoreLegacyDefaultCapacity && name === "capacity" && values.some(isLegacyDefaultCapacityValue)) {
         continue;
       }
 
@@ -2171,6 +2459,7 @@ export function EventForm({
       return;
     }
 
+    const isLegacyDraft = draft.schemaVersion !== eventDraftSchemaVersion;
     setStartDate(draft.state?.startDate ?? today);
     setEndDate(draft.state?.endDate ?? draft.state?.startDate ?? today);
     setStartTime(draft.state?.startTime ?? "19:00");
@@ -2206,15 +2495,52 @@ export function EventForm({
     );
     setPaymentExternalUrl(draft.state?.paymentExternalUrl ?? initialPaymentExternalUrl);
     setSendOnlineLinkLater(Boolean(draft.state?.sendOnlineLinkLater));
-    setCapacityValue(draft.state?.capacityValue ?? String(draftEvent?.capacity ?? 12));
+    const restoredCapacityValue =
+      !draftEvent?.id && isLegacyDraft && isLegacyDefaultCapacityValue(draft.state?.capacityValue)
+        ? ""
+        : draft.state?.capacityValue ?? (draftEvent?.capacity === null || draftEvent?.capacity === undefined ? "" : String(draftEvent.capacity));
+    setCapacityValue(restoredCapacityValue);
     setSelectedMainCategoryIds(Array.isArray(draft.state?.selectedMainCategoryIds) ? draft.state.selectedMainCategoryIds : []);
     const restoredTagIds = Array.isArray(draft.state?.selectedTagIds)
       ? draft.state.selectedTagIds.filter((tagId: unknown): tagId is string => typeof tagId === "string")
       : [];
     setSelectedTagIds(restoredTagIds.slice(0, maxEventTags));
+    const restoredCoverDraftImagePath = typeof draft.state?.coverDraftImagePath === "string" ? draft.state.coverDraftImagePath : "";
+    const restoredCoverPreviewUrl = typeof draft.state?.coverPreviewUrl === "string" ? draft.state.coverPreviewUrl : "";
+    const restoredCoverFileName = typeof draft.state?.coverFileName === "string" ? draft.state.coverFileName : "";
+    if (!draftEvent?.id && isOwnEventDraftImagePath(restoredCoverDraftImagePath, facilitator.id) && restoredCoverPreviewUrl) {
+      setCoverDraftImagePath(restoredCoverDraftImagePath);
+      setCoverPreviewUrl(restoredCoverPreviewUrl);
+      setCoverFileName(restoredCoverFileName);
+      setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: restoredCoverPreviewUrl } : currentPreview));
+    }
+    if (!draftEvent?.id && Array.isArray(draft.state?.galleryImages)) {
+      const restoredGalleryImages = draft.state.galleryImages
+        .filter((image: unknown): image is { draftImagePath?: string | null; fileName?: string; id?: string; imagePath?: string | null; previewUrl?: string } => {
+          if (!image || typeof image !== "object") return false;
+          const candidate = image as { draftImagePath?: unknown; imagePath?: unknown; previewUrl?: unknown };
+          return (
+            (typeof candidate.previewUrl === "string" && candidate.previewUrl.length > 0) &&
+            ((typeof candidate.draftImagePath === "string" && isOwnEventDraftImagePath(candidate.draftImagePath, facilitator.id)) ||
+              typeof candidate.imagePath === "string")
+          );
+        })
+        .slice(0, maxEventGalleryImages)
+        .map((image: { draftImagePath?: string | null; fileName?: string; id?: string; imagePath?: string | null; previewUrl?: string }) => ({
+          draftImagePath: image.draftImagePath ?? null,
+          fileName: image.fileName ?? "",
+          id: image.id || crypto.randomUUID(),
+          imagePath: image.imagePath ?? null,
+          objectUrl: false,
+          previewUrl: image.previewUrl ?? "",
+        }));
+      if (restoredGalleryImages.length > 0) {
+        setGalleryImages(restoredGalleryImages);
+      }
+    }
 
     window.requestAnimationFrame(() => {
-      applyDraftFields(draft.fields ?? {});
+      applyDraftFields(draft.fields ?? {}, { ignoreLegacyDefaultCapacity: !draftEvent?.id && isLegacyDraft });
       refreshFormValidationState();
     });
   }
@@ -2226,7 +2552,10 @@ export function EventForm({
       return;
     }
 
-    window.requestAnimationFrame(() => applyDraftFields(draft.fields ?? {}, { keepEventFormat: true }));
+    const isLegacyDraft = draft.schemaVersion !== eventDraftSchemaVersion;
+    window.requestAnimationFrame(() =>
+      applyDraftFields(draft.fields ?? {}, { ignoreLegacyDefaultCapacity: !draftEvent?.id && isLegacyDraft, keepEventFormat: true }),
+    );
   }
 
   function clearDraft() {
@@ -2292,6 +2621,9 @@ export function EventForm({
   }, [
     capacityValue,
     city,
+    coverDraftImagePath,
+    coverFileName,
+    coverPreviewUrl,
     country,
     endDate,
     endTime,
@@ -2299,6 +2631,7 @@ export function EventForm({
     hasChosenEventFormat,
     isForeignLocation,
     isFree,
+    galleryImages,
     paymentExternalUrl,
     paymentLinkMode,
     paymentMethodChoice,
@@ -2675,7 +3008,6 @@ export function EventForm({
       action={createEventAction}
       autoComplete="off"
       className="grid w-full max-w-full gap-5 overflow-x-hidden sm:gap-6"
-      encType="multipart/form-data"
       noValidate
       onChange={() => {
         setFormVersion((version) => version + 1);
@@ -2693,12 +3025,17 @@ export function EventForm({
           refreshFormValidationState();
         }, 0);
       }}
-      onSubmit={(event) => {
-        const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-        const isDialogParticipantSubmit = submitter?.name === "notify_participants";
-        const submittedStatus = isDialogParticipantSubmit ? pendingSubmitStatus || primarySubmitStatus : submitter?.value;
-        const latestMissingInvitationItems = getMissingInvitationItems();
-        const latestCanPublish = latestMissingInvitationItems.length === 0 && !coOrganizerBlocksSubmit && !activeLimitBlocksSubmit;
+	      onSubmit={(event) => {
+	        const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+	        const isDialogParticipantSubmit = submitter?.name === "notify_participants";
+	        const submittedStatus = isDialogParticipantSubmit ? pendingSubmitStatus || primarySubmitStatus : submitter?.value;
+	        const latestMissingInvitationItems = getMissingInvitationItems();
+	        const latestCanPublish = latestMissingInvitationItems.length === 0 && !coOrganizerBlocksSubmit && !activeLimitBlocksSubmit;
+	        if (isCoverDraftUploading || isGalleryDraftUploading) {
+	          event.preventDefault();
+	          setCoverImageErrorMessage((currentMessage) => currentMessage || "Vent til billedet er gemt som kladde, før du fortsætter.");
+	          return;
+	        }
 
         const isPrimarySubmit =
           submittedStatus === "active" ||
@@ -2765,14 +3102,21 @@ export function EventForm({
       ) : null}
       {draftEvent?.id ? <input name="event_id" type="hidden" value={draftEvent.id} /> : null}
       <input name="current_step" type="hidden" value={currentStep} />
-      <input name="current_cover_image_path" type="hidden" value={value(draftEvent?.cover_image_path)} />
+      <input name="current_cover_image_path" type="hidden" value={value(coverDraftImagePath || draftEvent?.cover_image_path)} />
+      {coverDraftImagePath ? <input name="draft_cover_image_path" type="hidden" value={coverDraftImagePath} /> : null}
       <input name="event_gallery_image_count" type="hidden" value={visibleGalleryImages.length} />
       {visibleGalleryImages.map((image, index) => (
-        <input key={image.id + "-existing-path"} name={`event_gallery_existing_image_${index}`} type="hidden" value={value(image.imagePath)} />
+        <input key={image.id + "-existing-path"} name={`event_gallery_existing_image_${index}`} type="hidden" value={value(image.imagePath || image.draftImagePath)} />
       ))}
       {selectedCoOrganizers.map((coOrganizer) => (
         <input key={coOrganizer.id} name="co_organizer_profile_ids" type="hidden" value={coOrganizer.id} />
       ))}
+      {externalInviteQueued && externalCoOrganizerEmail ? (
+        <>
+          <input name="external_co_organizer_email" type="hidden" value={normalizedExternalCoOrganizerEmail} />
+          <input name="external_co_organizer_name" type="hidden" value={externalCoOrganizerName} />
+        </>
+      ) : null}
       {showParticipantNotificationDialog ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-midnight/35 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="event-update-dialog-title">
           <section className="w-full max-w-lg rounded-card bg-white p-5 shadow-lift sm:p-6">
@@ -2964,15 +3308,30 @@ export function EventForm({
         <div className={"rounded-[20px] transition " + highlightMissingClass("description")} id="event-description-field">
           <EventDescriptionField defaultValue={value(draftEvent?.long_description || draftEvent?.short_description)} />
         </div>
+        <details className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4">
+          <summary className="cursor-pointer list-none text-sm font-semibold text-[#7A4EAB] [&::-webkit-details-marker]:hidden">
+            Tilføj praktiske oplysninger
+          </summary>
+          <div className="mt-4">
+            <TextArea
+              defaultValue={value(draftEvent?.practical_information)}
+              help="F.eks. hvad deltagerne skal medbringe, hvor de kan parkere, hvordan de finder frem eller om de bør komme i god tid."
+              label="Særlige oplysninger til deltagere"
+              maxLength={1500}
+              name="practical_information"
+              placeholder="Medbring yogamåtte. Kom i behageligt tøj. Dørene åbner 15 minutter før."
+            />
+          </div>
+        </details>
         <section className="grid min-w-0 gap-4 rounded-[22px] border border-[#E5D4F7] bg-[#FAF8FC] p-4 md:p-5">
           <div className="grid gap-1">
             <h3 className="text-lg font-semibold text-midnight">Afholder du eventet sammen med andre?</h3>
             <p className="text-sm leading-6 text-ink/68">
-              Du kan invitere op til to medarrangører med en aktiv profil på SoulEvents. Medarrangøren vises først på eventet, når invitationen er bekræftet.
+              Du kan invitere op til to medarrangører. Medarrangøren vises først på eventet, når profilen er godkendt og invitationen er accepteret.
             </p>
           </div>
 
-          {existingCoOrganizers.length > 0 || selectedCoOrganizers.length > 0 ? (
+          {existingCoOrganizers.length > 0 || selectedCoOrganizers.length > 0 || existingExternalCoOrganizers.length > 0 ? (
             <div className="grid gap-3">
               {existingCoOrganizers.map((coOrganizer) => {
                 const statusCopy = coOrganizerStatusCopy(coOrganizer.status, coOrganizer.profileIsActive);
@@ -3040,71 +3399,302 @@ export function EventForm({
                   </button>
                 </div>
               ))}
+
+              {existingExternalCoOrganizers.map((invitation) => {
+                const statusCopy = externalCoOrganizerStatusCopy(invitation.status);
+                const lastSentLabel = formatShortDateTime(invitation.lastSentAt);
+                return (
+                  <div className="flex flex-col gap-3 rounded-card border border-[#CFE3C8] bg-[#F7FBF4] p-4 shadow-sm sm:flex-row sm:items-start" key={"external-" + invitation.id}>
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-[14px] bg-white text-sage-700 shadow-sm">
+                        <CheckCircle2 className="size-5" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-midnight">{statusCopy.label}</p>
+                          <span className={"rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide " + statusCopy.badgeClass}>
+                            E-mail
+                          </span>
+                        </div>
+                        {invitation.name ? <p className="mt-2 font-semibold text-midnight">{invitation.name}</p> : null}
+                        <p className="mt-1 break-all text-sm text-ink/64">{invitation.email}</p>
+                        <p className="mt-2 text-sm leading-5 text-ink/62">{statusCopy.description}</p>
+                        {lastSentLabel ? <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-sage-700">Invitation sendt {lastSentLabel}</p> : null}
+                      </div>
+                    </div>
+                    {invitation.status === "pending" || invitation.status === "accepted_pending_profile_approval" || invitation.status === "expired" ? (
+                      <div className="flex min-w-0 flex-wrap gap-2 sm:shrink-0 sm:justify-end">
+                        <button
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#D8CBE4] bg-[#F4F0F7] px-3 text-xs font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
+                          disabled={isUpdatingCoOrganizerInvitation}
+                          onClick={() => runExternalCoOrganizerInvitationAction(resendExternalCoOrganizerInvitationAction, invitation.id)}
+                          type="button"
+                        >
+                          <Send className="size-3.5" aria-hidden="true" />
+                          Gensend invitation
+                        </button>
+                        <button
+                          className="inline-flex h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-3 text-xs font-semibold text-ink/64 transition hover:border-[#B56F8A] hover:text-[#B56F8A]"
+                          disabled={isUpdatingCoOrganizerInvitation}
+                          onClick={() => runExternalCoOrganizerInvitationAction(cancelExternalCoOrganizerInvitationAction, invitation.id)}
+                          type="button"
+                        >
+                          Annullér invitation
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           ) : null}
 
           {canAddCoOrganizer ? (
             <div className="grid gap-3">
-              {!coOrganizerSearchOpen ? (
+              {!coOrganizerAddPanelOpen ? (
                 <button
-                  className="inline-flex h-11 w-fit items-center gap-2 rounded-button border border-[#7A5D91]/25 bg-white px-4 text-sm font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
-                  onClick={() => setCoOrganizerSearchOpen(true)}
+                  className="inline-flex h-11 w-fit items-center gap-2 rounded-button bg-[#7A5D91] px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285]"
+                  onClick={() => {
+                    setCoOrganizerAddPanelOpen(true);
+                    setCoOrganizerAddMethod("");
+                    setCoOrganizerSearchMessage("");
+                  }}
                   type="button"
                 >
                   <Plus className="size-4" aria-hidden="true" />
                   Tilføj medarrangør
                 </button>
               ) : (
-                <div className="grid gap-3">
-                  <label className="grid gap-2 text-sm font-semibold text-midnight">
-                    Søg efter medarrangør
-                    <input
-                      className="h-12 rounded-card border border-[#D8CBE4] bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
-                      onChange={(event) => searchCoOrganizers(event.target.value)}
-                      placeholder="Søg på profilnavn, by eller speciale"
-                      type="search"
-                      value={coOrganizerSearchQuery}
-                    />
-                  </label>
-                  {isSearchingCoOrganizers ? <p className="text-sm text-ink/58">Søger...</p> : null}
-                  {coOrganizerSearchMessage ? <p className="text-sm font-semibold text-[#6E5A86]">{coOrganizerSearchMessage}</p> : null}
-                  {matchingExistingCoOrganizers.length > 0 ? (
-                    <div className="grid gap-2 rounded-card border border-[#E7D59D] bg-[#FFF8DF] p-3">
-                      <p className="text-xs font-bold uppercase tracking-wide text-[#7A5A15]">Allerede inviteret</p>
-                      {matchingExistingCoOrganizers.map((coOrganizer) => {
-                        const statusCopy = coOrganizerStatusCopy(coOrganizer.status, coOrganizer.profileIsActive);
-                        return (
-                          <div className="flex items-start gap-3 rounded-[18px] bg-white/70 p-3" key={"existing-search-" + coOrganizer.id}>
-                            <CoOrganizerAvatar imageUrl={coOrganizer.imageUrl} name={coOrganizer.name} />
-                            <span className="min-w-0 flex-1">
-                              <span className="block font-semibold text-midnight">{coOrganizer.name}</span>
-                              <span className="mt-1 block text-sm leading-5 text-ink/62">{statusCopy.description}</span>
-                            </span>
-                            <span className={"shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide " + statusCopy.badgeClass}>
-                              {statusCopy.label}
-                            </span>
-                          </div>
-                        );
-                      })}
+                <div className="grid gap-4 rounded-card border border-[#D8CBE4] bg-white p-4 shadow-sm">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="grid gap-1">
+                      <p className="text-sm font-bold uppercase tracking-wide text-[#7A5D91]">Vælg metode</p>
+                      <h4 className="text-base font-semibold text-midnight">Hvordan vil du tilføje en medarrangør?</h4>
+                    </div>
+                    <button
+                      className="inline-flex h-9 w-fit items-center justify-center rounded-full border border-midnight/10 bg-white px-3 text-xs font-semibold text-ink/62 transition hover:border-[#B56F8A] hover:text-[#B56F8A]"
+                      onClick={() => {
+                        setCoOrganizerAddPanelOpen(false);
+                        setCoOrganizerAddMethod("");
+                        setCoOrganizerSearchQuery("");
+                        setCoOrganizerCandidates([]);
+                        setCoOrganizerSearchMessage("");
+                        setExternalCoOrganizerEmail("");
+                        setExternalCoOrganizerName("");
+                        setExternalInviteQueued(false);
+                      }}
+                      type="button"
+                    >
+                      Luk
+                    </button>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <button
+                      aria-pressed={coOrganizerAddMethod === "search"}
+                      className={
+                        "grid min-h-28 gap-2 rounded-card border p-4 text-left transition " +
+                        (coOrganizerAddMethod === "search"
+                          ? "border-[#7A5D91] bg-[#F7F2FB] ring-4 ring-[#E5D4F7]"
+                          : "border-[#D8CBE4] bg-white hover:border-[#7A5D91]")
+                      }
+                      onClick={() => {
+                        setCoOrganizerAddMethod("search");
+                        setCoOrganizerSearchMessage("");
+                      }}
+                      type="button"
+                    >
+                      <span className="flex items-start gap-3">
+                        <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border border-[#7A5D91]">
+                          {coOrganizerAddMethod === "search" ? <span className="size-2.5 rounded-full bg-[#7A5D91]" /> : null}
+                        </span>
+                        <span className="grid gap-1">
+                          <span className="font-semibold text-midnight">Find en arrangør på SoulEvents</span>
+                          <span className="text-sm leading-6 text-ink/64">Søg blandt eksisterende arrangørprofiler.</span>
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      aria-pressed={coOrganizerAddMethod === "email"}
+                      className={
+                        "grid min-h-28 gap-2 rounded-card border p-4 text-left transition " +
+                        (coOrganizerAddMethod === "email"
+                          ? "border-[#7A5D91] bg-[#F7F2FB] ring-4 ring-[#E5D4F7]"
+                          : "border-[#D8CBE4] bg-white hover:border-[#7A5D91]")
+                      }
+                      onClick={() => {
+                        setCoOrganizerAddMethod("email");
+                        setCoOrganizerSearchMessage("");
+                        setCoOrganizerSearchQuery("");
+                        setCoOrganizerCandidates([]);
+                      }}
+                      type="button"
+                    >
+                      <span className="flex items-start gap-3">
+                        <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border border-[#7A5D91]">
+                          {coOrganizerAddMethod === "email" ? <span className="size-2.5 rounded-full bg-[#7A5D91]" /> : null}
+                        </span>
+                        <span className="grid gap-1">
+                          <span className="font-semibold text-midnight">Invitér via e-mail</span>
+                          <span className="text-sm leading-6 text-ink/64">Personen modtager en invitation til gratis at oprette en profil.</span>
+                        </span>
+                      </span>
+                    </button>
+                  </div>
+
+                  {coOrganizerAddMethod === "search" ? (
+                    <div className="grid gap-3 border-t border-[#E5D4F7] pt-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-[#7A5D91]">Udfyld oplysninger</p>
+                      <label className="grid gap-2 text-sm font-semibold text-midnight">
+                        Søg efter medarrangør
+                        <input
+                          className="h-12 rounded-card border border-[#D8CBE4] bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                          onChange={(event) => searchCoOrganizers(event.target.value)}
+                          placeholder="Søg på profilnavn, by eller speciale"
+                          type="search"
+                          value={coOrganizerSearchQuery}
+                        />
+                      </label>
+                      {isSearchingCoOrganizers ? <p className="text-sm text-ink/58">Søger...</p> : null}
+                      {coOrganizerSearchMessage ? <p className="text-sm font-semibold text-[#6E5A86]">{coOrganizerSearchMessage}</p> : null}
+                      {matchingExistingCoOrganizers.length > 0 ? (
+                        <div className="grid gap-2 rounded-card border border-[#E7D59D] bg-[#FFF8DF] p-3">
+                          <p className="text-xs font-bold uppercase tracking-wide text-[#7A5A15]">Allerede inviteret</p>
+                          {matchingExistingCoOrganizers.map((coOrganizer) => {
+                            const statusCopy = coOrganizerStatusCopy(coOrganizer.status, coOrganizer.profileIsActive);
+                            return (
+                              <div className="flex items-start gap-3 rounded-[18px] bg-white/70 p-3" key={"existing-search-" + coOrganizer.id}>
+                                <CoOrganizerAvatar imageUrl={coOrganizer.imageUrl} name={coOrganizer.name} />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block font-semibold text-midnight">{coOrganizer.name}</span>
+                                  <span className="mt-1 block text-sm leading-5 text-ink/62">{statusCopy.description}</span>
+                                </span>
+                                <span className={"shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide " + statusCopy.badgeClass}>
+                                  {statusCopy.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                      {coOrganizerCandidates.length > 0 ? (
+                        <div className="grid gap-2">
+                          {coOrganizerCandidates.map((candidate) => (
+                            <button
+                              className="flex items-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-3 text-left shadow-sm transition hover:border-[#7A5D91]"
+                              key={candidate.id}
+                              onClick={() => addCoOrganizer(candidate)}
+                              type="button"
+                            >
+                              <CoOrganizerAvatar imageUrl={candidate.imageUrl} name={candidate.name} />
+                              <span className="min-w-0 flex-1">
+                                <span className="block font-semibold text-midnight">{candidate.name}</span>
+                                <span className="block text-sm text-ink/58">{[candidate.city, ...(candidate.categories ?? [])].filter(Boolean).join(" · ")}</span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
-                  {coOrganizerCandidates.length > 0 ? (
-                    <div className="grid gap-2">
-                      {coOrganizerCandidates.map((candidate) => (
-                        <button
-                          className="flex items-start gap-3 rounded-card border border-[#E5D4F7] bg-white p-3 text-left shadow-sm transition hover:border-[#7A5D91]"
-                          key={candidate.id}
-                          onClick={() => addCoOrganizer(candidate)}
-                          type="button"
-                        >
-                          <CoOrganizerAvatar imageUrl={candidate.imageUrl} name={candidate.name} />
-                          <span className="min-w-0 flex-1">
-                            <span className="block font-semibold text-midnight">{candidate.name}</span>
-                            <span className="block text-sm text-ink/58">{[candidate.city, ...(candidate.categories ?? [])].filter(Boolean).join(" · ")}</span>
+
+                  {coOrganizerAddMethod === "email" ? (
+                    externalInviteQueued ? (
+                      <div className="grid gap-3 rounded-card border border-[#CFE3C8] bg-[#F7FBF4] p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-sage-700 shadow-sm">
+                            <CheckCircle2 className="size-5" aria-hidden="true" />
                           </span>
-                        </button>
-                      ))}
-                    </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-midnight">{draftEvent?.id ? "Invitation sendt" : "Invitation klar til afsendelse"}</p>
+                            {externalCoOrganizerName ? <p className="mt-2 font-semibold text-midnight">{externalCoOrganizerName}</p> : null}
+                            <p className="mt-1 break-all text-sm text-ink/64">{normalizedExternalCoOrganizerEmail}</p>
+                            <p className="mt-2 text-sm leading-6 text-ink/64">
+                              {draftEvent?.id
+                                ? "Invitationen er sendt. Status opdateres her, når siden genindlæses."
+                                : "Invitationen sendes, når eventet gemmes."}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            className="inline-flex h-9 items-center justify-center rounded-full border border-[#D8CBE4] bg-white px-3 text-xs font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
+                            onClick={() => setExternalInviteQueued(false)}
+                            type="button"
+                          >
+                            Rediger oplysninger
+                          </button>
+                          <button
+                            className="inline-flex h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-3 text-xs font-semibold text-ink/64 transition hover:border-[#B56F8A] hover:text-[#B56F8A]"
+                            onClick={() => {
+                              setExternalInviteQueued(false);
+                              setExternalCoOrganizerEmail("");
+                              setExternalCoOrganizerName("");
+                            }}
+                            type="button"
+                          >
+                            Annullér invitation
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid gap-4 border-t border-[#E5D4F7] pt-4">
+                        <p className="text-xs font-bold uppercase tracking-wide text-[#7A5D91]">Udfyld oplysninger</p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <label className="grid gap-2 text-sm font-semibold text-midnight">
+                            Navn <span className="font-normal text-ink/54">(valgfrit)</span>
+                            <input
+                              className="h-12 rounded-card border border-[#D8CBE4] bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                              onChange={(event) => setExternalCoOrganizerName(event.target.value)}
+                              placeholder="Kan udfyldes"
+                              value={externalCoOrganizerName}
+                            />
+                          </label>
+                          <label className="grid gap-2 text-sm font-semibold text-midnight">
+                            E-mail<span className="text-[#B56F8A]">*</span>
+                            <input
+                              className="h-12 rounded-card border border-[#D8CBE4] bg-white px-4 text-base font-normal outline-none transition focus:border-[#7A4EAB] focus:ring-4 focus:ring-[#CDB4EA]"
+                              onChange={(event) => {
+                                setExternalCoOrganizerEmail(event.target.value);
+                                setCoOrganizerSearchMessage("");
+                              }}
+                              placeholder="rose@example.dk"
+                              required
+                              type="email"
+                              value={externalCoOrganizerEmail}
+                            />
+                          </label>
+                        </div>
+                        <p className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/68">
+                          Personen modtager en invitation til gratis at oprette en profil på SoulEvents. Medarrangøren vises først på eventet, når profilen er godkendt og invitationen er accepteret.
+                        </p>
+                        {coOrganizerSearchMessage ? <p className="text-sm font-semibold text-[#6E5A86]">{coOrganizerSearchMessage}</p> : null}
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button
+                            className="inline-flex h-10 items-center justify-center rounded-full border border-midnight/10 bg-white px-4 text-sm font-semibold text-ink/64 transition hover:border-[#B56F8A] hover:text-[#B56F8A]"
+                            onClick={() => {
+                              setCoOrganizerAddMethod("");
+                              setExternalCoOrganizerEmail("");
+                              setExternalCoOrganizerName("");
+                              setExternalInviteQueued(false);
+                              setCoOrganizerSearchMessage("");
+                            }}
+                            type="button"
+                          >
+                            Annullér
+                          </button>
+                          <button
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-4 text-sm font-semibold text-white shadow-soft disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={!isExternalCoOrganizerEmailValid || isUpdatingCoOrganizerInvitation}
+                            onClick={sendExternalCoOrganizerInvitation}
+                            type="button"
+                          >
+                            <Send className="size-4" aria-hidden="true" />
+                            Send invitation
+                          </button>
+                        </div>
+                      </div>
+                    )
                   ) : null}
                 </div>
               )}
@@ -3440,9 +4030,9 @@ export function EventForm({
                 </div>
               ) : null}
 
-              <label className={(usesExternalRegistrationLink ? "md:col-span-2 " : "") + "grid min-w-0 gap-2 text-sm font-semibold text-midnight"}>
-                Pris pr. deltager
-                <span className="relative block">
+              <label className={(usesExternalRegistrationLink ? "md:col-span-2 " : "") + "grid min-w-0 gap-2 text-sm font-semibold text-midnight md:grid-rows-[auto_3rem_minmax(1.25rem,auto)]"}>
+                <span>Pris pr. deltager</span>
+                <span className="relative block h-12">
                   <input
                     autoComplete="off"
                     className={"h-12 w-full min-w-0 rounded-card border py-0 pl-4 pr-14 text-base font-semibold text-midnight outline-none transition placeholder:text-sm placeholder:font-medium placeholder:text-ink/38 focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(priceValue)}
@@ -3459,12 +4049,12 @@ export function EventForm({
                     kr.
                   </span>
                 </span>
-                <span className="text-xs leading-5 text-ink/58">Prisen er pr. deltager og angives inkl. moms.</span>
+                <span className="text-xs leading-5 text-ink/58 md:min-h-5">Prisen er pr. deltager og angives inkl. moms.</span>
               </label>
 
               {usesClassicPayment ? (
-                <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight">
-                  Maks. antal deltagere
+                <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight md:grid-rows-[auto_3rem_minmax(1.25rem,auto)]">
+                  <span>Maks. antal deltagere</span>
                   <input
                     autoComplete="off"
                     className={"h-12 w-full min-w-0 rounded-card border px-4 text-base font-normal text-midnight outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(capacityValue)}
@@ -3476,10 +4066,11 @@ export function EventForm({
                       setCapacityValue(normalizedValue);
                     }}
                     pattern="[0-9]*"
+                    placeholder="Indtast antal deltagere"
                     type="text"
                     value={capacityValue}
                   />
-                  <span className="text-xs leading-5 text-ink/52">Maks. 500 deltagere.</span>
+                  <span className="text-xs leading-5 text-ink/52 md:min-h-5">Angiv det maksimale antal deltagere. Maks. 500.</span>
                 </label>
               ) : (
                 <input name="capacity" type="hidden" value={capacityValue || "1"} />
@@ -3511,10 +4102,23 @@ export function EventForm({
                         <Link
                           className="w-fit font-semibold text-[#7A4EAB] underline-offset-4 hover:underline"
                           href={paymentSettingsHref}
-                          onClick={writeDraft}
+                          onClick={(event) => {
+                            if (imageDraftUploadBlocksNavigation) {
+                              event.preventDefault();
+                              const message = isCoverDraftUploading || isGalleryDraftUploading
+                                ? "Vent til billedet er gemt som kladde, før du går til betalingsoplysninger."
+                                : "Billedet er ikke gemt som kladde endnu. Prøv igen om et øjeblik, eller vælg billedet igen.";
+                              setCoverImageErrorMessage(message);
+                              return;
+                            }
+                            writeDraft();
+                          }}
                         >
                           Opsæt betalingsoplysninger
                         </Link>
+                        {isCoverDraftUploading || isGalleryDraftUploading ? (
+                          <span className="text-xs font-semibold text-[#7A5A15]">Gemmer billede som kladde...</span>
+                        ) : null}
                       </span>
                     ) : null}
                   </span>
@@ -3546,10 +4150,11 @@ export function EventForm({
                   setCapacityValue(normalizedValue);
                 }}
                 pattern="[0-9]*"
+                placeholder="Indtast antal deltagere"
                 type="text"
                 value={capacityValue}
               />
-              <span className="text-xs leading-5 text-ink/52">Maks. 500 deltagere.</span>
+              <span className="text-xs leading-5 text-ink/52">Angiv det maksimale antal deltagere. Maks. 500.</span>
             </label>
           </div>
         ) : null}
@@ -3689,24 +4294,6 @@ export function EventForm({
 
       </section>
 
-<section className={isStepOpen(2) ? "grid w-full min-w-0 max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
-        <details className="rounded-card border border-[#E5D4F7] bg-[#FAF6EF] p-4">
-          <summary className="cursor-pointer list-none text-sm font-semibold text-[#7A4EAB] [&::-webkit-details-marker]:hidden">
-            Tilføj praktiske oplysninger
-          </summary>
-          <div className="mt-4">
-            <TextArea
-              label="Særlige oplysninger til deltagere"
-              defaultValue={value(draftEvent?.practical_information)}
-              name="practical_information"
-              placeholder="Medbring yogamåtte. Kom i behageligt tøj. Dørene åbner 15 minutter før."
-              help="Valgfrit. Brug kun feltet, hvis der er noget praktisk deltageren skal vide." maxLength={1500}
-            />
-          </div>
-        </details>
-      </section>
-
-
           {renderStepAccordionHeader(3)}
       <section className={isStepOpen(3) ? "grid w-full min-w-0 max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-6 sm:p-6 " + highlightMissingClass("category") : "hidden"} id="event-category-field">
         {draftEvent?.subcategoryIds?.map((subcategoryId) => (
@@ -3790,6 +4377,9 @@ export function EventForm({
             </div>
             <p className="border-b border-[#E5D4F7] px-5 py-2 text-xs font-semibold text-[#6E6475]">{supportedImageUploadText}</p>
             {coverFileName ? <p className="border-b border-[#E5D4F7] px-5 py-2 text-xs font-semibold text-[#7A4EAB]">Valgt fil: {coverFileName}</p> : null}
+            {isCoverDraftUploading ? (
+              <p className="border-b border-[#E8D6A8] bg-[#FFF8E8] px-5 py-3 text-sm font-semibold leading-6 text-[#8A6A2E]">Gemmer coverbilledet som kladde...</p>
+            ) : null}
             {coverImageErrorMessage ? (
               <p className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold leading-6 text-red-900">{coverImageErrorMessage}</p>
             ) : null}
@@ -3888,6 +4478,11 @@ export function EventForm({
               {galleryImageErrorMessage ? (
                 <p className="mt-3 rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-900">
                   {galleryImageErrorMessage}
+                </p>
+              ) : null}
+              {isGalleryDraftUploading ? (
+                <p className="mt-3 rounded-[16px] border border-[#E8D6A8] bg-[#FFF8E8] px-4 py-3 text-sm font-semibold leading-6 text-[#8A6A2E]">
+                  Gemmer stemningsbillede som kladde...
                 </p>
               ) : null}
             </section>

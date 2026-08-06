@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAppUrl } from "@/lib/app-url";
 import { requireRole } from "@/lib/auth/roles";
+import { activateAcceptedExternalInvitationsForFacilitator } from "@/lib/co-organizers/external-invitations";
 import { sendAdminEmailChangeConfirmation, sendEmailChangeSecurityNotice } from "@/lib/email/email-change";
 import { sendAdminMessageNotificationEmail } from "@/lib/email/admin-message-notification";
 import { facilitatorProfileEditUrl, sendFacilitatorProfileChangesRequestedEmail } from "@/lib/email/facilitator-profile-changes-requested";
@@ -534,6 +535,10 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
 
   if (error) {
     adminReturnRedirect("Arrangørstatus kunne ikke opdateres.", returnTo);
+  }
+
+  if (status === "approved") {
+    await activateAcceptedExternalInvitationsForFacilitator(supabase, facilitatorId);
   }
 
   revalidatePath("/admin");

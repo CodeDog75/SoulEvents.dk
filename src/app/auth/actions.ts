@@ -23,7 +23,11 @@ function getString(formData: FormData, key: string) {
 }
 
 function authRedirect(path: string, message: string): never {
-  redirect(`${path}?message=${encodeURIComponent(message)}`);
+  redirect(`${path}${path.includes("?") ? "&" : "?"}message=${encodeURIComponent(message)}`);
+}
+
+function safeAuthNextPath(path: string) {
+  return path && path.startsWith("/") && !path.startsWith("//") && !path.includes("://") ? path : "";
 }
 
 function authRedirectWithParams(path: string, params: Record<string, string>): never {
@@ -151,6 +155,7 @@ async function getDetailedAuthUserByEmail(email: string) {
 
 export async function continueWithEmailAction(formData: FormData) {
   const email = getString(formData, "email").toLowerCase();
+  const next = safeAuthNextPath(getString(formData, "next"));
 
   if (!email) {
     authRedirect("/auth/login", "Skriv din e-mailadresse for at fortsætte.");
@@ -166,12 +171,13 @@ export async function continueWithEmailAction(formData: FormData) {
   const existingUser = await getAuthUserByEmail(email);
   const step = existingUser ? "password" : "new";
 
-  redirect(`/auth/login?step=${step}&email=${encodeURIComponent(email)}`);
+  redirect(`/auth/login?step=${step}&email=${encodeURIComponent(email)}${next ? "&next=" + encodeURIComponent(next) : ""}`);
 }
 
 export async function signInAction(formData: FormData) {
   const email = getString(formData, "email").toLowerCase();
   const password = getString(formData, "password");
+  const next = safeAuthNextPath(getString(formData, "next"));
 
   if (!email || !password) {
     authRedirect("/auth/login", "Udfyld både e-mail og adgangskode.");
@@ -223,6 +229,9 @@ export async function signInAction(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
+  if (next) {
+    redirect(next);
+  }
   redirect(postAuthResult.path);
 }
 
@@ -423,12 +432,14 @@ export async function signUpFacilitatorAction(formData: FormData) {
   const password = getString(formData, "password");
   const successTarget = getString(formData, "success_target");
   const authReturnPath = getString(formData, "auth_return_path");
+  const next = safeAuthNextPath(getString(formData, "next"));
+  const nextQuery = next ? "&next=" + encodeURIComponent(next) : "";
   const signupPath =
     authReturnPath === "email-first" && email
-      ? `/auth/login?step=signup&email=${encodeURIComponent(email)}`
+      ? `/auth/login?step=signup&email=${encodeURIComponent(email)}${nextQuery}`
       : email
-        ? `/auth/login?step=signup&email=${encodeURIComponent(email)}`
-        : "/auth/login?step=signup";
+        ? `/auth/login?step=signup&email=${encodeURIComponent(email)}${nextQuery}`
+        : `/auth/login?step=signup${nextQuery}`;
 
   const phoneDigits = phone.replace(/\D/g, "");
 
@@ -462,7 +473,7 @@ export async function signUpFacilitatorAction(formData: FormData) {
     email,
     password,
     options: {
-      emailRedirectTo: `${appUrl}/auth/callback`,
+      emailRedirectTo: `${appUrl}/auth/callback${next ? "?next=" + encodeURIComponent(next) : ""}`,
       data: {
         first_name: firstName || undefined,
         full_name: fullName,

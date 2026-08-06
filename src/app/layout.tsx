@@ -34,14 +34,12 @@ export default function RootLayout({
 
   return (
     <html lang="da">
-      <head>
+      <body>
         <Script
           id="soulevents-gcr-attribute-cleanup"
           src="/browser-injected-attribute-cleanup.js"
           strategy="beforeInteractive"
         />
-      </head>
-      <body>
         {showLocalEnvironmentBadge ? (
           <div className="fixed bottom-3 left-3 z-[1000] rounded-md border border-terracotta/30 bg-white/95 px-3 py-2 text-xs font-bold uppercase tracking-wide text-terracotta shadow-soft">
             Lokalt testmiljø

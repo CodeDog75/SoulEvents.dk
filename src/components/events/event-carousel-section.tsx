@@ -58,7 +58,15 @@ function publicMediaUrl(imagePath?: string | null) {
   return supabaseUrl.replace(/\/$/, "") + "/storage/v1/object/public/media/" + imagePath.split("/").map(encodeURIComponent).join("/");
 }
 
-export function EventCardVisual({ event, returnTo }: { event: PublicEvent; returnTo?: string | null }) {
+export function EventCardVisual({
+  event,
+  layout = "carousel",
+  returnTo,
+}: {
+  event: PublicEvent;
+  layout?: "carousel" | "grid";
+  returnTo?: string | null;
+}) {
   const region = first(event.regions);
   const categories =
     event.event_categories
@@ -78,7 +86,12 @@ export function EventCardVisual({ event, returnTo }: { event: PublicEvent; retur
 
   return (
     <Link
-      className="group block min-w-[280px] max-w-[280px] shrink-0 snap-start overflow-hidden rounded-[24px] bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[320px] sm:max-w-[320px] lg:min-w-[340px] lg:max-w-[340px]"
+      className={
+        "group block overflow-hidden rounded-[24px] bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift " +
+        (layout === "grid"
+          ? "h-full min-w-0"
+          : "min-w-[280px] max-w-[280px] shrink-0 snap-start sm:min-w-[320px] sm:max-w-[320px] lg:min-w-[340px] lg:max-w-[340px]")
+      }
       href={withReturnTo(publicEventPath(event.slug || event.id), returnTo)}
     >
       <div
@@ -99,7 +112,7 @@ export function EventCardVisual({ event, returnTo }: { event: PublicEvent; retur
             alt=""
             className="object-cover transition duration-500 group-hover:scale-[1.04]"
             fill
-            sizes="(min-width: 1024px) 340px, (min-width: 640px) 320px, 280px"
+            sizes={layout === "grid" ? "(min-width: 1280px) 33vw, (min-width: 640px) 45vw, 90vw" : "(min-width: 1024px) 340px, (min-width: 640px) 320px, 280px"}
             src={eventImageUrl}
           />
         ) : (

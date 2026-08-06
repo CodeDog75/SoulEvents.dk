@@ -57,6 +57,10 @@ import {
   splitDanishPostalCity,
 } from "@/lib/locations/danish-postal-codes";
 import {
+  danishPhoneValidationMessage,
+  normalizeDanishPhoneNumber,
+} from "@/lib/danish-phone";
+import {
   isDanishProfileCountry,
   inferProfileCountryCode,
   isOtherProfileCountry,
@@ -460,6 +464,7 @@ function SelectionCardContent({
 
 function ClearableInput({
   className = "",
+  error,
   label,
   maxLength,
   onChange,
@@ -467,6 +472,7 @@ function ClearableInput({
   value,
 }: {
   className?: string;
+  error?: string;
   label?: string;
   maxLength?: number;
   onChange: (value: string) => void;
@@ -476,7 +482,10 @@ function ClearableInput({
   const input = (
     <div className="relative">
       <input
-        className={inputClass("pr-12 " + className)}
+        aria-invalid={Boolean(error)}
+        className={inputClass(
+          "pr-12 " + className + (error ? " border-[#D97A7A] bg-[#FFF8F8]" : ""),
+        )}
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -495,12 +504,17 @@ function ClearableInput({
     </div>
   );
 
-  if (!label) return input;
+  if (!label && !error) return input;
 
   return (
     <label className="grid gap-2 text-sm font-semibold text-midnight/82">
-      {label}
+      {label ? label : null}
       {input}
+      {error ? (
+        <span className="text-sm font-semibold leading-5 text-[#A51D1D]">
+          {error}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -1246,8 +1260,10 @@ export function ProfileForm({
   const [paymentCashEnabled, setPaymentCashEnabled] = useState(
     Boolean(value(facilitatorProfile.payment_instructions)),
   );
-  const [offersIndividualServices, setOffersIndividualServices] = useState(
-    Boolean(facilitatorProfile.offers_services),
+  const [offersIndividualServices, setOffersIndividualServices] = useState<boolean | null>(
+    typeof facilitatorProfile.offers_services === "boolean"
+      ? facilitatorProfile.offers_services
+      : null,
   );
   const [serviceDescription, setServiceDescription] = useState(
     value(facilitatorProfile.service_description),
@@ -1264,8 +1280,7 @@ export function ProfileForm({
   const currentStep = activeSteps[stepIndex] ?? activeSteps[0] ?? steps[0];
   const isProfileOverviewStep = currentStep.id === "profile";
   const isApprovalStep = currentStep.id === "approval";
-  const shellBackHref =
-    presentationMode === "onboarding" ? "/auth/login" : backHref;
+  const shellBackHref = backHref;
   const activeDesktopLogoSrc =
     logoSources?.desktop ?? "/brand/soulevents-logo.png";
   const displayedStep =
@@ -1284,6 +1299,10 @@ export function ProfileForm({
   const specialtyText = normalizeSpecialtyText(specialties);
   const hasIndividualServicesDescription =
     offersIndividualServices && serviceDescription.trim().length > 0;
+  const servicesChoiceError =
+    offersIndividualServices === null
+      ? "Vælg, om du også tilbyder individuelle ydelser."
+      : null;
   const facebookValidation = validateSocialProfileLink(facebook, "facebook");
   const instagramValidation = validateSocialProfileLink(instagram, "instagram");
   const facebookError =
@@ -1293,6 +1312,11 @@ export function ProfileForm({
   const instagramError =
     instagram.trim() && !instagramValidation.ok
       ? instagramValidation.message
+      : null;
+  const normalizedPhoneValue = normalizeDanishPhoneNumber(phone);
+  const phoneError =
+    phone.trim() && normalizedPhoneValue === null
+      ? danishPhoneValidationMessage
       : null;
   const hasLinks = Boolean(
     website.trim() || facebook.trim() || instagram.trim() || youtube.trim(),
@@ -1867,6 +1891,10 @@ export function ProfileForm({
   async function saveProfileOverviewStep({
     requireLocation = true,
   }: { requireLocation?: boolean } = {}) {
+    if (phoneError) {
+      return { message: phoneError, ok: false };
+    }
+
     const locationPayload = await getCurrentLocationPayload({
       requireComplete: requireLocation,
     });
@@ -1993,6 +2021,8 @@ export function ProfileForm({
     }
 
     if (currentStep.id === "person") {
+      if (phoneError) return { message: phoneError, ok: false };
+
       const result = await autosaveFacilitatorProfileAction({
         section: "contact",
         values: contactValues,
@@ -2059,6 +2089,8 @@ export function ProfileForm({
     }
 
     if (currentStep.id === "story") {
+      if (phoneError) return { message: phoneError, ok: false };
+
       const result = await autosaveFacilitatorProfileAction({
         section: "contact",
         values: contactValues,
@@ -2068,6 +2100,7 @@ export function ProfileForm({
     }
 
     if (currentStep.id === "links") {
+      if (phoneError) return { message: phoneError, ok: false };
       if (!facebookValidation.ok)
         return { message: facebookValidation.message, ok: false };
       if (!instagramValidation.ok)
@@ -2120,6 +2153,8 @@ export function ProfileForm({
     }
 
     if (currentStep.id === "services") {
+      if (servicesChoiceError) return { message: servicesChoiceError, ok: false };
+
       const result = await autosaveFacilitatorProfileAction({
         section: "services",
         values: {
@@ -2217,6 +2252,15 @@ export function ProfileForm({
       return;
     }
 
+    if (
+      presentationMode !== "onboarding" &&
+      currentStep.id !== "review" &&
+      stepIndex >= activeSteps.length - 1
+    ) {
+      goToStep("review");
+      return;
+    }
+
     setStepSaveStatus({ message: "", status: "idle" });
     setStepIndex((current) => Math.min(current + 1, activeSteps.length - 1));
   }
@@ -2231,15 +2275,15 @@ export function ProfileForm({
     setStepSaveStatus({ message: "", status: "idle" });
 
     const saveResult = await saveCurrentStep({ submitForReview: false });
-    if (!saveResult.ok) {
-      continueInProgressRef.current = false;
-      setIsBusy(false);
-      setStepSaveStatus({ message: saveResult.message, status: "error" });
-      return;
-    }
 
     window.localStorage.setItem(onboardingDraftStepStorageKey, currentStep.id);
-    router.replace("/facilitator/profile/draft");
+    continueInProgressRef.current = false;
+    setIsBusy(false);
+    if (!saveResult.ok) {
+      router.replace(backHref);
+      return;
+    }
+    router.replace(backHref);
   }
 
   function goBack() {
@@ -3478,6 +3522,7 @@ export function ProfileForm({
           </section>
           <div className="grid gap-4 lg:grid-cols-2">
             <ClearableInput
+              error={phoneError ?? undefined}
               onChange={setPhone}
               placeholder="Telefonnummer"
               value={phone}
@@ -3609,15 +3654,13 @@ export function ProfileForm({
               title="Individuelle ydelser"
             />
           ) : null}
-          <p className="text-base leading-7 text-ink/65">
-            Så kan du blive vist på SoulEvents under “Ydelser”, så deltagere
-            også kan finde og kontakte dig uden for dine events.
-          </p>
 
           <div
             className="grid gap-3"
             role="radiogroup"
             aria-label="Individuelle ydelser"
+            aria-invalid={Boolean(servicesChoiceError)}
+            aria-describedby={servicesChoiceError ? "individual-services-error" : undefined}
           >
             {[
               { label: "Nej, jeg afholder kun events", value: false },
@@ -3655,9 +3698,14 @@ export function ProfileForm({
                 </button>
               );
             })}
+            {servicesChoiceError ? (
+              <p className="rounded-[16px] bg-[#FFF8F8] px-4 py-3 text-sm font-semibold leading-5 text-[#A51D1D]" id="individual-services-error">
+                {servicesChoiceError}
+              </p>
+            ) : null}
           </div>
 
-          {offersIndividualServices ? (
+          {offersIndividualServices === true ? (
             <div className="grid gap-4 rounded-[24px] bg-sage-50/65 p-4">
               <div className="rounded-[24px] bg-white p-4 shadow-soft sm:p-5">
                 <p className="text-sm font-semibold leading-6 text-midnight">
@@ -3778,9 +3826,8 @@ export function ProfileForm({
                       </p>
                     ) : (
                       <p className="mt-5 max-w-3xl text-base leading-8 text-[#5E5662]">
-                        Så kan du blive vist på SoulEvents under “Ydelser”, så
-                        deltagere også kan finde og kontakte dig uden for dine
-                        events.
+                        Du har valgt at tilbyde individuelle ydelser, men
+                        beskrivelsen mangler endnu.
                       </p>
                     )}
                   </EditablePublicSection>

@@ -13,6 +13,7 @@ type SignupFormValues = {
 
 type SignupFormProps = {
   initialEmail?: string;
+  nextPath?: string;
   restoreValues?: boolean;
   returnToEmailFirstLogin?: boolean;
   variant?: "legacy" | "onboarding";
@@ -54,6 +55,7 @@ function normalizePhone(value: string) {
 
 export function SignupForm({
   initialEmail = "",
+  nextPath = "",
   restoreValues = false,
   returnToEmailFirstLogin = false,
   variant = "legacy",
@@ -111,6 +113,7 @@ export function SignupForm({
       onSubmit={rememberValues}
     >
       <input name="success_target" type="hidden" value={returnToEmailFirstLogin ? "login" : successTarget} />
+      {nextPath ? <input name="next" type="hidden" value={nextPath} /> : null}
       {returnToEmailFirstLogin ? <input name="auth_return_path" type="hidden" value="email-first" /> : null}
 
       <div className="grid gap-4">

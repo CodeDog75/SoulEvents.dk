@@ -6,6 +6,7 @@ import type { BookingStatus } from "@/types/database";
 
 type ParticipantListRow = {
   id: string;
+  bookingReference: string;
   bookingValueCents: number;
   createdAt: string;
   email: string;
@@ -92,7 +93,6 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
   const [filter, setFilter] = useState<FilterKey>("active");
   const [includeContact, setIncludeContact] = useState(true);
   const [includePayment, setIncludePayment] = useState(true);
-  const [includeValue, setIncludeValue] = useState(false);
   const [includeNote, setIncludeNote] = useState(false);
   const [includeMessage, setIncludeMessage] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -135,13 +135,11 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
     if (includeContact) {
       headers.push("E-mail", "Telefon");
     }
-    headers.push("Antal pladser", "Tilmeldingsstatus", "Kilde");
+    headers.push("Antal pladser", "Tilmeldingsstatus", "Kilde", "Bookingreference");
     if (includePayment) {
       headers.push("Betalingsstatus");
     }
-    if (includeValue) {
-      headers.push("Bookingværdi");
-    }
+    headers.push("Bookingværdi");
     headers.push("Tilmeldingsdato");
     if (includePayment) {
       headers.push("Betalingsreference");
@@ -158,13 +156,11 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
       if (includeContact) {
         values.push(row.email, row.phone || "");
       }
-      values.push(row.seats, statusLabels[row.status] ?? row.status, row.sourceLabel ?? "SoulEvents-booking");
+      values.push(row.seats, statusLabels[row.status] ?? row.status, row.sourceLabel ?? "SoulEvents-booking", row.bookingReference);
       if (includePayment) {
         values.push(row.paymentStatus);
       }
-      if (includeValue) {
-        values.push((row.bookingValueCents / 100).toLocaleString("da-DK"));
-      }
+      values.push((row.bookingValueCents / 100).toLocaleString("da-DK"));
       values.push(formatDateTime(row.createdAt));
       if (includePayment) {
         values.push(row.paymentReference || "");
@@ -275,7 +271,6 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
                     {[
                       ["Kontaktoplysninger", includeContact, setIncludeContact],
                       ["Betalingsstatus", includePayment, setIncludePayment],
-                      ["Bookingværdi", includeValue, setIncludeValue],
                       ["Intern note", includeNote, setIncludeNote],
                       ["Deltagerens besked", includeMessage, setIncludeMessage],
                     ].map(([label, checked, setter]) => (
@@ -321,7 +316,7 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
                             <th className="px-3 py-3">Status</th>
                             <th className="px-3 py-3">Kilde</th>
                             {includePayment ? <th className="px-3 py-3">Betaling</th> : null}
-                            {includeValue ? <th className="px-3 py-3 text-right">Værdi</th> : null}
+                            <th className="px-3 py-3 text-right">Værdi</th>
                             <th className="px-3 py-3">Tilmeldt</th>
                           </tr>
                         </thead>
@@ -340,7 +335,7 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
                               <td className="px-3 py-3">{statusLabels[row.status] ?? row.status}</td>
                               <td className="px-3 py-3">{row.sourceLabel ?? "SoulEvents-booking"}</td>
                               {includePayment ? <td className="px-3 py-3">{row.paymentStatus}</td> : null}
-                              {includeValue ? <td className="px-3 py-3 text-right">{formatMoney(row.bookingValueCents)}</td> : null}
+                              <td className="px-3 py-3 text-right">{formatMoney(row.bookingValueCents)}</td>
                               <td className="px-3 py-3">{formatDateTime(row.createdAt)}</td>
                             </tr>
                           ))}
@@ -367,7 +362,7 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
                           ) : null}
                           <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-ink/60">
                             {includePayment ? <span className="rounded-full bg-sand/45 px-2.5 py-1">{row.paymentStatus}</span> : null}
-                            {includeValue ? <span className="rounded-full bg-sand/45 px-2.5 py-1">{formatMoney(row.bookingValueCents)}</span> : null}
+                            <span className="rounded-full bg-sand/45 px-2.5 py-1">{formatMoney(row.bookingValueCents)}</span>
                             <span className="rounded-full bg-sand/45 px-2.5 py-1">{formatDateTime(row.createdAt)}</span>
                           </div>
                         </article>

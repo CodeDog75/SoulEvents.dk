@@ -11,6 +11,26 @@ type CoOrganizerInvitationEmailInput = {
   recipientName: string;
 };
 
+type ExternalCoOrganizerInvitationEmailInput = {
+  eventDate: string;
+  eventId: string;
+  eventImageUrl?: string | null;
+  eventLocation: string;
+  eventTitle: string;
+  invitationUrl: string;
+  primaryOrganizerName: string;
+  recipientEmail: string;
+  recipientName?: string | null;
+};
+
+function formatEventDate(value: string) {
+  return new Intl.DateTimeFormat("da-DK", { dateStyle: "long" }).format(new Date(value));
+}
+
+function formatEventTime(value: string) {
+  return new Intl.DateTimeFormat("da-DK", { timeStyle: "short" }).format(new Date(value));
+}
+
 type CoOrganizerStatusEmailInput = {
   eventId: string;
   eventTitle: string;
@@ -73,6 +93,71 @@ export async function sendCoOrganizerInvitationEmail(input: CoOrganizerInvitatio
     type: "co_organizer_invitation",
     to: input.recipientEmail,
     subject: 'Vil du stå som medarrangør på "' + input.eventTitle + '"?',
+    html,
+    text,
+    eventId: input.eventId,
+  });
+}
+
+export async function sendExternalCoOrganizerInvitationEmail(input: ExternalCoOrganizerInvitationEmailInput) {
+  const recipientName = input.recipientName?.trim() || "du";
+  const rows: Array<[string, string]> = [
+    ["Event", input.eventTitle],
+    ["Dato", formatEventDate(input.eventDate)],
+    ["Tid", formatEventTime(input.eventDate)],
+    [input.eventLocation === "Online" ? "Format" : "Sted", input.eventLocation],
+  ];
+
+  const html = await renderEmailLayout({
+    title: "Du er inviteret som medarrangør",
+    children: [
+      "<p>Hej " + escapeHtml(recipientName) + "</p>",
+      "<p><strong>" + escapeHtml(input.primaryOrganizerName) + '</strong> vil gerne have dig med som medarrangør på eventet <strong>"' + escapeHtml(input.eventTitle) + '"</strong>.</p>',
+      "<p>For at kunne blive vist som medarrangør på eventet skal du først oprette en gratis arrangørprofil på SoulEvents. Det tager kun et par minutter.</p>",
+      "<p>Når din profil er oprettet, og den er blevet godkendt, kan du acceptere invitationen og bliver automatisk vist som medarrangør på eventet.</p>",
+      input.eventImageUrl
+        ? '<p style="margin: 20px 0 12px;"><img src="' + escapeHtml(input.eventImageUrl) + '" alt="" style="display: block; width: 100%; max-width: 560px; height: auto; border-radius: 16px; border: 0;" /></p>'
+        : "",
+      renderEmailTable(rows),
+      "<p><strong>Det er godt at vide:</strong></p>",
+      "<ul><li>Det er gratis at oprette en arrangørprofil.</li><li>Invitationen forpligter dig ikke til noget.</li><li>Du bliver først vist offentligt som medarrangør, når du selv har accepteret invitationen, og din profil er godkendt.</li></ul>",
+      renderEmailButton(input.invitationUrl, "Opret gratis profil"),
+      "<p>Har du allerede en bruger på SoulEvents, kan du bruge samme link til at logge ind og acceptere invitationen.</p>",
+    ].join(""),
+  });
+
+  const text = [
+    "Du er inviteret som medarrangør",
+    "",
+    "Hej " + recipientName,
+    "",
+    input.primaryOrganizerName + ' vil gerne have dig med som medarrangør på eventet "' + input.eventTitle + '".',
+    "",
+    "Event: " + input.eventTitle,
+    "Dato: " + formatEventDate(input.eventDate),
+    "Tid: " + formatEventTime(input.eventDate),
+    (input.eventLocation === "Online" ? "Format: " : "Sted: ") + input.eventLocation,
+    input.eventImageUrl ? "Eventbillede: " + input.eventImageUrl : "",
+    "",
+    "For at kunne blive vist som medarrangør på eventet skal du først oprette en gratis arrangørprofil på SoulEvents. Det tager kun et par minutter.",
+    "",
+    "Når din profil er oprettet, og den er blevet godkendt, kan du acceptere invitationen og bliver automatisk vist som medarrangør på eventet.",
+    "",
+    "Det er godt at vide:",
+    "- Det er gratis at oprette en arrangørprofil.",
+    "- Invitationen forpligter dig ikke til noget.",
+    "- Du bliver først vist offentligt som medarrangør, når du selv har accepteret invitationen, og din profil er godkendt.",
+    "",
+    "Opret gratis profil: " + input.invitationUrl,
+    "",
+    "Har du allerede en bruger på SoulEvents, kan du bruge samme link til at logge ind og acceptere invitationen.",
+    ...renderPlainTextFooter(),
+  ].filter(Boolean).join("\n");
+
+  return sendLoggedEmail({
+    type: "external_co_organizer_invitation",
+    to: input.recipientEmail,
+    subject: input.primaryOrganizerName + " inviterer dig som medarrangør",
     html,
     text,
     eventId: input.eventId,

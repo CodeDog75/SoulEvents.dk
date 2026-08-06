@@ -197,6 +197,16 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
           .eq("primary_organizer_profile_id", facilitatorProfile.id)
           .in("status", ["pending", "accepted", "declined"])
       : { data: [] };
+  const { data: externalCoOrganizerInvitations } =
+    selectedDraft && facilitatorProfile
+      ? await (admin as any)
+          .from("event_cohost_invitations")
+          .select("id, email, name, status, last_sent_at, created_at")
+          .eq("event_id", selectedDraft.id)
+          .eq("inviter_facilitator_id", facilitatorProfile.id)
+          .in("status", ["pending", "accepted_pending_profile_approval", "declined", "cancelled", "expired"])
+          .order("created_at", { ascending: false })
+      : { data: [] };
   const { data: receiptEvent } =
     receipt === "published" && receiptEventId && facilitatorProfile
       ? await supabase
@@ -395,6 +405,14 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
                         status: invitation.status,
                       };
                     }),
+                    externalCoOrganizerInvitations: ((externalCoOrganizerInvitations ?? []) as any[]).map((invitation) => ({
+                      createdAt: invitation.created_at ?? null,
+                      email: invitation.email,
+                      id: invitation.id,
+                      lastSentAt: invitation.last_sent_at ?? null,
+                      name: invitation.name ?? null,
+                      status: invitation.status,
+                    })),
                   }
                 : null
             }

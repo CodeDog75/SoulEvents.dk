@@ -9,6 +9,18 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns: [
+      {
+        hostname: "127.0.0.1",
+        pathname: "/storage/v1/object/public/**",
+        port: "54321",
+        protocol: "http",
+      },
+      {
+        hostname: "localhost",
+        pathname: "/storage/v1/object/public/**",
+        port: "54321",
+        protocol: "http",
+      },
       ...(process.env.NEXT_PUBLIC_SUPABASE_URL
         ? [
             {

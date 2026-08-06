@@ -264,15 +264,14 @@ const bookingSortOptions: Array<{ label: string; value: BookingSort }> = [
 ];
 
 function matchesBookingFilter(booking: BookingRow, filter: BookingFilter) {
-  const isPaidBooking = booking.booking_value_cents > 0;
-  const isMarkedPaid = Boolean(booking.manually_marked_paid_at);
+  const paymentStatus = paymentStatusLabel(booking);
 
   if (filter === "all") return true;
   if (filter === "confirmed") return booking.status === "confirmed";
   if (filter === "pending") return booking.status === "pending";
   if (filter === "cancelled") return booking.status === "cancelled";
-  if (filter === "paid") return isPaidBooking && isMarkedPaid;
-  if (filter === "unpaid") return isPaidBooking && booking.status === "confirmed" && !isMarkedPaid;
+  if (filter === "paid") return paymentStatus === "Betalt";
+  if (filter === "unpaid") return paymentStatus === "Afventer";
 
   return true;
 }
@@ -333,27 +332,29 @@ function BookingArticle({
   const isCancelledBooking = booking.status === "cancelled";
   const reminderDisabledReason = canSendPaymentReminder(booking, paymentSnapshot);
   const paymentLabel = isPaidEventBooking ? (isManuallyMarkedPaid ? "Betalt" : "Afventer betaling") : "";
-  const statusLabel = isPaidEventBooking && booking.status === "confirmed" && !isManuallyMarkedPaid ? "Afventer betaling" : statusLabels[booking.status];
-  const statusClass =
-    isPaidEventBooking && booking.status === "confirmed" && !isManuallyMarkedPaid
-      ? "bg-[#FFF8E8] text-[#6E5528]"
-      : statusBadgeClasses[booking.status];
+  const statusLabel = statusLabels[booking.status];
+  const statusClass = statusBadgeClasses[booking.status];
 
   return (
     <article className={"overflow-hidden rounded-md border border-l-4 shadow-soft transition " + cardClass} id={`booking-${booking.id}`} key={booking.id}>
       <div className="grid w-full gap-3 p-4 transition hover:bg-white/45">
-        <button
-          aria-expanded={isExpanded}
-          aria-label={isExpanded ? "Luk tilmelding" : "Åbn tilmelding"}
-          className="grid w-full cursor-pointer gap-3 text-left md:grid-cols-[minmax(7rem,auto)_minmax(0,1.6fr)_repeat(3,minmax(7rem,auto))_auto] md:items-center"
-          onClick={onToggle}
-          type="button"
-        >
-          <span className={"w-fit rounded-md px-3 py-2 text-sm font-semibold md:text-center " + statusClass}>
+        <div className="grid w-full gap-3 md:grid-cols-[minmax(7rem,auto)_minmax(0,1.6fr)_repeat(2,minmax(7rem,auto))_minmax(11rem,auto)_auto] md:items-center">
+          <button
+            aria-expanded={isExpanded}
+            aria-label={isExpanded ? "Luk tilmelding" : "Åbn tilmelding"}
+            className={"w-fit rounded-md px-3 py-2 text-left text-sm font-semibold transition hover:brightness-95 md:text-center " + statusClass}
+            onClick={onToggle}
+            type="button"
+          >
             {statusLabel}
-          </span>
-          <div className="min-w-0 rounded-md bg-[#FBF8F4] px-3 py-2">
-            <p className="flex min-w-0 items-center gap-2 text-base font-semibold text-midnight">
+          </button>
+          <button
+            aria-expanded={isExpanded}
+            className="min-w-0 rounded-md bg-[#FBF8F4] px-3 py-2 text-left transition hover:bg-[#F4EFE8]"
+            onClick={onToggle}
+            type="button"
+          >
+            <span className="flex min-w-0 items-center gap-2 text-base font-semibold text-midnight">
               <UserRound className="size-4 shrink-0 text-lavender" aria-hidden="true" />
               {booking.booking_number ? (
                 <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold text-lavender shadow-soft">#{booking.booking_number}</span>
@@ -362,32 +363,46 @@ function BookingArticle({
               <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold text-ink/62 shadow-soft">
                 {booking.seats} {booking.seats === 1 ? "plads" : "pladser"}
               </span>
-            </p>
-          </div>
-          <span className="rounded-md bg-white/75 px-3 py-2 text-sm font-semibold text-midnight shadow-soft md:text-center">
-            {formatMoney(booking.booking_value_cents)}
-          </span>
-          <span className="rounded-md bg-white/75 px-3 py-2 text-sm font-semibold text-midnight shadow-soft md:text-center">
-            {formatShortDateTime(booking.created_at)}
-          </span>
-          <span
-            className={
-              "rounded-md px-3 py-2 text-sm font-semibold md:text-center " +
-              (isCancelledBooking || !isPaidEventBooking
-                ? "hidden md:block md:invisible"
-                : isPaidEventBooking
-                  ? isManuallyMarkedPaid
-                    ? statusBadgeClasses.paid
-                    : "bg-[#FFF8E8] text-[#6E5528]"
-                  : "bg-sage-50 text-sage-700")
-            }
+            </span>
+          </button>
+          <button
+            aria-expanded={isExpanded}
+            className="rounded-md bg-white/75 px-3 py-2 text-left text-sm font-semibold text-midnight shadow-soft transition hover:bg-white md:text-center"
+            onClick={onToggle}
+            type="button"
           >
-            {isCancelledBooking ? "" : paymentLabel}
-          </span>
-          <span className="grid size-11 shrink-0 place-items-center justify-self-end rounded-md border border-midnight/10 bg-white text-lavender transition hover:border-lavender hover:bg-lavender hover:text-white">
+            {formatMoney(booking.booking_value_cents)}
+          </button>
+          <button
+            aria-expanded={isExpanded}
+            className="rounded-md bg-white/75 px-3 py-2 text-left text-sm font-semibold text-midnight shadow-soft transition hover:bg-white md:text-center"
+            onClick={onToggle}
+            type="button"
+          >
+            {formatShortDateTime(booking.created_at)}
+          </button>
+          {showActions && isPaidEventBooking && booking.status === "confirmed" && !isCancelledBooking ? (
+            <RowPaymentAction booking={booking} currentEventId={currentEventId} />
+          ) : (
+            <span
+              className={
+                "rounded-md px-3 py-2 text-sm font-semibold md:text-center " +
+                (isCancelledBooking || !isPaidEventBooking ? "hidden md:block md:invisible" : "bg-sage-50 text-sage-700")
+              }
+            >
+              {isCancelledBooking ? "" : paymentLabel}
+            </span>
+          )}
+          <button
+            aria-expanded={isExpanded}
+            aria-label={isExpanded ? "Luk tilmelding" : "Åbn tilmelding"}
+            className="grid size-11 shrink-0 place-items-center justify-self-end rounded-md border border-midnight/10 bg-white text-lavender transition hover:border-lavender hover:bg-lavender hover:text-white"
+            onClick={onToggle}
+            type="button"
+          >
             <ChevronDown className={"size-6 transition " + (isExpanded ? "rotate-180" : "")} aria-hidden="true" />
-          </span>
-        </button>
+          </button>
+        </div>
       </div>
 
       {isExpanded ? (
@@ -584,6 +599,47 @@ function ManualPaymentAction({
   );
 }
 
+function RowPaymentAction({
+  booking,
+  currentEventId,
+}: {
+  booking: BookingRow;
+  currentEventId: string;
+}) {
+  const isMarkedPaid = Boolean(booking.manually_marked_paid_at);
+
+  return (
+    <form action={updateBookingManualPaymentAction} className="grid grid-cols-2 gap-1 rounded-md bg-sand/35 p-1">
+      <input name="booking_id" type="hidden" value={booking.id} />
+      <input name="current_event_id" type="hidden" value={currentEventId} />
+      <button
+        className={
+          "rounded-md px-2 py-2 text-xs font-semibold transition " +
+          (!isMarkedPaid ? "bg-[#FFF8E8] text-[#6E5528] shadow-soft" : "text-ink/62 hover:bg-white/70")
+        }
+        disabled={!isMarkedPaid}
+        name="payment_action"
+        type="submit"
+        value="clear"
+      >
+        Mangler betaling
+      </button>
+      <button
+        className={
+          "rounded-md px-2 py-2 text-xs font-semibold transition " +
+          (isMarkedPaid ? "bg-[#EEF7F0] text-sage-700 shadow-soft" : "text-ink/62 hover:bg-white/70")
+        }
+        disabled={isMarkedPaid}
+        name="payment_action"
+        type="submit"
+        value="mark"
+      >
+        Betalt
+      </button>
+    </form>
+  );
+}
+
 function SeatAdjustmentAction({
   booking,
   currentEventId,
@@ -750,6 +806,7 @@ export function BookingList({ bookings, eventOptions, externalParticipants, init
     ? [selectedEvent.address_line, selectedEvent.city].filter(Boolean).join(", ") || null
     : null;
   const participantRows = bookings.map((booking) => ({
+    bookingReference: booking.booking_reference || booking.payment_reference || "",
     bookingValueCents: booking.booking_value_cents,
     createdAt: booking.created_at,
     email: booking.participant_email,
@@ -765,6 +822,7 @@ export function BookingList({ bookings, eventOptions, externalParticipants, init
     status: booking.status,
   }));
   const externalParticipantRows = externalParticipants.map((participant) => ({
+    bookingReference: "",
     bookingValueCents: 0,
     createdAt: participant.created_at,
     email: participant.participant_email ?? "",

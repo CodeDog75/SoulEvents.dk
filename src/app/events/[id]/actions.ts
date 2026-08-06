@@ -1,11 +1,12 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendBookingNotification } from "@/lib/email/booking-notification";
 import { sendParticipantBookingResponse } from "@/lib/email/participant-booking-response";
 import { getAppUrl } from "@/lib/app-url";
+import { bookingReceiptCookieName } from "@/lib/bookings/receipt-cookie";
 import { participantCancelUrl } from "@/lib/bookings/participant-links";
 import { maxSeatsPerBooking } from "@/lib/bookings/limits";
 import { bookingCommissionSnapshot, getEffectiveCommissionTerms } from "@/lib/commission/terms";
@@ -101,6 +102,7 @@ type BookingEventResult = {
 };
 
 type CreatedBookingResult = {
+  booking_reference: string | null;
   booking_value_cents: number;
   id: string;
   payment_reference: string;
@@ -284,7 +286,7 @@ export async function createBookingAction(formData: FormData) {
       reporting_month: commissionSnapshot.reporting_month,
       reporting_month_locked_at: commissionSnapshot.reporting_month_locked_at,
     })
-    .select("id, booking_value_cents, payment_reference, participant_access_token")
+    .select("id, booking_reference, booking_value_cents, payment_reference, participant_access_token")
     .single();
 
   const booking = bookingResult as CreatedBookingResult | null;
@@ -328,7 +330,7 @@ export async function createBookingAction(formData: FormData) {
       },
       eventStartsAt: event.starts_at,
       facilitator: paymentSettingsToInstructionsRecord(facilitatorPaymentSettings),
-      reference: booking.payment_reference,
+      reference: booking.booking_reference || booking.payment_reference,
     });
 
     if (paymentInstructions) {
@@ -451,13 +453,22 @@ export async function createBookingAction(formData: FormData) {
     booking.booking_value_cents > 0
       ? "Din tilmelding er registreret. Du modtager en kvitteringsmail med betalingsoplysninger."
       : "Din tilmelding er registreret. Du modtager en bekræftelsesmail.";
+  const redirectPath = publicEventPath(event.slug || eventId);
+  const cookieStore = await cookies();
+  cookieStore.set(bookingReceiptCookieName, booking.participant_access_token, {
+    httpOnly: true,
+    maxAge: 10 * 60,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
 
   revalidatePath("/events/" + eventId);
   if (event.slug) {
     revalidatePath(publicEventPath(event.slug));
   }
   redirect(
-    publicEventPath(event.slug || eventId) +
+    redirectPath +
       "?booking=sent&message=" +
       encodeURIComponent(successMessage),
   );
