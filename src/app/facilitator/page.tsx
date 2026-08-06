@@ -523,31 +523,7 @@ const dashboardHeroQuotes = [
   "SoulEvents vokser med de rum, du skaber.",
 ];
 
-const heroImagesByPeriod = {
-  afternoon: "/images/facilitator-heroes/soulevents-lotus.svg",
-  evening: "/images/facilitator-heroes/soulevents-fire.svg",
-  morning: "/images/facilitator-heroes/soulevents-sunrise.svg",
-  night: "/images/facilitator-heroes/soulevents-forest.svg",
-  noon: "/images/facilitator-heroes/soulevents-meadow.svg",
-} as const;
-
-function getCopenhagenHour(date: Date) {
-  const hour = new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit",
-    hour12: false,
-    timeZone: "Europe/Copenhagen",
-  }).format(date);
-
-  return Number(hour);
-}
-
-function dashboardPeriodForHour(hour: number) {
-  if (hour >= 5 && hour <= 10) return "morning";
-  if (hour === 11) return "noon";
-  if (hour >= 12 && hour <= 16) return "afternoon";
-  if (hour >= 17 && hour <= 23) return "evening";
-  return "night";
-}
+const dashboardHeroBackground = "/images/facilitator-heroes/soulevents-dashboard-hero.png";
 
 function deterministicIndex(date: Date, length: number, salt = 0) {
   const startOfYear = new Date(date.getFullYear(), 0, 0);
@@ -565,20 +541,19 @@ function DashboardGreetingIntro({
   profileReadiness: ProfileReadiness;
 }) {
   const today = new Date();
-  const period = dashboardPeriodForHour(getCopenhagenHour(today));
-  const heroImage = heroImagesByPeriod[period];
   const heroMessage = dashboardHeroMessages[deterministicIndex(today, dashboardHeroMessages.length)];
   const heroQuote = dashboardHeroQuotes[deterministicIndex(today, dashboardHeroQuotes.length, 17)];
 
   return (
     <section
-      className="relative overflow-hidden rounded-[32px] border border-white/20 bg-[#2F2437] px-6 py-8 text-white shadow-[0_24px_70px_rgba(47,36,55,0.16)] sm:px-8 sm:py-9 lg:px-10 lg:py-10"
+      className="relative min-h-[430px] overflow-hidden rounded-[32px] border border-white/20 bg-[#2F2437] px-6 py-8 text-white shadow-[0_24px_70px_rgba(47,36,55,0.16)] sm:min-h-[450px] sm:px-8 sm:py-9 lg:min-h-[460px] lg:px-10 lg:py-10"
       style={{
         backgroundImage:
-          "linear-gradient(105deg, rgba(32,24,42,0.9) 0%, rgba(64,47,58,0.72) 48%, rgba(83,64,54,0.2) 76%, rgba(137,103,69,0.08) 100%), radial-gradient(circle at 82% 34%, rgba(255,229,181,0.18), transparent 34%), url('" +
-          heroImage +
+          "linear-gradient(105deg, rgba(13,12,27,0.78) 0%, rgba(38,30,63,0.74) 28%, rgba(48,39,76,0.48) 54%, rgba(25,25,46,0.6) 100%), radial-gradient(circle at 82% 34%, rgba(93,77,138,0.22), transparent 34%), url('" +
+          dashboardHeroBackground +
           "')",
-        backgroundPosition: "center 42%",
+        backgroundPosition: "center bottom",
+        backgroundRepeat: "no-repeat",
         backgroundSize: "cover",
       }}
     >

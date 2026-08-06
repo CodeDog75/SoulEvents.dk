@@ -7,6 +7,15 @@ type MoonPhaseProps = {
   size?: number;
 };
 type MoonDirection = "neutral" | "waning" | "waxing";
+type MoonVisualPhase =
+  | "full"
+  | "first-quarter"
+  | "last-quarter"
+  | "new"
+  | "waning-crescent"
+  | "waning-gibbous"
+  | "waxing-crescent"
+  | "waxing-gibbous";
 
 const waxingPhases = new Set([
   "waxing crescent",
@@ -41,60 +50,58 @@ function moonDiscPath() {
   return "M 50 0 A 50 50 0 1 1 49.99 0 Z";
 }
 
-function circleOverlapFraction(distance: number) {
-  const radius = 50;
-  const clampedDistance = Math.min(radius * 2, Math.max(0, distance));
+const visualPhaseAliases: Record<string, MoonVisualPhase> = {
+  "aftagende måne": "waning-gibbous",
+  "aftagende månesegl": "waning-crescent",
+  "first quarter": "first-quarter",
+  "fuldmåne": "full",
+  "full moon": "full",
+  "første kvarter": "first-quarter",
+  "last quarter": "last-quarter",
+  "new moon": "new",
+  "nymåne": "new",
+  "sidste kvarter": "last-quarter",
+  "tiltagende måne": "waxing-gibbous",
+  "tiltagende månesegl": "waxing-crescent",
+  "waning crescent": "waning-crescent",
+  "waning gibbous": "waning-gibbous",
+  "waxing crescent": "waxing-crescent",
+  "waxing gibbous": "waxing-gibbous",
+};
 
-  if (clampedDistance <= 0) return 1;
-  if (clampedDistance >= radius * 2) return 0;
+const shadowPathsByPhase: Record<MoonVisualPhase, string | null> = {
+  full: null,
+  "first-quarter": "M 50 0 A 50 50 0 0 0 50 100 C 48 76 52 24 50 0 Z",
+  "last-quarter": "M 50 0 A 50 50 0 0 1 50 100 C 52 76 48 24 50 0 Z",
+  new: moonDiscPath(),
+  "waning-crescent": "M 50 0 A 50 50 0 0 1 50 100 C 17 82 20 60 17 42 C 15 24 24 10 50 0 Z",
+  "waning-gibbous": "M 50 0 A 50 50 0 0 1 50 100 C 78 83 75 61 80 39 C 83 22 75 9 50 0 Z",
+  "waxing-crescent": "M 50 0 A 50 50 0 0 0 50 100 C 83 82 80 60 83 42 C 85 24 76 10 50 0 Z",
+  "waxing-gibbous": "M 50 0 A 50 50 0 0 0 50 100 C 22 83 25 61 20 39 C 17 22 25 9 50 0 Z",
+};
 
-  const area =
-    2 * radius * radius * Math.acos(clampedDistance / (2 * radius)) -
-    (clampedDistance / 2) * Math.sqrt(Math.max(0, 4 * radius * radius - clampedDistance * clampedDistance));
+function visualPhaseFor(phase: string, illumination: number): MoonVisualPhase {
+  const normalized = phase.trim().toLowerCase();
+  const directPhase = visualPhaseAliases[normalized];
+  if (directPhase) return directPhase;
 
-  return area / (Math.PI * radius * radius);
-}
+  if (illumination <= 6) return "new";
+  if (illumination >= 94) return "full";
 
-function overlapDistanceForFraction(fraction: number) {
-  const target = Math.min(1, Math.max(0, fraction));
-  let low = 0;
-  let high = 100;
-
-  for (let index = 0; index < 32; index += 1) {
-    const mid = (low + high) / 2;
-    if (circleOverlapFraction(mid) < target) {
-      high = mid;
-    } else {
-      low = mid;
-    }
+  const direction = phaseDirection(phase);
+  if (direction === "waxing") {
+    if (illumination < 37.5) return "waxing-crescent";
+    if (illumination <= 62.5) return "first-quarter";
+    return "waxing-gibbous";
   }
 
-  return (low + high) / 2;
-}
-
-function moonShadowMask(direction: MoonDirection, percentage: number) {
-  const shadow = clampIllumination(percentage);
-
-  if (shadow <= 0.5) {
-    return null;
+  if (direction === "waning") {
+    if (illumination < 37.5) return "waning-crescent";
+    if (illumination <= 62.5) return "last-quarter";
+    return "waning-gibbous";
   }
 
-  if (shadow >= 99.5) {
-    return {
-      fullShadow: true,
-      lightCenterX: 50,
-    };
-  }
-
-  const illuminatedFraction = 1 - shadow / 100;
-  const shadowSide = direction === "waxing" ? "left" : "right";
-  const overlapDistance = overlapDistanceForFraction(illuminatedFraction);
-  const lightCenterX = 50 + (shadowSide === "left" ? overlapDistance : -overlapDistance);
-
-  return {
-    fullShadow: false,
-    lightCenterX,
-  };
+  return illumination < 50 ? "new" : "full";
 }
 
 export function MoonPhase({
@@ -104,10 +111,7 @@ export function MoonPhase({
   size = 176,
 }: MoonPhaseProps) {
   const safeIllumination = clampIllumination(illumination);
-  const direction = phaseDirection(phase);
-  const shadowPercentage = 100 - safeIllumination;
-  const shadowDirection: MoonDirection =
-    direction === "waning" ? "waxing" : "waning";
+  const visualPhase = visualPhaseFor(phase, safeIllumination);
   const altText =
     "Aktuel månefase: " +
     (phase || "Månefase") +
@@ -119,11 +123,12 @@ export function MoonPhase({
     phase.replace(/[^a-z0-9]+/gi, "-").toLowerCase() +
     "-" +
     Math.round(safeIllumination);
-  const shadowMask = moonShadowMask(shadowDirection, shadowPercentage);
-  const shadowMaskId = clipId + "-shadow";
+  const moonClipId = clipId + "-clip";
+  const terminatorFilterId = clipId + "-terminator-softness";
+  const shadowPath = shadowPathsByPhase[visualPhase];
   const moonTextureFilter = "brightness(1.12) contrast(1.16) saturate(0.58)";
   const shadowFillOpacity = safeIllumination <= 1 ? 0.9 : 0.82;
-  const hasShadowArea = Boolean(shadowMask);
+  const hasTerminator = Boolean(shadowPath && visualPhase !== "new");
 
   return (
     <div
@@ -144,18 +149,17 @@ export function MoonPhase({
         viewBox="0 0 100 100"
       >
         <defs>
-          {shadowMask ? (
-            <mask id={shadowMaskId} maskUnits="userSpaceOnUse">
-              <rect fill="black" height="100" width="100" x="0" y="0" />
-              <path d={moonDiscPath()} fill="white" />
-              {shadowMask.fullShadow ? null : (
-                <circle cx={shadowMask.lightCenterX} cy="50" fill="black" r="50" />
-              )}
-            </mask>
+          <clipPath id={moonClipId}>
+            <path d={moonDiscPath()} />
+          </clipPath>
+          {hasTerminator ? (
+            <filter id={terminatorFilterId} x="-8%" y="-8%" width="116%" height="116%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="1.15" />
+            </filter>
           ) : null}
         </defs>
 
-        <g>
+        <g clipPath={"url(#" + moonClipId + ")"}>
           <circle cx="50" cy="50" fill="#E9E6DF" r="50" />
           <image
             height="100"
@@ -165,19 +169,16 @@ export function MoonPhase({
             style={{ filter: moonTextureFilter }}
             width="100"
           />
-        </g>
 
-        {hasShadowArea ? (
-          <g mask={"url(#" + shadowMaskId + ")"}>
-            <circle
-              cx="50"
-              cy="50"
+          {shadowPath ? (
+            <path
+              d={shadowPath}
               fill="#252927"
+              filter={hasTerminator ? "url(#" + terminatorFilterId + ")" : undefined}
               opacity={shadowFillOpacity}
-              r="50"
             />
-          </g>
-        ) : null}
+          ) : null}
+        </g>
       </svg>
     </div>
   );
