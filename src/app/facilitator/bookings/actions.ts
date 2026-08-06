@@ -23,6 +23,12 @@ import type { BookingStatus } from "@/types/database";
 
 const responseStatuses: BookingStatus[] = ["cancelled"];
 const paymentReminderCooldownMs = 24 * 60 * 60 * 1000;
+type BookingsRedirectOptions = {
+  filter?: string | null;
+  focusBooking?: boolean;
+  scrollY?: string | null;
+  sort?: string | null;
+};
 
 function firstRelation<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -33,7 +39,7 @@ function publicEventUrl(eventId: string, eventSlug?: string | null) {
   return appUrl + publicEventPath(eventSlug || eventId);
 }
 
-function bookingsRedirect(message: string, eventId?: string | null, bookingId?: string | null): never {
+function bookingsRedirect(message: string, eventId?: string | null, bookingId?: string | null, options: BookingsRedirectOptions = {}): never {
   const params = new URLSearchParams({ message });
 
   if (eventId) {
@@ -44,7 +50,21 @@ function bookingsRedirect(message: string, eventId?: string | null, bookingId?: 
     params.set("booking", bookingId);
   }
 
-  redirect(`/facilitator/bookings?${params.toString()}${bookingId ? `#booking-${bookingId}` : ""}`);
+  if (options.filter) {
+    params.set("filter", options.filter);
+  }
+
+  if (options.sort) {
+    params.set("sort", options.sort);
+  }
+
+  if (options.scrollY) {
+    params.set("scroll", options.scrollY);
+  }
+
+  const shouldFocusBooking = options.focusBooking !== false && bookingId;
+
+  redirect(`/facilitator/bookings?${params.toString()}${shouldFocusBooking ? `#booking-${bookingId}` : ""}`);
 }
 
 function getSeats(formData: FormData) {
@@ -423,6 +443,10 @@ export async function updateBookingManualPaymentAction(formData: FormData) {
   const profile = await requireRole("facilitator");
   const bookingId = getString(formData, "booking_id");
   const currentEventId = getString(formData, "current_event_id");
+  const currentFilter = getString(formData, "current_filter");
+  const currentScrollY = getString(formData, "current_scroll_y");
+  const currentSort = getString(formData, "current_sort");
+  const expandedBookingId = getString(formData, "expanded_booking_id");
   const paymentAction = getString(formData, "payment_action");
   const manualPaymentNote = getString(formData, "manual_payment_note").trim();
 
@@ -495,7 +519,8 @@ export async function updateBookingManualPaymentAction(formData: FormData) {
   bookingsRedirect(
     isMarkingPaid ? "Tilmeldingen er markeret som betalt." : "Betalingsmarkeringen er fjernet.",
     booking.event_id,
-    booking.id,
+    expandedBookingId || null,
+    { filter: currentFilter, focusBooking: false, scrollY: currentScrollY, sort: currentSort },
   );
 }
 

@@ -12,7 +12,10 @@ type FacilitatorBookingsPageProps = {
   searchParams: Promise<{
     booking?: string;
     event?: string;
+    filter?: string;
     message?: string;
+    scroll?: string;
+    sort?: string;
   }>;
 };
 
@@ -23,7 +26,7 @@ const bookingSelectWithoutReminder =
   "id, event_id, status, participant_name, participant_email, participant_phone, seats, message, event_title_snapshot, event_starts_at_snapshot, booking_value_cents, payment_reference, payment_instructions_snapshot, payment_due_at, payment_snapshot_created_at, manually_marked_paid_at, manually_marked_paid_by, manual_payment_note, created_at";
 
 export default async function FacilitatorBookingsPage({ searchParams }: FacilitatorBookingsPageProps) {
-  const [{ booking, event, message }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
+  const [{ booking, event, filter, message, scroll, sort }, profile] = await Promise.all([searchParams, requireRole("facilitator")]);
   const supabase = await createClient();
 
   const { data: facilitatorProfile } = await supabase
@@ -130,6 +133,9 @@ export default async function FacilitatorBookingsPage({ searchParams }: Facilita
           eventOptions={currentEventOptions as never}
           externalParticipants={(externalParticipants ?? []) as never}
           initialExpandedBookingId={booking ?? null}
+          initialFilter={filter ?? null}
+          initialScrollY={scroll ?? null}
+          initialSort={sort ?? null}
           selectedEventId={selectedEvent?.id ?? null}
         />
       </section>

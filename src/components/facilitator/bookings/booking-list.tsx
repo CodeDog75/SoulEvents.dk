@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
@@ -50,6 +50,9 @@ type BookingListProps = {
   eventOptions: EventOption[];
   externalParticipants: ExternalParticipantRow[];
   initialExpandedBookingId?: string | null;
+  initialFilter?: string | null;
+  initialScrollY?: string | null;
+  initialSort?: string | null;
   selectedEventId: string | null;
 };
 
@@ -262,6 +265,17 @@ const bookingSortOptions: Array<{ label: string; value: BookingSort }> = [
   { label: "Bookingværdi lav/høj", value: "value_asc" },
 ];
 
+const bookingFilterValues = new Set<BookingFilter>(bookingFilters.map((filterOption) => filterOption.value));
+const bookingSortValues = new Set<BookingSort>(bookingSortOptions.map((sortOption) => sortOption.value));
+
+function normalizeBookingFilter(value: string | null | undefined): BookingFilter {
+  return value && bookingFilterValues.has(value as BookingFilter) ? (value as BookingFilter) : "confirmed";
+}
+
+function normalizeBookingSort(value: string | null | undefined): BookingSort {
+  return value && bookingSortValues.has(value as BookingSort) ? (value as BookingSort) : "newest";
+}
+
 function matchesBookingFilter(booking: BookingRow, filter: BookingFilter) {
   const paymentStatus = paymentStatusLabel(booking);
 
@@ -318,12 +332,18 @@ function SubmitButton({
 function BookingArticle({
   booking,
   currentEventId,
+  currentFilter,
+  currentSort,
+  expandedBookingId,
   isExpanded,
   onToggle,
   showActions = true,
 }: {
   booking: BookingRow;
   currentEventId: string;
+  currentFilter: BookingFilter;
+  currentSort: BookingSort;
+  expandedBookingId: string | null;
   isExpanded: boolean;
   onToggle: () => void;
   showActions?: boolean;
@@ -352,7 +372,7 @@ function BookingArticle({
             <ChevronDown className={"size-4 transition " + (isExpanded ? "rotate-180" : "")} aria-hidden="true" />
           </button>
         </div>
-        <button aria-expanded={isExpanded} className="min-w-0 text-left" onClick={onToggle} type="button">
+        <div className="min-w-0 text-left">
           <span className="flex min-w-0 items-center gap-2">
             {booking.booking_number ? (
               <span className="shrink-0 rounded-full bg-[#F4F0F7] px-2 py-0.5 text-[11px] font-bold text-lavender">#{booking.booking_number}</span>
@@ -360,22 +380,28 @@ function BookingArticle({
             <span className="min-w-0 truncate text-sm font-bold text-midnight md:text-[15px]">{booking.participant_name}</span>
           </span>
           <span className="mt-0.5 block truncate text-xs text-ink/52 md:hidden">{booking.participant_email}</span>
-        </button>
-        <button aria-expanded={isExpanded} className="hidden text-left text-sm font-semibold text-midnight md:block" onClick={onToggle} type="button">
+        </div>
+        <span className="hidden text-left text-sm font-semibold text-midnight md:block">
           {booking.seats}
-        </button>
-        <button aria-expanded={isExpanded} className="hidden text-left text-sm font-semibold text-midnight md:block" onClick={onToggle} type="button">
+        </span>
+        <span className="hidden text-left text-sm font-semibold text-midnight md:block">
           {formatMoney(booking.booking_value_cents)}
-        </button>
-        <button aria-expanded={isExpanded} className="hidden text-left text-sm font-semibold text-ink/68 md:block" onClick={onToggle} type="button">
+        </span>
+        <span className="hidden text-left text-sm font-semibold text-ink/68 md:block">
           {formatShortDateTime(booking.created_at)}
-        </button>
+        </span>
         <div className="flex items-center justify-between gap-3 md:block">
           <span className="text-xs font-semibold text-ink/45 md:hidden">
             {booking.seats} {booking.seats === 1 ? "plads" : "pladser"} · {formatMoney(booking.booking_value_cents)}
           </span>
           {showActions && isPaidEventBooking && booking.status === "confirmed" && !isCancelledBooking ? (
-            <RowPaymentAction booking={booking} currentEventId={currentEventId} />
+            <RowPaymentAction
+              booking={booking}
+              currentEventId={currentEventId}
+              currentFilter={currentFilter}
+              currentSort={currentSort}
+              expandedBookingId={expandedBookingId}
+            />
           ) : (
             <span
               className={
@@ -539,17 +565,37 @@ function BookingArticle({
 function RowPaymentAction({
   booking,
   currentEventId,
+  currentFilter,
+  currentSort,
+  expandedBookingId,
 }: {
   booking: BookingRow;
   currentEventId: string;
+  currentFilter: BookingFilter;
+  currentSort: BookingSort;
+  expandedBookingId: string | null;
 }) {
   const isMarkedPaid = Boolean(booking.manually_marked_paid_at);
   const nextAction = isMarkedPaid ? "clear" : "mark";
 
   return (
-    <form action={updateBookingManualPaymentAction} className="min-w-0">
+    <form
+      action={updateBookingManualPaymentAction}
+      className="min-w-0"
+      onClick={(event) => event.stopPropagation()}
+      onSubmit={(event) => {
+        const scrollInput = event.currentTarget.elements.namedItem("current_scroll_y");
+        if (scrollInput instanceof HTMLInputElement) {
+          scrollInput.value = String(window.scrollY);
+        }
+      }}
+    >
       <input name="booking_id" type="hidden" value={booking.id} />
       <input name="current_event_id" type="hidden" value={currentEventId} />
+      <input name="current_filter" type="hidden" value={currentFilter} />
+      <input name="current_scroll_y" type="hidden" value="" />
+      <input name="current_sort" type="hidden" value={currentSort} />
+      {expandedBookingId ? <input name="expanded_booking_id" type="hidden" value={expandedBookingId} /> : null}
       <SubmitButton
         className={
           "inline-flex min-h-8 w-full items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold transition hover:brightness-95 md:min-w-[7.5rem] " +
@@ -721,17 +767,38 @@ function EventSelector({
   );
 }
 
-export function BookingList({ bookings, eventOptions, externalParticipants, initialExpandedBookingId, selectedEventId }: BookingListProps) {
+export function BookingList({
+  bookings,
+  eventOptions,
+  externalParticipants,
+  initialExpandedBookingId,
+  initialFilter,
+  initialScrollY,
+  initialSort,
+  selectedEventId,
+}: BookingListProps) {
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(initialExpandedBookingId ?? null);
-  const [filter, setFilter] = useState<BookingFilter>("confirmed");
+  const [filter, setFilter] = useState<BookingFilter>(() => normalizeBookingFilter(initialFilter));
   const [searchTerm, setSearchTerm] = useState("");
-  const [sort, setSort] = useState<BookingSort>("newest");
+  const [sort, setSort] = useState<BookingSort>(() => normalizeBookingSort(initialSort));
   const selectedEvent = eventOptions.find((event) => event.id === selectedEventId) ?? null;
   const selectedEventUsesExternalRegistration = usesExternalRegistration(selectedEvent);
   const selectedEventStats = selectedEvent ? getEventBookingStats(selectedEvent, externalParticipants) : null;
   const selectedEventLocation = selectedEvent
     ? [selectedEvent.address_line, selectedEvent.city].filter(Boolean).join(", ") || null
     : null;
+
+  useEffect(() => {
+    const scrollY = Number(initialScrollY);
+    if (!Number.isFinite(scrollY) || scrollY <= 0) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+    });
+  }, [initialScrollY]);
+
   const participantRows = bookings.map((booking) => ({
     bookingReference: booking.booking_reference || booking.payment_reference || "",
     bookingValueCents: booking.booking_value_cents,
@@ -947,6 +1014,9 @@ export function BookingList({ bookings, eventOptions, externalParticipants, init
                   <BookingArticle
                     booking={booking}
                     currentEventId={selectedEvent.id}
+                    currentFilter={filter}
+                    currentSort={sort}
+                    expandedBookingId={expandedBookingId}
                     isExpanded={expandedBookingId === booking.id}
                     key={booking.id}
                     onToggle={() => setExpandedBookingId((currentId) => (currentId === booking.id ? null : booking.id))}
