@@ -1335,6 +1335,10 @@ export function EventForm({
   }
 
   async function removeDraftImagePath(imagePath: string | null | undefined) {
+    if (typeof imagePath !== "string" || imagePath.trim().length === 0) {
+      return;
+    }
+
     if (!isOwnEventDraftImagePath(imagePath, facilitator.id)) {
       return;
     }
