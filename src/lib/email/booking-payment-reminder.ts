@@ -47,18 +47,23 @@ async function buildHtml(input: BookingPaymentReminderInput) {
     ["Event", input.eventTitle],
     ["Dato", formatDate(input.eventStartsAt)],
     ["Pladser", formatSeats(input.seats)],
-    ["Bookingværdi", formatPaymentAmount(input.paymentInstructions.amountCents)],
+    ["Beløb", formatPaymentAmount(input.paymentInstructions.amountCents)],
     ["Reference", input.paymentInstructions.reference],
   ];
 
+  if (input.paymentInstructions.dueAt) {
+    rows.push(["Betalingsfrist", formatDate(input.paymentInstructions.dueAt)]);
+  }
+
   return renderEmailLayout({
-    title: "Påmindelse om betaling",
+    title: "Venlig påmindelse om din tilmelding",
     children: `
-      <p style="margin: 0 0 16px;">Kære ${escapeHtml(input.participantName)}</p>
-      <p style="margin: 0 0 20px;">Dette er en venlig påmindelse om betaling for din tilmelding.</p>
+      <p style="margin: 0 0 16px;">Hej ${escapeHtml(input.participantName)}</p>
+      <p style="margin: 0 0 12px;">Du er tilmeldt ${escapeHtml(input.eventTitle)}, og vi glæder os til at se dig.</p>
+      <p style="margin: 0 0 20px;">Betalingen er endnu ikke registreret hos arrangøren. Hvis du allerede har betalt, kan du blot se bort fra denne besked.</p>
       ${renderEmailTable(rows)}
       <div style="margin: 22px 0 0; border-radius: 22px; background: #EEF7F0; padding: 18px;">
-        <p style="margin: 0 0 8px; color: #4F654A; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">Betalingsmuligheder</p>
+        <p style="margin: 0 0 8px; color: #4F654A; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">Betalingsoplysninger</p>
         ${buildPaymentMethodsHtml(input.paymentInstructions)}
         <p style="margin: 0; color: #4F654A; font-size: 12px; line-height: 1.6;">${escapeHtml(input.paymentInstructions.disclaimer)}</p>
       </div>
@@ -68,20 +73,24 @@ async function buildHtml(input: BookingPaymentReminderInput) {
 }
 
 function buildText(input: BookingPaymentReminderInput) {
+  const dueDate = input.paymentInstructions.dueAt ? formatDate(input.paymentInstructions.dueAt) : null;
+
   return [
-    "Påmindelse om betaling",
+    `Venlig påmindelse om din tilmelding til ${input.eventTitle}`,
     "",
-    `Kære ${input.participantName}`,
+    `Hej ${input.participantName}`,
     "",
-    "Dette er en venlig påmindelse om betaling for din tilmelding til:",
+    `Du er tilmeldt ${input.eventTitle}, og vi glæder os til at se dig.`,
     "",
-    input.eventTitle,
+    "Betalingen er endnu ikke registreret hos arrangøren. Hvis du allerede har betalt, kan du blot se bort fra denne besked.",
+    "",
     formatDate(input.eventStartsAt),
     formatSeats(input.seats),
-    `Bookingværdi: ${formatPaymentAmount(input.paymentInstructions.amountCents)}`,
+    `Beløb: ${formatPaymentAmount(input.paymentInstructions.amountCents)}`,
     `Reference: ${input.paymentInstructions.reference}`,
+    dueDate ? `Betalingsfrist: ${dueDate}` : "",
     "",
-    "Betalingsmuligheder:",
+    "Betalingsoplysninger:",
     ...input.paymentInstructions.methods.map((method) => `${method.label}: ${method.value}`),
     input.paymentInstructions.note ? input.paymentInstructions.note : "",
     "",
@@ -100,7 +109,7 @@ export async function sendBookingPaymentReminder(input: BookingPaymentReminderIn
   return sendLoggedEmail({
     type: "booking_payment_reminder_participant",
     to: input.participantEmail,
-    subject: `Påmindelse om betaling – ${input.eventTitle}`,
+    subject: `Venlig påmindelse om din tilmelding til ${input.eventTitle}`,
     html: await buildHtml(input),
     text: buildText(input),
     bookingId: input.bookingId,

@@ -299,14 +299,18 @@ function sortBookings(bookings: BookingRow[], sort: BookingSort) {
 function SubmitButton({
   children,
   className,
+  name,
+  value,
 }: {
   children: React.ReactNode;
   className: string;
+  name?: string;
+  value?: string;
 }) {
   const { pending } = useFormStatus();
 
   return (
-    <button className={className} disabled={pending} type="submit">
+    <button className={className} disabled={pending} name={name} type="submit" value={value}>
       {pending ? "Arbejder..." : children}
     </button>
   );
@@ -331,7 +335,7 @@ function BookingArticle({
   const isManuallyMarkedPaid = Boolean(booking.manually_marked_paid_at);
   const isCancelledBooking = booking.status === "cancelled";
   const reminderDisabledReason = canSendPaymentReminder(booking, paymentSnapshot);
-  const paymentLabel = isPaidEventBooking ? (isManuallyMarkedPaid ? "Betalt" : "Afventer betaling") : "";
+  const paymentLabel = isPaidEventBooking ? (isManuallyMarkedPaid ? "Betalt" : "Ikke registreret") : "Gratis";
   const statusLabel = statusLabels[booking.status];
   const statusClass = statusBadgeClasses[booking.status];
 
@@ -386,11 +390,15 @@ function BookingArticle({
           ) : (
             <span
               className={
-                "rounded-md px-3 py-2 text-sm font-semibold md:text-center " +
-                (isCancelledBooking || !isPaidEventBooking ? "hidden md:block md:invisible" : "bg-sage-50 text-sage-700")
+                "inline-flex min-h-10 items-center justify-center rounded-full px-3 py-2 text-sm font-semibold md:text-center " +
+                (!isPaidEventBooking
+                  ? "bg-sand/45 text-ink/62"
+                  : isManuallyMarkedPaid
+                    ? "bg-[#EEF7F0] text-sage-700"
+                    : "bg-[#FFF8E8] text-[#6E5528]")
               }
             >
-              {isCancelledBooking ? "" : paymentLabel}
+              {paymentLabel}
             </span>
           )}
           <button
@@ -464,6 +472,7 @@ function BookingArticle({
               <div className="mt-4 grid gap-2 rounded-md border border-midnight/10 bg-white/80 p-3 text-sm leading-6 text-ink/72">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-sage-700">Betalingsoplysninger sendt</p>
+                  <p className="mt-1 font-semibold text-midnight">Beløb: {formatMoney(paymentSnapshot.amountCents)}</p>
                   <p className="mt-1 font-semibold text-midnight">Reference: {paymentSnapshot.reference}</p>
                 </div>
                 {paymentSnapshot.methods.length > 0 ? (
@@ -479,6 +488,7 @@ function BookingArticle({
                   </div>
                 ) : null}
                 {paymentSnapshot.note ? <p className="text-ink/65">{paymentSnapshot.note}</p> : null}
+                {paymentSnapshot.dueAt ? <p className="text-ink/65">Betalingsfrist: {formatShortDateTime(paymentSnapshot.dueAt)}</p> : null}
               </div>
             ) : null}
 
@@ -512,17 +522,14 @@ function BookingArticle({
             <div className="flex h-full flex-col gap-3">
               {isPaidEventBooking && booking.status === "confirmed" ? (
                 <div className="rounded-md border border-midnight/10 bg-white/80 p-3">
-                  <ManualPaymentAction booking={booking} currentEventId={currentEventId} />
-                  <div className="mt-3 border-t border-midnight/10 pt-3">
-                    <PaymentReminderAction
-                      bookingId={booking.id}
-                      currentEventId={currentEventId}
-                      disabledReason={reminderDisabledReason}
-                      latestReminderAt={booking.payment_reminder_sent_at}
-                      participantEmail={booking.participant_email}
-                      participantName={booking.participant_name}
-                    />
-                  </div>
+                  <PaymentReminderAction
+                    bookingId={booking.id}
+                    currentEventId={currentEventId}
+                    disabledReason={reminderDisabledReason}
+                    latestReminderAt={booking.payment_reminder_sent_at}
+                    participantEmail={booking.participant_email}
+                    participantName={booking.participant_name}
+                  />
                 </div>
               ) : null}
               <SeatAdjustmentAction booking={booking} currentEventId={currentEventId} />
@@ -539,66 +546,6 @@ function BookingArticle({
   );
 }
 
-function ManualPaymentAction({
-  booking,
-  currentEventId,
-}: {
-  booking: BookingRow;
-  currentEventId: string;
-}) {
-  if (booking.booking_value_cents <= 0 || booking.status !== "confirmed") {
-    return null;
-  }
-
-  const isMarkedPaid = Boolean(booking.manually_marked_paid_at);
-
-  return (
-    <form action={updateBookingManualPaymentAction} className="grid w-full gap-3">
-      <input name="booking_id" type="hidden" value={booking.id} />
-      <input name="current_event_id" type="hidden" value={currentEventId} />
-      <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-ink/48">Betalingsstatus</p>
-        <div className="mt-2 grid grid-cols-2 gap-2 rounded-md bg-sand/35 p-1">
-          <button
-            className={
-              "rounded-md px-3 py-2 text-sm font-semibold transition " +
-              (!isMarkedPaid ? "bg-white text-[#6E5528] shadow-soft" : "text-ink/62 hover:bg-white/70")
-            }
-            disabled={!isMarkedPaid}
-            name="payment_action"
-            type="submit"
-            value="clear"
-          >
-            Afventer betaling
-          </button>
-          <button
-            className={
-              "rounded-md px-3 py-2 text-sm font-semibold transition " +
-              (isMarkedPaid ? "bg-[#EEF7F0] text-sage-700 shadow-soft" : "text-ink/62 hover:bg-white/70")
-            }
-            disabled={isMarkedPaid}
-            name="payment_action"
-            type="submit"
-            value="mark"
-          >
-            Betalt
-          </button>
-        </div>
-      </div>
-      <label className="grid gap-1 text-sm font-semibold text-midnight">
-        Intern note til betalingsstatus
-        <input
-          className="h-9 w-full rounded-md border border-midnight/15 bg-white px-3 text-sm text-midnight placeholder:text-ink/35"
-          defaultValue={booking.manual_payment_note ?? ""}
-          maxLength={160}
-          name="manual_payment_note"
-          placeholder="Valgfri note til dit eget overblik"
-        />
-      </label>
-    </form>
-  );
-}
-
 function RowPaymentAction({
   booking,
   currentEventId,
@@ -607,35 +554,25 @@ function RowPaymentAction({
   currentEventId: string;
 }) {
   const isMarkedPaid = Boolean(booking.manually_marked_paid_at);
+  const nextAction = isMarkedPaid ? "clear" : "mark";
 
   return (
-    <form action={updateBookingManualPaymentAction} className="grid grid-cols-2 gap-1 rounded-md bg-sand/35 p-1">
+    <form action={updateBookingManualPaymentAction} className="min-w-0">
       <input name="booking_id" type="hidden" value={booking.id} />
       <input name="current_event_id" type="hidden" value={currentEventId} />
-      <button
+      <SubmitButton
         className={
-          "rounded-md px-2 py-2 text-xs font-semibold transition " +
-          (!isMarkedPaid ? "bg-[#FFF8E8] text-[#6E5528] shadow-soft" : "text-ink/62 hover:bg-white/70")
+          "inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-xs font-semibold shadow-soft transition hover:brightness-95 md:min-w-[8.5rem] " +
+          (isMarkedPaid
+            ? "border-[#C9DAC1] bg-[#EEF7F0] text-sage-700"
+            : "border-[#E8D6A8] bg-[#FFF8E8] text-[#6E5528]")
         }
-        disabled={!isMarkedPaid}
         name="payment_action"
-        type="submit"
-        value="clear"
+        value={nextAction}
       >
-        Mangler betaling
-      </button>
-      <button
-        className={
-          "rounded-md px-2 py-2 text-xs font-semibold transition " +
-          (isMarkedPaid ? "bg-[#EEF7F0] text-sage-700 shadow-soft" : "text-ink/62 hover:bg-white/70")
-        }
-        disabled={isMarkedPaid}
-        name="payment_action"
-        type="submit"
-        value="mark"
-      >
-        Betalt
-      </button>
+        {isMarkedPaid ? <Check className="size-3.5" aria-hidden="true" /> : null}
+        {isMarkedPaid ? "Betalt" : "Ikke registreret"}
+      </SubmitButton>
     </form>
   );
 }
