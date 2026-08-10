@@ -25,8 +25,7 @@ import { formattedMaxEventDescriptionLength, maxEventDescriptionLength } from "@
 import {
   eventGalleryContentTypeFromPath,
   eventGalleryFileExtension,
-  isEventGalleryVideoFile,
-  maxEventGalleryVideoFileSize,
+  validateEventGalleryFile,
 } from "@/lib/events/gallery-media";
 import { activeLimitMessage, draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { activeBookingStatuses, getAvailableEventSeats } from "@/lib/events/capacity";
@@ -285,11 +284,13 @@ async function uploadEventCoverImage(formData: FormData, currentImagePath: strin
     ["image/jpeg", "jpg"],
     ["image/png", "png"],
     ["image/webp", "webp"],
+    ["image/heic", "heic"],
+    ["image/heif", "heif"],
   ]);
   const extension = allowedTypes.get(file.type);
 
   if (!extension) {
-    eventsRedirect("Billedet skal være JPG, PNG eller WebP. HEIC skal konverteres i browseren før upload.");
+    eventsRedirect("Billedet skal være JPG, PNG, WebP eller HEIC.");
   }
 
   if (file.size > 10 * 1024 * 1024) {
@@ -312,7 +313,14 @@ async function uploadEventCoverImage(formData: FormData, currentImagePath: strin
   });
 
   if (error) {
-    eventsRedirect("Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
+    console.error("Event cover image upload error", {
+      bucket: "media",
+      message: error.message,
+      path: imagePath,
+      size: file.size,
+      type: file.type,
+    });
+    eventsRedirect("Billedet kunne ikke uploades: " + error.message);
   }
 
   return imagePath;
@@ -331,19 +339,12 @@ async function uploadEventGalleryImage(adminClient: AdminClient, eventId: string
   const extension = eventGalleryFileExtension(file);
 
   if (!extension) {
-    throw new Error("Stemningsmedier skal være JPG, PNG, WebP eller MP4. HEIC skal konverteres i browseren før upload.");
+    throw new Error("Stemningsmedier skal være JPG, PNG, WebP, HEIC, MP4 eller MOV.");
   }
 
-  if (isEventGalleryVideoFile(file)) {
-    if (file.type !== "video/mp4") {
-      throw new Error("Stemningsvideoer skal være MP4.");
-    }
-
-    if (file.size > maxEventGalleryVideoFileSize) {
-      throw new Error("Stemningsvideoer må højst være 50 MB pr. MP4.");
-    }
-  } else if (file.size > 10 * 1024 * 1024) {
-    throw new Error("Stemningsbilleder må højst være 10 MB pr. billede.");
+  const validationError = validateEventGalleryFile(file);
+  if (validationError) {
+    throw new Error(validationError);
   }
 
   const imagePath = "events/gallery/" + eventId + "/" + crypto.randomUUID() + "." + extension;
@@ -351,18 +352,24 @@ async function uploadEventGalleryImage(adminClient: AdminClient, eventId: string
 
   if (bucketError) {
     console.error("Event gallery media bucket setup error", bucketError);
-    throw new Error("Stemningsbilledet kunne ikke uploades.");
+    throw new Error("Stemningsmediet kunne ikke uploades: " + bucketError.message);
   }
 
   const { error } = await adminClient.storage.from("media").upload(imagePath, file, {
     cacheControl: "3600",
-    contentType: file.type,
+    contentType: eventGalleryContentTypeFromPath(imagePath),
     upsert: false,
   });
 
   if (error) {
-    console.error("Event gallery image upload error", error);
-    throw new Error("Stemningsbilledet kunne ikke uploades.");
+    console.error("Event gallery media upload error", {
+      bucket: "media",
+      message: error.message,
+      path: imagePath,
+      size: file.size,
+      type: file.type,
+    });
+    throw new Error("Stemningsmediet kunne ikke uploades: " + error.message);
   }
 
   return imagePath;
@@ -535,7 +542,7 @@ async function syncEventGalleryImages(adminClient: AdminClient, formData: FormDa
     if (insertError) {
       await removeEventGalleryStorageFiles(adminClient, uploadedPaths);
       console.error("Event gallery image insert error", insertError);
-      throw new Error("Stemningsbillederne kunne ikke gemmes.");
+      throw new Error("Stemningsmedierne kunne ikke gemmes i databasen: " + insertError.message);
     }
   }
 

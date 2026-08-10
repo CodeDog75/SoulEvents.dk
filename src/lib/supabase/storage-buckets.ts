@@ -6,9 +6,12 @@ export const mediaBucketAllowedMimeTypes = [
   "image/jpeg",
   "image/png",
   "image/webp",
+  "image/heic",
+  "image/heif",
   "image/gif",
   "image/svg+xml",
   "video/mp4",
+  "video/quicktime",
 ];
 
 export async function ensureMediaStorageBucket(supabase: SupabaseClient) {

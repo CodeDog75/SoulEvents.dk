@@ -21,12 +21,14 @@ import {
   Mail,
   MapPin,
   MonitorSmartphone,
+  Play,
   Plus,
   Save,
   Send,
   Smartphone,
   Tags,
   Ticket,
+  Trash2,
   WalletCards,
   X,
   Zap,
@@ -47,8 +49,10 @@ import {
   eventGalleryUploadAccept,
   isEventGalleryVideoFile,
   isEventGalleryVideoPath,
-  maxEventGalleryVideoFileSize,
+  maxEventGalleryImageFileSize,
+  normalizeEventGalleryVideoFile,
   supportedEventGalleryUploadText,
+  validateEventGalleryFile,
 } from "@/lib/events/gallery-media";
 import { sortTagsByDanishLabel } from "@/lib/events/tags";
 import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
@@ -586,6 +590,16 @@ function eventDraftMediaExtension(file: File) {
   return eventGalleryFileExtension(file) ?? "jpg";
 }
 
+function draftUploadErrorMessage(kind: "cover" | "gallery", error: unknown) {
+  const fallback = kind === "cover" ? "Coverbilledet kunne ikke gemmes som kladde." : "Stemningsmediet kunne ikke gemmes som kladde.";
+
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string" && error.message.trim()) {
+    return fallback + " Supabase Storage: " + error.message;
+  }
+
+  return fallback;
+}
+
 function isOwnEventDraftImagePath(path: string | null | undefined, profileId: string) {
   return Boolean(path && path.startsWith(`events/drafts/${profileId}/`));
 }
@@ -638,6 +652,7 @@ function TimeSelect({
   name,
   defaultValue,
   required,
+  tone = "start",
   value: selectedValue,
   onChange,
 }: {
@@ -645,10 +660,12 @@ function TimeSelect({
   name: string;
   defaultValue: string;
   required?: boolean;
+  tone?: "start" | "end";
   value?: string;
   onChange?: (value: string) => void;
 }) {
   const currentValue = normalizeTimeOption(selectedValue, defaultValue);
+  const toneClass = tone === "end" ? " !border-[#E8E0D2] !bg-[#FFFCF7]" : "";
   const [isOpen, setIsOpen] = useState(false);
   const optionsRef = useRef<HTMLDivElement | null>(null);
   const options = timeOptions.includes(currentValue)
@@ -686,7 +703,7 @@ function TimeSelect({
         <input name={name} type="hidden" value={currentValue} />
         <button
           aria-expanded={isOpen}
-          className={"h-12 w-full min-w-0 cursor-pointer appearance-none rounded-card border py-0 pl-4 pr-11 text-left text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none " + fieldStateClass(currentValue)}
+          className={"h-12 w-full min-w-0 cursor-pointer appearance-none rounded-card border py-0 pl-4 pr-11 text-left text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none " + fieldStateClass(currentValue) + toneClass}
           onClick={() => setIsOpen((open) => !open)}
           type="button"
         >
@@ -1142,8 +1159,10 @@ export function EventForm({
   const [coverFileName, setCoverFileName] = useState("");
   const [coverPreviewUrl, setCoverPreviewUrl] = useState("");
   const [coverDraftImagePath, setCoverDraftImagePath] = useState("");
+  const [isCoverRemoved, setIsCoverRemoved] = useState(false);
   const [isCoverDraftUploading, setIsCoverDraftUploading] = useState(false);
   const [coverCrop, setCoverCrop] = useState<CoverCropState | null>(null);
+  const [isEventPreviewOpen, setIsEventPreviewOpen] = useState(false);
   const galleryFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [galleryImageErrorMessage, setGalleryImageErrorMessage] = useState("");
   const [isGalleryDraftUploading, setIsGalleryDraftUploading] = useState(false);
@@ -1158,7 +1177,7 @@ export function EventForm({
   const showOnline = hasChosenEventFormat && eventFormat === "online";
   const isDanishPhysicalEvent = showAddress && !isForeignLocation;
   const selectedRegionName = regions.find((region) => region.id === regionId)?.name ?? "";
-  const currentCoverImageUrl = coverPreviewUrl || draftEvent?.coverImageUrl || "";
+  const currentCoverImageUrl = isCoverRemoved ? "" : coverPreviewUrl || draftEvent?.coverImageUrl || "";
   const visibleGalleryImages = galleryImages.filter((image) => image.previewUrl || image.imagePath || image.fileName);
   const canAddGalleryImage = visibleGalleryImages.length < maxEventGalleryImages;
   const [titleValue, setTitleValue] = useState(value(draftEvent?.title) || prefillTitle);
@@ -1272,6 +1291,7 @@ export function EventForm({
 
   const steps: Step[] = [
     { icon: <CalendarPlus className="size-4" />, label: "Invitation", title: "Hvad vil du invitere til?" },
+    { icon: <ImagePlus className="size-4" />, label: "Billeder", title: "Vis oplevelsen" },
     { icon: <MapPin className="size-4" />, label: "Sted", title: "Hvor foregår oplevelsen?" },
     { icon: <Ticket className="size-4" />, label: "Pris", title: "Pris & betaling" },
     { icon: <Tags className="size-4" />, label: "Findbarhed", title: "Vælg 1-3 kategorier, som bedst beskriver dit event." },
@@ -1279,6 +1299,7 @@ export function EventForm({
 
   const stepDescriptions = [
     "Giv eventet et navn, beskriv oplevelsen og vælg tidspunkt.",
+    "Vælg eventets hovedbillede og ekstra stemning.",
     "Vælg om eventet foregår fysisk eller online.",
     "Vælg pris og hvordan deltagerne skal betale.",
     "Vælg brede hovedkategorier og eventuelle tags.",
@@ -1326,14 +1347,39 @@ export function EventForm({
   async function uploadDraftImage(file: File, kind: "cover" | "gallery") {
     const supabase = createBrowserSupabaseClient();
     const imagePath = draftImagePath(kind, file);
-    const { error } = await supabase.storage.from("media").upload(imagePath, file, {
-      cacheControl: "3600",
-      contentType: file.type,
-      upsert: false,
-    });
 
-    if (error) {
-      throw new Error(kind === "cover" ? "Coverbilledet kunne ikke gemmes som kladde." : "Stemningsbilledet kunne ikke gemmes som kladde.");
+    try {
+      const { error } = await supabase.storage.from("media").upload(imagePath, file, {
+        cacheControl: "3600",
+        contentType: file.type,
+        upsert: false,
+      });
+
+      if (error) {
+        console.error("Event draft media upload failed", {
+          bucket: "media",
+          kind,
+          message: error.message,
+          path: imagePath,
+          size: file.size,
+          type: file.type,
+        });
+        throw new Error(draftUploadErrorMessage(kind, error));
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith(kind === "cover" ? "Coverbilledet" : "Stemningsmediet")) {
+        throw error;
+      }
+
+      console.error("Event draft media upload exception", {
+        bucket: "media",
+        kind,
+        message: error instanceof Error ? error.message : String(error),
+        path: imagePath,
+        size: file.size,
+        type: file.type,
+      });
+      throw new Error(draftUploadErrorMessage(kind, error));
     }
 
     return {
@@ -1373,6 +1419,7 @@ export function EventForm({
         URL.revokeObjectURL(localPreviewUrl);
       }
       setCoverDraftImagePath(uploadedImage.imagePath);
+      setIsCoverRemoved(false);
       setCoverPreviewUrl(uploadedImage.previewUrl);
       setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: uploadedImage.previewUrl } : currentPreview));
       setCoverImageErrorMessage("");
@@ -1532,6 +1579,30 @@ export function EventForm({
     setCoverCrop(null);
   }
 
+  function removeCoverImage() {
+    if (coverPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(coverPreviewUrl);
+    }
+    if (coverDraftImagePath) {
+      void removeDraftImagePath(coverDraftImagePath);
+    }
+    if (coverFileInputRef.current) {
+      coverFileInputRef.current.value = "";
+    }
+
+    setCoverDraftImagePath("");
+    setCoverFileName("");
+    setCoverImageErrorMessage("");
+    setIsCoverRemoved(true);
+    setCoverPreviewUrl("");
+    setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: "" } : currentPreview));
+    setFormVersion((version) => version + 1);
+    window.setTimeout(() => {
+      writeDraft();
+      refreshFormValidationState();
+    }, 0);
+  }
+
   async function applyCoverCrop() {
     if (!coverCrop) {
       return;
@@ -1564,6 +1635,7 @@ export function EventForm({
 
     setCoverInputFile(croppedFile);
     setCoverFileName(croppedFileName);
+    setIsCoverRemoved(false);
     setCoverPreviewUrl(nextPreviewUrl);
     setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: nextPreviewUrl } : currentPreview));
     closeCoverCrop();
@@ -1617,6 +1689,7 @@ export function EventForm({
       setCoverImageErrorMessage("");
 
       if (Math.abs(aspectRatio - expectedRatio) <= 0.04) {
+        setIsCoverRemoved(false);
         setCoverPreviewUrl(imageUrl);
         setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: imageUrl } : currentPreview));
         setCoverCrop(null);
@@ -1625,6 +1698,7 @@ export function EventForm({
       }
 
       setCoverPreviewUrl("");
+      setIsCoverRemoved(false);
       setCoverCrop({
         cropX: 50,
         cropY: 50,
@@ -1652,21 +1726,21 @@ export function EventForm({
       return null;
     }
 
-    if (isEventGalleryVideoFile(file)) {
-      if (file.type !== "video/mp4") {
-        input.value = "";
-        setGalleryImageErrorMessage("Videoen skal være en MP4-fil.");
-        return null;
-      }
+    const validationError = validateEventGalleryFile(file);
+    if (validationError) {
+      input.value = "";
+      setGalleryImageErrorMessage(validationError);
+      return null;
+    }
 
-      if (file.size > maxEventGalleryVideoFileSize) {
-        input.value = "";
-        setGalleryImageErrorMessage("MP4-videoer må højst være 50 MB.");
-        return null;
+    if (isEventGalleryVideoFile(file)) {
+      const videoFile = normalizeEventGalleryVideoFile(file);
+      if (videoFile !== file) {
+        replaceInputFile(input, videoFile);
       }
 
       setGalleryImageErrorMessage("");
-      return file;
+      return videoFile;
     }
 
     try {
@@ -1674,7 +1748,7 @@ export function EventForm({
         setGalleryImageErrorMessage("Konverterer HEIC til JPG...");
       }
 
-      file = await prepareImageFileForUpload(file);
+      file = await prepareImageFileForUpload(file, { maxFileSizeBytes: maxEventGalleryImageFileSize });
       replaceInputFile(input, file);
       setGalleryImageErrorMessage("");
       return file;
@@ -2158,13 +2232,17 @@ export function EventForm({
     }
 
     if (index === 1) {
+      return hasCoverImage ? "complete" : "missing";
+    }
+
+    if (index === 2) {
       if (!hasChosenEventFormat) return "missing";
       if (eventFormat === "online") return isValidHttpUrl(text("online_url_or_note")) ? "complete" : "missing";
       const hasValidPostalCode = isDanishPhysicalEvent ? postalCode.length === 4 : postalCode.trim().length > 0;
       return text("address_line").length > 0 && hasValidPostalCode && city.trim().length > 0 && country.trim().length > 0 ? "complete" : "missing";
     }
 
-    if (index === 2) {
+    if (index === 3) {
       const numericPrice = Number(priceValue || 0);
       if (priceMode !== "free" && priceMode !== "paid") return "missing";
       if (priceMode === "paid" && (!hasValidPrice || numericPrice <= 0)) return "missing";
@@ -2174,11 +2252,11 @@ export function EventForm({
       return capacityValue > 0 && capacityValue <= 500 ? "complete" : "missing";
     }
 
-    if (index === 3) {
+    if (index === 4) {
       return selectedCategories.length > 0 ? "complete" : "missing";
     }
 
-    return [0, 1, 2, 3].every((stepIndex) => getStepStatus(stepIndex) === "complete") ? "complete" : "missing";
+    return [0, 1, 2, 3, 4].every((stepIndex) => getStepStatus(stepIndex) === "complete") ? "complete" : "missing";
   }
 
   function getMissingInvitationItems(): MissingInvitationItem[] {
@@ -2203,25 +2281,25 @@ export function EventForm({
     }
 
     if (!hasCoverImage) {
-      addMissing({ focusSelector: "#event-cover-file", key: "cover", label: "Coverbillede", step: 0, targetId: "event-cover-field" });
+      addMissing({ focusSelector: "#event-cover-file", key: "cover", label: "Forsidebillede", step: 1, targetId: "event-cover-field" });
     }
 
-    if (getStepStatus(1) !== "complete") {
+    if (getStepStatus(2) !== "complete") {
       addMissing({
         focusSelector: eventFormat === "online" ? "[name='online_url_or_note']" : "[name='address_line']",
         key: eventFormat === "online" ? "online" : "location",
         label: eventFormat === "online" ? "Online-link" : "Lokation",
-        step: 1,
+        step: 2,
         targetId: "event-location-field",
       });
     }
 
     if (priceMode !== "free" && priceMode !== "paid") {
-      addMissing({ key: "price-mode", label: "Prisvalg", step: 2, targetId: "event-price-field" });
+      addMissing({ key: "price-mode", label: "Prisvalg", step: 3, targetId: "event-price-field" });
     }
 
     if (!usesExternalRegistrationLink && (stepCapacityValue <= 0 || stepCapacityValue > 500)) {
-      addMissing({ focusSelector: "[name='capacity']", key: "capacity", label: "Pris og antal deltagere", step: 2, targetId: "event-price-field" });
+      addMissing({ focusSelector: "[name='capacity']", key: "capacity", label: "Pris og antal deltagere", step: 3, targetId: "event-price-field" });
     }
 
     if (usesClassicPayment && !hasStandardPaymentSettings) {
@@ -2229,7 +2307,7 @@ export function EventForm({
         focusSelector: "[name='payment_method_choice'][value='classic']",
         key: "payment-standard",
         label: "Betalingsmetoder",
-        step: 2,
+        step: 3,
         targetId: "event-payment-field",
       });
     }
@@ -2239,13 +2317,13 @@ export function EventForm({
         focusSelector: "[name='payment_external_url']",
         key: "payment-link",
         label: "Betalingslink",
-        step: 2,
+        step: 3,
         targetId: "event-payment-field",
       });
     }
 
     if (selectedCategories.length === 0) {
-      addMissing({ key: "category", label: "Kategori", step: 3, targetId: "event-category-field" });
+      addMissing({ key: "category", label: "Kategori", step: 4, targetId: "event-category-field" });
     }
 
     return missing;
@@ -2384,10 +2462,11 @@ export function EventForm({
           isFree,
           sendOnlineLinkLater,
           capacityValue,
-          coverDraftImagePath,
-          coverFileName,
-          coverPreviewUrl,
-          galleryImages: visibleGalleryImages.map((image) => ({
+	          coverDraftImagePath,
+	          coverFileName,
+	          coverPreviewUrl,
+	          isCoverRemoved,
+	          galleryImages: visibleGalleryImages.map((image) => ({
             draftImagePath: image.draftImagePath ?? null,
             fileName: image.fileName ?? "",
             id: image.id,
@@ -2539,10 +2618,11 @@ export function EventForm({
       ? draft.state.selectedTagIds.filter((tagId: unknown): tagId is string => typeof tagId === "string")
       : [];
     setSelectedTagIds(restoredTagIds.slice(0, maxEventTags));
-    const restoredCoverDraftImagePath = typeof draft.state?.coverDraftImagePath === "string" ? draft.state.coverDraftImagePath : "";
-    const restoredCoverPreviewUrl = typeof draft.state?.coverPreviewUrl === "string" ? draft.state.coverPreviewUrl : "";
-    const restoredCoverFileName = typeof draft.state?.coverFileName === "string" ? draft.state.coverFileName : "";
-    if (!draftEvent?.id && isOwnEventDraftImagePath(restoredCoverDraftImagePath, facilitator.id) && restoredCoverPreviewUrl) {
+	    const restoredCoverDraftImagePath = typeof draft.state?.coverDraftImagePath === "string" ? draft.state.coverDraftImagePath : "";
+	    const restoredCoverPreviewUrl = typeof draft.state?.coverPreviewUrl === "string" ? draft.state.coverPreviewUrl : "";
+	    const restoredCoverFileName = typeof draft.state?.coverFileName === "string" ? draft.state.coverFileName : "";
+	    setIsCoverRemoved(Boolean(draft.state?.isCoverRemoved));
+	    if (!draftEvent?.id && isOwnEventDraftImagePath(restoredCoverDraftImagePath, facilitator.id) && restoredCoverPreviewUrl) {
       setCoverDraftImagePath(restoredCoverDraftImagePath);
       setCoverPreviewUrl(restoredCoverPreviewUrl);
       setCoverFileName(restoredCoverFileName);
@@ -2664,6 +2744,7 @@ export function EventForm({
     endTime,
     eventFormat,
     hasChosenEventFormat,
+    isCoverRemoved,
     isForeignLocation,
     isFree,
     galleryImages,
@@ -2757,13 +2838,13 @@ export function EventForm({
       ? "border-[#CFE3C8] bg-[#EAF4E6] text-[#4F6F48]"
       : "border-[#D8CBE4] bg-[#F4F0F7] text-[#7A5D91]";
     const headerLayoutClass =
-      index === 1 || index === 2 ? "flex-col items-stretch sm:flex-row sm:items-center" : "items-center";
+      index === 2 || index === 3 ? "flex-col items-stretch sm:flex-row sm:items-center" : "items-center";
 
     function chooseEventFormat(nextFormat: "physical" | "online") {
       writeDraft();
       setEventFormat(nextFormat);
       setHasChosenEventFormat(true);
-      openStep(1);
+      openStep(2);
       window.setTimeout(() => {
         restoreDraftFields();
         showPreview();
@@ -2774,7 +2855,7 @@ export function EventForm({
     function choosePriceMode(nextMode: "free" | "paid") {
       writeDraft();
       setPriceMode(nextMode);
-      openStep(2);
+      openStep(3);
       if (nextMode === "free") {
         setIsFree(true);
         setPriceValue("0");
@@ -2794,24 +2875,29 @@ export function EventForm({
       <div className={"flex w-full min-w-0 gap-3 rounded-[18px] border px-4 py-3 transition " + headerLayoutClass + " " + statusClass}>
         <button
           aria-expanded={isOpen}
-          className="min-w-0 flex-1 text-left"
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
           onClick={(event) => goToStep(index, event.currentTarget)}
           type="button"
         >
-          <span className="block text-[11px] font-semibold uppercase tracking-wide opacity-75">
-            Trin {index + 1}
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#EEF7F0] text-sage-700 shadow-[0_1px_8px_rgba(79,101,74,0.10)]">
+            {step.icon}
           </span>
-          <span className="mt-0.5 block truncate text-base font-semibold sm:text-lg">
-            {step.title}
+          <span className="min-w-0">
+            <span className="block text-[11px] font-semibold uppercase tracking-wide opacity-75">
+              Trin {index + 1}
+            </span>
+            <span className="mt-0.5 block truncate text-base font-semibold sm:text-lg">
+              {step.title}
+            </span>
           </span>
         </button>
 
-        {index === 1 ? (
+        {index === 2 ? (
           <span className="sr-only" id="event-format-header-label">
             Hvordan deltager man?
           </span>
         ) : null}
-        {index === 1 ? (
+        {index === 2 ? (
           <SegmentedChoice
             aria-labelledby="event-format-header-label"
             name="event_format"
@@ -2824,12 +2910,12 @@ export function EventForm({
           />
         ) : null}
 
-        {index === 2 ? (
+        {index === 3 ? (
           <span className="sr-only" id="event-price-header-label">
             Hvad koster det at deltage?
           </span>
         ) : null}
-        {index === 2 ? (
+        {index === 3 ? (
           <SegmentedChoice
             aria-labelledby="event-price-header-label"
             onValueChange={choosePriceMode}
@@ -2841,7 +2927,7 @@ export function EventForm({
           />
         ) : null}
 
-        {index !== 1 && index !== 2 ? (
+        {index !== 2 && index !== 3 ? (
           <span className={"inline-flex h-7 shrink-0 items-center justify-center rounded-full border px-2.5 text-[10px] font-semibold uppercase tracking-wide sm:h-8 sm:px-3 sm:text-xs " + badgeClass}>
             {isDone ? "Klar" : "Afventer"}
           </span>
@@ -2857,6 +2943,274 @@ export function EventForm({
   const canPublish = missingInvitationItems.length === 0 && !coOrganizerBlocksSubmit && !activeLimitBlocksSubmit;
   const legalAcceptanceBlocksSubmit = requiresOrganizerAcceptance && !acceptedOrganizerTerms;
   const canSubmitEvent = canPublish && !legalAcceptanceBlocksSubmit;
+
+  function renderMediaStep() {
+    const gallerySlots = Array.from({ length: maxEventGalleryImages }, (_, index) => visibleGalleryImages[index] ?? null);
+
+    return (
+      <section
+        className={isStepOpen(1) ? "grid w-full min-w-0 max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-6 sm:p-6 " + highlightMissingClass("cover") : "hidden"}
+        id="event-cover-field"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-semibold text-ink/55">{visibleGalleryImages.length === 0 ? "Ingen billeder eller videoer endnu" : `${visibleGalleryImages.length} af ${maxEventGalleryImages} tilføjet`}</span>
+          <details className="group relative">
+            <summary className="grid size-9 cursor-pointer list-none place-items-center rounded-full border border-[#D8CBE4] bg-[#F7F2FB] text-[#7A4EAB] transition hover:border-[#BFA7D8] hover:bg-white [&::-webkit-details-marker]:hidden">
+              <Info className="size-4" aria-hidden="true" />
+              <span className="sr-only">Tekniske krav</span>
+            </summary>
+            <div className="absolute right-0 z-20 mt-2 w-72 rounded-[18px] border border-[#E5D4F7] bg-white p-4 text-xs leading-5 text-ink/64 shadow-lift">
+              <p className="font-semibold text-midnight">Forsidebilledet er obligatorisk.</p>
+              <p className="mt-2">Op til 3 ekstra billeder eller videoer.</p>
+              <p className="mt-2">{supportedImageUploadText}</p>
+              <p className="mt-1">{supportedEventGalleryUploadText}</p>
+            </div>
+          </details>
+        </div>
+
+        <div className="grid gap-4">
+          <div className={"group relative aspect-[16/9] overflow-hidden rounded-[24px] border border-dashed border-[#D8CBE4] bg-[#F7F2FB] shadow-soft transition hover:border-[#BFA7D8] hover:bg-[#FAF8FC] " + (highlightedMissingKey === "cover" ? "ring-4 ring-[#D89A94]/35" : "")}>
+            <label className="absolute inset-0 z-10 cursor-pointer">
+              <input
+                accept={imageUploadAccept}
+                className="sr-only"
+                id="event-cover-file"
+                onChange={handleCoverFileChange}
+                ref={coverFileInputRef}
+                type="file"
+              />
+              <span className="sr-only">Udskift forsidebillede</span>
+            </label>
+            {currentCoverImageUrl ? (
+              <img alt="Preview af eventets forsidebillede" className="h-full w-full object-cover" src={currentCoverImageUrl} />
+            ) : (
+              <span className="grid h-full place-items-center">
+                <span className="relative grid size-20 place-items-center rounded-[24px] bg-white/90 text-[#7A5D91] shadow-soft">
+                  <ImagePlus className="size-9" aria-hidden="true" />
+                  <span className="absolute -right-2 -top-2 grid size-8 place-items-center rounded-full bg-[#7A5D91] text-white shadow-soft">
+                    <Plus className="size-4" aria-hidden="true" />
+                  </span>
+                </span>
+              </span>
+            )}
+            {!currentCoverImageUrl ? (
+              <span className="absolute right-3 top-3 grid size-7 place-items-center rounded-full bg-white/90 text-sm font-bold text-[#B56F8A] shadow-soft" aria-hidden="true">
+                *
+              </span>
+            ) : null}
+            {currentCoverImageUrl ? (
+              <div className="absolute right-3 top-3 z-20 flex gap-2">
+                <label className="grid size-9 cursor-pointer place-items-center rounded-full bg-white/85 text-[#7A5D91] shadow-soft backdrop-blur transition hover:bg-white">
+                  <ImagePlus className="size-4" aria-hidden="true" />
+                  <span className="sr-only">Udskift forsidebillede</span>
+                  <input
+                    accept={imageUploadAccept}
+                    className="sr-only"
+                    onChange={handleCoverFileChange}
+                    type="file"
+                  />
+                </label>
+                <button
+                  className="grid size-9 place-items-center rounded-full bg-white/85 text-red-700 shadow-soft backdrop-blur transition hover:bg-red-50"
+                  onClick={removeCoverImage}
+                  type="button"
+                >
+                  <Trash2 className="size-4" aria-hidden="true" />
+                  <span className="sr-only">Fjern forsidebillede</span>
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          {coverFileName ? <p className="text-xs font-semibold text-[#7A4EAB]">Valgt: {coverFileName}</p> : null}
+          {isCoverDraftUploading ? (
+            <p className="rounded-[16px] border border-[#E8D6A8] bg-[#FFF8E8] px-4 py-3 text-sm font-semibold leading-6 text-[#8A6A2E]">Gemmer forsidebilledet som kladde...</p>
+          ) : null}
+          {coverImageErrorMessage ? (
+            <p className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-900">{coverImageErrorMessage}</p>
+          ) : null}
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {gallerySlots.map((image, index) => {
+            const isVideo = Boolean(image && (image.mediaType === "video" || isEventGalleryVideoPath(image.imagePath || image.draftImagePath || image.previewUrl)));
+
+            return (
+              <div className="group relative aspect-square overflow-hidden rounded-[20px] border border-dashed border-[#D8CBE4] bg-[#FAF8FC] shadow-sm transition hover:border-[#BFA7D8]" key={image?.id ?? `empty-gallery-${index}`}>
+                {image ? (
+                  <>
+                    {image.previewUrl && isVideo ? (
+                      <video
+                        className="h-full w-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        src={image.previewUrl}
+                      />
+                    ) : image.previewUrl ? (
+                      <img alt={`Preview af stemningsbillede ${index + 1}`} className="h-full w-full object-cover" src={image.previewUrl} />
+                    ) : (
+                      <span className="grid h-full place-items-center text-[#7A5D91]">
+                        <ImagePlus className="size-8" aria-hidden="true" />
+                      </span>
+                    )}
+                    {isVideo ? (
+                      <span className="absolute inset-0 grid place-items-center bg-midnight/10 text-white">
+                        <span className="grid size-10 place-items-center rounded-full bg-midnight/45 backdrop-blur">
+                          <Play className="ml-0.5 size-4 fill-current" aria-hidden="true" />
+                        </span>
+                      </span>
+                    ) : null}
+                    <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 flex-wrap justify-center gap-0.5 rounded-full border border-[#E3E0E6] bg-white p-1 shadow-[0_4px_12px_rgba(47,38,51,0.10)]">
+                      <label className="grid size-8 cursor-pointer place-items-center rounded-full text-[#4F4756] transition hover:bg-[#F4F0F7]">
+                        <ImagePlus className="size-3.5" aria-hidden="true" />
+                        <span className="sr-only">Udskift billede eller video</span>
+                        <input
+                          accept={eventGalleryUploadAccept}
+                          className="sr-only"
+                          onChange={(event) => void handleReplaceGalleryImage(image.id, event)}
+                          ref={(node) => {
+                            galleryFileInputRefs.current[image.id] = node;
+                            if (node && image.file && (!node.files || node.files.length === 0)) {
+                              replaceInputFile(node, image.file);
+                            }
+                          }}
+                          type="file"
+                        />
+                      </label>
+                      {visibleGalleryImages.length > 1 ? (
+                        <>
+	                          <button
+	                            className="grid size-8 place-items-center rounded-full text-[#4F4756] transition hover:bg-[#F4F0F7] disabled:text-[#B8B2BE]"
+	                            disabled={index === 0}
+                            onClick={() => moveGalleryImage(image.id, -1)}
+                            type="button"
+                          >
+                            <ArrowLeft className="size-3.5" aria-hidden="true" />
+                            <span className="sr-only">Flyt til venstre</span>
+                          </button>
+	                          <button
+	                            className="grid size-8 place-items-center rounded-full text-[#4F4756] transition hover:bg-[#F4F0F7] disabled:text-[#B8B2BE]"
+	                            disabled={index === visibleGalleryImages.length - 1}
+                            onClick={() => moveGalleryImage(image.id, 1)}
+                            type="button"
+                          >
+                            <ArrowRight className="size-3.5" aria-hidden="true" />
+                            <span className="sr-only">Flyt til højre</span>
+                          </button>
+                        </>
+                      ) : null}
+	                      <button
+	                        className="grid size-8 place-items-center rounded-full text-red-700 transition hover:bg-red-50"
+	                        onClick={() => removeGalleryImage(image.id)}
+                        type="button"
+                      >
+                        <Trash2 className="size-3.5" aria-hidden="true" />
+                        <span className="sr-only">Fjern billede eller video</span>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <label className="grid h-full cursor-pointer place-items-center">
+                    <span className="relative grid size-14 place-items-center rounded-[18px] bg-white/90 text-[#7A5D91] shadow-soft">
+                      <ImagePlus className="size-6" aria-hidden="true" />
+                      <MonitorSmartphone className="absolute -left-2 -bottom-1 size-4 rounded-full bg-white text-[#B56F8A]" aria-hidden="true" />
+                      <span className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full bg-[#7A5D91] text-white shadow-soft">
+                        <Plus className="size-3.5" aria-hidden="true" />
+                      </span>
+                    </span>
+                    <input
+                      accept={eventGalleryUploadAccept}
+                      className="sr-only"
+                      disabled={!canAddGalleryImage}
+                      onChange={(event) => void handleAddGalleryImage(event)}
+                      type="file"
+                    />
+                  </label>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {galleryImageErrorMessage ? (
+          <p className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-900">
+            {galleryImageErrorMessage}
+          </p>
+        ) : null}
+        {isGalleryDraftUploading ? (
+          <p className="rounded-[16px] border border-[#E8D6A8] bg-[#FFF8E8] px-4 py-3 text-sm font-semibold leading-6 text-[#8A6A2E]">
+            Gemmer billede eller video som kladde...
+          </p>
+        ) : null}
+      </section>
+    );
+  }
+
+  function renderEventPreviewPanel() {
+    return (
+      <section className="grid gap-3 rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:p-5">
+        <button
+          className="inline-flex h-11 w-fit items-center gap-2 rounded-full border border-[#D8CBE4] bg-[#F7F2FB] px-4 text-sm font-semibold text-[#7A4EAB] transition hover:border-[#BFA7D8] hover:bg-white"
+          onClick={() => {
+            showPreview();
+            setIsEventPreviewOpen((isOpen) => !isOpen);
+          }}
+          type="button"
+        >
+          <Eye className="size-4" aria-hidden="true" />
+          Forhåndsvisning
+        </button>
+        {isEventPreviewOpen ? (
+          <div className="overflow-hidden rounded-card border border-[#E5D4F7] bg-white">
+            <div
+              className="relative h-44 overflow-hidden bg-[radial-gradient(circle_at_20%_20%,#F4F0F7_0%,transparent_34%),radial-gradient(circle_at_85%_15%,#DDE8D7_0%,transparent_32%),linear-gradient(135deg,#FAF6EF_0%,#F8F3FA_48%,#EEE7DA_100%)]"
+            >
+              {currentCoverImageUrl ? (
+                <img alt="" className="h-full w-full object-cover" src={currentCoverImageUrl} />
+              ) : null}
+            </div>
+            <div className="grid gap-4 p-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#B56F8A]">
+                  {preview?.format || (eventFormat === "online" ? "Virtuelt event" : "Personligt event")}
+                </p>
+                <h3 className="mt-2 font-serif text-2xl font-semibold leading-tight text-midnight">
+                  {preview?.title || "Eventtitel"}
+                </h3>
+                <p className="mt-2 line-clamp-4 text-sm leading-6 text-ink/64">
+                  {preview?.description || "Beskrivelsen vises her, mens du udfylder eventet."}
+                </p>
+              </div>
+              <dl className="grid gap-2 text-sm sm:grid-cols-3">
+                <div className="rounded-card bg-[#FAF6EF] px-3 py-2">
+                  <dt className="font-semibold text-ink/55">Dato og tid</dt>
+                  <dd className="mt-1 text-midnight">{preview ? preview.date + " · " + preview.time : formatReviewDate(startDate) + " · " + startTime + " - " + endTime}</dd>
+                </div>
+                <div className="rounded-card bg-[#FAF6EF] px-3 py-2">
+                  <dt className="font-semibold text-ink/55">Sted</dt>
+                  <dd className="mt-1 text-midnight">{preview?.location || (eventFormat === "online" ? "Online" : city || "Lokation mangler")}</dd>
+                </div>
+                <div className="rounded-card bg-[#FAF6EF] px-3 py-2">
+                  <dt className="font-semibold text-ink/55">Pris</dt>
+                  <dd className="mt-1 text-midnight">{preview?.price || (isFree ? "Gratis" : priceValue ? priceValue + " kr." : "Pris mangler")}</dd>
+                </div>
+              </dl>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Valgte retninger</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(preview?.categories.length ? preview.categories : []).map((category) => (
+                    <span className="rounded-full bg-[#F4F0F7] px-3 py-1 text-xs font-semibold text-[#6E5A86]" key={category}>{category}</span>
+                  ))}
+                  {!preview?.categories.length ? <span className="text-sm text-ink/45">Ingen valgt endnu</span> : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </section>
+    );
+  }
 
   function renderSubmitPanel() {
     return (
@@ -3137,7 +3491,7 @@ export function EventForm({
       ) : null}
       {draftEvent?.id ? <input name="event_id" type="hidden" value={draftEvent.id} /> : null}
       <input name="current_step" type="hidden" value={currentStep} />
-      <input name="current_cover_image_path" type="hidden" value={value(coverDraftImagePath || draftEvent?.cover_image_path)} />
+      <input name="current_cover_image_path" type="hidden" value={value(isCoverRemoved ? "" : coverDraftImagePath || draftEvent?.cover_image_path)} />
       {coverDraftImagePath ? <input name="draft_cover_image_path" type="hidden" value={coverDraftImagePath} /> : null}
       <input name="event_gallery_image_count" type="hidden" value={visibleGalleryImages.length} />
       {visibleGalleryImages.map((image, index) => (
@@ -3243,7 +3597,7 @@ export function EventForm({
           </div>
         </section>
       ) : null}
-      <div className="grid min-w-0 max-w-full gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+      <div className="grid min-w-0 max-w-full gap-6">
         <div className="grid min-w-0 max-w-full gap-5">
           {renderStepAccordionHeader(0)}
       <section className={isStepOpen(0) ? "grid w-full min-w-0 max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:gap-5 sm:p-6" : "hidden"}>
@@ -3290,43 +3644,43 @@ export function EventForm({
             />
           </label>
 
-          <TimeSelect defaultValue="19:00" label="Starttidspunkt" name="start_time" onChange={setStartTime} required value={startTime} />
+	          <TimeSelect defaultValue="19:00" label="Starttidspunkt" name="start_time" onChange={setStartTime} required value={startTime} />
 
-          {!showEndDateTime ? <input name="end_date" type="hidden" value={startDate} /> : null}
+	          {!showEndDateTime ? <input name="end_date" type="hidden" value={startDate} /> : null}
 
-          <TimeSelect defaultValue="21:00" label="Sluttidspunkt" name="end_time" onChange={setEndTime} required value={endTime} />
+	          {showEndDateTime ? (
+	            <label className="grid gap-2 text-sm font-medium text-ink/72">
+	              <span>
+	                Slutdato<span className="ml-1 text-[#B56F8A]">*</span>
+	              </span>
+	              <input
+	                autoComplete="off"
+	                className={"h-12 w-full min-w-0 cursor-pointer rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(endDate) + " !border-[#E8E0D2] !bg-[#FFFCF7]"}
+	                min={startDate}
+	                name="end_date"
+	                onChange={(event) => setEndDate(event.target.value)}
+	                required
+	                type="date"
+	                value={endDate}
+	              />
+	            </label>
+	          ) : null}
 
-          {!showEndDateTime ? (
-            <button
-              className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-[#7A5D91] transition hover:text-[#6E5285] md:col-span-2"
-              onClick={() => {
-                setEndDate(startDate);
-                setShowEndDateTime(true);
-              }}
-              type="button"
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              Anden slutdato
-            </button>
-          ) : null}
+	          <TimeSelect defaultValue="21:00" label="Sluttidspunkt" name="end_time" onChange={setEndTime} required tone="end" value={endTime} />
 
-          {showEndDateTime ? (
-            <label className="grid gap-2 text-sm font-medium text-ink/72 md:col-span-2 md:max-w-[calc(50%-0.625rem)]">
-              <span>
-                Slutdato<span className="ml-1 text-[#B56F8A]">*</span>
-              </span>
-              <input
-                autoComplete="off"
-                className={"h-12 w-full min-w-0 cursor-pointer rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(endDate)}
-                min={startDate}
-                name="end_date"
-                onChange={(event) => setEndDate(event.target.value)}
-                required
-                type="date"
-                value={endDate}
-              />
-            </label>
-          ) : null}
+	          {!showEndDateTime ? (
+	            <button
+	              className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-[#7A5D91] transition hover:text-[#6E5285] md:col-span-2"
+	              onClick={() => {
+	                setEndDate(startDate);
+	                setShowEndDateTime(true);
+	              }}
+	              type="button"
+	            >
+	              <Plus className="size-4" aria-hidden="true" />
+	              Anden slutdato
+	            </button>
+	          ) : null}
 
           {durationLabel && (
             <div
@@ -3741,8 +4095,11 @@ export function EventForm({
           )}
         </section>
       </section>
-{renderStepAccordionHeader(1)}
-      <section className={isStepOpen(1) ? "grid w-full min-w-0 max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-5 sm:p-6 " + highlightMissingClass(eventFormat === "online" ? "online" : "location") : "hidden"} id="event-location-field">
+          {renderStepAccordionHeader(1)}
+          {renderMediaStep()}
+
+          {renderStepAccordionHeader(2)}
+	      <section className={isStepOpen(2) ? "grid w-full min-w-0 max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-5 sm:p-6 " + highlightMissingClass(eventFormat === "online" ? "online" : "location") : "hidden"} id="event-location-field">
         {!hasChosenEventFormat ? (
           <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
             Vælg først fysisk eller online i trinlinjen ovenfor.
@@ -3924,11 +4281,11 @@ export function EventForm({
           </div>
         ) : null}
       </section>
-          {renderStepAccordionHeader(2)}
+          {renderStepAccordionHeader(3)}
       
 
       
-<section className={isStepOpen(2) ? "grid w-full min-w-0 max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-5 sm:p-6 " + highlightMissingClass(highlightedMissingKey === "capacity" ? "capacity" : "price-mode") : "hidden"} id="event-price-field">
+<section className={isStepOpen(3) ? "grid w-full min-w-0 max-w-full gap-4 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-5 sm:p-6 " + highlightMissingClass(highlightedMissingKey === "capacity" ? "capacity" : "price-mode") : "hidden"} id="event-price-field">
         {priceMode === "" ? (
           <p className="rounded-card border border-[#D8CBE4] bg-[#FAF6EF] px-4 py-3 text-sm leading-6 text-ink/64">
             Vælg først gratis eller betaling i trinlinjen ovenfor.
@@ -4329,8 +4686,8 @@ export function EventForm({
 
       </section>
 
-          {renderStepAccordionHeader(3)}
-      <section className={isStepOpen(3) ? "grid w-full min-w-0 max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-6 sm:p-6 " + highlightMissingClass("category") : "hidden"} id="event-category-field">
+          {renderStepAccordionHeader(4)}
+      <section className={isStepOpen(4) ? "grid w-full min-w-0 max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-6 sm:p-6 " + highlightMissingClass("category") : "hidden"} id="event-category-field">
         {draftEvent?.subcategoryIds?.map((subcategoryId) => (
           <input key={subcategoryId} name="subcategory_ids" type="hidden" value={subcategoryId} />
         ))}
@@ -4381,195 +4738,9 @@ export function EventForm({
         )}
       </section>
 </div>
-        <aside className="mt-8 min-w-0 max-w-full border-t border-[#E5D4F7] pt-8 xl:mt-0 xl:border-t-0 xl:pt-0">
-          <div className="w-full max-w-full overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 shadow-soft xl:sticky xl:top-6">
-            <div className="border-b border-[#E5D4F7] bg-[#F4F0F7] px-5 py-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Din invitation</p>
-              <h2 className="mt-1 font-serif text-xl font-semibold text-midnight">Sådan ser din invitation ud</h2>
-            </div>
-            <div
-              className={"relative h-44 overflow-hidden bg-[radial-gradient(circle_at_20%_20%,#F4F0F7_0%,transparent_34%),radial-gradient(circle_at_85%_15%,#DDE8D7_0%,transparent_32%),linear-gradient(135deg,#FAF6EF_0%,#F8F3FA_48%,#EEE7DA_100%)] transition " + highlightMissingClass("cover")}
-              id="event-cover-field"
-            >
-              {currentCoverImageUrl ? (
-                <img alt="Preview af eventets forsidebillede" className="h-full w-full object-cover" src={currentCoverImageUrl} />
-              ) : null}
-              <label className="absolute inset-0 grid cursor-pointer place-items-center bg-midnight/5 transition hover:bg-midnight/10">
-                  <input
-                  accept={imageUploadAccept}
-                  className="sr-only"
-                  id="event-cover-file"
-                  name="event_cover_file"
-                  onChange={handleCoverFileChange}
-                  ref={coverFileInputRef}
-                  type="file"
-                />
-                <span className="inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-[#7A5D91] shadow-soft">
-                  <ImagePlus className="size-4" aria-hidden="true" />
-                  {currentCoverImageUrl ? "Udskift billede" : "Vælg billede"}
-                </span>
-              </label>
-            </div>
-            <p className="border-b border-[#E5D4F7] px-5 py-2 text-xs font-semibold text-[#6E6475]">{supportedImageUploadText}</p>
-            {coverFileName ? <p className="border-b border-[#E5D4F7] px-5 py-2 text-xs font-semibold text-[#7A4EAB]">Valgt fil: {coverFileName}</p> : null}
-            {isCoverDraftUploading ? (
-              <p className="border-b border-[#E8D6A8] bg-[#FFF8E8] px-5 py-3 text-sm font-semibold leading-6 text-[#8A6A2E]">Gemmer coverbilledet som kladde...</p>
-            ) : null}
-            {coverImageErrorMessage ? (
-              <p className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold leading-6 text-red-900">{coverImageErrorMessage}</p>
-            ) : null}
-            <section className="border-b border-[#E5D4F7] px-5 py-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Stemningsmedier – valgfrit</p>
-                  <p className="mt-2 text-sm leading-6 text-ink/64">
-                    Tilføj op til tre billeder eller korte MP4-videoer, der viser stemningen, stedet eller oplevelsen. Eventets primære billede vises fortsat øverst.
-                  </p>
-                </div>
-                <span className="rounded-full border border-[#D8CBE4] bg-[#F7F2FB] px-3 py-1 text-xs font-semibold text-[#7A4EAB]">
-                  {visibleGalleryImages.length} af {maxEventGalleryImages} medier
-                </span>
-              </div>
-              <p className="mt-3 text-xs font-semibold text-ink/55">{supportedEventGalleryUploadText}</p>
-              <div className="mt-4 grid gap-3">
-                {visibleGalleryImages.map((image, index) => (
-                  <div className="overflow-hidden rounded-[18px] border border-[#E5D4F7] bg-[#FAF8FC] shadow-sm" key={image.id}>
-                    <div className="relative aspect-[4/3] bg-[#F4F0F7]">
-                      {image.previewUrl && (image.mediaType === "video" || isEventGalleryVideoPath(image.imagePath || image.draftImagePath || image.previewUrl)) ? (
-                        <video
-                          className="h-full w-full object-cover"
-                          controls
-                          muted
-                          playsInline
-                          preload="metadata"
-                          src={image.previewUrl}
-                        />
-                      ) : image.previewUrl ? (
-                        <img alt={`Preview af stemningsbillede ${index + 1}`} className="h-full w-full object-cover" src={image.previewUrl} />
-                      ) : (
-                        <div className="grid h-full place-items-center text-sm font-semibold text-ink/45">Stemningsmedie {index + 1}</div>
-                      )}
-                    </div>
-                    <div className="grid gap-3 p-3">
-                      {image.fileName ? <p className="text-xs font-semibold text-[#7A4EAB]">Valgt fil: {image.fileName}</p> : null}
-                      <div className="flex flex-wrap gap-2">
-                        <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full border border-[#D8CBE4] bg-white px-3 text-xs font-semibold text-[#7A5D91] transition hover:border-[#BFA7D8] hover:bg-[#F7F2FB]">
-                          <ImagePlus className="size-4" aria-hidden="true" />
-                          Udskift
-                          <input
-                            accept={eventGalleryUploadAccept}
-                            className="sr-only"
-                            name={`event_gallery_file_${index}`}
-                            onChange={(event) => void handleReplaceGalleryImage(image.id, event)}
-                            ref={(node) => {
-                              galleryFileInputRefs.current[image.id] = node;
-                              if (node && image.file && (!node.files || node.files.length === 0)) {
-                                replaceInputFile(node, image.file);
-                              }
-                            }}
-                            type="file"
-                          />
-                        </label>
-                        <button
-                          className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#E5D4F7] bg-white px-3 text-xs font-semibold text-ink/68 transition hover:border-[#CDB4EA] hover:bg-[#F7F2FB] disabled:cursor-not-allowed disabled:opacity-45"
-                          disabled={index === 0}
-                          onClick={() => moveGalleryImage(image.id, -1)}
-                          type="button"
-                        >
-                          <ArrowUp className="size-4" aria-hidden="true" />
-                          Op
-                        </button>
-                        <button
-                          className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#E5D4F7] bg-white px-3 text-xs font-semibold text-ink/68 transition hover:border-[#CDB4EA] hover:bg-[#F7F2FB] disabled:cursor-not-allowed disabled:opacity-45"
-                          disabled={index === visibleGalleryImages.length - 1}
-                          onClick={() => moveGalleryImage(image.id, 1)}
-                          type="button"
-                        >
-                          <ArrowDown className="size-4" aria-hidden="true" />
-                          Ned
-                        </button>
-                        <button
-                          className="inline-flex min-h-10 items-center gap-2 rounded-full border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 transition hover:bg-red-50"
-                          onClick={() => removeGalleryImage(image.id)}
-                          type="button"
-                        >
-                          <X className="size-4" aria-hidden="true" />
-                          Slet
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {canAddGalleryImage ? (
-                  <label className="grid min-h-28 cursor-pointer place-items-center rounded-[18px] border border-dashed border-[#D8CBE4] bg-white/80 px-4 py-5 text-center text-sm font-semibold text-[#7A5D91] transition hover:border-[#BFA7D8] hover:bg-[#F7F2FB]">
-                    <span className="inline-flex items-center gap-2">
-                      <ImagePlus className="size-4" aria-hidden="true" />
-                      Tilføj stemningsmedie
-                    </span>
-                    <input
-                      accept={eventGalleryUploadAccept}
-                      className="sr-only"
-                      name="event_gallery_file_new"
-                      onChange={(event) => void handleAddGalleryImage(event)}
-                      type="file"
-                    />
-                  </label>
-                ) : (
-                  <p className="rounded-[16px] border border-[#E5D4F7] bg-[#F7F2FB] px-4 py-3 text-sm font-semibold text-[#7A4EAB]">
-                    Du har tilføjet tre medier. Slet eller udskift et medie, hvis du vil ændre galleriet.
-                  </p>
-                )}
-              </div>
-              {galleryImageErrorMessage ? (
-                <p className="mt-3 rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-900">
-                  {galleryImageErrorMessage}
-                </p>
-              ) : null}
-              {isGalleryDraftUploading ? (
-                <p className="mt-3 rounded-[16px] border border-[#E8D6A8] bg-[#FFF8E8] px-4 py-3 text-sm font-semibold leading-6 text-[#8A6A2E]">
-                  Gemmer stemningsmedie som kladde...
-                </p>
-              ) : null}
-            </section>
-            <div className="grid gap-4 p-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#B56F8A]">
-                  {preview?.format || (eventFormat === "online" ? "Virtuelt event" : "Personligt event")}
-                </p>
-                <h3 className="mt-2 font-serif text-2xl font-semibold leading-tight text-midnight">
-                  {preview?.title || "Eventtitel"}
-                </h3>
-                <p className="mt-2 line-clamp-4 text-sm leading-6 text-ink/64">
-                  {preview?.description || "Beskrivelsen vises her, mens du udfylder eventet."}
-                </p>
-              </div>
-              <dl className="grid gap-2 text-sm">
-                <div className="rounded-card bg-[#FAF6EF] px-3 py-2">
-                  <dt className="font-semibold text-ink/55">Dato og tid</dt>
-                  <dd className="mt-1 text-midnight">{preview ? preview.date + " · " + preview.time : formatReviewDate(startDate) + " · " + startTime + " - " + endTime}</dd>
-                </div>
-                <div className="rounded-card bg-[#FAF6EF] px-3 py-2">
-                  <dt className="font-semibold text-ink/55">Sted</dt>
-                  <dd className="mt-1 text-midnight">{preview?.location || (eventFormat === "online" ? "Online" : city || "Lokation mangler")}</dd>
-                </div>
-                <div className="rounded-card bg-[#FAF6EF] px-3 py-2">
-                  <dt className="font-semibold text-ink/55">Pris</dt>
-                  <dd className="mt-1 text-midnight">{preview?.price || (isFree ? "Gratis" : priceValue ? priceValue + " kr." : "Pris mangler")}</dd>
-                </div>
-              </dl>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#7A4EAB]">Valgte retninger</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(preview?.categories.length ? preview.categories : []).map((category) => (
-                    <span className="rounded-full bg-[#F4F0F7] px-3 py-1 text-xs font-semibold text-[#6E5A86]" key={category}>{category}</span>
-                  ))}
-                  {!preview?.categories.length ? <span className="text-sm text-ink/45">Ingen valgt endnu</span> : null}
-                </div>
-              </div>
-            </div>
-          </div>
-        </aside>
       </div>
+
+      {renderEventPreviewPanel()}
 
       {renderSubmitPanel()}
 

@@ -7,6 +7,7 @@ import { TrackEventView } from "@/components/analytics/track-event-view";
 import { BrandLogo } from "@/components/brand-logo";
 import { CapacityBadge } from "@/components/events/capacity-badge";
 import { BookingForm } from "@/components/events/detail/booking-form";
+import { EventMediaGallery } from "@/components/events/detail/event-media-gallery";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
 import { UserTextWithLinks } from "@/components/user-text-with-links";
 import { getCurrentProfile } from "@/lib/auth/roles";
@@ -957,31 +958,14 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
 
           {images.length > 0 && (
             <section className="rounded-card bg-white p-8 shadow-soft">
-              <h2 className="text-4xl font-medium text-olive">Stemningsbilleder</h2>
-              <div className={`mt-4 grid gap-3 ${images.length === 1 ? "" : images.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
-                {images.map((image: { image_path: string; alt_text: string | null }) => {
-                  const mediaUrl = supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl;
-
-                  return isEventGalleryVideoPath(image.image_path) ? (
-                    <video
-                      className="aspect-[4/3] w-full rounded-[18px] bg-midnight/5 object-cover shadow-soft"
-                      controls
-                      key={image.image_path}
-                      playsInline
-                      preload="metadata"
-                      src={mediaUrl}
-                    />
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      alt={image.alt_text || `Stemningsbillede fra ${event.title}`}
-                      className="aspect-[4/3] w-full rounded-[18px] object-cover shadow-soft"
-                      key={image.image_path}
-                      src={mediaUrl}
-                    />
-                  );
-                })}
-              </div>
+              <h2 className="text-4xl font-medium text-olive">Stemningsmedier</h2>
+              <EventMediaGallery
+                items={images.map((image: { image_path: string; alt_text: string | null }) => ({
+                  alt: image.alt_text || `Stemningsbillede fra ${event.title}`,
+                  src: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,
+                  type: isEventGalleryVideoPath(image.image_path) ? "video" : "image",
+                }))}
+              />
             </section>
           )}
 
@@ -1000,72 +984,6 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
             </div>
           </section>
 
-          {otherUpcomingEvents.length > 0 ? (
-            <section className="rounded-card bg-white p-8 shadow-soft">
-              <h2 className="text-4xl font-medium text-olive">Andre kommende events fra {facilitatorName}</h2>
-              <div className="mt-5 grid gap-3">
-                {otherUpcomingEvents.map((upcomingEvent: any) => {
-                  const upcomingMainCategory = upcomingEvent.event_main_categories
-                    ?.map((row: any) => (Array.isArray(row.main_categories) ? row.main_categories[0] : row.main_categories))
-                    .find((category: any) => Boolean(category));
-                  const upcomingCoverPath = upcomingEvent.cover_image_path || upcomingMainCategory?.image_path || null;
-                  const upcomingCoverUrl = upcomingCoverPath ? supabase.storage.from("media").getPublicUrl(upcomingCoverPath).data.publicUrl : null;
-                  const upcomingLocation = upcomingEvent.event_format === "online" ? "Online" : upcomingEvent.city;
-
-                  return (
-                    <Link
-                      className="grid gap-4 rounded-[20px] border border-[#E8E0D2] bg-[#FAF8FC] p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-[#D8C9E8] hover:shadow-soft sm:grid-cols-[7.5rem_1fr]"
-                      href={withReturnTo(publicEventPath(upcomingEvent.slug || upcomingEvent.id), eventReturnPath)}
-                      key={upcomingEvent.id}
-                    >
-                      {upcomingCoverUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          alt=""
-                          className="aspect-[4/3] w-full rounded-[16px] object-cover sm:h-24"
-                          src={upcomingCoverUrl}
-                        />
-                      ) : (
-                        <span
-                          className="grid aspect-[4/3] w-full place-items-center rounded-[16px] text-sm font-semibold text-white sm:h-24"
-                          style={{ backgroundColor: upcomingMainCategory?.color_hex || "#7A5D91" }}
-                        >
-                          SoulEvents
-                        </span>
-                      )}
-                      <span className="min-w-0 py-1">
-                        <span className="line-clamp-2 text-lg font-semibold leading-snug text-midnight">{upcomingEvent.title}</span>
-                        <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-ink/64">
-                          <span className="inline-flex items-center gap-1.5">
-                            <CalendarDays className="size-4 text-[#7A5D91]" aria-hidden="true" />
-                            {formatDanishDate(upcomingEvent.starts_at)}
-                          </span>
-                          <span className="inline-flex items-center gap-1.5">
-                            <Clock3 className="size-4 text-[#7A5D91]" aria-hidden="true" />
-                            {formatDanishTime(upcomingEvent.starts_at)}
-                          </span>
-                        </span>
-                        {upcomingLocation ? (
-                          <span className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-sage-700">
-                            <MapPinned className="size-4" aria-hidden="true" />
-                            {upcomingLocation}
-                          </span>
-                        ) : null}
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
-              {hasMoreFacilitatorEvents ? (
-                <Link
-                  className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#7A4EAB] transition hover:text-[#6E5285]"
-                  href={facilitatorProfileHref}
-                >
-                  Se alle events fra {facilitatorName} →
-                </Link>
-              ) : null}
-            </section>
-          ) : null}
         </div>
 
         <aside className="grid content-start gap-5 lg:sticky lg:top-6">
@@ -1212,6 +1130,74 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
           </p>
         </aside>
       </section>
+      {otherUpcomingEvents.length > 0 ? (
+        <section className="mx-auto max-w-[1400px] px-5 pb-10 sm:px-8">
+          <div className="rounded-card bg-white p-8 shadow-soft">
+            <h2 className="text-4xl font-medium text-olive">Andre kommende events fra {facilitatorName}</h2>
+            <div className="mt-5 grid gap-3">
+              {otherUpcomingEvents.map((upcomingEvent: any) => {
+                const upcomingMainCategory = upcomingEvent.event_main_categories
+                  ?.map((row: any) => (Array.isArray(row.main_categories) ? row.main_categories[0] : row.main_categories))
+                  .find((category: any) => Boolean(category));
+                const upcomingCoverPath = upcomingEvent.cover_image_path || upcomingMainCategory?.image_path || null;
+                const upcomingCoverUrl = upcomingCoverPath ? supabase.storage.from("media").getPublicUrl(upcomingCoverPath).data.publicUrl : null;
+                const upcomingLocation = upcomingEvent.event_format === "online" ? "Online" : upcomingEvent.city;
+
+                return (
+                  <Link
+                    className="grid gap-4 rounded-[20px] border border-[#E8E0D2] bg-[#FAF8FC] p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-[#D8C9E8] hover:shadow-soft sm:grid-cols-[7.5rem_1fr]"
+                    href={withReturnTo(publicEventPath(upcomingEvent.slug || upcomingEvent.id), eventReturnPath)}
+                    key={upcomingEvent.id}
+                  >
+                    {upcomingCoverUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        alt=""
+                        className="aspect-[4/3] w-full rounded-[16px] object-cover sm:h-24"
+                        src={upcomingCoverUrl}
+                      />
+                    ) : (
+                      <span
+                        className="grid aspect-[4/3] w-full place-items-center rounded-[16px] text-sm font-semibold text-white sm:h-24"
+                        style={{ backgroundColor: upcomingMainCategory?.color_hex || "#7A5D91" }}
+                      >
+                        SoulEvents
+                      </span>
+                    )}
+                    <span className="min-w-0 py-1">
+                      <span className="line-clamp-2 text-lg font-semibold leading-snug text-midnight">{upcomingEvent.title}</span>
+                      <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-ink/64">
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays className="size-4 text-[#7A5D91]" aria-hidden="true" />
+                          {formatDanishDate(upcomingEvent.starts_at)}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock3 className="size-4 text-[#7A5D91]" aria-hidden="true" />
+                          {formatDanishTime(upcomingEvent.starts_at)}
+                        </span>
+                      </span>
+                      {upcomingLocation ? (
+                        <span className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-sage-700">
+                          <MapPinned className="size-4" aria-hidden="true" />
+                          {upcomingLocation}
+                        </span>
+                      ) : null}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+            {hasMoreFacilitatorEvents ? (
+              <Link
+                className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#7A4EAB] transition hover:text-[#6E5285]"
+                href={facilitatorProfileHref}
+              >
+                Se alle events fra {facilitatorName} →
+              </Link>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

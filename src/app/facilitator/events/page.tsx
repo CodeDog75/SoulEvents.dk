@@ -75,6 +75,27 @@ function isOrganizerAcceptanceMessage(message?: string) {
   return normalized.includes("arrangørvilkår") || normalized.includes("retningslinjer");
 }
 
+function eventUpdateSuccessNotice(message?: string) {
+  if (!message) {
+    return null;
+  }
+
+  const normalized = message.toLowerCase();
+  if (!normalized.startsWith("eventet er opdateret") || normalized.includes("kunne ikke")) {
+    return null;
+  }
+
+  if (normalized.includes("uden at sende besked")) {
+    return "Der blev ikke sendt besked til deltagerne.";
+  }
+
+  if (normalized.includes("besked") || normalized.includes("deltagere")) {
+    return message;
+  }
+
+  return "";
+}
+
 type FacilitatorEventsPageProps = {
   searchParams: Promise<{
     draft?: string;
@@ -225,6 +246,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
   const initialStep = Math.min(Math.max(Number(step ?? "0") || 0, 0), 4);
   const draftMessage = message && message.toLowerCase().includes("kladde") ? message : undefined;
   const eventFormMessage = isOrganizerAcceptanceMessage(message) ? message : draftMessage;
+  const updateSuccessNotice = eventUpdateSuccessNotice(message);
   const profileReady = getFacilitatorProfileReadiness({
     categoryIds: facilitatorProfile?.facilitator_categories?.map((row: CategoryRelationRow) => row.category_id) ?? [],
     companyName: facilitatorProfile?.company_name,
@@ -256,7 +278,37 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
       </header>
 
       <section className="mx-auto grid w-full max-w-6xl gap-5 overflow-x-hidden px-4 py-5 sm:gap-6 sm:px-6 sm:py-8 lg:px-8">
-        <AuthMessage message={isEventImageMessage(message) || draftMessage ? undefined : message} />
+        {updateSuccessNotice !== null && selectedDraft ? (
+          <section className="rounded-card border border-[#D8CBE4] bg-white p-5 shadow-soft sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#F4F0F7] text-[#7A5D91]">
+                  <CheckCircle2 className="size-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <h2 className="font-serif text-2xl font-semibold text-midnight">Eventet er opdateret</h2>
+                  <p className="mt-1 text-sm leading-6 text-ink/72">Dine ændringer er gemt.</p>
+                  {updateSuccessNotice ? <p className="mt-1 text-xs font-semibold text-ink/55">{updateSuccessNotice}</p> : null}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Link
+                  className="inline-flex h-10 items-center justify-center rounded-button bg-[#7A5D91] px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285]"
+                  href={publicEventPath(selectedDraft.slug || selectedDraft.id)}
+                >
+                  Se event
+                </Link>
+                <Link
+                  className="inline-flex h-10 items-center justify-center rounded-button border border-[#D8CBE4] bg-[#F4F0F7] px-4 text-sm font-semibold text-[#6E5A86] transition hover:border-[#BFA7D8] hover:bg-white"
+                  href="/facilitator#mine-events"
+                >
+                  Tilbage til dashboard
+                </Link>
+              </div>
+            </div>
+          </section>
+        ) : null}
+        <AuthMessage message={isEventImageMessage(message) || draftMessage || updateSuccessNotice !== null ? undefined : message} />
 
         {!profileReady ? (
           <section className="rounded-md border border-terracotta/25 bg-terracotta/10 p-5">

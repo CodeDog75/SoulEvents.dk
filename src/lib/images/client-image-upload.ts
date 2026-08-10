@@ -1,6 +1,6 @@
 "use client";
 
-export const supportedImageUploadText = "Understøtter JPG, PNG, WEBP og HEIC. Maks. 10 MB pr. billede.";
+export const supportedImageUploadText = "Billeder op til 10 MB. JPG, PNG, WEBP og HEIC understøttes.";
 export const imageUploadAccept = "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif";
 
 const allowedImageMimeTypes = ["image/jpeg", "image/png", "image/webp"];
