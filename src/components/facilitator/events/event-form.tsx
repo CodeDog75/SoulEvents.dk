@@ -8,9 +8,10 @@ import {
   ArrowRight,
   ArrowDown,
   ArrowUp,
+  Calendar,
   CalendarPlus,
   CheckCircle2,
-  ChevronDown,
+  Clock,
   CreditCard,
   Eye,
   Hourglass,
@@ -647,6 +648,48 @@ function normalizeTimeOption(timeValue: string | undefined, fallback: string) {
   return normalizeTimeInputValue(timeValue) || fallback;
 }
 
+function DateInput({
+  label,
+  name,
+  value,
+  required,
+  min,
+  tone = "start",
+  onChange,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  required?: boolean;
+  min?: string;
+  tone?: "start" | "end";
+  onChange: (value: string) => void;
+}) {
+  const toneClass = tone === "end" ? " !border-[#E8E0D2] !bg-[#FFFCF7]" : "";
+
+  return (
+    <label className="grid gap-2 text-sm font-medium text-ink/72">
+      <span>
+        {label}
+        {required ? <span className="ml-1 text-[#B56F8A]">*</span> : null}
+      </span>
+      <div className="relative">
+        <input
+          autoComplete="off"
+          className={"h-12 w-full min-w-0 cursor-pointer appearance-none rounded-card border py-0 pl-4 pr-11 text-left text-base leading-none outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:min-h-0 [&::-webkit-date-and-time-value]:text-left " + fieldStateClass(value) + toneClass}
+          min={min}
+          name={name}
+          onChange={(event) => onChange(event.target.value)}
+          required={required}
+          type="date"
+          value={value}
+        />
+        <Calendar className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-midnight/55" aria-hidden="true" />
+      </div>
+    </label>
+  );
+}
+
 function TimeSelect({
   label,
   name,
@@ -703,13 +746,13 @@ function TimeSelect({
         <input name={name} type="hidden" value={currentValue} />
         <button
           aria-expanded={isOpen}
-          className={"h-12 w-full min-w-0 cursor-pointer appearance-none rounded-card border py-0 pl-4 pr-11 text-left text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none " + fieldStateClass(currentValue) + toneClass}
+          className={"h-12 w-full min-w-0 cursor-pointer appearance-none rounded-card border py-0 pl-4 pr-11 text-left text-base leading-none outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none " + fieldStateClass(currentValue) + toneClass}
           onClick={() => setIsOpen((open) => !open)}
           type="button"
         >
           {currentValue}
         </button>
-        <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-midnight/70" aria-hidden="true" />
+        <Clock className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-midnight/55" aria-hidden="true" />
         {isOpen ? (
           <div
             className="absolute left-0 top-full z-30 mt-2 max-h-64 w-full overflow-auto rounded-card border border-[#E6D8F0] bg-white py-2 shadow-soft"
@@ -3629,58 +3672,31 @@ export function EventForm({
             />
           </div>
 
-          <label className="grid gap-2 text-sm font-medium text-ink/72">
-            <span>
-              Startdato<span className="ml-1 text-[#B56F8A]">*</span>
-            </span>
-            <input
-              autoComplete="off"
-              className={"h-12 w-full min-w-0 cursor-pointer rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(startDate)}
-              name="start_date"
-              onChange={(event) => updateStartDate(event.target.value)}
-              required
-              type="date"
-              value={startDate}
-            />
-          </label>
+          <DateInput label="Startdato" name="start_date" onChange={updateStartDate} required value={startDate} />
 
-	          <TimeSelect defaultValue="19:00" label="Starttidspunkt" name="start_time" onChange={setStartTime} required value={startTime} />
+          <TimeSelect defaultValue="19:00" label="Starttidspunkt" name="start_time" onChange={setStartTime} required value={startTime} />
 
-	          {!showEndDateTime ? <input name="end_date" type="hidden" value={startDate} /> : null}
+          {!showEndDateTime ? <input name="end_date" type="hidden" value={startDate} /> : null}
 
-	          {showEndDateTime ? (
-	            <label className="grid gap-2 text-sm font-medium text-ink/72">
-	              <span>
-	                Slutdato<span className="ml-1 text-[#B56F8A]">*</span>
-	              </span>
-	              <input
-	                autoComplete="off"
-	                className={"h-12 w-full min-w-0 cursor-pointer rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] focus:!outline-none focus-visible:!outline-none focus:invalid:!border-[#7A4EAB] focus:invalid:!ring-4 focus:invalid:!ring-[#CDB4EA] " + fieldStateClass(endDate) + " !border-[#E8E0D2] !bg-[#FFFCF7]"}
-	                min={startDate}
-	                name="end_date"
-	                onChange={(event) => setEndDate(event.target.value)}
-	                required
-	                type="date"
-	                value={endDate}
-	              />
-	            </label>
-	          ) : null}
+          {showEndDateTime ? (
+            <DateInput label="Slutdato" min={startDate} name="end_date" onChange={setEndDate} required tone="end" value={endDate} />
+          ) : null}
 
-	          <TimeSelect defaultValue="21:00" label="Sluttidspunkt" name="end_time" onChange={setEndTime} required tone="end" value={endTime} />
+          <TimeSelect defaultValue="21:00" label="Sluttidspunkt" name="end_time" onChange={setEndTime} required tone="end" value={endTime} />
 
-	          {!showEndDateTime ? (
-	            <button
-	              className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-[#7A5D91] transition hover:text-[#6E5285] md:col-span-2"
-	              onClick={() => {
-	                setEndDate(startDate);
-	                setShowEndDateTime(true);
-	              }}
-	              type="button"
-	            >
-	              <Plus className="size-4" aria-hidden="true" />
-	              Anden slutdato
-	            </button>
-	          ) : null}
+          {!showEndDateTime ? (
+            <button
+              className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-[#7A5D91] transition hover:text-[#6E5285] md:col-span-2"
+              onClick={() => {
+                setEndDate(startDate);
+                setShowEndDateTime(true);
+              }}
+              type="button"
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              Anden slutdato
+            </button>
+          ) : null}
 
           {durationLabel && (
             <div
