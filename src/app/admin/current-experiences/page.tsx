@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { deleteHomepageEventCollectionAction, upsertHomepageEventCollectionAction } from "./actions";
 
@@ -161,13 +162,7 @@ function TagSelector({ tags, selectedIds }: { tags: TagOption[]; selectedIds: Se
 }
 
 function formatEventDate(value: string) {
-  return new Intl.DateTimeFormat("da-DK", {
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
+  return formatDanishEventDateTime(value);
 }
 
 function ManualEventSelector({ collection, events }: { collection?: HomepageCollection; events: ManualEventOption[] }) {

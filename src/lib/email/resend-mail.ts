@@ -1,8 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { env } from "@/lib/env";
 import { createResendClient } from "@/lib/resend";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type SendLoggedEmailInput = {
   type: string;
@@ -67,10 +68,7 @@ export function formatMoney(cents: number) {
 }
 
 export function formatDate(value: string) {
-  return new Intl.DateTimeFormat("da-DK", {
-    dateStyle: "full",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return formatDanishEventDateTime(value);
 }
 
 export function escapeHtml(value: string) {

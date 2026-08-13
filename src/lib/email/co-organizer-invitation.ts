@@ -1,5 +1,6 @@
 import { renderEmailButton, renderEmailLayout, renderEmailTable, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, formatDate, sendLoggedEmail } from "@/lib/email/resend-mail";
+import { formatDanishEventDate, formatDanishEventTime } from "@/lib/events/date-format";
 
 type CoOrganizerInvitationEmailInput = {
   eventId: string;
@@ -24,11 +25,11 @@ type ExternalCoOrganizerInvitationEmailInput = {
 };
 
 function formatEventDate(value: string) {
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "long" }).format(new Date(value));
+  return formatDanishEventDate(value);
 }
 
 function formatEventTime(value: string) {
-  return new Intl.DateTimeFormat("da-DK", { timeStyle: "short" }).format(new Date(value));
+  return formatDanishEventTime(value);
 }
 
 type CoOrganizerStatusEmailInput = {

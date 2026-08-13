@@ -5,6 +5,7 @@ import { AdminActionMenuScope } from "@/components/admin/action-menu";
 import { AdminEventCard } from "@/components/admin/admin-event-card";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 import type { EventStatus } from "@/types/database";
@@ -53,8 +54,7 @@ function normalizeReviewFilter(review?: string): EventFilter {
 }
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) return "Tidspunkt mangler";
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDanishEventDateTime(value);
 }
 
 function eventListHref({

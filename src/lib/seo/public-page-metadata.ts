@@ -1,3 +1,4 @@
+import { formatDanishEventDate } from "@/lib/events/date-format";
 import { profileCountryName } from "@/lib/locations/countries";
 import { stripHtml } from "@/lib/open-graph-core";
 
@@ -110,10 +111,7 @@ function naturalList(values: string[]) {
 }
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "long" }).format(date);
+  return value ? formatDanishEventDate(value, "") || null : null;
 }
 
 function placeText(input: { city?: string | null; country?: string | null; countryName?: string | null; region?: string | null }) {

@@ -3,6 +3,7 @@
 import { Copy, Mail, MessageCircle, Send, Share2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { trackAnalyticsEvent, type AnalyticsShareMethod } from "@/lib/analytics/client";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { publicEventPath } from "@/lib/slug";
 
 type ShareEventButtonProps = {
@@ -14,10 +15,7 @@ type ShareEventButtonProps = {
 };
 
 function formatEventDate(startsAt: string) {
-  return new Intl.DateTimeFormat("da-DK", {
-    dateStyle: "full",
-    timeStyle: "short",
-  }).format(new Date(startsAt));
+  return formatDanishEventDateTime(startsAt);
 }
 
 export function ShareEventButton({ eventId, eventSlug, eventTitle, facilitatorName, startsAt }: ShareEventButtonProps) {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapboxMap, Popup } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { CalendarDays, HeartHandshake, MapPinned } from "lucide-react";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { withReturnTo } from "@/lib/return-to";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 
@@ -191,7 +192,7 @@ function eventPopupItem(event: MapEvent, isFirst: boolean, compact = false, retu
   const title = escapeHtml(event.title);
   const facilitatorName = escapeHtml(event.facilitatorName);
   const categoryName = event.categoryName ? escapeHtml(event.categoryName) : "";
-  const date = new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.startsAt));
+  const date = formatDanishEventDateTime(event.startsAt);
   const distance =
     typeof event.distanceKm === "number"
       ? "<p style=\"font-size:12px; margin:6px 0 0; color:#5f734d; font-weight:700;\">📍 " + Math.round(event.distanceKm) + " km væk</p>"

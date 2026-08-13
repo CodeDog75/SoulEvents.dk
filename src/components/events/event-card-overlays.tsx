@@ -1,5 +1,6 @@
 import { capacityToneClasses } from "@/components/events/capacity-badge";
 import { getCapacityTone } from "@/lib/events/capacity-display";
+import { formatDanishEventTime, getDanishEventDateParts } from "@/lib/events/date-format";
 
 type EventDateBoxProps = {
   startsAt: string;
@@ -11,30 +12,12 @@ type EventImageStatusTagProps = {
   status?: string | null;
 };
 
-const eventDateFormatter = new Intl.DateTimeFormat("da-DK", {
-  day: "numeric",
-  month: "long",
-  timeZone: "Europe/Copenhagen",
-  weekday: "long",
-  year: "numeric",
-});
-const eventTimeFormatter = new Intl.DateTimeFormat("da-DK", {
-  timeStyle: "short",
-  timeZone: "Europe/Copenhagen",
-});
-
 function eventDateParts(value: string) {
-  const parts = eventDateFormatter.formatToParts(new Date(value));
-  return {
-    day: parts.find((part) => part.type === "day")?.value ?? "",
-    month: parts.find((part) => part.type === "month")?.value ?? "",
-    weekday: parts.find((part) => part.type === "weekday")?.value ?? "",
-    year: parts.find((part) => part.type === "year")?.value ?? "",
-  };
+  return getDanishEventDateParts(value);
 }
 
 export function formatEventTime(value: string) {
-  return eventTimeFormatter.format(new Date(value));
+  return formatDanishEventTime(value);
 }
 
 export function EventDateBox({ startsAt }: EventDateBoxProps) {

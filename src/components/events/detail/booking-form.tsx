@@ -7,6 +7,7 @@ import { createBookingAction } from "@/app/events/[id]/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { CapacityBadge } from "@/components/events/capacity-badge";
 import { maxSeatsPerBooking } from "@/lib/bookings/limits";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import {
   paymentInstructionsDisplay,
   type PaymentInstructionMethod,
@@ -149,7 +150,7 @@ export function BookingForm({
   const showSeatLimitMessage = !isSoldOut && availableSeats > maxSeatsPerBooking && seats >= maxSeatsPerBooking;
   const highSeatPersonLabel = seats === 1 ? "person" : "personer";
   const bookingPanelIsOpen = isFormOpen || (bookingSent && !receiptDismissed);
-  const formattedEventDate = new Intl.DateTimeFormat("da-DK", { dateStyle: "full", timeStyle: "short" }).format(new Date(eventStartsAt));
+  const formattedEventDate = formatDanishEventDateTime(eventStartsAt);
   const receiptPayment = receipt?.paymentInstructions ?? null;
   const receiptPaymentDisplay = receiptPayment ? paymentInstructionsDisplay(receiptPayment) : null;
   const receiptSeats = receipt?.seats ?? seats;

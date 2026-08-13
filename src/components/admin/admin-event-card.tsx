@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Archive, CalendarDays, Check, Clock3, Eye, MoreHorizontal, Pencil, RotateCcw, Slash, UserRound } from "lucide-react";
 import { markAdminEventReviewedAction, updateAdminEventStatusAction } from "@/app/admin/events/actions";
 import { AdminActionMenu } from "@/components/admin/action-menu";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { getUserFacingEventStatus, getUserFacingEventStatusLabel } from "@/lib/events/user-facing-status";
 import { cn } from "@/lib/utils";
 import type { EventStatus } from "@/types/database";
@@ -65,14 +66,7 @@ function EventStatusButton({ eventId, status, children }: { children: React.Reac
 }
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) return "Mangler";
-  return new Intl.DateTimeFormat("da-DK", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
+  return formatDanishEventDateTime(value, "Mangler");
 }
 
 function formatMoney(cents: number | null | undefined) {

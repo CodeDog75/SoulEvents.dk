@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Clock3, Copy, Eye, PauseCircle, PencilLine, XCircle } from "lucide-react";
 import { copyEventAsDraftAction, deleteDraftEventAction, updateEventStatusAction } from "@/app/facilitator/events/actions";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import type { EventStatus } from "@/types/database";
 
 type EventRow = {
@@ -98,7 +99,7 @@ export function EventList({ events }: EventListProps) {
                   <span className="rounded-md bg-sage-50 px-2.5 py-1 text-sage-700">
                     {statusLabels[event.status]}
                   </span>
-                  <span>{new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.starts_at))}</span>
+                  <span>{formatDanishEventDateTime(event.starts_at)}</span>
                   {event.city && <span>{event.city}</span>}
                   {event.event_reference_id ? <span>Ref. {event.event_reference_id}</span> : null}
                 </div>

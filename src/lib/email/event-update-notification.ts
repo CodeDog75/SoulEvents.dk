@@ -1,6 +1,7 @@
 import { getEmailBrandLogoUrl } from "@/lib/brand-logo";
 import { renderEmailLayout, renderPlainTextFooter } from "@/lib/email/email-layout";
 import { escapeHtml, formatDate, formatMoney, sendLoggedEmail } from "@/lib/email/resend-mail";
+import { formatDanishEventDate, formatDanishEventTime } from "@/lib/events/date-format";
 
 type EventUpdateField = {
   label: string;
@@ -33,11 +34,11 @@ function firstName(name: string) {
 }
 
 function formatEventDateOnly(value: string) {
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "full" }).format(new Date(value));
+  return formatDanishEventDate(value);
 }
 
 function formatEventTimeOnly(value: string) {
-  return new Intl.DateTimeFormat("da-DK", { timeStyle: "short" }).format(new Date(value));
+  return formatDanishEventTime(value);
 }
 
 function formatSeatLabel(seats: number) {

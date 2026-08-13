@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { requireRole } from "@/lib/auth/roles";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ function kroner(cents: number | null | undefined) {
 }
 
 function dateValue(value: string | null | undefined) {
-  return value ? new Date(value).toLocaleString("da-DK") : "";
+  return value ? formatDanishEventDateTime(value, "") : "";
 }
 
 function boolValue(value: boolean | null | undefined) {

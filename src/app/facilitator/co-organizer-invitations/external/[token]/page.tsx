@@ -13,6 +13,7 @@ import {
   normalizeInvitationEmail,
 } from "@/lib/co-organizers/external-invitations";
 import { getCurrentProfile } from "@/lib/auth/roles";
+import { formatDanishEventDate, formatDanishEventTime } from "@/lib/events/date-format";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -27,13 +28,11 @@ function first<T>(value: T | T[] | null | undefined) {
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return "Dato mangler";
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "long" }).format(new Date(value));
+  return formatDanishEventDate(value);
 }
 
 function formatTime(value?: string | null) {
-  if (!value) return "Tidspunkt mangler";
-  return new Intl.DateTimeFormat("da-DK", { timeStyle: "short" }).format(new Date(value));
+  return formatDanishEventTime(value);
 }
 
 function formatLocation(input: {

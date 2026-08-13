@@ -1,3 +1,4 @@
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import type { BookingStatus } from "@/types/database";
 
 type BookingRow = {
@@ -64,9 +65,7 @@ export function AdminBookingTable({ bookings }: AdminBookingTableProps) {
                 <td className="px-4 py-4 align-top">
                   <p className="font-semibold text-midnight">{booking.event_title_snapshot}</p>
                   <p className="mt-1 text-xs text-ink/56">
-                    {new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(
-                      new Date(booking.event_starts_at_snapshot),
-                    )}
+                    {formatDanishEventDateTime(booking.event_starts_at_snapshot)}
                   </p>
                   {booking.primary_category_snapshot && (
                     <p className="mt-1 text-xs text-sage-700">{booking.primary_category_snapshot}</p>

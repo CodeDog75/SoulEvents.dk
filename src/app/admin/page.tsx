@@ -33,6 +33,7 @@ import { AuthMessage } from "@/components/auth/auth-message";
 import { FacilitatorStatusBadge } from "@/components/admin/facilitator-status-badge";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireRole } from "@/lib/auth/roles";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { publicEventPath } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 
@@ -47,8 +48,7 @@ function formatNumber(value: number | null | undefined) {
 }
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) return "Tidspunkt mangler";
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDanishEventDateTime(value);
 }
 
 function formatDate(value: string | null | undefined) {

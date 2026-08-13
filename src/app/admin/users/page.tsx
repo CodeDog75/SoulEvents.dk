@@ -5,6 +5,7 @@ import { AdminUserSearchForm } from "@/components/admin/users/admin-user-search-
 import { UserRoleTable } from "@/components/admin/users/user-role-table";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { requireRole } from "@/lib/auth/roles";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import {
   getFacilitatorSubmissionMissingDisplayItems,
   getFacilitatorSubmissionReadiness,
@@ -592,8 +593,7 @@ const eventStatusClasses: Record<EventStatus, string> = {
 };
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) return "Tidspunkt mangler";
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDanishEventDateTime(value);
 }
 
 function eventStatusLabel(status: string | null | undefined) {

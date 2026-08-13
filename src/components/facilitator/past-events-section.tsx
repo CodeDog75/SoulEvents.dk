@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { CalendarDays, CheckCircle2, ChevronDown, ChevronUp, MapPinned } from "lucide-react";
 import type { PublicEvent } from "@/components/events/public-event-list";
+import { formatDanishEventShortDate } from "@/lib/events/date-format";
 import { withReturnTo } from "@/lib/return-to";
 import { publicEventPath } from "@/lib/slug";
 
@@ -13,11 +14,7 @@ function first<T>(value: T | T[] | null | undefined) {
 }
 
 function formatDanishDate(value: string) {
-  return new Intl.DateTimeFormat("da-DK", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
+  return formatDanishEventShortDate(value);
 }
 
 function publicMediaUrl(imagePath?: string | null) {

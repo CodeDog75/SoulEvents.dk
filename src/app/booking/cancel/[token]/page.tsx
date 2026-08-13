@@ -6,6 +6,7 @@ import {
   getBookingByParticipantToken,
   publicBookingEvent,
 } from "@/lib/bookings/public-booking-access";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { publicEventPath } from "@/lib/slug";
 
 type CancelBookingPageProps = {
@@ -14,11 +15,7 @@ type CancelBookingPageProps = {
 };
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("da-DK", {
-    dateStyle: "full",
-    timeStyle: "short",
-    timeZone: "Europe/Copenhagen",
-  }).format(new Date(value));
+  return formatDanishEventDateTime(value);
 }
 
 function formatSeats(seats: number) {

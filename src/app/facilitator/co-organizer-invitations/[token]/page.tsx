@@ -5,6 +5,7 @@ import { respondToCoOrganizerInvitationAction } from "@/app/facilitator/events/a
 import { AuthMessage } from "@/components/auth/auth-message";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { getCurrentProfile } from "@/lib/auth/roles";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { getUserFacingEventStatus } from "@/lib/events/user-facing-status";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -20,8 +21,7 @@ function first<T>(value: T | T[] | null | undefined) {
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return "Tidspunkt mangler";
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDanishEventDateTime(value);
 }
 
 function formatLocation(input: { address_line?: string | null; city?: string | null; postal_code?: string | null }) {

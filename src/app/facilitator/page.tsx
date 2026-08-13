@@ -32,6 +32,7 @@ import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireRole } from "@/lib/auth/roles";
 import { getReservedEventSeatsByEventId } from "@/lib/events/capacity";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
 import { getUserFacingEventStatus, getUserFacingEventStatusLabel, isEventPastEnd } from "@/lib/events/user-facing-status";
@@ -240,12 +241,11 @@ async function getDashboardEvents(supabase: ReturnType<typeof createAdminClient>
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Copenhagen" }).format(new Date(value));
+  return formatDanishEventDateTime(value);
 }
 
 function formatDateTime(value: string | null | undefined) {
-  if (!value) return "Tidspunkt mangler";
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Copenhagen" }).format(new Date(value));
+  return formatDanishEventDateTime(value);
 }
 
 function statusClass(status: string) {

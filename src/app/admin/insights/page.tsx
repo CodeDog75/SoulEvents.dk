@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, BarChart3, CalendarDays, MousePointerClick, Share2, Ticket, TrendingUp, UserRound, UsersRound } from "lucide-react";
 import { requireRole } from "@/lib/auth/roles";
+import { formatDanishEventShortDate } from "@/lib/events/date-format";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 import { createClient } from "@/lib/supabase/server";
 
@@ -112,8 +113,7 @@ function formatPercent(value: number) {
 }
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return "Dato mangler";
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium" }).format(new Date(value));
+  return formatDanishEventShortDate(value);
 }
 
 function shareMethodLabel(method: string | null | undefined) {

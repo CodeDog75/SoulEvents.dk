@@ -8,6 +8,7 @@ import { InvoiceDraftList } from "@/components/admin/reports/invoice-draft-list"
 import { ReportForm } from "@/components/admin/reports/report-form";
 import { requireRole } from "@/lib/auth/roles";
 import { billableBookingStatuses, defaultCommissionRateBps } from "@/lib/commission/terms";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { resetFacilitatorCommissionTermsAction, syncCompletedEventFinancialRecordsAction, updateEventFinancialRecordStatusAction } from "./actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -190,7 +191,7 @@ const eventFinancialStatusClasses: Record<string, string> = {
 };
 
 function compactDateTime(value: string | null | undefined) {
-  return value ? new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Ikke angivet";
+  return formatDanishEventDateTime(value, "Ikke angivet");
 }
 
 function FinancialStatusButton({

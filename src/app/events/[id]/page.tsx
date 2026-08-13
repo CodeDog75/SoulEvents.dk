@@ -13,6 +13,7 @@ import { UserTextWithLinks } from "@/components/user-text-with-links";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { bookingReceiptCookieName } from "@/lib/bookings/receipt-cookie";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
+import { formatDanishEventDate, formatDanishEventTime, isSameDanishEventDate } from "@/lib/events/date-format";
 import { isEventGalleryVideoPath } from "@/lib/events/gallery-media";
 import { getUserFacingEventStatus, isEventPastEnd } from "@/lib/events/user-facing-status";
 import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
@@ -265,33 +266,6 @@ function formatPrice(priceCents: number) {
   }
 
   return new Intl.NumberFormat("da-DK").format(priceCents / 100) + " kr.";
-}
-
-function formatDanishDate(value: string) {
-  const parts = new Intl.DateTimeFormat("da-DK", {
-    day: "numeric",
-    month: "long",
-    timeZone: "Europe/Copenhagen",
-    weekday: "long",
-    year: "numeric",
-  }).formatToParts(new Date(value));
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
-
-  return `${part("weekday")} ${part("day")}. ${part("month")} ${part("year")}`.trim();
-}
-
-function formatDanishTime(value: string) {
-  return new Intl.DateTimeFormat("da-DK", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Europe/Copenhagen",
-  })
-    .format(new Date(value))
-    .replace(":", ".");
-}
-
-function isSameDanishDate(start: string, end: string) {
-  return formatDanishDate(start) === formatDanishDate(end);
 }
 
 function formatEventDuration(startsAt: string, endsAt: string | null) {
@@ -718,14 +692,14 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     : null;
   const eventDuration = formatEventDuration(event.starts_at, event.ends_at);
   const eventHasEndTime = Boolean(event.ends_at);
-  const eventIsSameDay = event.ends_at ? isSameDanishDate(event.starts_at, event.ends_at) : true;
+  const eventIsSameDay = event.ends_at ? isSameDanishEventDate(event.starts_at, event.ends_at) : true;
   const eventDateLines =
     event.ends_at && !eventIsSameDay
       ? [
-          `${formatDanishDate(event.starts_at)} · ${formatDanishTime(event.starts_at)}`,
-          `${formatDanishDate(event.ends_at)} · ${formatDanishTime(event.ends_at)}`,
+          `${formatDanishEventDate(event.starts_at)} · ${formatDanishEventTime(event.starts_at)}`,
+          `${formatDanishEventDate(event.ends_at)} · ${formatDanishEventTime(event.ends_at)}`,
         ]
-      : [formatDanishDate(event.starts_at), eventHasEndTime ? `${formatDanishTime(event.starts_at)} – ${formatDanishTime(event.ends_at!)}` : formatDanishTime(event.starts_at)];
+      : [formatDanishEventDate(event.starts_at), eventHasEndTime ? `${formatDanishEventTime(event.starts_at)} – ${formatDanishEventTime(event.ends_at!)}` : formatDanishEventTime(event.starts_at)];
   const isOnlineEvent = event.event_format === "online";
   const locationTitle = isOnlineEvent ? "Online" : event.address_line || event.city || region?.name || "Lokation kommer snart";
   const locationDetail = isOnlineEvent
@@ -744,7 +718,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const eventCoverColor = mainCategories[0]?.color_hex || categories[0]?.color_hex || "#D89A94";
   const canonicalEventUrl = absoluteUrl(publicEventPath(event.slug || event.id));
   const eventDescription = event.long_description?.trim() ?? "";
-  const cancelledDateLabel = formatDanishDate(event.updated_at || event.starts_at);
+  const cancelledDateLabel = formatDanishEventDate(event.updated_at || event.starts_at);
 
   const otherUpcomingEvents = (facilitatorUpcomingEvents ?? []).slice(0, 3);
   const hasMoreFacilitatorEvents = (facilitatorUpcomingEvents ?? []).length > 3;
@@ -1169,11 +1143,11 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
                       <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold text-ink/64">
                         <span className="inline-flex items-center gap-1.5">
                           <CalendarDays className="size-4 text-[#7A5D91]" aria-hidden="true" />
-                          {formatDanishDate(upcomingEvent.starts_at)}
+                          {formatDanishEventDate(upcomingEvent.starts_at)}
                         </span>
                         <span className="inline-flex items-center gap-1.5">
                           <Clock3 className="size-4 text-[#7A5D91]" aria-hidden="true" />
-                          {formatDanishTime(upcomingEvent.starts_at)}
+                          {formatDanishEventTime(upcomingEvent.starts_at)}
                         </span>
                       </span>
                       {upcomingLocation ? (

@@ -16,6 +16,7 @@ import { CancelBookingAction } from "@/components/facilitator/bookings/cancel-bo
 import { ParticipantListMenu } from "@/components/facilitator/bookings/participant-list-menu";
 import { PaymentReminderAction } from "@/components/facilitator/bookings/payment-reminder-action";
 import { getReservedSeatsFromRows, isActiveBookingStatus } from "@/lib/events/capacity";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { publicMediaUrl } from "@/lib/media/public-url";
 import { parsePaymentInstructionsSnapshot } from "@/lib/payment-instructions";
 import type { BookingStatus, Json } from "@/types/database";
@@ -130,7 +131,7 @@ function formatMoney(cents: number) {
 }
 
 function formatEventDate(value: string) {
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDanishEventDateTime(value);
 }
 
 function first<T>(value: T | T[] | null | undefined) {
@@ -151,7 +152,7 @@ function formatShortDateTime(value: string | null | undefined) {
     return null;
   }
 
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDanishEventDateTime(value);
 }
 
 function CopyReferenceButton({ reference }: { reference: string }) {

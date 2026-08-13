@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Download, Printer, Users, X } from "lucide-react";
+import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import type { BookingStatus } from "@/types/database";
 
 type ParticipantListRow = {
@@ -207,7 +208,7 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
                   {eventTitle}
                 </h2>
                 <p className="mt-1 text-sm text-ink/64">
-                  {formatDateTime(eventStartsAt)}{eventLocation ? ` · ${eventLocation}` : ""}
+                  {formatDanishEventDateTime(eventStartsAt)}{eventLocation ? ` · ${eventLocation}` : ""}
                 </p>
                 <p className="mt-2 text-sm font-semibold text-sage-700">
                   {bookingCount} tilmeldinger · {seatCount} reserverede pladser
@@ -292,7 +293,7 @@ export function ParticipantListMenu({ bookings, eventLocation, eventStartsAt, ev
                 <div className="hidden print:block">
                   <h1 className="text-xl font-bold text-midnight">SoulEvents</h1>
                   <h2 className="mt-4 text-2xl font-bold text-midnight">{eventTitle}</h2>
-                  <p className="mt-1 text-sm text-ink/70">{formatDateTime(eventStartsAt)}</p>
+                  <p className="mt-1 text-sm text-ink/70">{formatDanishEventDateTime(eventStartsAt)}</p>
                   {eventLocation ? <p className="text-sm text-ink/70">{eventLocation}</p> : null}
                   <p className="mt-3 text-sm font-bold text-midnight">
                     Antal bookinger: {bookingCount} · Antal reserverede pladser: {seatCount}
