@@ -12,6 +12,7 @@ type EventMediaGalleryItem = {
 };
 
 type EventMediaGalleryProps = {
+  fixedPreviewAspectRatio?: string;
   items: EventMediaGalleryItem[];
 };
 
@@ -41,7 +42,7 @@ function lightboxFrameStyle(ratio: number | undefined): CSSProperties {
   };
 }
 
-export function EventMediaGallery({ items }: EventMediaGalleryProps) {
+export function EventMediaGallery({ fixedPreviewAspectRatio, items }: EventMediaGalleryProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [mediaRatios, setMediaRatios] = useState<Record<string, number>>({});
   const touchStartX = useRef<number | null>(null);
@@ -126,7 +127,7 @@ export function EventMediaGallery({ items }: EventMediaGalleryProps) {
             className="group relative max-h-[28rem] overflow-hidden rounded-[18px] bg-[#F4F0F7] text-left shadow-soft outline-none ring-offset-2 ring-offset-white transition hover:-translate-y-0.5 hover:shadow-lift focus-visible:ring-2 focus-visible:ring-[#7A5D91] sm:max-h-[22rem]"
             key={item.src}
             onClick={() => setActiveIndex(index)}
-            style={{ aspectRatio: previewAspectRatio(mediaRatios[item.src]) }}
+            style={{ aspectRatio: fixedPreviewAspectRatio ?? previewAspectRatio(mediaRatios[item.src]) }}
             type="button"
           >
             {item.type === "video" ? (

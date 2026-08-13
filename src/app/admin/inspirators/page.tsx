@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { ArrowLeft, ImagePlus, Save, Sparkles, Trash2 } from "lucide-react";
-import { archiveInspiratorAction, deleteInspiratorImageAction, upsertInspiratorAction } from "@/app/admin/inspirators/actions";
+import { ArrowLeft, ImagePlus, Save, Sparkles } from "lucide-react";
+import { archiveInspiratorAction, upsertInspiratorAction } from "@/app/admin/inspirators/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
+import { InspiratorExtraMediaFields, InspiratorImageUploadField } from "@/components/admin/inspirator-media-fields";
 import { requireRole } from "@/lib/auth/roles";
+import { isEventGalleryVideoPath } from "@/lib/events/gallery-media";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -52,35 +54,6 @@ function publicMediaUrl(imagePath: string | null) {
   return supabaseUrl.replace(/\/$/, "") + "/storage/v1/object/public/media/" + encodedPath;
 }
 
-function imagePreview(path: string | null, label: string) {
-  const url = publicMediaUrl(path);
-  return url ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img alt={label} className="h-36 w-full rounded-xl object-cover" src={url} />
-  ) : (
-    <div className="grid h-36 place-items-center rounded-xl bg-[#F4F0F7] text-sm font-semibold text-[#7A5D91]">Intet billede endnu</div>
-  );
-}
-
-function ImageUpload({ name, label, currentPath }: { name: string; label: string; currentPath?: string | null }) {
-  return (
-    <div className="rounded-2xl border border-[#E5DDEA] bg-[#FAF6EF] p-4">
-      {currentPath !== undefined && imagePreview(currentPath, label)}
-      <label className="mt-3 grid gap-2 text-sm font-semibold text-[#2F2633]/75">
-        {label}
-        <input accept="image/png,image/jpeg,image/webp" className="block w-full text-sm file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[#7A5D91]" name={name} type="file" />
-      </label>
-      {currentPath && (
-        <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-[#6E6475]">
-          <input className="size-4 accent-[#7A5D91]" name={"remove_" + name} type="checkbox" />
-          Fjern nuværende billede
-        </label>
-      )}
-      <p className="mt-2 text-xs leading-5 text-[#6E6475]">Brug JPG, PNG eller WebP under 8 MB.</p>
-    </div>
-  );
-}
-
 function TextInput({ label, name, defaultValue, required, placeholder, maxLength = 180 }: { label: string; name: string; defaultValue?: string | null; required?: boolean; placeholder?: string; maxLength?: number }) {
   return (
     <label className="grid gap-2 text-sm font-semibold text-[#2F2633]/75">
@@ -90,9 +63,32 @@ function TextInput({ label, name, defaultValue, required, placeholder, maxLength
   );
 }
 
+function inspiratorMediaToInitialMedia(images: InspiratorImage[]) {
+  return images
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((image) => ({
+      altText: image.alt_text,
+      id: image.id,
+      imagePath: image.image_path,
+      previewUrl: publicMediaUrl(image.image_path) ?? "",
+      type: isEventGalleryVideoPath(image.image_path) ? "video" as const : "image" as const,
+    }))
+    .filter((image) => image.previewUrl);
+}
+
 function InspiratorForm({ inspirator, title }: { inspirator?: Inspirator; title: string }) {
-  const moodImages = (inspirator?.inspirator_images ?? []).filter((image) => image.section === "mood").sort((a, b) => a.sort_order - b.sort_order);
-  const galleryImages = (inspirator?.inspirator_images ?? []).filter((image) => image.section === "gallery").sort((a, b) => a.sort_order - b.sort_order);
+  const mediaGroups = [
+    {
+      initialMedia: inspiratorMediaToInitialMedia((inspirator?.inspirator_images ?? []).filter((image) => image.section === "mood")),
+      section: "mood" as const,
+      title: "Stemning",
+    },
+    {
+      initialMedia: inspiratorMediaToInitialMedia((inspirator?.inspirator_images ?? []).filter((image) => image.section === "gallery")),
+      section: "gallery" as const,
+      title: "Galleri",
+    },
+  ];
 
   return (
     <details className="overflow-hidden rounded-[1.5rem] border border-[#E5DDEA] bg-white shadow-soft">
@@ -116,8 +112,8 @@ function InspiratorForm({ inspirator, title }: { inspirator?: Inspirator; title:
 
         <section className="grid gap-5 lg:grid-cols-[320px_1fr]">
           <aside className="grid content-start gap-4">
-            <ImageUpload currentPath={inspirator?.profile_image_path ?? null} label="Profilbillede" name="profile_image" />
-            <ImageUpload currentPath={inspirator?.hero_image_path ?? null} label="Hero/stemningsbillede" name="hero_image" />
+            <InspiratorImageUploadField currentPath={inspirator?.profile_image_path ?? null} currentUrl={publicMediaUrl(inspirator?.profile_image_path ?? null)} label="Profilbillede" name="profile_image" />
+            <InspiratorImageUploadField currentPath={inspirator?.hero_image_path ?? null} currentUrl={publicMediaUrl(inspirator?.hero_image_path ?? null)} label="Hero/stemningsbillede" name="hero_image" />
           </aside>
 
           <div className="grid gap-4">
@@ -167,19 +163,10 @@ function InspiratorForm({ inspirator, title }: { inspirator?: Inspirator; title:
             <ImagePlus className="size-5 text-[#7A5D91]" aria-hidden="true" />
             <h3 className="font-semibold text-[#2F2633]">Stemningsbilleder og galleri</h3>
           </div>
-          <p className="mt-2 text-sm leading-6 text-[#6E6475]">Upload nye billeder her. Eksisterende billeder kan slettes enkeltvis nedenfor.</p>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {Array.from({ length: 4 }, (_, index) => (
-              <div className="rounded-xl bg-white p-4" key={"mood-" + index}>
-                <ImageUpload label={"Stemningsbillede " + (index + 1)} name={"mood_image_" + (index + 1)} />
-                <TextInput label="Billedtekst" name={"mood_alt_" + (index + 1)} maxLength={160} />
-              </div>
-            ))}
-            {Array.from({ length: 4 }, (_, index) => (
-              <div className="rounded-xl bg-white p-4" key={"gallery-" + index}>
-                <ImageUpload label={"Galleribillede " + (index + 1)} name={"gallery_image_" + (index + 1)} />
-                <TextInput label="Billedtekst" name={"gallery_alt_" + (index + 1)} maxLength={160} />
-              </div>
+          <p className="mt-2 text-sm leading-6 text-[#6E6475]">Tilføj billeder eller korte videoer. Eksisterende og nye medier håndteres direkte i felterne her.</p>
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            {mediaGroups.map((group) => (
+              <InspiratorExtraMediaFields group={group.section} initialMedia={group.initialMedia} key={group.section} title={group.title} />
             ))}
           </div>
         </section>
@@ -189,30 +176,6 @@ function InspiratorForm({ inspirator, title }: { inspirator?: Inspirator; title:
           Gem inspirator
         </button>
       </form>
-
-      {(moodImages.length > 0 || galleryImages.length > 0) && (
-        <section className="border-t border-[#E5DDEA] bg-white p-5">
-          <h3 className="font-semibold text-[#2F2633]">Eksisterende billeder</h3>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[...moodImages, ...galleryImages].map((image) => (
-              <article className="overflow-hidden rounded-xl border border-[#E5DDEA]" key={image.id}>
-                {imagePreview(image.image_path, image.alt_text || inspirator?.name || "Inspirator")}
-                <div className="p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#7A5D91]">{image.section === "mood" ? "Stemning" : "Galleri"}</p>
-                  <p className="mt-1 text-sm text-[#6E6475]">{image.alt_text || "Ingen billedtekst"}</p>
-                  <form action={deleteInspiratorImageAction} className="mt-3">
-                    <input name="id" type="hidden" value={image.id} />
-                    <button className="inline-flex h-9 items-center gap-2 rounded-full border border-[#D8A7B1] px-3 text-sm font-semibold text-[#9A5D68]" type="submit">
-                      <Trash2 className="size-4" aria-hidden="true" />
-                      Slet billede
-                    </button>
-                  </form>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
 
       {inspirator && (
         <form action={archiveInspiratorAction} className="border-t border-[#E5DDEA] bg-white px-5 py-4">

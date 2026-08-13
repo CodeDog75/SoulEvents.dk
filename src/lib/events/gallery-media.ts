@@ -5,7 +5,10 @@ export const supportedEventGalleryUploadText = "Billeder op til 10 MB. Videoer o
 
 const allowedImageTypes = new Map([
   ["image/jpeg", "jpg"],
+  ["image/jpg", "jpg"],
+  ["image/pjpeg", "jpg"],
   ["image/png", "png"],
+  ["image/x-png", "png"],
   ["image/webp", "webp"],
   ["image/heic", "heic"],
   ["image/heif", "heif"],
@@ -26,6 +29,7 @@ const allowedVideoExtensions = new Map([
   ["mp4", "mp4"],
   ["mov", "mov"],
 ]);
+const genericUploadTypes = new Set(["application/octet-stream", "binary/octet-stream"]);
 
 export function eventGalleryPathExtension(path: string | null | undefined) {
   return path?.split("?")[0]?.split(".").pop()?.toLowerCase() ?? "";
@@ -46,14 +50,18 @@ export function normalizeEventGalleryVideoFile(file: File) {
 }
 
 export function eventGalleryFileExtension(file: File) {
-  const videoExtension = allowedVideoTypes.get(file.type) ?? allowedVideoExtensions.get(eventGalleryPathExtension(file.name));
+  return eventGalleryFileExtensionFromMetadata({ fileName: file.name, type: file.type });
+}
+
+export function eventGalleryFileExtensionFromMetadata(input: { fileName: string; type?: string | null }) {
+  const videoExtension = allowedVideoTypes.get(input.type ?? "") ?? allowedVideoExtensions.get(eventGalleryPathExtension(input.fileName));
   if (videoExtension) return videoExtension;
-  return allowedImageTypes.get(file.type) ?? allowedImageExtensions.get(eventGalleryPathExtension(file.name)) ?? null;
+  return allowedImageTypes.get(input.type ?? "") ?? allowedImageExtensions.get(eventGalleryPathExtension(input.fileName)) ?? null;
 }
 
 export function validateEventGalleryFile(file: File) {
   if (isEventGalleryVideoFile(file)) {
-    if (file.type && !allowedVideoTypes.has(file.type)) {
+    if (file.type && !allowedVideoTypes.has(file.type) && !genericUploadTypes.has(file.type)) {
       return "Kun MP4- og MOV-videoer understøttes.";
     }
 
@@ -69,6 +77,34 @@ export function validateEventGalleryFile(file: File) {
   }
 
   if (file.size > maxEventGalleryImageFileSize) {
+    return "Billedet er for stort. Vælg et billede på højst 10 MB.";
+  }
+
+  return null;
+}
+
+export function validateEventGalleryFileMetadata(input: { fileName: string; size: number; type?: string | null }) {
+  const extension = eventGalleryFileExtensionFromMetadata(input);
+  const isVideo = extension === "mp4" || extension === "mov";
+  const hasGenericType = Boolean(input.type && genericUploadTypes.has(input.type));
+
+  if (!extension) {
+    return "Stemningsmedier skal være JPG, PNG, WebP, HEIC, MP4 eller MOV.";
+  }
+
+  if (isVideo && input.type && !allowedVideoTypes.has(input.type) && !hasGenericType) {
+    return "Kun MP4- og MOV-videoer understøttes.";
+  }
+
+  if (!isVideo && input.type && !allowedImageTypes.has(input.type) && !hasGenericType) {
+    return "Stemningsmedier skal være JPG, PNG, WebP, HEIC, MP4 eller MOV.";
+  }
+
+  if (isVideo && input.size > maxEventGalleryVideoFileSize) {
+    return "Videoen er for stor. Vælg en MP4 eller MOV på højst 50 MB.";
+  }
+
+  if (!isVideo && input.size > maxEventGalleryImageFileSize) {
     return "Billedet er for stort. Vælg et billede på højst 10 MB.";
   }
 

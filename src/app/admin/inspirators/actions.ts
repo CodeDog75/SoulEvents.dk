@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
+import { eventGalleryContentTypeFromPath, eventGalleryFileExtension, eventGalleryFileExtensionFromMetadata, validateEventGalleryFile, validateEventGalleryFileMetadata } from "@/lib/events/gallery-media";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureMediaStorageBucket } from "@/lib/supabase/storage-buckets";
 
 function go(message: string): never {
   redirect("/admin/inspirators?message=" + encodeURIComponent(message));
@@ -29,24 +31,11 @@ function numberFrom(formData: FormData, name: string, fallback: number) {
 }
 
 function extensionFromFile(file: File) {
-  const fromName = file.name.split(".").pop()?.toLowerCase();
-  if (fromName && ["jpg", "jpeg", "png", "webp"].includes(fromName)) {
-    return fromName === "jpeg" ? "jpg" : fromName;
-  }
-  if (file.type === "image/png") return "png";
-  if (file.type === "image/webp") return "webp";
-  return "jpg";
+  return eventGalleryFileExtension(file) ?? "jpg";
 }
 
-async function uploadImage(file: File, folder: string) {
-  if (!file.type.startsWith("image/")) {
-    go("Filen skal være et billede.");
-  }
-  if (file.size > 8 * 1024 * 1024) {
-    go("Billedet er for stort. Vælg et billede under 8 MB.");
-  }
-
-  const safeName = file.name
+function safeName(value: string) {
+  return value
     .replace(/\.[^.]+$/, "")
     .toLowerCase()
     .normalize("NFD")
@@ -54,20 +43,107 @@ async function uploadImage(file: File, folder: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "")
     .slice(0, 60);
+}
 
-  const imagePath = folder + "/" + Date.now() + "-" + (safeName || "inspirator") + "." + extensionFromFile(file);
+function inspiratorMediaPath(section: "mood" | "gallery", input: { fileName: string; type?: string | null }) {
+  const extension = eventGalleryFileExtensionFromMetadata(input) ?? "jpg";
+  return "inspirators/" + section + "/" + Date.now() + "-" + crypto.randomUUID() + "-" + (safeName(input.fileName) || "inspirator") + "." + extension;
+}
+
+function validInspiratorMediaPath(path: string | null, section: "mood" | "gallery") {
+  if (!path || /^https?:\/\//i.test(path)) return "";
+  if (!path.startsWith("inspirators/" + section + "/")) return "";
+  if (!eventGalleryFileExtensionFromMetadata({ fileName: path })) return "";
+  return path;
+}
+
+async function uploadImage(file: File, folder: string) {
+  const extension = extensionFromFile(file);
+  if (!["jpg", "png", "webp", "heic", "heif"].includes(extension)) {
+    go("Filen skal være et billede.");
+  }
+  const validationError = validateEventGalleryFile(file);
+  if (validationError) {
+    go(validationError);
+  }
+  return uploadMedia(file, folder);
+}
+
+async function uploadMedia(file: File, folder: string) {
+  const validationError = validateEventGalleryFile(file);
+  if (validationError) {
+    go(validationError);
+  }
+  const imagePath = folder + "/" + Date.now() + "-" + (safeName(file.name) || "inspirator") + "." + extensionFromFile(file);
   const supabase = createAdminClient();
   const { error } = await supabase.storage.from("media").upload(imagePath, file, {
     cacheControl: "31536000",
-    contentType: file.type || "image/jpeg",
+    contentType: eventGalleryContentTypeFromPath(imagePath),
     upsert: false,
   });
 
   if (error) {
-    go("Billedet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
+    go("Mediet kunne ikke uploades. Tjek at media-bucket findes i Supabase.");
   }
 
   return imagePath;
+}
+
+export async function createSignedInspiratorMediaUploadAction(input: {
+  contentType: string;
+  fileName: string;
+  section: "mood" | "gallery";
+  size: number;
+}) {
+  await requireRole("admin");
+
+  const section = input.section === "gallery" ? "gallery" : "mood";
+  const metadata = {
+    fileName: input.fileName,
+    size: Number(input.size),
+    type: input.contentType,
+  };
+  const validationError = validateEventGalleryFileMetadata(metadata);
+
+  if (validationError) {
+    return { contentType: null, error: validationError, path: null, token: null };
+  }
+
+  const imagePath = inspiratorMediaPath(section, metadata);
+  const contentType = eventGalleryContentTypeFromPath(imagePath);
+  const supabase = createAdminClient();
+  const bucketError = await ensureMediaStorageBucket(supabase);
+
+  if (bucketError) {
+    console.error("Inspirator media bucket setup error", {
+      message: bucketError.message,
+      path: imagePath,
+      size: metadata.size,
+      type: metadata.type,
+    });
+    return { contentType: null, error: "Media-bucketten kunne ikke klargøres. Kør storage-migrationen og prøv igen.", path: null, token: null };
+  }
+
+  const { data, error } = await supabase.storage.from("media").createSignedUploadUrl(imagePath, {
+    upsert: false,
+  });
+
+  if (error) {
+    console.error("Signed inspirator media upload URL could not be created", {
+      message: error.message,
+      path: imagePath,
+      size: metadata.size,
+      type: metadata.type,
+    });
+    return { contentType: null, error: "Upload kunne ikke startes: " + error.message, path: null, token: null };
+  }
+
+  return {
+    contentType,
+    error: null,
+    path: data.path,
+    token: data.token,
+  };
 }
 
 async function imageFromForm(formData: FormData, name: string, currentPath: string | null, folder: string) {
@@ -79,26 +155,77 @@ async function imageFromForm(formData: FormData, name: string, currentPath: stri
   return uploadImage(file, folder);
 }
 
-async function insertExtraImages(formData: FormData, inspiratorId: string, section: "mood" | "gallery") {
+async function syncExtraMediaSlots(formData: FormData, inspiratorId: string, section: "mood" | "gallery") {
   const supabase = createAdminClient();
-  const rows = [];
-  const count = section === "mood" ? 8 : 8;
+  const submittedIds = new Set<string>();
+  const count = 4;
 
   for (let index = 1; index <= count; index += 1) {
+    const imageId = getOptionalString(formData, section + "_image_id_" + index);
+    const uploadedPathValue = getOptionalString(formData, section + "_image_path_" + index);
+    const uploadedPath = uploadedPathValue ? validInspiratorMediaPath(uploadedPathValue, section) : "";
+    if (uploadedPathValue && !uploadedPath) {
+      go("Mediets storage-sti er ugyldig.");
+    }
     const file = formData.get(section + "_image_" + index);
-    if (!(file instanceof File) || file.size === 0) continue;
-    rows.push({
-      inspirator_id: inspiratorId,
-      section,
-      image_path: await uploadImage(file, "inspirators/" + section),
-      alt_text: getOptionalString(formData, section + "_alt_" + index),
-      sort_order: index * 10,
-    });
+    const hasNewFile = file instanceof File && file.size > 0;
+    const altText = getOptionalString(formData, section + "_alt_" + index);
+    const sortOrder = index * 10;
+
+    if (!imageId && !hasNewFile && !uploadedPath) continue;
+
+    if (imageId) {
+      submittedIds.add(imageId);
+      const payload: { alt_text: string | null; image_path?: string; sort_order: number } = {
+        alt_text: altText,
+        sort_order: sortOrder,
+      };
+
+      if (hasNewFile) {
+        payload.image_path = await uploadMedia(file, "inspirators/" + section);
+      } else if (uploadedPath) {
+        payload.image_path = uploadedPath;
+      }
+
+      const { error } = await supabase
+        .from("inspirator_images")
+        .update(payload)
+        .eq("id", imageId)
+        .eq("inspirator_id", inspiratorId)
+        .eq("section", section);
+
+      if (error) go("Profilen blev gemt, men medierne kunne ikke opdateres.");
+      continue;
+    }
+
+    if (hasNewFile || uploadedPath) {
+      const imagePath = uploadedPath || (file instanceof File ? await uploadMedia(file, "inspirators/" + section) : "");
+      if (!imagePath) continue;
+
+      const { data, error } = await supabase.from("inspirator_images").insert({
+        inspirator_id: inspiratorId,
+        section,
+        image_path: imagePath,
+        alt_text: altText,
+        sort_order: sortOrder,
+      }).select("id").single();
+
+      if (error) go("Profilen blev gemt, men mediet kunne ikke gemmes.");
+      if (data?.id) submittedIds.add(data.id);
+    }
   }
 
-  if (rows.length > 0) {
-    const { error } = await supabase.from("inspirator_images").insert(rows);
-    if (error) go("Profilen blev gemt, men ekstra billeder kunne ikke gemmes.");
+  const deleteQuery = supabase
+    .from("inspirator_images")
+    .delete()
+    .eq("inspirator_id", inspiratorId)
+    .eq("section", section);
+  const { error: deleteError } = submittedIds.size > 0
+    ? await deleteQuery.not("id", "in", "(" + Array.from(submittedIds).join(",") + ")")
+    : await deleteQuery;
+
+  if (deleteError) {
+    go("Profilen blev gemt, men fjernede medier kunne ikke slettes.");
   }
 }
 
@@ -148,8 +275,8 @@ export async function upsertInspiratorAction(formData: FormData) {
     go("Inspiratorprofilen kunne ikke gemmes. Tjek om webadressen allerede findes, og om migrationen er kørt.");
   }
 
-  await insertExtraImages(formData, result.data.id, "mood");
-  await insertExtraImages(formData, result.data.id, "gallery");
+  await syncExtraMediaSlots(formData, result.data.id, "mood");
+  await syncExtraMediaSlots(formData, result.data.id, "gallery");
 
   revalidatePath("/admin/inspirators");
   revalidatePath("/inspiration");

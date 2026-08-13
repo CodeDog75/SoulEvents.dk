@@ -34,6 +34,14 @@ function mimeTypeFromExtension(extension: string) {
   return null;
 }
 
+function canonicalImageMimeType(file: File) {
+  if (allowedImageMimeTypes.includes(file.type)) {
+    return file.type;
+  }
+
+  return mimeTypeFromExtension(fileExtension(file));
+}
+
 export function isHeicOrHeifFile(file: File) {
   const extension = fileExtension(file);
   return heicMimeTypes.includes(file.type) || extension === "heic" || extension === "heif";
@@ -117,8 +125,8 @@ export async function prepareImageFileForUpload(file: File, options: PrepareImag
   let preparedFile = file;
 
   if (!isHeicOrHeifFile(file)) {
-    const inferredMimeType = mimeTypeFromExtension(fileExtension(file));
-    preparedFile = !allowedImageMimeTypes.includes(file.type) && inferredMimeType
+    const inferredMimeType = canonicalImageMimeType(file);
+    preparedFile = file.type !== inferredMimeType && inferredMimeType
       ? new File([file], file.name, { type: inferredMimeType })
       : file;
   } else {

@@ -240,12 +240,12 @@ async function getDashboardEvents(supabase: ReturnType<typeof createAdminClient>
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Copenhagen" }).format(new Date(value));
 }
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "Tidspunkt mangler";
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Copenhagen" }).format(new Date(value));
 }
 
 function statusClass(status: string) {

@@ -6,6 +6,8 @@ import { ArrowLeft, ExternalLink, Mail, Sparkles } from "lucide-react";
 import { sendInspiratorContactAction } from "@/app/inspiration/[slug]/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
+import { EventMediaGallery } from "@/components/events/detail/event-media-gallery";
+import { isEventGalleryVideoPath } from "@/lib/events/gallery-media";
 import { createPageMetadata, getHomepageOgImageUrl, stripHtml } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
 
@@ -92,6 +94,31 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
   const images = (profile.inspirator_images ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order);
   const moodImages = images.filter((image: any) => image.section === "mood");
   const galleryImages = images.filter((image: any) => image.section === "gallery");
+  const moodMediaItems = moodImages
+    .slice(0, 6)
+    .map((image: any) => {
+      const url = publicMediaUrl(image.image_path);
+      return url
+        ? {
+            alt: image.alt_text || profile.name,
+            src: url,
+            type: isEventGalleryVideoPath(image.image_path) ? "video" as const : "image" as const,
+          }
+        : null;
+    })
+    .filter(Boolean);
+  const galleryMediaItems = galleryImages
+    .map((image: any) => {
+      const url = publicMediaUrl(image.image_path);
+      return url
+        ? {
+            alt: image.alt_text || profile.name,
+            src: url,
+            type: isEventGalleryVideoPath(image.image_path) ? "video" as const : "image" as const,
+          }
+        : null;
+    })
+    .filter(Boolean);
   const contactMessage =
     contact === "sent"
       ? "Din besked er sendt."
@@ -141,15 +168,9 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
 
           <div className="grid gap-8 p-6 sm:p-10 lg:grid-cols-[1fr_340px]">
             <div>
-              {moodImages.length > 0 && (
-                <section className="mb-10 grid gap-3 sm:grid-cols-3">
-                  {moodImages.slice(0, 6).map((image: any) => {
-                    const url = publicMediaUrl(image.image_path);
-                    return url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img alt={image.alt_text || profile.name} className="aspect-[4/3] rounded-2xl object-cover" key={image.id} src={url} />
-                    ) : null;
-                  })}
+              {moodMediaItems.length > 0 && (
+                <section className="mb-10">
+                  <EventMediaGallery fixedPreviewAspectRatio="3 / 2" items={moodMediaItems as Array<{ alt: string; src: string; type: "image" | "video" }>} />
                 </section>
               )}
 
@@ -159,21 +180,10 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
                 <div className="mt-4 text-base">{paragraphs(profile.about_body)}</div>
               </section>
 
-              {galleryImages.length > 0 && (
+              {galleryMediaItems.length > 0 && (
                 <section className="mt-12">
                   <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Galleri</p>
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    {galleryImages.map((image: any) => {
-                      const url = publicMediaUrl(image.image_path);
-                      return url ? (
-                        <figure className="overflow-hidden rounded-2xl border border-[#E5DDEA] bg-[#FAF6EF]" key={image.id}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img alt={image.alt_text || profile.name} className="aspect-[4/3] w-full object-cover" src={url} />
-                          {image.alt_text && <figcaption className="p-3 text-sm text-[#6E6475]">{image.alt_text}</figcaption>}
-                        </figure>
-                      ) : null;
-                    })}
-                  </div>
+                  <EventMediaGallery fixedPreviewAspectRatio="3 / 2" items={galleryMediaItems as Array<{ alt: string; src: string; type: "image" | "video" }>} />
                 </section>
               )}
             </div>
