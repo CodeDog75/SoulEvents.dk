@@ -54,6 +54,7 @@ import {
   RATE_LIMIT_MESSAGE,
 } from "@/lib/rate-limit";
 import { validateSocialProfileLink } from "@/lib/social-profile-links";
+import { publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { ensureMediaStorageBucket } from "@/lib/supabase/storage-buckets";
@@ -168,6 +169,34 @@ function profileSaveMessage(
   }
 
   return categorySaveMessage(error);
+}
+
+async function revalidatePublicFacilitatorProfilePaths(
+  supabase: ReturnType<typeof createAdminClient>,
+  facilitatorId: string,
+  ...knownSlugs: Array<string | null | undefined>
+) {
+  revalidatePath("/facilitators/" + facilitatorId);
+
+  const { data: currentProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("slug")
+    .eq("id", facilitatorId)
+    .maybeSingle();
+  const slugs = new Set(
+    [...knownSlugs, currentProfile?.slug]
+      .map((slug) => slug?.trim())
+      .filter((slug): slug is string => Boolean(slug)),
+  );
+
+  if (slugs.size === 0) {
+    revalidatePath(publicFacilitatorPath(facilitatorId));
+    return;
+  }
+
+  for (const slug of slugs) {
+    revalidatePath(publicFacilitatorPath(slug));
+  }
 }
 
 function sanitizedLocationPayload(
@@ -2688,7 +2717,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   let existingProfileQuery = supabase
     .from("facilitator_profiles")
     .select(
-      "id, profile_id, address_line, city, company_name, country, facebook_url, instagram_url, individual_service_other_title, individual_service_types, is_online_facilitator, long_description, offers_services, postal_code, profile_image_path, public_email, public_phone, region_id, service_description, short_description, show_in_local_service_results, show_public_location, status, tiktok_url, website_url, youtube_url, facilitator_categories(category_id), facilitator_images(id, image_path, sort_order), facilitator_tags(tag_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)",
+      "id, profile_id, slug, address_line, city, company_name, country, facebook_url, instagram_url, individual_service_other_title, individual_service_types, is_online_facilitator, long_description, offers_services, postal_code, profile_image_path, public_email, public_phone, region_id, service_description, short_description, show_in_local_service_results, show_public_location, status, tiktok_url, website_url, youtube_url, facilitator_categories(category_id), facilitator_images(id, image_path, sort_order), facilitator_tags(tag_id), profiles!facilitator_profiles_profile_id_fkey(id, full_name, email, phone)",
     );
 
   existingProfileQuery = isAdminEdit
@@ -3550,7 +3579,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
   revalidatePath("/facilitator/profile");
   revalidatePath("/admin/users");
   revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
-  revalidatePath("/facilitators/" + facilitatorId);
+  await revalidatePublicFacilitatorProfilePaths(supabase, facilitatorId, existingProfile.slug);
   if (isAdminEdit) {
     adminProfileSuccessRedirect(
       "Ændringer gemt. Arrangørprofilen er opdateret.",

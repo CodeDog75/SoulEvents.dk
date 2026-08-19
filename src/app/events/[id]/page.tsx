@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import Link from "next/link";
-import { notFound, permanentRedirect, redirect } from "next/navigation";
+import { cache } from "react";
+import { notFound, permanentRedirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, Clock3, Leaf, Mail, MapPinned, Phone, Ticket } from "lucide-react";
 import { TrackEventView } from "@/components/analytics/track-event-view";
 import { BrandLogo } from "@/components/brand-logo";
@@ -10,8 +10,6 @@ import { BookingForm } from "@/components/events/detail/booking-form";
 import { EventMediaGallery } from "@/components/events/detail/event-media-gallery";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
 import { UserTextWithLinks } from "@/components/user-text-with-links";
-import { getCurrentProfile } from "@/lib/auth/roles";
-import { bookingReceiptCookieName } from "@/lib/bookings/receipt-cookie";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { formatDanishEventDate, formatDanishEventTime, isSameDanishEventDate } from "@/lib/events/date-format";
 import { isEventGalleryVideoPath } from "@/lib/events/gallery-media";
@@ -19,18 +17,16 @@ import { getUserFacingEventStatus, isEventPastEnd } from "@/lib/events/user-faci
 import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
 import {
   buildPaymentMethods,
-  parsePaymentInstructionsSnapshot,
   paymentSettingsToInstructionsRecord,
   resolvePaymentRecord,
-  type PaymentInstructionsSnapshot,
 } from "@/lib/payment-instructions";
 import { buildEventJsonLd, buildEventMetadata } from "@/lib/seo/public-page-metadata";
 import { publicReturnLabel, safePublicReturnPath, withReturnTo } from "@/lib/return-to";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 type EventDetailPageProps = {
   params: Promise<{
@@ -44,12 +40,6 @@ type EventDetailPageProps = {
     return_to?: string;
     [key: string]: string | string[] | undefined;
   }>;
-};
-
-type BookingReceipt = {
-  bookingValueCents: number;
-  paymentInstructions: PaymentInstructionsSnapshot | null;
-  seats: number;
 };
 
 function first<T>(value: T | T[] | null | undefined) {
@@ -79,55 +69,91 @@ function withSearch(path: string, searchParams: Record<string, string | string[]
   return query ? path + "?" + query : path;
 }
 
-function safeFacilitatorReturnPath(path: string | undefined) {
-  if (!path) return null;
-  if (path === "/facilitator" || path.startsWith("/facilitator?") || path.startsWith("/facilitator#")) return path;
-  return path === "/facilitator/events" || path.startsWith("/facilitator/events?") || path.startsWith("/facilitator/events#")
-    ? path
-    : null;
-}
-
 function specialtyMetadataValues(input: string | null | undefined) {
   const specialty = (input ?? "").replace(/\s+/g, " ").trim();
   return specialty ? [specialty] : [];
 }
 
-export async function generateMetadata({ params }: EventDetailPageProps): Promise<Metadata> {
-  const identifier = eventIdentifier(await params);
-  const supabase = await createClient();
-  let { data: event } = await supabase
-    .from("events")
-    .select(
-      `
+const publicEventSelect = `
+  id,
+  slug,
+  status,
+  facilitator_id,
+  title,
+  short_description,
+  long_description,
+  starts_at,
+  ends_at,
+  published_at,
+  updated_at,
+  address_line,
+  postal_code,
+  city,
+  latitude,
+  longitude,
+  price_cents,
+  registration_mode,
+  event_format,
+  online_description,
+  online_url_or_note,
+  practical_information,
+  cover_image_path,
+  capacity,
+  contact_email,
+  contact_phone,
+  facebook_url,
+  instagram_url,
+  facilitator_profiles!inner(
+    id,
+    profile_id,
+    slug,
+    status,
+    is_paused,
+    is_disabled,
+    host_reference_id,
+    company_name,
+    city,
+    profile_image_path,
+    short_description,
+    specialties,
+    website_url,
+    facebook_url,
+    instagram_url,
+    is_active_host,
+    is_experienced_host,
+    facilitator_categories(categories(name, slug)),
+    profiles!facilitator_profiles_profile_id_fkey(full_name)
+  ),
+  regions(name),
+  event_categories(categories(name, color_hex)),
+  event_main_categories(main_categories(name, color_hex, image_path)),
+  event_tags(tags(name)),
+  event_images(image_path, alt_text, sort_order),
+  event_co_organizers(
+    status,
+    facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(
       id,
       slug,
       status,
-      facilitator_id,
-      title,
-      short_description,
-      long_description,
-      starts_at,
-      ends_at,
+      is_paused,
+      is_disabled,
+      host_reference_id,
+      company_name,
       city,
-      event_format,
-      cover_image_path,
-      facilitator_profiles!inner(
-        status,
-        is_paused,
-        is_disabled,
-        host_reference_id,
-        company_name,
-        specialties,
-        facilitator_categories(categories(name, slug)),
-        profiles!facilitator_profiles_profile_id_fkey(full_name)
-      ),
-      regions(name),
-      event_categories(categories(name, color_hex)),
-      event_main_categories(main_categories(name, image_path)),
-      event_tags(tags(name)),
-      event_images(image_path, sort_order)
-    `,
+      profile_image_path,
+      specialties,
+      facilitator_categories(categories(name, color_hex, slug)),
+      profiles!facilitator_profiles_profile_id_fkey(full_name)
     )
+  )
+`;
+
+const getPublicEventPageData = cache(async (identifier: string) => {
+  const supabase = createPublicClient();
+  let resolvedFromHistoricalSlug = false;
+  let { data: event } = await supabase
+    .from("events")
+    .select(publicEventSelect)
     .eq("slug", identifier)
     .maybeSingle();
 
@@ -141,46 +167,25 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
       .maybeSingle();
 
     fallbackEventId = historicalSlug?.event_id ?? null;
+    resolvedFromHistoricalSlug = Boolean(fallbackEventId);
   }
 
   if (!event && fallbackEventId) {
     const fallbackResult = await supabase
       .from("events")
-      .select(
-        `
-        id,
-        slug,
-        status,
-        facilitator_id,
-        title,
-        short_description,
-        long_description,
-        starts_at,
-        ends_at,
-        city,
-        event_format,
-        cover_image_path,
-        facilitator_profiles!inner(
-          status,
-          is_paused,
-          is_disabled,
-          host_reference_id,
-          company_name,
-          specialties,
-          facilitator_categories(categories(name, slug)),
-          profiles!facilitator_profiles_profile_id_fkey(full_name)
-        ),
-        regions(name),
-        event_categories(categories(name, color_hex)),
-        event_main_categories(main_categories(name, image_path)),
-        event_tags(tags(name)),
-        event_images(image_path, sort_order)
-      `,
-      )
+      .select(publicEventSelect)
       .eq("id", fallbackEventId)
       .maybeSingle();
     event = fallbackResult.data;
   }
+
+  return { event, resolvedFromHistoricalSlug };
+});
+
+export async function generateMetadata({ params }: EventDetailPageProps): Promise<Metadata> {
+  const identifier = eventIdentifier(await params);
+  const supabase = createPublicClient();
+  const { event } = await getPublicEventPageData(identifier);
 
   const facilitator = first((event as any)?.facilitator_profiles);
   const isPublishedEvent = event ? ["active", "sold_out"].includes(event.status) : false;
@@ -350,195 +355,14 @@ function EventOrganizerCard({ href, imageUrl, name, role }: EventOrganizerCardPr
 
 export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
   const [resolvedParams, resolvedSearchParams] = await Promise.all([params, searchParams]);
-  const { admin_return: adminReturn, booking, message, return_to: returnTo } = resolvedSearchParams;
+  const { booking, message, return_to: returnTo } = resolvedSearchParams;
   const identifier = eventIdentifier(resolvedParams);
   const isLegacyRoute = Boolean(resolvedParams.id);
   const messageVariant = booking === "sent" ? "success" : "notice";
-  const supabase = await createClient();
-  const viewer = await getCurrentProfile();
-  let resolvedFromHistoricalSlug = false;
-
-  let { data: event } = await supabase
-    .from("events")
-    .select(
-      `
-      id,
-      slug,
-      status,
-      facilitator_id,
-      title,
-      short_description,
-      long_description,
-      starts_at,
-      ends_at,
-      published_at,
-      updated_at,
-      address_line,
-      postal_code,
-      city,
-      latitude,
-      longitude,
-      price_cents,
-      registration_mode,
-      event_format,
-      online_description,
-      online_url_or_note,
-      practical_information,
-      cover_image_path,
-      capacity,
-      contact_email,
-      contact_phone,
-      facebook_url,
-      instagram_url,
-      facilitator_profiles!inner(
-        id,
-        profile_id,
-        slug,
-        status,
-        is_paused,
-        is_disabled,
-        host_reference_id,
-        company_name,
-        city,
-        profile_image_path,
-        short_description,
-        specialties,
-        website_url,
-        facebook_url,
-        instagram_url,
-        is_active_host,
-        is_experienced_host,
-        facilitator_categories(categories(name, slug)),
-        profiles!facilitator_profiles_profile_id_fkey(full_name)
-      ),
-      regions(name),
-      event_categories(categories(name, color_hex)),
-      event_main_categories(main_categories(name, color_hex, image_path)),
-      event_tags(tags(name)),
-      event_images(image_path, alt_text, sort_order),
-      event_co_organizers(
-        status,
-        facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(
-            id,
-            slug,
-            status,
-          is_paused,
-          is_disabled,
-          host_reference_id,
-          company_name,
-          city,
-          profile_image_path,
-          specialties,
-          facilitator_categories(categories(name, color_hex, slug)),
-          profiles!facilitator_profiles_profile_id_fkey(full_name)
-        )
-      )
-    `,
-    )
-    .eq("slug", identifier)
-    .maybeSingle();
-
-  let fallbackEventId = isUuid(identifier) ? identifier : null;
-
-  if (!event && !fallbackEventId) {
-    const { data: historicalSlug } = await supabase
-      .from("event_slug_history")
-      .select("event_id")
-      .eq("slug", identifier)
-      .maybeSingle();
-
-    fallbackEventId = historicalSlug?.event_id ?? null;
-    resolvedFromHistoricalSlug = Boolean(fallbackEventId);
-  }
-
-  if (!event && fallbackEventId) {
-    const fallbackResult = await supabase
-      .from("events")
-      .select(
-        `
-        id,
-        slug,
-        status,
-        facilitator_id,
-        title,
-        short_description,
-        long_description,
-        starts_at,
-        ends_at,
-        published_at,
-        updated_at,
-        address_line,
-        postal_code,
-        city,
-        latitude,
-        longitude,
-        price_cents,
-        registration_mode,
-        event_format,
-        online_description,
-        online_url_or_note,
-        practical_information,
-        cover_image_path,
-        capacity,
-        contact_email,
-        contact_phone,
-        facebook_url,
-        instagram_url,
-        facilitator_profiles!inner(
-          id,
-          profile_id,
-          slug,
-          status,
-          is_paused,
-          is_disabled,
-          host_reference_id,
-          company_name,
-          city,
-          profile_image_path,
-          short_description,
-          specialties,
-          website_url,
-          facebook_url,
-          instagram_url,
-          is_active_host,
-          is_experienced_host,
-          facilitator_categories(categories(name, slug)),
-          profiles!facilitator_profiles_profile_id_fkey(full_name)
-        ),
-        regions(name),
-        event_categories(categories(name, color_hex)),
-        event_main_categories(main_categories(name, color_hex, image_path)),
-        event_tags(tags(name)),
-        event_images(image_path, alt_text, sort_order),
-        event_co_organizers(
-          status,
-          facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(
-            id,
-            slug,
-            status,
-            is_paused,
-            is_disabled,
-            host_reference_id,
-            company_name,
-            city,
-            profile_image_path,
-            specialties,
-            facilitator_categories(categories(name, color_hex, slug)),
-            profiles!facilitator_profiles_profile_id_fkey(full_name)
-          )
-        )
-      `,
-      )
-      .eq("id", fallbackEventId)
-      .maybeSingle();
-    event = fallbackResult.data;
-  }
+  const supabase = createPublicClient();
+  const { event, resolvedFromHistoricalSlug } = await getPublicEventPageData(identifier);
 
   if (!event) {
-    if (viewer?.role === "facilitator") {
-      redirect("/facilitator?message=" + encodeURIComponent("Eventet findes ikke længere eller er blevet fjernet."));
-    }
-
     notFound();
   }
 
@@ -554,7 +378,6 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const registrationMode = "direct";
   let externalRegistrationUrl: string | null = null;
   let paymentPreview = null;
-  let receipt: BookingReceipt | null = null;
 
   if (event.price_cents > 0) {
     const [{ data: eventPaymentSettings }, { data: facilitatorPaymentSettings }] = await Promise.all([
@@ -596,29 +419,6 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
         : null;
   }
 
-  if (booking === "sent") {
-    const receiptToken = (await cookies()).get(bookingReceiptCookieName)?.value ?? null;
-
-    if (receiptToken) {
-      const { data: receiptBooking } = await adminSupabase
-        .from("bookings")
-        .select("event_id, seats, booking_value_cents, payment_instructions_snapshot")
-        .eq("event_id", event.id)
-        .eq("participant_access_token", receiptToken)
-        .maybeSingle();
-
-      if (receiptBooking) {
-        receipt = {
-          bookingValueCents: receiptBooking.booking_value_cents,
-          paymentInstructions:
-            receiptBooking.booking_value_cents > 0
-              ? parsePaymentInstructionsSnapshot(receiptBooking.payment_instructions_snapshot)
-              : null,
-          seats: receiptBooking.seats,
-        };
-      }
-    }
-  }
   const { data: facilitatorUpcomingEvents } = await supabase
     .from("events")
     .select(
@@ -650,12 +450,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   const facilitatorIsPublic = facilitatorProfile?.status === "approved" && !facilitatorProfile.is_paused && !facilitatorProfile.is_disabled;
   const isPublicEvent = isPublishedEvent && !isExpiredEvent && facilitatorIsPublic;
   const isPublicHeldEvent = isHeldEvent && facilitatorIsPublic;
-  const canPreviewEvent = viewer?.role === "admin" || viewer?.id === facilitatorProfile?.profile_id;
-  if (!isPublicEvent && !isPublicHeldEvent && !canPreviewEvent) {
-    if (viewer?.role === "facilitator") {
-      redirect("/facilitator?message=" + encodeURIComponent("Eventet findes ikke længere eller er blevet fjernet."));
-    }
-
+  if (!isPublicEvent && !isPublicHeldEvent) {
     notFound();
   }
 
@@ -680,7 +475,6 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   );
   const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør";
   const isBookable = isPublicEvent && !isSoldOut && !isHeldEvent;
-  const facilitatorReturn = safeFacilitatorReturnPath(returnTo) ?? (viewer?.id === facilitatorProfile?.profile_id ? "/facilitator" : null);
   const eventReturnPath = withSearch(publicEventPath(event.slug || event.id), resolvedSearchParams);
   const publicReturnLink = safePublicReturnPath(returnTo, eventReturnPath);
   const publicBackLink = publicReturnLink
@@ -804,7 +598,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     title: event.title,
   });
   const isFreeEvent = event.price_cents === 0;
-  const shouldTrackEventView = isPublicEvent && !adminReturn && !facilitatorReturn && !returnTo?.startsWith("/admin") && !returnTo?.startsWith("/facilitator");
+  const shouldTrackEventView = isPublicEvent && !returnTo?.startsWith("/admin") && !returnTo?.startsWith("/facilitator");
 
   return (
     <main className="min-h-screen bg-cream">
@@ -823,33 +617,13 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               <h1 className="mt-2 max-w-4xl break-words text-3xl font-medium leading-tight text-olive sm:text-4xl">{event.title}</h1>
             </div>
             <nav className="flex shrink-0 flex-wrap gap-2 sm:justify-end" aria-label="Tilbage-navigation">
-              {viewer?.role === "admin" && adminReturn ? (
-                <Link
-                  className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
-                  href={adminReturn}
-                >
-                  <ArrowLeft className="size-4" aria-hidden="true" />
-                  Tilbage til admin
-                </Link>
-              ) : null}
-              {facilitatorReturn ? (
-                <Link
-                  className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
-                  href={facilitatorReturn}
-                >
-                  <ArrowLeft className="size-4" aria-hidden="true" />
-                  Tilbage til mine events
-                </Link>
-              ) : null}
-              {!facilitatorReturn && !adminReturn ? (
-                <Link
-                  className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
-                  href={publicBackLink.href}
-                >
-                  <ArrowLeft className="size-4" aria-hidden="true" />
-                  {publicBackLink.label}
-                </Link>
-              ) : null}
+              <Link
+                className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
+                href={publicBackLink.href}
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+                {publicBackLink.label}
+              </Link>
             </nav>
           </div>
         </div>
@@ -862,7 +636,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               <p className="text-sm font-semibold uppercase tracking-wide text-red-700">Aflyst</p>
               <h2 className="mt-1 text-2xl font-semibold text-red-800">Eventet blev aflyst: {cancelledDateLabel}</h2>
               <p className="mt-2 text-sm leading-6 text-red-900/80">
-                Du ser eventet som {viewer?.role === "admin" ? "administrator" : "arrangør"}. Eventet er ikke synligt for deltagere på SoulEvents.
+                Eventet er ikke synligt for deltagere på SoulEvents.
               </p>
             </section>
           ) : null}
@@ -871,7 +645,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               <p className="text-sm font-semibold uppercase tracking-wide text-[#7A4EAB]">Forhåndsvisning</p>
               <h2 className="mt-1 text-2xl font-semibold text-midnight">Dette event er endnu ikke offentligt</h2>
               <p className="mt-2 text-sm leading-6 text-ink/70">
-                Du ser eventet som {viewer?.role === "admin" ? "administrator" : "arrangør"}. Deltagere kan først se og tilmelde sig eventet, når det er godkendt og publiceret.
+                Deltagere kan først se og tilmelde sig eventet, når det er godkendt og publiceret.
               </p>
             </section>
           )}
@@ -1083,7 +857,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               externalRegistrationUrl={externalRegistrationUrl}
               paymentPreview={paymentPreview}
               priceCents={event.price_cents}
-              receipt={receipt}
+              receipt={null}
               registrationMode={registrationMode}
             />
           ) : isSoldOut ? (

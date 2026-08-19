@@ -293,6 +293,7 @@ export async function updateBookingStatusAction(formData: FormData) {
   revalidatePath("/facilitator/bookings");
   revalidatePath("/");
   revalidatePath("/events/" + booking.event_id);
+  revalidatePath(publicEventPath(firstRelation(booking.events)?.slug ?? booking.event_id));
 
   const labels: Record<string, string> = {
     confirmed: "bekræftet",
@@ -343,7 +344,7 @@ export async function updateBookingSeatsAction(formData: FormData) {
   const { data: booking } = await supabase
     .from("bookings")
     .select(
-      "id, event_id, facilitator_id, status, seats, participant_email, participant_name, event_title_snapshot, event_starts_at_snapshot, facilitator_name_snapshot, price_per_seat_cents, booking_value_cents, booking_reference, payment_reference, payment_instructions_snapshot",
+      "id, event_id, facilitator_id, status, seats, participant_email, participant_name, event_title_snapshot, event_starts_at_snapshot, facilitator_name_snapshot, price_per_seat_cents, booking_value_cents, booking_reference, payment_reference, payment_instructions_snapshot, events(slug)",
     )
     .eq("id", bookingId)
     .eq("facilitator_id", facilitatorProfile.id)
@@ -427,6 +428,7 @@ export async function updateBookingSeatsAction(formData: FormData) {
   revalidatePath("/facilitator/bookings");
   revalidatePath("/");
   revalidatePath("/events/" + booking.event_id);
+  revalidatePath(publicEventPath(firstRelation(booking.events)?.slug ?? booking.event_id));
 
   bookingsRedirect(
     sendUpdateEmail
@@ -661,7 +663,7 @@ export async function markEventSoldOutAction(formData: FormData) {
 
   const { data: event } = await supabase
     .from("events")
-    .select("id, status")
+    .select("id, slug, status")
     .eq("id", eventId)
     .eq("facilitator_id", facilitatorProfile.id)
     .maybeSingle();
@@ -687,6 +689,7 @@ export async function markEventSoldOutAction(formData: FormData) {
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/bookings");
   revalidatePath("/events/" + eventId);
+  revalidatePath(publicEventPath(event.slug || eventId));
   bookingsRedirect("Eventet er markeret som udsolgt. Eksisterende tilmeldinger er ikke ændret.", eventId);
 }
 

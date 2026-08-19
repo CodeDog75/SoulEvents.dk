@@ -12,6 +12,7 @@ import { sendFacilitatorProfileDeactivatedEmail } from "@/lib/email/facilitator-
 import { facilitatorSubmissionMissingLabels, getFacilitatorSubmissionReadiness } from "@/lib/facilitators/profile-readiness";
 import { getAllStrings, getOptionalString, getString } from "@/lib/forms/form-data";
 import { getMissingRequiredLegalAcceptances, organizerAcceptanceTypes } from "@/lib/legal/documents";
+import { publicFacilitatorPath } from "@/lib/slug";
 import { validateSocialProfileLink } from "@/lib/social-profile-links";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { FacilitatorStatus } from "@/types/database";
@@ -29,6 +30,34 @@ const profileChangeFieldLabels = {
   website: "Hjemmeside",
   work_areas: "Arbejdsområder",
 } as const;
+
+async function revalidatePublicFacilitatorProfile(
+  supabase: ReturnType<typeof createAdminClient>,
+  facilitatorId: string,
+  ...knownSlugs: Array<string | null | undefined>
+) {
+  revalidatePath("/facilitators/" + facilitatorId);
+
+  const { data: currentProfile } = await supabase
+    .from("facilitator_profiles")
+    .select("slug")
+    .eq("id", facilitatorId)
+    .maybeSingle();
+  const slugs = new Set(
+    [...knownSlugs, currentProfile?.slug]
+      .map((slug) => slug?.trim())
+      .filter((slug): slug is string => Boolean(slug)),
+  );
+
+  if (slugs.size === 0) {
+    revalidatePath(publicFacilitatorPath(facilitatorId));
+    return;
+  }
+
+  for (const slug of slugs) {
+    revalidatePath(publicFacilitatorPath(slug));
+  }
+}
 
 type FacilitatorProfileContact = {
   email?: string | null;
@@ -629,7 +658,7 @@ export async function requestFacilitatorProfileChangesAction(formData: FormData)
   revalidatePath("/admin/users");
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/profile");
-  revalidatePath("/facilitators/" + facilitator.id);
+  await revalidatePublicFacilitatorProfile(supabase, facilitator.id);
   revalidatePath("/admin/facilitators/" + facilitator.id + "/edit");
 
   adminReturnRedirect(mailSent ? "Der er sendt en anmodning om ændringer til arrangøren." : "Profilen er markeret som kræver ændringer, men e-mailen kunne ikke sendes.", returnTo, { clearSearch: true });
@@ -720,7 +749,7 @@ export async function disableFacilitatorAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/users");
   revalidatePath("/facilitators");
-  revalidatePath("/facilitators/" + facilitatorId);
+  await revalidatePublicFacilitatorProfile(supabase, facilitatorId);
   revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
   adminRedirect(notificationSent ? "Arrangør er deaktiveret." : "Arrangøren blev deaktiveret, men e-mailen kunne ikke sendes.");
 }
@@ -760,7 +789,7 @@ export async function reactivateFacilitatorAction(formData: FormData) {
   revalidatePath("/admin/users");
   revalidatePath("/facilitator");
   revalidatePath("/facilitators");
-  revalidatePath("/facilitators/" + facilitatorId);
+  await revalidatePublicFacilitatorProfile(supabase, facilitatorId);
   revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
   adminRedirect("Arrangør er genaktiveret.");
 }
@@ -1087,7 +1116,7 @@ export async function updateFacilitatorAdminSettingsAction(formData: FormData) {
   revalidatePath("/admin/users");
   revalidatePath("/admin/featured-facilitators");
   revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
-  revalidatePath("/facilitators/" + facilitatorId);
+  await revalidatePublicFacilitatorProfile(supabase, facilitatorId);
   adminFacilitatorEditRedirect(facilitatorId, "Adminindstillingerne er gemt.");
 }
 
@@ -1157,7 +1186,7 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   const supabase = createAdminClient();
   const { data: previousFacilitator, error: previousFacilitatorError } = await supabase
     .from("facilitator_profiles")
-    .select("auto_approve_events")
+    .select("auto_approve_events, slug")
     .eq("id", facilitatorId)
     .maybeSingle();
   const canUpdateAutoApprove = !missingColumnErrorCodes.includes(previousFacilitatorError?.code ?? "");
@@ -1246,7 +1275,7 @@ export async function updateAdminFacilitatorProfileAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/admin/featured-facilitators");
   revalidatePath("/facilitators");
-  revalidatePath("/facilitators/" + facilitatorId);
+  await revalidatePublicFacilitatorProfile(supabase, facilitatorId, previousFacilitator?.slug);
   revalidatePath("/admin/facilitators/" + facilitatorId + "/edit");
 
   adminFacilitatorEditRedirect(

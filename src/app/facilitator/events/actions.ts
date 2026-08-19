@@ -3271,7 +3271,7 @@ export async function respondToCoOrganizerInvitationAction(formData: FormData) {
 
   const { data: invitation, error: invitationError } = await supabase
     .from("event_co_organizers")
-    .select("id, event_id, primary_organizer_profile_id, co_organizer_profile_id, status, response_token, events(title, starts_at, ends_at, status, facilitator_profiles!events_facilitator_id_fkey(status, is_paused, is_disabled)), facilitator_profiles!event_co_organizers_primary_organizer_profile_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name))")
+    .select("id, event_id, primary_organizer_profile_id, co_organizer_profile_id, status, response_token, events(title, slug, starts_at, ends_at, status, facilitator_profiles!events_facilitator_id_fkey(status, is_paused, is_disabled)), facilitator_profiles!event_co_organizers_primary_organizer_profile_id_fkey(company_name, profiles!facilitator_profiles_profile_id_fkey(email, full_name))")
     .eq("id", invitationId)
     .eq("response_token", token)
     .maybeSingle();
@@ -3353,6 +3353,7 @@ export async function respondToCoOrganizerInvitationAction(formData: FormData) {
 
   revalidatePath("/facilitator");
   revalidatePath("/events/" + invitation.event_id);
+  revalidatePath(publicEventPath(event?.slug || invitation.event_id));
   redirect(
     "/facilitator?message=" +
       encodeURIComponent(response === "accepted" ? "Invitationen er bekræftet." : response === "withdrawn" ? "Du er trukket som medarrangør." : "Du har sagt nej tak til invitationen."),
@@ -3372,7 +3373,7 @@ export async function respondToExternalCoOrganizerInvitationAction(formData: For
   const tokenHash = hashExternalInvitationToken(token);
   const { data: invitation } = await (supabase as any)
     .from("event_cohost_invitations")
-    .select("id, event_id, email, status, expires_at, inviter_profile_id, inviter_facilitator_id, events(id, title, starts_at, ends_at, status, facilitator_id, facilitator_profiles!events_facilitator_id_fkey(status, is_paused, is_disabled))")
+    .select("id, event_id, email, status, expires_at, inviter_profile_id, inviter_facilitator_id, events(id, slug, title, starts_at, ends_at, status, facilitator_id, facilitator_profiles!events_facilitator_id_fkey(status, is_paused, is_disabled))")
     .eq("token_hash", tokenHash)
     .maybeSingle();
 
@@ -3442,6 +3443,7 @@ export async function respondToExternalCoOrganizerInvitationAction(formData: For
 
   revalidatePath("/facilitator");
   revalidatePath("/events/" + invitation.event_id);
+  revalidatePath(publicEventPath(event?.slug || invitation.event_id));
   redirect(
     "/facilitator?message=" +
       encodeURIComponent(

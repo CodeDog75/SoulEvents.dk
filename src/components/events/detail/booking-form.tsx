@@ -138,6 +138,7 @@ export function BookingForm({
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(Boolean(message) && !bookingSent);
   const [receiptDismissed, setReceiptDismissed] = useState(false);
+  const [loadedReceipt, setLoadedReceipt] = useState<typeof receipt>(receipt);
   const [usesModalBookingForm, setUsesModalBookingForm] = useState(false);
 
   const nameComplete = Boolean(name.trim());
@@ -151,9 +152,9 @@ export function BookingForm({
   const highSeatPersonLabel = seats === 1 ? "person" : "personer";
   const bookingPanelIsOpen = isFormOpen || (bookingSent && !receiptDismissed);
   const formattedEventDate = formatDanishEventDateTime(eventStartsAt);
-  const receiptPayment = receipt?.paymentInstructions ?? null;
+  const receiptPayment = loadedReceipt?.paymentInstructions ?? null;
   const receiptPaymentDisplay = receiptPayment ? paymentInstructionsDisplay(receiptPayment) : null;
-  const receiptSeats = receipt?.seats ?? seats;
+  const receiptSeats = loadedReceipt?.seats ?? seats;
   const receiptSeatsLabel = receiptSeats === 1 ? "1 plads" : `${receiptSeats} pladser`;
 
   const closeBookingForm = useCallback(() => {
@@ -286,6 +287,30 @@ export function BookingForm({
       }
     });
   }, [bookingSent, usesModalBookingForm]);
+
+  useEffect(() => {
+    if (!bookingSent || loadedReceipt) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    fetch(`/api/bookings/receipt?eventId=${encodeURIComponent(eventId)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { receipt?: typeof receipt } | null) => {
+        if (data?.receipt) {
+          setLoadedReceipt(data.receipt);
+        }
+      })
+      .catch(() => {
+        // The email receipt is the durable fallback if the short-lived receipt cookie is unavailable.
+      });
+
+    return () => controller.abort();
+  }, [bookingSent, eventId, loadedReceipt]);
 
   const receiptContent = (
       <section

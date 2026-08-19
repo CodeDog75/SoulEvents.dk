@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { headers } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
+import { cache } from "react";
 import { TrackFacilitatorProfileView } from "@/components/analytics/track-facilitator-profile-view";
 import { organizerBadgesFromFlags } from "@/components/badges/organizer-badges";
 import { PublicFacilitatorProfile } from "@/components/facilitator/public-facilitator-profile";
 import { subscribeToFacilitatorReminderAction } from "./actions";
-import { getCurrentProfile } from "@/lib/auth/roles";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
 import { getUserFacingEventStatus } from "@/lib/events/user-facing-status";
 import { resolveFacilitatorHero } from "@/lib/facilitators/hero-collection";
@@ -17,10 +16,10 @@ import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-grap
 import { buildFacilitatorMetadata, buildProfilePageJsonLd } from "@/lib/seo/public-page-metadata";
 import { publicFacilitatorPath } from "@/lib/slug";
 import { publicReturnLabel, safePublicReturnPath } from "@/lib/return-to";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createPublicClient } from "@/lib/supabase/public";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 type FacilitatorPageProps = {
   params: Promise<{ id?: string; slug?: string }>;
@@ -69,54 +68,6 @@ function nameOf(facilitator: any) {
   return facilitator?.company_name || profile?.full_name || "Arrangør";
 }
 
-function getBackLink(referer: string | null, currentPath: string) {
-  if (!referer) {
-    return { href: "/facilitators", label: "Tilbage til arrangører" };
-  }
-
-  try {
-    const url = new URL(referer);
-
-    if (url.pathname === "/") {
-      return { href: "/#events", label: "Tilbage til forsiden" };
-    }
-
-    if (url.pathname === "/facilitators") {
-      return { href: "/facilitators", label: "Tilbage til arrangører" };
-    }
-
-    if (url.pathname === currentPath || url.pathname.startsWith("/facilitators/") || url.pathname.startsWith("/arrangor/")) {
-      return { href: "/facilitators", label: "Tilbage til arrangører" };
-    }
-  } catch {
-    return { href: "/facilitators", label: "Tilbage til arrangører" };
-  }
-
-  return { href: "/facilitators", label: "Tilbage til arrangører" };
-}
-
-function getAdminReturnLink(value: string | undefined) {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
-
-  try {
-    const url = new URL(value, "https://soulevents.local");
-
-    if (!url.pathname.startsWith("/admin")) return null;
-
-    const href = url.pathname + url.search + url.hash;
-    const label = url.pathname.startsWith("/admin/users") ? "Tilbage til arrangøroversigten" : "Tilbage til admin-dashboardet";
-
-    return { href, label };
-  } catch {
-    return null;
-  }
-}
-
-function getFacilitatorReturnLink(value: string | undefined) {
-  if (value !== "/facilitator") return null;
-  return { href: value, label: "Tilbage til dashboard" };
-}
-
 function isMissingHeroKeyColumn(error: { code?: string; message?: string } | null) {
   return Boolean(
     error &&
@@ -127,16 +78,52 @@ function isMissingHeroKeyColumn(error: { code?: string; message?: string } | nul
   );
 }
 
-const facilitatorMetadataSelectWithHero =
-  "id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, service_description, city, country, country_name, region_text, show_public_location, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
-const facilitatorMetadataSelectLegacy =
-  "id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, long_description, service_description, city, country, country_name, region_text, profiles!facilitator_profiles_profile_id_fkey(full_name), regions(name), facilitator_categories(categories(name, slug)), facilitator_images(image_path, sort_order)";
 const facilitatorSelectWithHero =
   "id, profile_id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, country_name, region_text, show_public_location, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 const facilitatorSelectLegacy =
   "id, profile_id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, country_name, region_text, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 const publicEventSelect =
   "id, slug, status, title, short_description, starts_at, ends_at, city, price_cents, capacity, event_format, cover_image_path, facilitator_profiles!inner(id, status, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name)), event_co_organizers(created_at, status, facilitator_profiles!event_co_organizers_co_organizer_profile_id_fkey(id, slug, company_name, profiles!facilitator_profiles_profile_id_fkey(full_name))), regions(name), event_categories(categories(name, color_hex)), event_main_categories(main_categories(name, color_hex, image_path))";
+
+const getPublicFacilitatorPageData = cache(async (identifier: string) => {
+  const supabase = createPublicClient();
+  let { data: facilitator, error: facilitatorError } = await supabase
+    .from("facilitator_profiles")
+    .select(facilitatorSelectWithHero)
+    .eq("slug", identifier)
+    .eq("status", "approved")
+    .eq("is_paused", false)
+    .eq("is_disabled", false)
+    .single();
+
+  if (isMissingHeroKeyColumn(facilitatorError)) {
+    const legacyResult = await supabase
+      .from("facilitator_profiles")
+      .select(facilitatorSelectLegacy)
+      .eq("slug", identifier)
+      .eq("status", "approved")
+      .eq("is_paused", false)
+      .eq("is_disabled", false)
+      .single();
+    facilitator = legacyResult.data as typeof facilitator;
+    facilitatorError = legacyResult.error;
+  }
+
+  if (!facilitator && isUuid(identifier)) {
+    const fallbackResult = await supabase
+      .from("facilitator_profiles")
+      .select(facilitatorSelectWithHero)
+      .eq("id", identifier)
+      .eq("status", "approved")
+      .eq("is_paused", false)
+      .eq("is_disabled", false)
+      .single();
+    facilitator = fallbackResult.data as typeof facilitator;
+    facilitatorError = fallbackResult.error;
+  }
+
+  return { facilitator, facilitatorError };
+});
 
 function sortEventsByStartDate<T extends { starts_at: string }>(events: T[]) {
   return [...events].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
@@ -168,40 +155,8 @@ function uniqueProfileEvents(primaryEvents: any[], coOrganizerEvents: any[], sor
 
 export async function generateMetadata({ params }: FacilitatorPageProps): Promise<Metadata> {
   const identifier = facilitatorIdentifier(await params);
-  const supabase = await createClient();
-  let { data: facilitator, error: facilitatorError } = await supabase
-    .from("facilitator_profiles")
-    .select(facilitatorMetadataSelectWithHero)
-    .eq("slug", identifier)
-    .eq("status", "approved")
-    .eq("is_paused", false)
-    .eq("is_disabled", false)
-    .single();
-
-  if (isMissingHeroKeyColumn(facilitatorError)) {
-    const legacyResult = await supabase
-      .from("facilitator_profiles")
-      .select(facilitatorMetadataSelectLegacy)
-      .eq("slug", identifier)
-      .eq("status", "approved")
-      .eq("is_paused", false)
-      .eq("is_disabled", false)
-      .single();
-    facilitator = legacyResult.data as typeof facilitator;
-    facilitatorError = legacyResult.error;
-  }
-
-  if (!facilitator && isUuid(identifier)) {
-    const fallbackResult = await supabase
-      .from("facilitator_profiles")
-      .select(facilitatorMetadataSelectWithHero)
-      .eq("id", identifier)
-      .eq("status", "approved")
-      .eq("is_paused", false)
-      .eq("is_disabled", false)
-      .single();
-    facilitator = fallbackResult.data as typeof facilitator;
-  }
+  const supabase = createPublicClient();
+  const { facilitator } = await getPublicFacilitatorPageData(identifier);
 
   if (!facilitator) {
     return {
@@ -263,46 +218,9 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   const isLegacyRoute = Boolean(resolvedParams.id);
   const resolvedSearchParams = await searchParams;
   const reminderMessage = resolvedSearchParams?.reminder_message ?? "";
-  const adminReturnLink = getAdminReturnLink(resolvedSearchParams?.admin_return);
-  const facilitatorReturnLink = getFacilitatorReturnLink(resolvedSearchParams?.facilitator_return);
-  const referer = (await headers()).get("referer");
-  const supabase = await createClient();
-  const viewer = await getCurrentProfile();
-
-  let { data: publicFacilitator, error: publicFacilitatorError } = await supabase
-    .from("facilitator_profiles")
-    .select(facilitatorSelectWithHero)
-    .eq("slug", identifier)
-    .eq("status", "approved")
-    .eq("is_paused", false)
-    .eq("is_disabled", false)
-    .single();
-
-  if (isMissingHeroKeyColumn(publicFacilitatorError)) {
-    const legacyResult = await supabase
-      .from("facilitator_profiles")
-      .select(facilitatorSelectLegacy)
-      .eq("slug", identifier)
-      .eq("status", "approved")
-      .eq("is_paused", false)
-      .eq("is_disabled", false)
-      .single();
-    publicFacilitator = legacyResult.data as typeof publicFacilitator;
-    publicFacilitatorError = legacyResult.error;
-  }
-
-  if (!publicFacilitator && isUuid(identifier)) {
-    const fallbackResult = await supabase
-      .from("facilitator_profiles")
-      .select(facilitatorSelectWithHero)
-      .eq("id", identifier)
-      .eq("status", "approved")
-      .eq("is_paused", false)
-      .eq("is_disabled", false)
-      .single();
-    publicFacilitator = fallbackResult.data as typeof publicFacilitator;
-    publicFacilitatorError = fallbackResult.error;
-  }
+  const supabase = createPublicClient();
+  const { facilitator: publicFacilitator, facilitatorError: publicFacilitatorError } =
+    await getPublicFacilitatorPageData(identifier);
 
   if (publicFacilitatorError && publicFacilitatorError.code !== "PGRST116") {
     console.error("[facilitator-profile] public lookup failed", {
@@ -312,29 +230,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     });
   }
 
-  const canPreviewFacilitator =
-    !publicFacilitator && ((adminReturnLink && viewer?.role === "admin") || (facilitatorReturnLink && viewer?.role === "facilitator"));
-  let { data: previewFacilitator, error: previewFacilitatorError } = canPreviewFacilitator
-    ? isUuid(identifier)
-      ? await createAdminClient().from("facilitator_profiles").select(facilitatorSelectWithHero).eq("id", identifier).single()
-      : await createAdminClient().from("facilitator_profiles").select(facilitatorSelectWithHero).eq("slug", identifier).single()
-    : { data: null, error: null };
-
-  if (isMissingHeroKeyColumn(previewFacilitatorError)) {
-    const legacyResult = isUuid(identifier)
-      ? await createAdminClient().from("facilitator_profiles").select(facilitatorSelectLegacy).eq("id", identifier).single()
-      : await createAdminClient().from("facilitator_profiles").select(facilitatorSelectLegacy).eq("slug", identifier).single();
-    previewFacilitator = legacyResult.data as typeof previewFacilitator;
-    previewFacilitatorError = legacyResult.error;
-  }
-  if (previewFacilitatorError) {
-    console.error("[facilitator-profile] preview lookup failed", {
-      code: previewFacilitatorError.code,
-      id: identifier,
-      message: previewFacilitatorError.message,
-    });
-  }
-  const facilitator = publicFacilitator ?? previewFacilitator;
+  const facilitator = publicFacilitator;
 
   const facilitatorData = facilitator as any;
 
@@ -345,16 +241,10 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   if (isLegacyRoute && facilitatorData.slug) {
     permanentRedirect(
       withSearch(publicFacilitatorPath(facilitatorData.slug), {
-        admin_return: resolvedSearchParams?.admin_return,
-        facilitator_return: resolvedSearchParams?.facilitator_return,
         reminder_message: resolvedSearchParams?.reminder_message,
         return_to: resolvedSearchParams?.return_to,
       }),
     );
-  }
-
-  if (facilitatorReturnLink && (viewer?.role !== "facilitator" || viewer.id !== facilitatorData.profile_id)) {
-    notFound();
   }
 
   const nowIso = new Date().toISOString();
@@ -473,14 +363,11 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     facilitatorData.youtube_url ? { label: "YouTube", href: ensureUrl(facilitatorData.youtube_url) } : null,
     facilitatorData.tiktok_url ? { label: "TikTok", href: ensureUrl(facilitatorData.tiktok_url) } : null,
   ].filter((link): link is { label: string; href: string } => Boolean(link));
-  const isOwnProfilePreview = viewer?.role === "facilitator" && viewer.id === facilitatorData.profile_id;
   const currentProfilePath = publicFacilitatorPath(facilitatorData.slug || facilitatorData.id);
   const publicReturnLink = safePublicReturnPath(resolvedSearchParams?.return_to, currentProfilePath);
   const backLink =
-    adminReturnLink ??
-    facilitatorReturnLink ??
     (publicReturnLink ? { href: publicReturnLink, label: publicReturnLabel(publicReturnLink) } : null) ??
-    (isOwnProfilePreview ? { href: "/facilitator", label: "Tilbage til dashboard" } : getBackLink(referer, currentProfilePath));
+    { href: "/facilitators", label: "Tilbage til arrangører" };
   const badges = organizerBadgesFromFlags({
     isActiveHost: facilitatorData.is_active_host,
     isExperiencedHost: facilitatorData.is_experienced_host,
@@ -520,7 +407,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
 
   return (
     <>
-      {publicFacilitator && !adminReturnLink && !facilitatorReturnLink && !isOwnProfilePreview ? (
+      {publicFacilitator ? (
         <TrackFacilitatorProfileView facilitatorId={facilitatorData.id} />
       ) : null}
       {publicFacilitator ? (
@@ -559,7 +446,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
         reminderFormAction={subscribeToFacilitatorReminderAction.bind(null, facilitatorData.id)}
         reminderMessage={reminderMessage}
         serviceDescription={facilitatorData.offers_services ? facilitatorData.service_description : null}
-        showFallbackNotice={Boolean(adminReturnLink || isOwnProfilePreview)}
+        showFallbackNotice={false}
         specialty={specialty}
       />
     </>

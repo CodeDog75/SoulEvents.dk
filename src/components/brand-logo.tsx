@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { getBrandLogoSources, isSvgLogoUrl, resolveBrandLogoUrl, type BrandLogoSources, type LogoSettingClient } from "@/lib/brand-logo";
-import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 
 type BrandLogoProps = {
   className?: string;
@@ -9,7 +9,7 @@ type BrandLogoProps = {
 
 async function getLogoSrc(): Promise<BrandLogoSources> {
   try {
-    const supabase = await createClient();
+    const supabase = createPublicClient();
     return getBrandLogoSources(supabase as unknown as LogoSettingClient);
   } catch {
     const fallbackSrc = resolveBrandLogoUrl(null);
