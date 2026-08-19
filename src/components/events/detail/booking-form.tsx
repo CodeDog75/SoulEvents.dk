@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ChevronDown, Clock3, ExternalLink, Minus, Plus, Send, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createBookingAction } from "@/app/events/[id]/actions";
@@ -113,6 +114,12 @@ export function BookingForm({
   paymentPreview = null,
   receipt = null,
 }: BookingFormProps) {
+  const searchParams = useSearchParams();
+  const queryBookingSent = searchParams.get("booking") === "sent";
+  const queryMessage = searchParams.get("message") ?? undefined;
+  const effectiveBookingSent = bookingSent || queryBookingSent;
+  const effectiveMessage = message ?? queryMessage;
+  const effectiveMessageVariant = queryBookingSent ? "success" : messageVariant;
   const isDirectRegistration = registrationMode === "direct";
   const usesExternalRegistration = isDirectRegistration && Boolean(externalRegistrationUrl);
   const isSoldOut = !usesExternalRegistration && availableSeats <= 0;
@@ -136,7 +143,7 @@ export function BookingForm({
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [showHighSeatConfirmation, setShowHighSeatConfirmation] = useState(false);
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
-  const [isFormOpen, setIsFormOpen] = useState(Boolean(message) && !bookingSent);
+  const [isFormOpen, setIsFormOpen] = useState(Boolean(effectiveMessage) && !effectiveBookingSent);
   const [receiptDismissed, setReceiptDismissed] = useState(false);
   const [loadedReceipt, setLoadedReceipt] = useState<typeof receipt>(receipt);
   const [usesModalBookingForm, setUsesModalBookingForm] = useState(false);
@@ -150,7 +157,7 @@ export function BookingForm({
   const showPhoneError = (attemptedSubmit || phone.length > 0) && !phoneValid;
   const showSeatLimitMessage = !isSoldOut && availableSeats > maxSeatsPerBooking && seats >= maxSeatsPerBooking;
   const highSeatPersonLabel = seats === 1 ? "person" : "personer";
-  const bookingPanelIsOpen = isFormOpen || (bookingSent && !receiptDismissed);
+  const bookingPanelIsOpen = isFormOpen || (effectiveBookingSent && !receiptDismissed);
   const formattedEventDate = formatDanishEventDateTime(eventStartsAt);
   const receiptPayment = loadedReceipt?.paymentInstructions ?? null;
   const receiptPaymentDisplay = receiptPayment ? paymentInstructionsDisplay(receiptPayment) : null;
@@ -162,7 +169,7 @@ export function BookingForm({
       return;
     }
 
-    if (bookingSent) {
+    if (effectiveBookingSent) {
       setIsFormOpen(false);
       setReceiptDismissed(true);
       return;
@@ -172,7 +179,7 @@ export function BookingForm({
     window.requestAnimationFrame(() => {
       bookingToggleRef.current?.focus({ preventScroll: true });
     });
-  }, [bookingSent, isSubmittingBooking]);
+  }, [effectiveBookingSent, isSubmittingBooking]);
 
   const scrollToBookingFormStart = useCallback(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -218,7 +225,7 @@ export function BookingForm({
     document.body.style.overflow = "hidden";
 
     window.requestAnimationFrame(() => {
-      if (bookingSent) {
+      if (effectiveBookingSent) {
         receiptHeadingRef.current?.focus({ preventScroll: true });
       } else {
         firstFieldRef.current?.focus({ preventScroll: true });
@@ -266,10 +273,10 @@ export function BookingForm({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [bookingPanelIsOpen, bookingSent, closeBookingForm, isSubmittingBooking, usesModalBookingForm]);
+  }, [bookingPanelIsOpen, effectiveBookingSent, closeBookingForm, isSubmittingBooking, usesModalBookingForm]);
 
   useEffect(() => {
-    if (!bookingSent) {
+    if (!effectiveBookingSent) {
       return;
     }
 
@@ -286,10 +293,10 @@ export function BookingForm({
         });
       }
     });
-  }, [bookingSent, usesModalBookingForm]);
+  }, [effectiveBookingSent, usesModalBookingForm]);
 
   useEffect(() => {
-    if (!bookingSent || loadedReceipt) {
+    if (!effectiveBookingSent || loadedReceipt) {
       return;
     }
 
@@ -310,7 +317,7 @@ export function BookingForm({
       });
 
     return () => controller.abort();
-  }, [bookingSent, eventId, loadedReceipt]);
+  }, [effectiveBookingSent, eventId, loadedReceipt]);
 
   const receiptContent = (
       <section
@@ -403,7 +410,7 @@ export function BookingForm({
       </section>
   );
 
-  if (bookingSent) {
+  if (effectiveBookingSent) {
     return (
       <section className="rounded-card border border-[#e5d4f7] bg-[#f6efff] p-6 shadow-[0_18px_45px_rgba(90,59,122,0.16)]">
         {!usesModalBookingForm || receiptDismissed ? receiptContent : null}
@@ -509,7 +516,7 @@ export function BookingForm({
         ) : null}
       </div>
 
-      {!bookingSent ? (
+      {!effectiveBookingSent ? (
         <button
           aria-controls="booking-form-fields"
           aria-expanded={isFormOpen}
@@ -538,7 +545,7 @@ export function BookingForm({
       ) : null}
 
       <div
-        aria-hidden={!isFormOpen && !bookingSent}
+        aria-hidden={!isFormOpen && !effectiveBookingSent}
         aria-labelledby={usesModalBookingForm && bookingPanelIsOpen ? "booking-dialog-title" : undefined}
         aria-modal={usesModalBookingForm && bookingPanelIsOpen ? true : undefined}
         className={
@@ -816,9 +823,9 @@ export function BookingForm({
         </span>
       </button>
 
-          {message && (
+          {effectiveMessage && (
             <div id="booking-response" className="mt-4 grid scroll-mt-8 gap-3">
-              {bookingSent ? (
+              {effectiveBookingSent ? (
                 <div className="rounded-card border border-[#E5D4F7] bg-[#FAF7FE] p-5 text-midnight shadow-soft">
                   <div className="flex items-start gap-3">
                     <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#6E5A86] shadow-soft">
@@ -829,12 +836,12 @@ export function BookingForm({
                       <h3 className="text-lg font-semibold leading-tight text-midnight">
                         Din tilmelding er registreret
                       </h3>
-                      <p className="text-sm leading-6 text-ink/72">{message}</p>
+                      <p className="text-sm leading-6 text-ink/72">{effectiveMessage}</p>
                     </div>
                   </div>
                 </div>
               ) : (
-                <AuthMessage message={message} variant={messageVariant} />
+                <AuthMessage message={effectiveMessage} variant={effectiveMessageVariant} />
               )}
               <Link
                 className="inline-flex h-11 items-center justify-center rounded-md border border-sage-700/25 bg-white px-4 text-sm font-semibold text-sage-700 transition hover:border-sage-700 hover:bg-sage-50"

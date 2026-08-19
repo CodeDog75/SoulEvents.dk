@@ -1,13 +1,16 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { ArrowLeft, ExternalLink, Mail, MapPinned, Phone, Sparkles } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { OrganizerBadges, type OrganizerBadgeType } from "@/components/badges/organizer-badges";
 import { EventCardVisual } from "@/components/events/event-carousel-section";
 import type { PublicEvent } from "@/components/events/public-event-list";
+import { FacilitatorReminderMessage } from "@/components/facilitator/facilitator-reminder-message";
 import { PastEventsSection } from "@/components/facilitator/past-events-section";
 import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
 import { PublicFacilitatorGallery } from "@/components/facilitator/public-facilitator-gallery";
 import { ShareFacilitatorButton } from "@/components/facilitator/share-facilitator-button";
+import { PublicReturnLink } from "@/components/public/public-return-link";
 
 type Category = {
   colorHex?: string | null;
@@ -59,7 +62,6 @@ type PublicFacilitatorProfileProps = {
   presentationText?: string | null;
   profileImageUrl?: string | null;
   reminderFormAction: (formData: FormData) => Promise<void>;
-  reminderMessage?: string;
   serviceDescription?: string | null;
   specialty?: string | null;
   showFallbackNotice?: boolean;
@@ -137,7 +139,6 @@ export function PublicFacilitatorProfile({
   presentationText,
   profileImageUrl,
   reminderFormAction,
-  reminderMessage,
   serviceDescription,
   showFallbackNotice = false,
   specialty,
@@ -152,13 +153,24 @@ export function PublicFacilitatorProfile({
           <Link aria-label="SoulEvents.dk forside" href="/">
             <BrandLogo className="h-24 w-24" priority />
           </Link>
-          <Link
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#D8CBE4] bg-white/80 px-4 py-2 text-sm font-semibold text-[#6E5285] transition hover:border-[#7A5D91] hover:text-[#5B4778]"
-            href={backLink.href}
+          <Suspense
+            fallback={
+              <Link
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#D8CBE4] bg-white/80 px-4 py-2 text-sm font-semibold text-[#6E5285] transition hover:border-[#7A5D91] hover:text-[#5B4778]"
+                href={backLink.href}
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+                {backLink.label}
+              </Link>
+            }
           >
-            <ArrowLeft className="size-4" aria-hidden="true" />
-            {backLink.label}
-          </Link>
+            <PublicReturnLink
+              className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#D8CBE4] bg-white/80 px-4 py-2 text-sm font-semibold text-[#6E5285] transition hover:border-[#7A5D91] hover:text-[#5B4778]"
+              currentPath={eventReturnTo || backLink.href}
+              fallbackHref={backLink.href}
+              fallbackLabel={backLink.label}
+            />
+          </Suspense>
         </div>
       </header>
 
@@ -245,11 +257,9 @@ export function PublicFacilitatorProfile({
             <p className="mt-3 text-sm leading-6 text-[#6E6475]">
               Få en rolig påmindelse på e-mail, når denne arrangør opretter et nyt event.
             </p>
-            {reminderMessage ? (
-              <p className="mt-4 rounded-[20px] border border-[#D8CBE4] bg-white/75 px-4 py-3 text-sm font-semibold text-[#6E6475]">
-                {reminderMessage}
-              </p>
-            ) : null}
+            <Suspense fallback={null}>
+              <FacilitatorReminderMessage />
+            </Suspense>
             <form action={reminderFormAction} className="mt-4 grid gap-3">
               <label className="sr-only" htmlFor="reminder-email">
                 E-mail til påmindelse

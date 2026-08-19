@@ -1,1 +1,1 @@
-export { default, generateMetadata, revalidate } from "@/app/events/[id]/page";
+export { default, generateMetadata, generateStaticParams, revalidate } from "@/app/events/[id]/page";

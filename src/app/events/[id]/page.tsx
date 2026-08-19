@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, Clock3, Leaf, Mail, MapPinned, Phone, Ticket } from "lucide-react";
 import { TrackEventView } from "@/components/analytics/track-event-view";
@@ -9,6 +9,7 @@ import { CapacityBadge } from "@/components/events/capacity-badge";
 import { BookingForm } from "@/components/events/detail/booking-form";
 import { EventMediaGallery } from "@/components/events/detail/event-media-gallery";
 import { ShareEventButton } from "@/components/events/detail/share-event-button";
+import { PublicReturnLink } from "@/components/public/public-return-link";
 import { UserTextWithLinks } from "@/components/user-text-with-links";
 import { getAvailableEventSeats } from "@/lib/events/capacity";
 import { formatDanishEventDate, formatDanishEventTime, isSameDanishEventDate } from "@/lib/events/date-format";
@@ -21,7 +22,7 @@ import {
   resolvePaymentRecord,
 } from "@/lib/payment-instructions";
 import { buildEventJsonLd, buildEventMetadata } from "@/lib/seo/public-page-metadata";
-import { publicReturnLabel, safePublicReturnPath, withReturnTo } from "@/lib/return-to";
+import { withReturnTo } from "@/lib/return-to";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPublicClient } from "@/lib/supabase/public";
@@ -32,13 +33,6 @@ type EventDetailPageProps = {
   params: Promise<{
     id?: string;
     slug?: string;
-  }>;
-  searchParams: Promise<{
-    admin_return?: string;
-    booking?: string;
-    message?: string;
-    return_to?: string;
-    [key: string]: string | string[] | undefined;
   }>;
 };
 
@@ -54,24 +48,13 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function withSearch(path: string, searchParams: Record<string, string | string[] | undefined>) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(searchParams)) {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        if (item) params.append(key, item);
-      }
-    } else if (value) {
-      params.set(key, value);
-    }
-  }
-  const query = params.toString();
-  return query ? path + "?" + query : path;
-}
-
 function specialtyMetadataValues(input: string | null | undefined) {
   const specialty = (input ?? "").replace(/\s+/g, " ").trim();
   return specialty ? [specialty] : [];
+}
+
+export async function generateStaticParams() {
+  return [];
 }
 
 const publicEventSelect = `
@@ -353,12 +336,10 @@ function EventOrganizerCard({ href, imageUrl, name, role }: EventOrganizerCardPr
   );
 }
 
-export default async function EventDetailPage({ params, searchParams }: EventDetailPageProps) {
-  const [resolvedParams, resolvedSearchParams] = await Promise.all([params, searchParams]);
-  const { booking, message, return_to: returnTo } = resolvedSearchParams;
+export default async function EventDetailPage({ params }: EventDetailPageProps) {
+  const resolvedParams = await params;
   const identifier = eventIdentifier(resolvedParams);
   const isLegacyRoute = Boolean(resolvedParams.id);
-  const messageVariant = booking === "sent" ? "success" : "notice";
   const supabase = createPublicClient();
   const { event, resolvedFromHistoricalSlug } = await getPublicEventPageData(identifier);
 
@@ -367,7 +348,7 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   }
 
   if ((isLegacyRoute || resolvedFromHistoricalSlug) && event.slug && event.slug !== identifier) {
-    permanentRedirect(withSearch(publicEventPath(event.slug), resolvedSearchParams));
+    permanentRedirect(publicEventPath(event.slug));
   }
 
   const adminSupabase = createAdminClient();
@@ -475,11 +456,8 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
   );
   const facilitatorName = facilitatorProfile?.company_name || facilitatorUser?.full_name || "Arrangør";
   const isBookable = isPublicEvent && !isSoldOut && !isHeldEvent;
-  const eventReturnPath = withSearch(publicEventPath(event.slug || event.id), resolvedSearchParams);
-  const publicReturnLink = safePublicReturnPath(returnTo, eventReturnPath);
-  const publicBackLink = publicReturnLink
-    ? { href: publicReturnLink, label: publicReturnLabel(publicReturnLink) }
-    : { href: "/", label: "Tilbage til forsiden" };
+  const eventReturnPath = publicEventPath(event.slug || event.id);
+  const publicBackLink = { href: "/", label: "Tilbage til forsiden" };
   const facilitatorProfileHref = withReturnTo(publicFacilitatorPath(facilitatorProfile.slug || facilitatorProfile.id), eventReturnPath);
   const facilitatorImageUrl = facilitatorProfile?.profile_image_path
     ? supabase.storage.from("media").getPublicUrl(facilitatorProfile.profile_image_path).data.publicUrl
@@ -598,11 +576,15 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
     title: event.title,
   });
   const isFreeEvent = event.price_cents === 0;
-  const shouldTrackEventView = isPublicEvent && !returnTo?.startsWith("/admin") && !returnTo?.startsWith("/facilitator");
+  const shouldTrackEventView = isPublicEvent;
 
   return (
     <main className="min-h-screen bg-cream">
-      {shouldTrackEventView ? <TrackEventView eventId={event.id} /> : null}
+      {shouldTrackEventView ? (
+        <Suspense fallback={null}>
+          <TrackEventView eventId={event.id} />
+        </Suspense>
+      ) : null}
       {isPublicEvent ? (
         <script
           type="application/ld+json"
@@ -617,13 +599,24 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               <h1 className="mt-2 max-w-4xl break-words text-3xl font-medium leading-tight text-olive sm:text-4xl">{event.title}</h1>
             </div>
             <nav className="flex shrink-0 flex-wrap gap-2 sm:justify-end" aria-label="Tilbage-navigation">
-              <Link
-                className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
-                href={publicBackLink.href}
+              <Suspense
+                fallback={
+                  <Link
+                    className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
+                    href={publicBackLink.href}
+                  >
+                    <ArrowLeft className="size-4" aria-hidden="true" />
+                    {publicBackLink.label}
+                  </Link>
+                }
               >
-                <ArrowLeft className="size-4" aria-hidden="true" />
-                {publicBackLink.label}
-              </Link>
+                <PublicReturnLink
+                  className="inline-flex h-11 items-center gap-2 rounded-button border border-olive/15 bg-white px-4 text-sm font-semibold text-olive transition hover:border-rose hover:text-rose"
+                  currentPath={eventReturnPath}
+                  fallbackHref={publicBackLink.href}
+                  fallbackLabel={publicBackLink.label}
+                />
+              </Suspense>
             </nav>
           </div>
         </div>
@@ -843,23 +836,22 @@ export default async function EventDetailPage({ params, searchParams }: EventDet
               <h2 className="text-3xl font-medium text-olive">Eventet er afholdt</h2>
               <p className="mt-3 text-sm leading-6 text-ink/70">Tilmelding er lukket, fordi eventet allerede er afholdt.</p>
             </section>
-          ) : booking === "sent" || isBookable ? (
-            <BookingForm
-              availableSeats={availableSeats}
-              bookingSent={booking === "sent"}
-              capacity={event.capacity}
-              eventId={event.id}
-              eventStartsAt={event.starts_at}
-              eventTitle={event.title}
-              facilitatorProfileHref={facilitatorProfileHref}
-              message={message}
-              messageVariant={messageVariant}
-              externalRegistrationUrl={externalRegistrationUrl}
-              paymentPreview={paymentPreview}
-              priceCents={event.price_cents}
-              receipt={null}
-              registrationMode={registrationMode}
-            />
+          ) : isBookable ? (
+            <Suspense fallback={null}>
+              <BookingForm
+                availableSeats={availableSeats}
+                capacity={event.capacity}
+                eventId={event.id}
+                eventStartsAt={event.starts_at}
+                eventTitle={event.title}
+                facilitatorProfileHref={facilitatorProfileHref}
+                externalRegistrationUrl={externalRegistrationUrl}
+                paymentPreview={paymentPreview}
+                priceCents={event.price_cents}
+                receipt={null}
+                registrationMode={registrationMode}
+              />
+            </Suspense>
           ) : isSoldOut ? (
             <section className="rounded-card border border-[#E5D4F7] bg-[#F7F2FB] p-6 shadow-soft">
               <h2 className="text-3xl font-medium text-olive">Udsolgt</h2>

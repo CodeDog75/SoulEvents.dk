@@ -15,7 +15,6 @@ import { profileCountryName } from "@/lib/locations/countries";
 import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
 import { buildFacilitatorMetadata, buildProfilePageJsonLd } from "@/lib/seo/public-page-metadata";
 import { publicFacilitatorPath } from "@/lib/slug";
-import { publicReturnLabel, safePublicReturnPath } from "@/lib/return-to";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPublicClient } from "@/lib/supabase/public";
 
@@ -23,7 +22,6 @@ export const revalidate = 300;
 
 type FacilitatorPageProps = {
   params: Promise<{ id?: string; slug?: string }>;
-  searchParams?: Promise<{ admin_return?: string; facilitator_return?: string; reminder_message?: string; return_to?: string }>;
 };
 
 function first<T>(value: T | T[] | null | undefined) {
@@ -36,15 +34,6 @@ function facilitatorIdentifier(params: { id?: string; slug?: string }) {
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function withSearch(path: string, searchParams: Record<string, string | undefined>) {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(searchParams)) {
-    if (value) params.set(key, value);
-  }
-  const query = params.toString();
-  return query ? path + "?" + query : path;
 }
 
 function ensureUrl(url: string) {
@@ -124,6 +113,10 @@ const getPublicFacilitatorPageData = cache(async (identifier: string) => {
 
   return { facilitator, facilitatorError };
 });
+
+export async function generateStaticParams() {
+  return [];
+}
 
 function sortEventsByStartDate<T extends { starts_at: string }>(events: T[]) {
   return [...events].sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
@@ -212,12 +205,10 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
   });
 }
 
-export default async function PublicFacilitatorPage({ params, searchParams }: FacilitatorPageProps) {
+export default async function PublicFacilitatorPage({ params }: FacilitatorPageProps) {
   const resolvedParams = await params;
   const identifier = facilitatorIdentifier(resolvedParams);
   const isLegacyRoute = Boolean(resolvedParams.id);
-  const resolvedSearchParams = await searchParams;
-  const reminderMessage = resolvedSearchParams?.reminder_message ?? "";
   const supabase = createPublicClient();
   const { facilitator: publicFacilitator, facilitatorError: publicFacilitatorError } =
     await getPublicFacilitatorPageData(identifier);
@@ -239,12 +230,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
   }
 
   if (isLegacyRoute && facilitatorData.slug) {
-    permanentRedirect(
-      withSearch(publicFacilitatorPath(facilitatorData.slug), {
-        reminder_message: resolvedSearchParams?.reminder_message,
-        return_to: resolvedSearchParams?.return_to,
-      }),
-    );
+    permanentRedirect(publicFacilitatorPath(facilitatorData.slug));
   }
 
   const nowIso = new Date().toISOString();
@@ -364,10 +350,7 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
     facilitatorData.tiktok_url ? { label: "TikTok", href: ensureUrl(facilitatorData.tiktok_url) } : null,
   ].filter((link): link is { label: string; href: string } => Boolean(link));
   const currentProfilePath = publicFacilitatorPath(facilitatorData.slug || facilitatorData.id);
-  const publicReturnLink = safePublicReturnPath(resolvedSearchParams?.return_to, currentProfilePath);
-  const backLink =
-    (publicReturnLink ? { href: publicReturnLink, label: publicReturnLabel(publicReturnLink) } : null) ??
-    { href: "/facilitators", label: "Tilbage til arrangører" };
+  const backLink = { href: "/facilitators", label: "Tilbage til arrangører" };
   const badges = organizerBadgesFromFlags({
     isActiveHost: facilitatorData.is_active_host,
     isExperiencedHost: facilitatorData.is_experienced_host,
@@ -444,7 +427,6 @@ export default async function PublicFacilitatorPage({ params, searchParams }: Fa
         presentationText={presentationText}
         profileImageUrl={imageUrl}
         reminderFormAction={subscribeToFacilitatorReminderAction.bind(null, facilitatorData.id)}
-        reminderMessage={reminderMessage}
         serviceDescription={facilitatorData.offers_services ? facilitatorData.service_description : null}
         showFallbackNotice={false}
         specialty={specialty}
