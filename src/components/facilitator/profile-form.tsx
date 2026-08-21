@@ -78,6 +78,7 @@ import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity
 import { PublicFacilitatorGallery } from "@/components/facilitator/public-facilitator-gallery";
 import type { BrandLogoSources } from "@/lib/brand-logo";
 import { resolveFacilitatorBanner } from "@/lib/facilitators/hero-collection";
+import { facilitatorMoodImageSlotCount } from "@/lib/facilitators/mood-image-slots";
 import {
   facilitatorStoryMinLength,
   normalizeFacilitatorStory,
@@ -272,7 +273,7 @@ const steps: Array<{
   {
     eyebrow: "Billeder",
     id: "profile-image",
-    text: "Tilføj profilbillede, bannerbillede og op til tre stemningsbilleder, der viser dig og det, du inviterer mennesker ind i.",
+    text: "Tilføj profilbillede, bannerbillede og op til seks stemningsbilleder, der viser dig og det, du inviterer mennesker ind i.",
     title: "Gør din profil levende.",
   },
   {
@@ -1198,7 +1199,7 @@ export function ProfileForm({
       : "",
   );
   const [moodImages, setMoodImages] = useState<MoodImage[]>(
-    Array.from({ length: 3 }, (_, index) => ({
+    Array.from({ length: facilitatorMoodImageSlotCount }, (_, index) => ({
       fileName: "",
       path: galleryImages[index]?.image_path ?? "",
       previewUrl: galleryImages[index]?.image_path
@@ -1219,7 +1220,7 @@ export function ProfileForm({
     status: "idle",
   });
   const [moodImageStatuses, setMoodImageStatuses] = useState<SlotStatus[]>(
-    Array.from({ length: 3 }, () => ({ message: "", status: "idle" })),
+    Array.from({ length: facilitatorMoodImageSlotCount }, () => ({ message: "", status: "idle" })),
   );
   const visibleCategoryIds = new Set(categories.map((category) => category.id));
   const initialSelectedCategoryIds = selectedCategoryIds.filter((categoryId) =>
@@ -2350,7 +2351,7 @@ export function ProfileForm({
 
   function applyMoodImagePaths(paths: string[]) {
     setMoodImages(
-      Array.from({ length: 3 }, (_, index) => {
+      Array.from({ length: facilitatorMoodImageSlotCount }, (_, index) => {
         const path = paths[index] ?? "";
         return {
           fileName: "",
@@ -2846,13 +2847,13 @@ export function ProfileForm({
         <div>
           <SectionHeading Icon={ImagePlus} title="Dine stemningsbilleder" />
           <p className="mt-2 text-lg font-semibold text-midnight">
-            Tilføj op til tre billeder, der viser dit univers
+            Tilføj op til seks billeder, der viser dit univers
           </p>
           <p className="mt-1 text-sm leading-6 text-ink/55">
-            Tilføj op til tre billeder, der viser stemningen i det, du tilbyder.
+            Tilføj op til seks billeder, der viser stemningen i det, du tilbyder.
           </p>
         </div>
-        <div className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0">
+        <div className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-6">
           {moodImageTiles}
         </div>
       </section>

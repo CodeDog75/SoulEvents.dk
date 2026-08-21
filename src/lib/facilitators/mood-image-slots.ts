@@ -1,4 +1,4 @@
-export const facilitatorMoodImageSlotCount = 3;
+export const facilitatorMoodImageSlotCount = 6;
 
 export type FacilitatorMoodImageSlotRow = {
   alt_text?: string | null;

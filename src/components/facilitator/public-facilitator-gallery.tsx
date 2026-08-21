@@ -4,6 +4,7 @@
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { facilitatorMoodImageSlotCount } from "@/lib/facilitators/mood-image-slots";
 
 type GalleryImage = {
   altText?: string | null;
@@ -29,8 +30,8 @@ function GalleryTitle({ actions }: { actions?: ReactNode }) {
 }
 
 export function PublicFacilitatorGallery({ actions, images }: PublicFacilitatorGalleryProps) {
-  const visibleImages = images.slice(0, 3);
-  const desktopSlots = Array.from({ length: 3 }, (_, index) => visibleImages[index] ?? null);
+  const visibleImages = images.slice(0, facilitatorMoodImageSlotCount);
+  const desktopSlots = Array.from({ length: facilitatorMoodImageSlotCount }, (_, index) => visibleImages[index] ?? null);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activeImage = activeIndex === null ? null : visibleImages[activeIndex] ?? null;
 

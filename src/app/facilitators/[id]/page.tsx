@@ -10,6 +10,7 @@ import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
 import { getUserFacingEventStatus } from "@/lib/events/user-facing-status";
 import { resolveFacilitatorBanner } from "@/lib/facilitators/hero-collection";
 import { withFacilitatorMoodImageFallback } from "@/lib/facilitators/mood-image-fallback";
+import { facilitatorMoodImageSlotCount } from "@/lib/facilitators/mood-image-slots";
 import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
 import { profileCountryName } from "@/lib/locations/countries";
 import { absoluteUrl, createPageMetadata, publicMediaUrl } from "@/lib/open-graph";
@@ -327,7 +328,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
     [...(facilitatorData.facilitator_images ?? [])]
       .sort((a: any, b: any) => a.sort_order - b.sort_order)
       .filter((image: any) => image.image_path)
-      .slice(0, 10)
+      .slice(0, facilitatorMoodImageSlotCount)
       .map((image: any) => ({
         ...image,
         url: supabase.storage.from("media").getPublicUrl(image.image_path).data.publicUrl,

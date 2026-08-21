@@ -16,6 +16,7 @@ import {
   sendFacilitatorProfileReadyEmail,
 } from "@/lib/email/facilitator-profile-ready";
 import {
+  facilitatorMoodImageSlotCount,
   normalizeFacilitatorMoodImagePaths,
   normalizeFacilitatorMoodImageSlots,
 } from "@/lib/facilitators/mood-image-slots";
@@ -2531,9 +2532,13 @@ export async function saveFacilitatorMoodImageAction(formData: FormData) {
     ...fileContext,
   };
 
-  if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex > 2) {
+  if (
+    !Number.isInteger(slotIndex) ||
+    slotIndex < 0 ||
+    slotIndex >= facilitatorMoodImageSlotCount
+  ) {
     logMoodImageError("Invalid mood image slot", baseLogContext);
-    return imageActionError("Billedpladsen kunne ikke genkendes. Prøv igen.");
+    return imageActionError("Du kan højst tilføje 6 stemningsbilleder.");
   }
 
   if (adminTargetFacilitatorId && profile.role !== "admin") {
@@ -3086,7 +3091,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
     formData.get("show_in_local_service_results") === "on";
   const galleryPaths = formData
     .getAll("gallery_image_paths")
-    .slice(0, 3)
+    .slice(0, facilitatorMoodImageSlotCount)
     .map((item) => (typeof item === "string" ? item.trim() : ""));
 
   let existingProfileQuery = supabase
@@ -3751,7 +3756,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
 
   if (savesSection(section, "images")) {
     const galleryUploads = await Promise.all(
-      [0, 1, 2].map((index) =>
+      Array.from({ length: facilitatorMoodImageSlotCount }, (_, index) =>
         uploadImage(
           supabase,
           formData.get(`gallery_image_file_${index}`),
@@ -3764,7 +3769,7 @@ export async function updateFacilitatorProfileAction(formData: FormData) {
       ),
     );
 
-    const finalGalleryPaths = Array.from({ length: 3 }, (_, index) => {
+    const finalGalleryPaths = Array.from({ length: facilitatorMoodImageSlotCount }, (_, index) => {
       if (galleryUploads[index]) return galleryUploads[index] as string;
       if (index < galleryPaths.length) return galleryPaths[index] || "";
       return existingGalleryPaths[index] || "";
