@@ -36,7 +36,6 @@ import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { draftLimitMessage, getFacilitatorEventLimitStatus } from "@/lib/events/event-limits";
 import { getDraftPublishReadiness } from "@/lib/events/draft-publish-readiness";
 import { getUserFacingEventStatus, getUserFacingEventStatusLabel, isEventPastEnd } from "@/lib/events/user-facing-status";
-import { resolveFacilitatorHero } from "@/lib/facilitators/hero-collection";
 import { resolveFacilitatorMoodImage, withFacilitatorMoodImageFallback } from "@/lib/facilitators/mood-image-fallback";
 import { getFacilitatorOnboardingStateForProfile } from "@/lib/facilitators/onboarding-state";
 import { parseProfileChangeRequest, type ProfileChangeRequest } from "@/lib/facilitators/profile-change-request";
@@ -1207,7 +1206,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
   const { data: facilitatorProfile } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, slug, status, is_paused, is_disabled, host_reference_id, company_name, facilitator_hero_key, profile_image_path, address_line, city, postal_code, short_description, specialties, offers_services, service_description, is_active_host, is_experienced_host, max_ticket_price_per_person, facilitator_categories(category_id, categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
+      "id, slug, status, is_paused, is_disabled, host_reference_id, company_name, profile_image_path, address_line, city, postal_code, short_description, specialties, offers_services, service_description, is_active_host, is_experienced_host, max_ticket_price_per_person, facilitator_categories(category_id, categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)",
     )
     .eq("profile_id", profile.id)
     .single();
@@ -1244,12 +1243,6 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
     sortOrder: "sortOrder" in image ? image.sortOrder : null,
     url: image.url ?? resolveFacilitatorMoodImage([], { fallbackAltText: "Roligt SoulEvents naturbillede" }).url,
   }));
-  const heroImage = resolveFacilitatorHero({
-    fallbackAltText: "Roligt SoulEvents naturbillede",
-    heroKey: facilitatorProfile?.facilitator_hero_key,
-    moodImages,
-    preferCustomWhenUnset: true,
-  });
   const profileSpecialty = normalizeSpecialtyText(facilitatorProfile?.specialties);
   const profilePlace = facilitatorProfile?.city || null;
   const now = new Date();

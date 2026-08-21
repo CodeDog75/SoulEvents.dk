@@ -8,7 +8,7 @@ import { PublicFacilitatorProfile } from "@/components/facilitator/public-facili
 import { subscribeToFacilitatorReminderAction } from "./actions";
 import { getAvailableEventSeatsByEventId } from "@/lib/events/capacity";
 import { getUserFacingEventStatus } from "@/lib/events/user-facing-status";
-import { resolveFacilitatorHero } from "@/lib/facilitators/hero-collection";
+import { resolveFacilitatorBanner } from "@/lib/facilitators/hero-collection";
 import { withFacilitatorMoodImageFallback } from "@/lib/facilitators/mood-image-fallback";
 import { facilitatorWorkAreaSlugSet } from "@/lib/facilitators/work-areas";
 import { profileCountryName } from "@/lib/locations/countries";
@@ -57,18 +57,18 @@ function nameOf(facilitator: any) {
   return facilitator?.company_name || profile?.full_name || "Arrangør";
 }
 
-function isMissingHeroKeyColumn(error: { code?: string; message?: string } | null) {
+function isMissingBannerColumn(error: { code?: string; message?: string } | null) {
   return Boolean(
     error &&
       (error.code === "42703" ||
         error.code === "PGRST204" ||
-        error.message?.includes("facilitator_hero_key") ||
+        error.message?.includes("facilitator_banner_image_path") ||
         error.message?.includes("schema cache")),
   );
 }
 
-const facilitatorSelectWithHero =
-  "id, profile_id, slug, host_reference_id, company_name, facilitator_hero_key, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, country_name, region_text, show_public_location, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
+const facilitatorSelectWithBanner =
+  "id, profile_id, slug, host_reference_id, company_name, facilitator_banner_image_path, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, country_name, region_text, show_public_location, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 const facilitatorSelectLegacy =
   "id, profile_id, slug, host_reference_id, company_name, profile_image_path, short_description, specialties, long_description, website_url, public_email, public_phone, facebook_url, instagram_url, youtube_url, tiktok_url, address_line, postal_code, city, country, country_name, region_text, is_online_facilitator, is_active_host, is_experienced_host, offers_services, service_description, profiles!facilitator_profiles_profile_id_fkey(full_name, email, phone), regions(name), facilitator_categories(categories(name, slug, color_hex)), facilitator_images(image_path, alt_text, sort_order)";
 const publicEventSelect =
@@ -78,14 +78,14 @@ const getPublicFacilitatorPageData = cache(async (identifier: string) => {
   const supabase = createPublicClient();
   let { data: facilitator, error: facilitatorError } = await supabase
     .from("facilitator_profiles")
-    .select(facilitatorSelectWithHero)
+    .select(facilitatorSelectWithBanner)
     .eq("slug", identifier)
     .eq("status", "approved")
     .eq("is_paused", false)
     .eq("is_disabled", false)
     .single();
 
-  if (isMissingHeroKeyColumn(facilitatorError)) {
+  if (isMissingBannerColumn(facilitatorError)) {
     const legacyResult = await supabase
       .from("facilitator_profiles")
       .select(facilitatorSelectLegacy)
@@ -101,7 +101,7 @@ const getPublicFacilitatorPageData = cache(async (identifier: string) => {
   if (!facilitator && isUuid(identifier)) {
     const fallbackResult = await supabase
       .from("facilitator_profiles")
-      .select(facilitatorSelectWithHero)
+      .select(facilitatorSelectWithBanner)
       .eq("id", identifier)
       .eq("status", "approved")
       .eq("is_paused", false)
@@ -109,6 +109,19 @@ const getPublicFacilitatorPageData = cache(async (identifier: string) => {
       .single();
     facilitator = fallbackResult.data as typeof facilitator;
     facilitatorError = fallbackResult.error;
+
+    if (isMissingBannerColumn(facilitatorError)) {
+      const legacyFallbackResult = await supabase
+        .from("facilitator_profiles")
+        .select(facilitatorSelectLegacy)
+        .eq("id", identifier)
+        .eq("status", "approved")
+        .eq("is_paused", false)
+        .eq("is_disabled", false)
+        .single();
+      facilitator = legacyFallbackResult.data as typeof facilitator;
+      facilitatorError = legacyFallbackResult.error;
+    }
   }
 
   return { facilitator, facilitatorError };
@@ -163,16 +176,14 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
   }
 
   const name = nameOf(facilitator);
-  const galleryImages = [...(((facilitator as any).facilitator_images ?? []) as Array<{ image_path: string | null; sort_order: number | null }>)]
-    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-  const moodImage = resolveFacilitatorHero({
-    fallbackAltText: "Roligt SoulEvents naturbillede",
-    heroKey: (facilitator as any).facilitator_hero_key,
-    moodImages: galleryImages.map((image) => ({ imagePath: image.image_path, sortOrder: image.sort_order })),
-    preferCustomWhenUnset: true,
+  const bannerImage = resolveFacilitatorBanner({
+    bannerImagePath: (facilitator as any).facilitator_banner_image_path,
+    fallbackAltText: "SoulEvents standardbanner",
     resolveImagePath: (imagePath) => publicMediaUrl(supabase, imagePath),
   });
-  const imageUrl = facilitator.profile_image_path ? publicMediaUrl(supabase, facilitator.profile_image_path) : moodImage.url;
+  const imageUrl = bannerImage.isFallback
+    ? absoluteUrl(bannerImage.url)
+    : bannerImage.url;
   const { data: upcomingEvents } = await supabase
     .from("events")
     .select("title")
@@ -324,16 +335,10 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
   const galleryWithFallback = withFacilitatorMoodImageFallback(gallery, {
     fallbackAltText: `Stemningsbillede for ${name}`,
   });
-  const coverImage = resolveFacilitatorHero({
-    fallbackAltText: `Stemningsbillede for ${name}`,
-    heroKey: facilitatorData.facilitator_hero_key,
-    moodImages: gallery.map((image: any) => ({
-      altText: image.alt_text,
-      imagePath: image.image_path,
-      sortOrder: image.sort_order,
-      url: image.url,
-    })),
-    preferCustomWhenUnset: true,
+  const coverImage = resolveFacilitatorBanner({
+    bannerImagePath: facilitatorData.facilitator_banner_image_path,
+    fallbackAltText: `Bannerbillede for ${name}`,
+    resolveImagePath: (imagePath) => supabase.storage.from("media").getPublicUrl(imagePath).data.publicUrl,
   });
   const categories =
     facilitatorData.facilitator_categories
@@ -378,7 +383,7 @@ export default async function PublicFacilitatorPage({ params }: FacilitatorPageP
     countryName: facilitatorData.country_name,
     email: publicEmail,
     eventTitles: eventsWithCapacity.map((event: any) => event.title),
-    imageUrl: imageUrl || coverImage.url,
+    imageUrl: coverImage.isFallback ? absoluteUrl(coverImage.url) : coverImage.url,
     links,
     name,
     phone: publicPhone,

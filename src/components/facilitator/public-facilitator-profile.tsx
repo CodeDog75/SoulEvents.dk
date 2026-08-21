@@ -280,7 +280,7 @@ export function PublicFacilitatorProfile({
 
           {showFallbackNotice && coverImage.isFallback ? (
             <p className="rounded-[20px] border border-[#D8CBE4] bg-[#F1EAF5] px-4 py-3 text-sm leading-6 text-[#6E5285]">
-              Du bruger i øjeblikket SoulEvents&apos; standardbillede. Upload dine egne stemningsbilleder for at gøre din profil mere personlig.
+              Du bruger i øjeblikket SoulEvents&apos; standardbanner. Upload et bannerbillede for at gøre din profil mere personlig.
             </p>
           ) : null}
         </aside>

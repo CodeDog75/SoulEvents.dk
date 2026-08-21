@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 700" role="img" aria-labelledby="title description">
+  <title id="title">SoulEvents standardbanner</title>
+  <desc id="description">Varm solnedgang med bløde nordiske farver, skovsilhuetter og roligt lys.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#2f2446"/>
+      <stop offset="0.34" stop-color="#6e5285"/>
+      <stop offset="0.63" stop-color="#d98c62"/>
+      <stop offset="1" stop-color="#f6d99f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="48%" cy="56%" r="48%">
+      <stop offset="0" stop-color="#fff2be" stop-opacity="0.95"/>
+      <stop offset="0.32" stop-color="#f2a066" stop-opacity="0.58"/>
+      <stop offset="1" stop-color="#6e5285" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="water" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#6b7b63"/>
+      <stop offset="0.45" stop-color="#7a5d91"/>
+      <stop offset="1" stop-color="#2f2437"/>
+    </linearGradient>
+    <filter id="soften" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+  <rect width="1600" height="700" fill="url(#sky)"/>
+  <circle cx="765" cy="390" r="360" fill="url(#glow)"/>
+  <path fill="#f6d99f" opacity="0.24" filter="url(#soften)" d="M0 438c137-52 264-58 381-18 95 32 171 32 275-3 140-47 272-44 397 11 125 55 249 53 372-8 60-30 118-44 175-42v322H0z"/>
+  <path fill="#26362d" opacity="0.82" d="M0 485l47-39 32 24 35-66 42 78 51-108 39 91 65-67 58 77 52-96 63 107 72-118 59 104 48-70 64 86 72-95 74 88 65-74 85 88 69-66 81 54 63-50 71 48 60-38 61 49 51-30v210H0z"/>
+  <path fill="#19251f" opacity="0.96" d="M0 527l74-63 42 46 46-88 59 116 61-94 68 92 72-113 77 105 74-76 82 89 80-116 83 107 74-64 96 80 84-92 97 83 72-62 91 70 70-45 96 54v146H0z"/>
+  <rect y="545" width="1600" height="155" fill="url(#water)" opacity="0.9"/>
+  <path fill="#fff4cf" opacity="0.18" d="M204 604c206-26 378-25 517 3 140 29 274 28 401-4 131-33 245-32 343 2v37c-142-18-259-15-352 8-132 32-260 34-384 4-152-36-327-37-525-1z"/>
+  <path fill="#2f2437" opacity="0.45" d="M0 660c188-31 350-37 486-18 123 17 251 15 385-7 173-28 342-25 508 8 78 15 151 18 221 9v48H0z"/>
+</svg>

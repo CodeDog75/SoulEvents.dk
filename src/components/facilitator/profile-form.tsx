@@ -42,6 +42,7 @@ import {
 import { resolveNameParts } from "@/lib/auth/names";
 import {
   autosaveFacilitatorProfileAction,
+  saveFacilitatorBannerImageAction,
   saveFacilitatorMoodImageAction,
   saveFacilitatorProfileImageAction,
   submitFacilitatorProfileForReviewAction,
@@ -73,14 +74,7 @@ import { OnboardingShell as SharedOnboardingShell } from "@/components/onboardin
 import { ProfileIdentityHeader } from "@/components/facilitator/profile-identity-header";
 import { PublicFacilitatorGallery } from "@/components/facilitator/public-facilitator-gallery";
 import type { BrandLogoSources } from "@/lib/brand-logo";
-import {
-  defaultFacilitatorHeroKey,
-  facilitatorHeroOptions,
-  isMoodHeroKey,
-  normalizeFacilitatorHeroKey,
-  resolveFacilitatorHero,
-  type FacilitatorHeroKey,
-} from "@/lib/facilitators/hero-collection";
+import { resolveFacilitatorBanner } from "@/lib/facilitators/hero-collection";
 import {
   facilitatorStoryMinLength,
   normalizeFacilitatorStory,
@@ -116,7 +110,7 @@ type FacilitatorProfile = {
   slug?: string | null;
   status?: string | null;
   company_name: string | null;
-  facilitator_hero_key?: string | null;
+  facilitator_banner_image_path?: string | null;
   host_reference_id?: string | null;
   profile_image_path: string | null;
   short_description: string | null;
@@ -275,7 +269,7 @@ const steps: Array<{
   {
     eyebrow: "Billeder",
     id: "profile-image",
-    text: "Tilføj et obligatorisk profilbillede og op til tre stemningsbilleder, der viser dig og det, du inviterer mennesker ind i.",
+    text: "Tilføj profilbillede, bannerbillede og op til tre stemningsbilleder, der viser dig og det, du inviterer mennesker ind i.",
     title: "Gør din profil levende.",
   },
   {
@@ -1130,6 +1124,7 @@ export function ProfileForm({
   const profileImageSectionRef = useRef<HTMLElement | null>(null);
   const moodImageSectionRef = useRef<HTMLElement | null>(null);
   const bannerImageSectionRef = useRef<HTMLElement | null>(null);
+  const bannerImageInputRef = useRef<HTMLInputElement | null>(null);
   const experiencesSectionRef = useRef<HTMLDivElement | null>(null);
   const storySectionRef = useRef<HTMLDivElement | null>(null);
   const storyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -1208,16 +1203,18 @@ export function ProfileForm({
         : "",
     })),
   );
-  const initialHeroKey = normalizeFacilitatorHeroKey(
-    facilitatorProfile.facilitator_hero_key,
+  const [bannerImagePath, setBannerImagePath] = useState(
+    facilitatorProfile.facilitator_banner_image_path ?? "",
   );
-  const initialHeroHasMoodImage = galleryImages.some((image) =>
-    Boolean(image?.image_path),
+  const [bannerImageUrl, setBannerImageUrl] = useState(
+    facilitatorProfile.facilitator_banner_image_path
+      ? publicImageUrl(facilitatorProfile.facilitator_banner_image_path)
+      : "",
   );
-  const [selectedHeroKey, setSelectedHeroKey] = useState<FacilitatorHeroKey>(
-    initialHeroKey ??
-      (initialHeroHasMoodImage ? "mood_1" : defaultFacilitatorHeroKey),
-  );
+  const [bannerImageStatus, setBannerImageStatus] = useState<SlotStatus>({
+    message: "",
+    status: "idle",
+  });
   const [moodImageStatuses, setMoodImageStatuses] = useState<SlotStatus[]>(
     Array.from({ length: 3 }, () => ({ message: "", status: "idle" })),
   );
@@ -1940,14 +1937,6 @@ export function ProfileForm({
       setProfileImageUrl(publicImageUrl(result.path));
     }
 
-    const imageResult = await autosaveFacilitatorProfileAction({
-      adminTargetFacilitatorId: adminTargetFacilitatorId ?? null,
-      section: "images",
-      values: { facilitator_hero_key: selectedHeroKey },
-    });
-
-    if (!imageResult.ok) return imageResult;
-
     if (selectedExperiences.length > 0) {
       const categoryResult = await autosaveFacilitatorProfileAction({
         adminTargetFacilitatorId: adminTargetFacilitatorId ?? null,
@@ -2066,7 +2055,7 @@ export function ProfileForm({
       const result = await autosaveFacilitatorProfileAction({
         adminTargetFacilitatorId: adminTargetFacilitatorId ?? null,
         section: "images",
-        values: { facilitator_hero_key: selectedHeroKey },
+        values: {},
       });
 
       if (!result.ok) return result;
@@ -2451,6 +2440,98 @@ export function ProfileForm({
     });
   }
 
+  function saveBannerImage(file: File) {
+    setBannerImageStatus({
+      message: "Uploader og gemmer bannerbilledet...",
+      status: "saving",
+    });
+    startImageTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.set("image_file", file);
+        if (adminTargetFacilitatorId) {
+          formData.set("admin_target_facilitator_id", adminTargetFacilitatorId);
+        }
+        const result = await saveFacilitatorBannerImageAction(formData);
+
+        if (result.status === "success") {
+          setBannerImagePath(result.path ?? "");
+          setBannerImageUrl(result.path ? publicImageUrl(result.path) : "");
+          setBannerImageStatus({
+            message: "Bannerbilledet er gemt.",
+            status: "success",
+          });
+          return;
+        }
+
+        setBannerImageStatus({ message: result.message, status: "error" });
+      } catch {
+        setBannerImageStatus({
+          message: "Bannerbilledet kunne ikke gemmes. Prøv igen.",
+          status: "error",
+        });
+      }
+    });
+  }
+
+  async function handleBannerImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const prepared = await prepareImageFileForUpload(file, {
+        maxFileSizeBytes: 10 * 1024 * 1024,
+      });
+      saveBannerImage(prepared);
+      event.target.value = "";
+    } catch (error) {
+      event.target.value = "";
+      setBannerImageStatus({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Bannerbilledet kunne ikke læses. Prøv et andet billede.",
+        status: "error",
+      });
+    }
+  }
+
+  function removeBannerImage() {
+    if (!bannerImagePath) return;
+
+    setBannerImageStatus({
+      message: "Fjerner bannerbilledet...",
+      status: "saving",
+    });
+    startImageTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.set("remove", "yes");
+        if (adminTargetFacilitatorId) {
+          formData.set("admin_target_facilitator_id", adminTargetFacilitatorId);
+        }
+        const result = await saveFacilitatorBannerImageAction(formData);
+
+        if (result.status === "success") {
+          setBannerImagePath("");
+          setBannerImageUrl("");
+          setBannerImageStatus({
+            message: "Bannerbilledet er fjernet. Standardbanneret vises nu.",
+            status: "success",
+          });
+          return;
+        }
+
+        setBannerImageStatus({ message: result.message, status: "error" });
+      } catch {
+        setBannerImageStatus({
+          message: "Bannerbilledet kunne ikke fjernes. Prøv igen.",
+          status: "error",
+        });
+      }
+    });
+  }
+
   const profileImageAdded = Boolean(profileImageUrl);
   const profileImageTile = (
     <UploadTile
@@ -2465,21 +2546,11 @@ export function ProfileForm({
     />
   );
 
-  const heroPreview = resolveFacilitatorHero({
-    heroKey: selectedHeroKey,
-    moodImages: moodImages.map((image, index) => ({
-      imagePath: image.path,
-      sortOrder: index + 1,
-      url: image.previewUrl,
-    })),
-    preferCustomWhenUnset: false,
+  const bannerPreview = resolveFacilitatorBanner({
+    bannerImagePath,
+    bannerImageUrl,
+    fallbackAltText: "Bannerbillede for arrangørprofil",
   });
-  const selectedMoodHeroNumber = isMoodHeroKey(selectedHeroKey)
-    ? Number(selectedHeroKey.replace("mood_", ""))
-    : null;
-  const selectedHeroDisplayLabel = selectedMoodHeroNumber
-    ? `Stemningsbillede ${selectedMoodHeroNumber}`
-    : heroPreview.label;
   const reviewCategories = categories
     .filter((category) => selectedExperiences.includes(category.id))
     .map((category) => ({ name: category.name }));
@@ -2521,205 +2592,89 @@ export function ProfileForm({
           ? "?admin_return=" + encodeURIComponent(backHref)
           : "?facilitator_return=/facilitator")
     : null;
-  type HeroPickerOption = {
-    altText: string;
-    description: string;
-    disabled?: boolean;
-    imagePath: string;
-    key: FacilitatorHeroKey;
-    label: string;
-    objectPositionDesktop: string;
-    objectPositionMobile: string;
-  };
-  const souleventsHeroOptions: HeroPickerOption[] = [...facilitatorHeroOptions];
-  const moodHeroOptions: HeroPickerOption[] = moodImages.reduce<
-    HeroPickerOption[]
-  >((options, image, index) => {
-    const key = `mood_${index + 1}` as FacilitatorHeroKey;
-    const hasImage = Boolean(image.previewUrl);
+  const bannerSection = (
+    <section
+      className="grid scroll-mt-24 gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
+      id="profile-banner-section"
+      ref={bannerImageSectionRef}
+    >
+      <div>
+        <SectionHeading Icon={ImagePlus} title="Bannerbillede" />
+        <p className="mt-2 text-lg font-semibold text-midnight">
+          Upload et bredt billede, der præsenterer dig og dit univers. Hvis du
+          ikke vælger et billede, viser vi SoulEvents’ standardbanner.
+        </p>
+        <p className="mt-1 text-sm leading-6 text-ink/55">
+          Anbefalet format: bredt liggende billede, ca. 16:7. Billedet beskæres
+          let, så det passer til banneret.
+        </p>
+      </div>
 
-    if (!hasImage && selectedHeroKey !== key) return options;
-
-    options.push({
-      altText: `Stemningsbillede ${index + 1}`,
-      description: hasImage
-        ? "Brug dette billede som banner."
-        : "Ikke uploadet endnu",
-      disabled: !hasImage,
-      imagePath: hasImage
-        ? image.previewUrl
-        : facilitatorHeroOptions[0].imagePath,
-      key,
-      label: `Stemningsbillede ${index + 1}`,
-      objectPositionDesktop: "center center",
-      objectPositionMobile: "center center",
-    });
-
-    return options;
-  }, []);
-
-  function renderHeroOption(option: HeroPickerOption) {
-    const selected = selectedHeroKey === option.key;
-
-    return (
-      <button
-        aria-disabled={option.disabled}
-        aria-pressed={selected}
-        className={
-          "grid min-h-[118px] grid-cols-[96px_1fr] overflow-hidden rounded-[20px] border text-left shadow-soft transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700 " +
-          (selected
-            ? "border-sage-700/45 bg-sage-50"
-            : "border-midnight/10 bg-white hover:border-sage-700/30") +
-          (option.disabled
-            ? " cursor-not-allowed opacity-72"
-            : " hover:-translate-y-0.5")
-        }
-        key={option.key}
-        onClick={() => {
-          if (!option.disabled) {
-            setSelectedHeroKey(option.key);
-          }
-        }}
-        type="button"
-      >
-        <span className="relative h-full w-full">
+      <div className="grid gap-3">
+        <button
+          aria-label={bannerImagePath ? "Udskift bannerbillede" : "Upload bannerbillede"}
+          className="group relative aspect-[16/7] min-h-[180px] overflow-hidden rounded-[24px] bg-midnight text-left shadow-soft transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-700"
+          onClick={() => bannerImageInputRef.current?.click()}
+          type="button"
+        >
           <Image
-            alt=""
-            className="object-cover"
+            alt={bannerPreview.altText}
+            className="object-cover transition duration-200 group-hover:scale-[1.015]"
             fill
-            sizes="96px"
-            src={option.imagePath}
+            sizes="(min-width: 768px) 760px, 100vw"
+            src={bannerPreview.url}
             unoptimized
           />
-        </span>
-        <span className="grid content-center gap-1 p-3">
-          <span className="flex items-center justify-between gap-2">
-            <span className="text-sm font-semibold text-midnight">
-              {option.label}
-            </span>
-            {selected ? (
-              <span className="rounded-full bg-sage-700 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white">
-                Valgt
-              </span>
-            ) : (
-              <Circle
-                className="size-4 shrink-0 text-sage-700/45"
-                aria-hidden="true"
-              />
-            )}
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(44,51,35,0.66)_0%,rgba(69,56,82,0.34)_55%,rgba(69,56,82,0.18)_100%)]" />
+          <span className="absolute bottom-4 left-4 inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-bold text-midnight shadow-soft">
+            <Upload className="size-4" aria-hidden="true" />
+            {bannerImagePath ? "Udskift banner" : "Upload banner"}
           </span>
-          <span className="text-xs leading-5 text-ink/55">
-            {option.description}
-          </span>
-        </span>
-      </button>
-    );
-  }
-
-  const heroPicker = (
-    <>
-      <section
-        className="grid scroll-mt-24 gap-5 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6"
-        id="profile-banner-section"
-        ref={bannerImageSectionRef}
-      >
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">
-            3. Dit valgte banner
-          </p>
-          <p className="mt-2 text-lg font-semibold text-midnight">
-            Vælg banner til din profil
-          </p>
-          <p className="mt-1 text-sm leading-6 text-ink/55">
-            Banneret er det brede billede øverst på din offentlige profil. Du
-            kan vælge et af dine egne stemningsbilleder eller et af SoulEvents’
-            naturbannere.
-          </p>
-        </div>
-
-        <div className="overflow-hidden rounded-[24px] bg-midnight shadow-soft">
-          <div className="relative aspect-[16/7] min-h-[180px]">
-            <Image
-              alt={heroPreview.altText}
-              className="object-cover"
-              fill
-              sizes="(min-width: 768px) 640px, 100vw"
-              src={heroPreview.url}
-              unoptimized
-            />
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(44,51,35,0.78)_0%,rgba(69,56,82,0.38)_54%,rgba(69,56,82,0.08)_100%)]" />
-            <div className="relative z-10 flex h-full max-w-sm flex-col justify-end p-5 text-white sm:p-6">
-              <span className="w-fit rounded-full bg-white/18 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
-                Valgt som banner
-              </span>
-              <span className="mt-3 text-xs font-bold uppercase tracking-[0.22em] text-white/78">
-                Dit nuværende banner
-              </span>
-              <p className="mt-2 font-serif text-3xl font-semibold leading-tight">
-                {selectedHeroDisplayLabel}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-3">
-          <div>
-            <p className="text-sm font-semibold text-midnight">
-              Vælg blandt dine stemningsbilleder
-            </p>
-            <p className="mt-1 text-sm leading-6 text-ink/55">
-              Dine egne billeder vises først, så profilen kan få dit personlige
-              udtryk.
-            </p>
-          </div>
-          {moodHeroOptions.length > 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {moodHeroOptions.map(renderHeroOption)}
-            </div>
+        </button>
+        <input
+          accept={imageUploadAccept}
+          className="sr-only"
+          onChange={handleBannerImageChange}
+          ref={bannerImageInputRef}
+          type="file"
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          {bannerImagePath ? (
+            <button
+              className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#E3B6B6] bg-white px-4 py-2 text-sm font-semibold text-[#A51D1D] transition hover:bg-[#FFF7F7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A51D1D]"
+              onClick={removeBannerImage}
+              type="button"
+            >
+              <X className="size-4" aria-hidden="true" />
+              Fjern bannerbillede
+            </button>
           ) : (
-            <p className="rounded-[18px] bg-white/70 px-4 py-3 text-sm leading-6 text-ink/55">
-              Tilføj et stemningsbillede ovenfor, eller vælg et
-              SoulEvents-naturbanner nedenfor.
+            <p className="text-sm font-semibold text-ink/55">
+              SoulEvents’ standardbanner vises, indtil du uploader dit eget.
             </p>
           )}
+          {bannerImageStatus.message ? (
+            <p
+              className={
+                "text-sm font-semibold " +
+                (bannerImageStatus.status === "error"
+                  ? "text-rose"
+                  : bannerImageStatus.status === "success"
+                    ? "text-sage-700"
+                    : "text-ink/55")
+              }
+            >
+              {bannerImageStatus.message}
+            </p>
+          ) : null}
         </div>
-      </section>
-
-      <section className="grid gap-3 rounded-[28px] border border-[#E5DCCB] bg-[#FFFDF8] p-5 shadow-[0_14px_34px_rgba(47,36,55,0.045)] sm:p-6">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-sage-700">
-            4. SoulEvents-naturbannere
-          </p>
-          <p className="mt-2 text-lg font-semibold text-midnight">
-            Naturbannere som reservevalg
-          </p>
-          <p className="mt-1 text-sm leading-6 text-ink/55">
-            Har du endnu ikke et egnet stemningsbillede, kan du vælge et af
-            SoulEvents’ bannere.
-          </p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {souleventsHeroOptions.map(renderHeroOption)}
-        </div>
-      </section>
-
-      {isMoodHeroKey(selectedHeroKey) &&
-      !moodImages[Number(selectedHeroKey.replace("mood_", "")) - 1]
-        ?.previewUrl ? (
-        <p className="rounded-[18px] bg-[#FFF7DE] px-4 py-3 text-sm font-semibold leading-6 text-[#715C21]">
-          Det valgte stemningsbillede findes ikke længere. Vælg et nyt banner,
-          før du gemmer.
-        </p>
-      ) : null}
-    </>
+      </div>
+    </section>
   );
 
   const moodImageTiles = (
     <>
       {moodImages.map((image, index) => {
-        const selectedAsBanner =
-          selectedHeroKey === (`mood_${index + 1}` as FacilitatorHeroKey);
-
         return (
           <div
             className="grid min-w-[82%] snap-start gap-2 sm:min-w-0"
@@ -2730,11 +2685,6 @@ export function ProfileForm({
             </p>
             <div className="relative">
               <UploadTile
-                className={
-                  selectedAsBanner
-                    ? "ring-2 ring-sage-700/45 ring-offset-2 ring-offset-white"
-                    : ""
-                }
                 createPreview={false}
                 helperText={"JPG, PNG eller WebP\nMaks. 15 MB"}
                 imageUrl={image.previewUrl}
@@ -2749,11 +2699,6 @@ export function ProfileForm({
                 }
                 onSelect={(file) => saveMoodImage(index, file)}
               />
-              {selectedAsBanner && image.previewUrl ? (
-                <span className="absolute bottom-3 left-3 rounded-full bg-sage-700 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white shadow-soft">
-                  Valgt som banner
-                </span>
-              ) : null}
               {image.path ? (
                 <button
                   aria-label={`Fjern stemningsbillede ${index + 1}`}
@@ -2862,7 +2807,6 @@ export function ProfileForm({
           </p>
           <p className="mt-1 text-sm leading-6 text-ink/55">
             Tilføj op til tre billeder, der viser stemningen i det, du tilbyder.
-            Ét af billederne kan også vælges som banner på din profil.
           </p>
         </div>
         <div className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0">
@@ -2870,7 +2814,7 @@ export function ProfileForm({
         </div>
       </section>
 
-      {heroPicker}
+      {bannerSection}
     </div>
   );
 
@@ -3749,11 +3693,11 @@ export function ProfileForm({
               badges={[]}
               categories={reviewCategories}
               coverImage={{
-                altText: heroPreview.altText,
-                isFallback: false,
-                objectPositionDesktop: heroPreview.objectPositionDesktop,
-                objectPositionMobile: heroPreview.objectPositionMobile,
-                url: heroPreview.url,
+                altText: bannerPreview.altText,
+                isFallback: bannerPreview.isFallback,
+                objectPositionDesktop: bannerPreview.objectPositionDesktop,
+                objectPositionMobile: bannerPreview.objectPositionMobile,
+                url: bannerPreview.url,
               }}
               editActions={{
                 banner: (

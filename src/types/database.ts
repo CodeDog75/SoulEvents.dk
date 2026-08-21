@@ -152,6 +152,7 @@ export type Database = {
           disabled_reason: string | null;
           slug: string;
           company_name: string | null;
+          facilitator_banner_image_path: string | null;
           facilitator_hero_key: string | null;
           profile_image_path: string | null;
           short_description: string;
