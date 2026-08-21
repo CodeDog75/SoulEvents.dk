@@ -31,7 +31,7 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
       className="group block overflow-hidden rounded-card bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift"
       href={publicFacilitatorPath(facilitator.slug || facilitator.id)}
     >
-      <div className="relative aspect-[5/4] bg-sage-50">
+      <div className="relative h-[240px] bg-sage-50 sm:h-[300px] lg:h-[360px]">
         {facilitator.isExperiencedHost ? (
         <OrganizerImageBadge type="experienced" />
       ) : facilitator.isActiveHost ? (
@@ -40,7 +40,7 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
         {facilitator.imageUrl ? (
           <Image
             alt={facilitator.name}
-            className="object-cover object-top"
+            className="object-cover object-[center_28%]"
             fill
             sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 300px"
             src={facilitator.imageUrl}
