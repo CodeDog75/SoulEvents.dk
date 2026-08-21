@@ -110,10 +110,10 @@ export function SecurityPasswordForm({ onPasswordCreated, oauthProvider, passwor
   }, [visibleState.status]);
 
   const provider = providerName(oauthProvider);
-  const title = "Skift adgangskode";
+  const title = hasPasswordLogin ? "Skift adgangskode" : "Opret personlig adgangskode";
   const description = hasPasswordLogin
     ? "Opdater adgangskoden til din SoulEvents-konto."
-    : `Du logger i øjeblikket ind med ${provider}. Du kan også oprette en personlig adgangskode til SoulEvents.`;
+    : `Du logger i øjeblikket ind med ${provider}. Opret en personlig adgangskode, så du også kan logge ind med e-mail og adgangskode og selv ændre din loginmail.`;
 
   return (
     <details className="group rounded-md border border-midnight/10 bg-[#FAF8F4] p-4">
@@ -186,7 +186,8 @@ export function SecurityPasswordForm({ onPasswordCreated, oauthProvider, passwor
           <form action={createFormAction} className="grid gap-4" ref={createFormRef}>
             <p className="rounded-md border border-sage-700/15 bg-sage-50 p-4 text-sm leading-6 text-ink/72">
               Du kan oprette en personlig adgangskode, så du fremover kan logge ind enten med {provider} eller med
-              e-mail og adgangskode. {provider === "din eksterne loginmetode" ? "Din eksterne loginmetode" : provider} bevares uændret.
+              e-mail og adgangskode. Når adgangskoden er oprettet, kan du selv ændre din loginmail.{" "}
+              {provider === "din eksterne loginmetode" ? "Din eksterne loginmetode" : provider} bevares uændret.
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               <PasswordField

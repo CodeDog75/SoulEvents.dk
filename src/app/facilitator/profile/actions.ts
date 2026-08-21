@@ -1191,7 +1191,7 @@ export async function requestFacilitatorEmailChangeAction(
     facilitator_id: facilitator?.id ?? null,
     new_value: "email_change_pending",
     old_value: "email_change_current",
-    reason: "Arrangør anmodede om ændring af login- og kontaktmail.",
+    reason: "Arrangør anmodede om ændring af loginmail.",
   });
 
   revalidatePath("/facilitator");

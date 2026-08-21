@@ -25,15 +25,8 @@ function maskEmail(value: string | null | undefined) {
 }
 
 function providerText(provider?: "facebook" | "google" | string | null) {
-  if (provider === "facebook") {
-    return "Du logger ind med Facebook. Kontakt SoulEvents, hvis loginmailen skal ændres.";
-  }
-
-  if (provider === "google") {
-    return "Du logger ind med Google. Kontakt SoulEvents, hvis loginmailen skal ændres.";
-  }
-
-  return "Du logger ind med en ekstern loginmetode. Kontakt SoulEvents, hvis loginmailen skal ændres.";
+  const providerName = provider === "facebook" ? "Facebook" : provider === "google" ? "Google" : "en ekstern loginmetode";
+  return `Du logger i øjeblikket ind med ${providerName}. Opret først en personlig adgangskode. Derefter kan du også logge ind med e-mail og adgangskode og selv ændre din loginmail.`;
 }
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -74,8 +67,8 @@ export function SecurityEmailForm({
             <Mail className="size-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-base font-semibold text-midnight">Skift mailadresse</h3>
-            <p className="mt-1 text-sm leading-6 text-ink/64">Sikkert flow med bekræftelse af den nye mailadresse.</p>
+            <h3 className="text-base font-semibold text-midnight">Skift loginmail</h3>
+            <p className="mt-1 text-sm leading-6 text-ink/64">Sikkert flow med bekræftelse af den nye loginmail.</p>
           </div>
         </div>
         <ChevronDown className="size-5 text-ink/45 transition group-open:rotate-180" aria-hidden="true" />
@@ -128,7 +121,7 @@ export function SecurityEmailForm({
         ) : (
           <form action={requestAction} className="grid gap-4" ref={requestFormRef}>
             <p className="text-sm leading-6 text-ink/64">
-              Mailadressen bruges til login og vigtige beskeder fra SoulEvents. Den gamle adresse forbliver aktiv, indtil den nye er bekræftet.
+              Loginmailen bruges til login og vigtige beskeder fra SoulEvents. Den gamle adresse forbliver aktiv, indtil den nye er bekræftet.
             </p>
             <div className="grid gap-4 md:grid-cols-3">
               <label className="grid gap-2 text-sm font-medium text-ink/72">
@@ -178,7 +171,7 @@ export function SecurityEmailForm({
                 type="submit"
               >
                 <Save className="size-4" aria-hidden="true" />
-                {requestPending ? "Sender bekræftelse..." : "Skift mailadresse"}
+                {requestPending ? "Sender bekræftelse..." : "Skift loginmail"}
               </button>
             </div>
           </form>

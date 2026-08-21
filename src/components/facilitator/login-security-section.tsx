@@ -47,7 +47,12 @@ export function LoginSecuritySection({
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-midnight">Login og sikkerhed</h2>
             <p className="mt-1 break-all text-sm leading-6 text-ink/64">
-              Nuværende login- og kontaktmail: <span className="font-semibold text-midnight">{currentEmail}</span>
+              <span className="font-semibold text-midnight">Loginmail:</span>{" "}
+              <span className="font-semibold text-midnight">{currentEmail}</span>
+            </p>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-ink/64">
+              Loginmailen er den e-mailadresse, du bruger til at logge ind på SoulEvents. Din offentlige kontaktmail
+              er den e-mailadresse, deltagere kan kontakte dig på, og den behøver ikke være den samme.
             </p>
             {pendingEmailChange ? (
               <p className="mt-2 rounded-md border border-[#D8CBE4] bg-[#F7F2FB] px-3 py-2 text-sm font-semibold leading-6 text-[#7A5D91]">
