@@ -880,7 +880,7 @@ export async function changeFacilitatorPasswordAction(
 
   if (signInError || signInData.user?.id !== profile.id) {
     return {
-      fieldErrors: { currentPassword: "Den nuværende adgangskode er forkert." },
+      fieldErrors: { currentPassword: "Adgangskoden kunne ikke bekræftes. Hvis du endnu ikke har en personlig adgangskode, skal du oprette eller nulstille den først." },
       status: "error",
     };
   }
@@ -1133,7 +1133,7 @@ export async function requestFacilitatorEmailChangeAction(
 
   if (signInError || signInData.user?.id !== profile.id) {
     return {
-      fieldErrors: { currentPassword: "Den nuværende adgangskode er forkert." },
+      fieldErrors: { currentPassword: "Adgangskoden kunne ikke bekræftes. Hvis du endnu ikke har en personlig adgangskode, skal du oprette eller nulstille den først." },
       status: "error",
     };
   }

@@ -1,18 +1,12 @@
 "use client";
 
 import { ChevronDown, Eye, EyeOff, LockKeyhole, Save } from "lucide-react";
+import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import {
   changeFacilitatorPasswordAction,
-  createFacilitatorPasswordAction,
   type ChangePasswordFormState,
 } from "@/app/facilitator/profile/actions";
-
-type SecurityPasswordFormProps = {
-  onPasswordCreated?: () => void;
-  oauthProvider?: "facebook" | "google" | string | null;
-  passwordLoginAvailable: boolean;
-};
 
 const initialState: ChangePasswordFormState = { status: "idle" };
 
@@ -65,55 +59,22 @@ function PasswordField({
   );
 }
 
-function providerName(provider?: "facebook" | "google" | string | null) {
-  if (provider === "facebook") return "Facebook";
-  if (provider === "google") return "Google";
-  return "din eksterne loginmetode";
-}
-
-export function SecurityPasswordForm({ onPasswordCreated, oauthProvider, passwordLoginAvailable }: SecurityPasswordFormProps) {
-  const [hasPasswordLogin, setHasPasswordLogin] = useState(passwordLoginAvailable);
-  const [createdPasswordMessage, setCreatedPasswordMessage] = useState<string | null>(null);
+export function SecurityPasswordForm() {
   const [changeState, changeFormAction, isChangePending] = useActionState(changeFacilitatorPasswordAction, initialState);
-  const [createState, createFormAction, isCreatePending] = useActionState(async (previousState: ChangePasswordFormState, formData: FormData) => {
-    setCreatedPasswordMessage(null);
-    const result = await createFacilitatorPasswordAction(previousState, formData);
-
-    if (result.status === "success") {
-      setCreatedPasswordMessage(result.message ?? "Din personlige adgangskode er oprettet.");
-      setHasPasswordLogin(true);
-      onPasswordCreated?.();
-    }
-
-    return result;
-  }, initialState);
   const changeFormRef = useRef<HTMLFormElement>(null);
-  const createFormRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
-  const visibleState: ChangePasswordFormState = createdPasswordMessage
-    ? { message: createdPasswordMessage, status: "success" }
-    : hasPasswordLogin
-      ? changeState
-      : createState;
 
   useEffect(() => {
-    if (changeState.status === "success" || createState.status === "success") {
+    if (changeState.status === "success") {
       changeFormRef.current?.reset();
-      createFormRef.current?.reset();
     }
-  }, [changeState.status, createState.status]);
+  }, [changeState.status]);
 
   useEffect(() => {
-    if (visibleState.status !== "idle") {
+    if (changeState.status !== "idle") {
       statusRef.current?.focus();
     }
-  }, [visibleState.status]);
-
-  const provider = providerName(oauthProvider);
-  const title = hasPasswordLogin ? "Skift adgangskode" : "Opret personlig adgangskode";
-  const description = hasPasswordLogin
-    ? "Opdater adgangskoden til din SoulEvents-konto."
-    : `Du logger i øjeblikket ind med ${provider}. Opret en personlig adgangskode, så du også kan logge ind med e-mail og adgangskode og selv ændre din loginmail.`;
+  }, [changeState.status]);
 
   return (
     <details className="group rounded-md border border-midnight/10 bg-[#FAF8F4] p-4">
@@ -123,99 +84,73 @@ export function SecurityPasswordForm({ onPasswordCreated, oauthProvider, passwor
             <LockKeyhole className="size-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-base font-semibold text-midnight">{title}</h3>
-            <p className="mt-1 text-sm leading-6 text-ink/64">{description}</p>
+            <h3 className="text-base font-semibold text-midnight">Adgangskode</h3>
+            <p className="mt-1 text-sm leading-6 text-ink/64">
+              Skift eller opret en personlig adgangskode. Dine tilknyttede Google- og Facebook-login bevares.
+            </p>
           </div>
         </div>
         <ChevronDown className="size-5 text-ink/45 transition group-open:rotate-180" aria-hidden="true" />
       </summary>
 
       <div className="mt-5 grid gap-4">
-        {visibleState.message ? (
+        {changeState.message ? (
           <p
             className={
               "rounded-md border px-4 py-3 text-sm font-semibold leading-6 outline-none " +
-              (visibleState.status === "success"
+              (changeState.status === "success"
                 ? "border-sage-700/20 bg-sage-50 text-sage-700"
                 : "border-red-500/25 bg-red-50 text-red-700")
             }
             ref={statusRef}
             tabIndex={-1}
           >
-            {visibleState.message}
+            {changeState.message}
           </p>
         ) : (
           <p className="sr-only" ref={statusRef} tabIndex={-1} />
         )}
 
-        {hasPasswordLogin ? (
-          <form action={changeFormAction} className="grid gap-4" onSubmit={() => setCreatedPasswordMessage(null)} ref={changeFormRef}>
-            <div className="grid gap-4 md:grid-cols-3">
-              <PasswordField
-                autoComplete="current-password"
-                error={changeState.fieldErrors?.currentPassword}
-                label="Nuværende adgangskode"
-                name="current_password"
-              />
-              <PasswordField
-                autoComplete="new-password"
-                error={changeState.fieldErrors?.newPassword}
-                label="Ny adgangskode"
-                name="new_password"
-              />
-              <PasswordField
-                autoComplete="new-password"
-                error={changeState.fieldErrors?.confirmPassword}
-                label="Gentag ny adgangskode"
-                name="confirm_password"
-              />
-            </div>
+        <form action={changeFormAction} className="grid gap-4" ref={changeFormRef}>
+          <p className="text-sm leading-6 text-ink/64">
+            Hvis du endnu ikke har en personlig adgangskode, kan du oprette den via{" "}
+            <Link className="font-semibold text-[#7A4EAB] underline underline-offset-4 hover:text-sage-700" href="/auth/forgot-password">
+              glemt adgangskode
+            </Link>
+            .
+          </p>
+          <div className="grid gap-4 md:grid-cols-3">
+            <PasswordField
+              autoComplete="current-password"
+              error={changeState.fieldErrors?.currentPassword}
+              label="Nuværende adgangskode"
+              name="current_password"
+            />
+            <PasswordField
+              autoComplete="new-password"
+              error={changeState.fieldErrors?.newPassword}
+              label="Ny adgangskode"
+              name="new_password"
+            />
+            <PasswordField
+              autoComplete="new-password"
+              error={changeState.fieldErrors?.confirmPassword}
+              label="Gentag ny adgangskode"
+              name="confirm_password"
+            />
+          </div>
 
-            <div className="flex justify-center sm:justify-end">
-              <button
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700 disabled:cursor-wait disabled:opacity-70"
-                disabled={isChangePending}
-                type="submit"
-              >
-                <Save className="size-4" aria-hidden="true" />
-                {isChangePending ? "Ændrer adgangskode..." : "Skift adgangskode"}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <form action={createFormAction} className="grid gap-4" ref={createFormRef}>
-            <p className="rounded-md border border-sage-700/15 bg-sage-50 p-4 text-sm leading-6 text-ink/72">
-              Du kan oprette en personlig adgangskode, så du fremover kan logge ind enten med {provider} eller med
-              e-mail og adgangskode. Når adgangskoden er oprettet, kan du selv ændre din loginmail.{" "}
-              {provider === "din eksterne loginmetode" ? "Din eksterne loginmetode" : provider} bevares uændret.
-            </p>
-            <div className="grid gap-4 md:grid-cols-2">
-              <PasswordField
-                autoComplete="new-password"
-                error={createState.fieldErrors?.newPassword}
-                label="Ny adgangskode"
-                name="new_password"
-              />
-              <PasswordField
-                autoComplete="new-password"
-                error={createState.fieldErrors?.confirmPassword}
-                label="Gentag ny adgangskode"
-                name="confirm_password"
-              />
-            </div>
-
-            <div className="flex justify-center sm:justify-end">
-              <button
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700 disabled:cursor-wait disabled:opacity-70"
-                disabled={isCreatePending}
-                type="submit"
-              >
-                <Save className="size-4" aria-hidden="true" />
-                {isCreatePending ? "Opretter personlig adgangskode..." : "Opret personlig adgangskode"}
-              </button>
-            </div>
-          </form>
-        )}
+          <div className="flex justify-center sm:justify-end">
+            <button
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-midnight px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-sage-700 disabled:cursor-wait disabled:opacity-70"
+              disabled={isChangePending}
+              type="submit"
+            >
+              <Save className="size-4" aria-hidden="true" />
+              {isChangePending ? "Ændrer adgangskode..." : "Skift adgangskode"}
+            </button>
+          </div>
+        </form>
       </div>
     </details>
   );

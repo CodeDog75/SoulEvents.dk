@@ -1,7 +1,6 @@
 "use client";
 
 import { ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
 import { LinkedLoginMethods } from "@/components/facilitator/linked-login-methods";
 import { SecurityEmailForm } from "@/components/facilitator/security-email-form";
 import { SecurityPasswordForm } from "@/components/facilitator/security-password-form";
@@ -9,8 +8,6 @@ import { SecurityPasswordForm } from "@/components/facilitator/security-password
 type LoginSecuritySectionProps = {
   authProviders: string[];
   currentEmail: string;
-  oauthProvider?: "facebook" | "google" | string | null;
-  passwordLoginAvailable: boolean;
   pendingEmailChange?: { expires_at: string; new_email: string } | null;
 };
 
@@ -24,19 +21,8 @@ function maskEmail(value: string | null | undefined) {
 export function LoginSecuritySection({
   authProviders,
   currentEmail,
-  oauthProvider,
-  passwordLoginAvailable,
   pendingEmailChange,
 }: LoginSecuritySectionProps) {
-  const [hasPasswordLogin, setHasPasswordLogin] = useState(passwordLoginAvailable);
-  const visibleProviders = useMemo(() => {
-    if (!hasPasswordLogin || authProviders.includes("email")) {
-      return authProviders;
-    }
-
-    return ["email", ...authProviders];
-  }, [authProviders, hasPasswordLogin]);
-
   return (
     <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -65,17 +51,11 @@ export function LoginSecuritySection({
 
       <div className="mt-5 grid gap-4">
         <SecurityEmailForm
-          oauthProvider={oauthProvider}
-          passwordLoginAvailable={hasPasswordLogin}
           pendingEmail={pendingEmailChange?.new_email ?? null}
           pendingExpiresAt={pendingEmailChange?.expires_at ?? null}
         />
-        <SecurityPasswordForm
-          oauthProvider={oauthProvider}
-          onPasswordCreated={() => setHasPasswordLogin(true)}
-          passwordLoginAvailable={hasPasswordLogin}
-        />
-        <LinkedLoginMethods providers={visibleProviders} />
+        <SecurityPasswordForm />
+        <LinkedLoginMethods providers={authProviders} />
       </div>
     </section>
   );
