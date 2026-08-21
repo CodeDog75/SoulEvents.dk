@@ -42,11 +42,14 @@ import {
 import { resolveNameParts } from "@/lib/auth/names";
 import {
   autosaveFacilitatorProfileAction,
+  createSignedFacilitatorBannerUploadAction,
   saveFacilitatorBannerImageAction,
+  saveFacilitatorBannerImagePathAction,
   saveFacilitatorMoodImageAction,
   saveFacilitatorProfileImageAction,
   submitFacilitatorProfileForReviewAction,
 } from "@/app/facilitator/profile/actions";
+import { createClient as createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import {
   imageUploadAccept,
   prepareImageFileForUpload,
@@ -2442,17 +2445,54 @@ export function ProfileForm({
 
   function saveBannerImage(file: File) {
     setBannerImageStatus({
-      message: "Uploader og gemmer bannerbilledet...",
+      message: "Starter bannerupload...",
       status: "saving",
     });
     startImageTransition(async () => {
       try {
+        const signedUpload = await createSignedFacilitatorBannerUploadAction({
+          adminTargetFacilitatorId,
+          contentType: file.type,
+          fileName: file.name,
+          size: file.size,
+        });
+
+        if (signedUpload.error || !signedUpload.path || !signedUpload.token) {
+          setBannerImageStatus({
+            message:
+              signedUpload.error ??
+              "Banneruploaden kunne ikke startes. Prøv igen.",
+            status: "error",
+          });
+          return;
+        }
+
+        setBannerImageStatus({
+          message: "Uploader bannerbilledet til medielageret...",
+          status: "saving",
+        });
+        const supabase = createBrowserSupabaseClient();
+        const { error: uploadError } = await supabase.storage
+          .from("media")
+          .uploadToSignedUrl(signedUpload.path, signedUpload.token, file, {
+            cacheControl: "31536000",
+            contentType: signedUpload.contentType ?? file.type,
+          });
+
+        if (uploadError) {
+          setBannerImageStatus({
+            message: "Upload til medielager fejlede: " + uploadError.message,
+            status: "error",
+          });
+          return;
+        }
+
         const formData = new FormData();
-        formData.set("image_file", file);
+        formData.set("uploaded_path", signedUpload.path);
         if (adminTargetFacilitatorId) {
           formData.set("admin_target_facilitator_id", adminTargetFacilitatorId);
         }
-        const result = await saveFacilitatorBannerImageAction(formData);
+        const result = await saveFacilitatorBannerImagePathAction(formData);
 
         if (result.status === "success") {
           setBannerImagePath(result.path ?? "");
@@ -2465,9 +2505,12 @@ export function ProfileForm({
         }
 
         setBannerImageStatus({ message: result.message, status: "error" });
-      } catch {
+      } catch (error) {
         setBannerImageStatus({
-          message: "Bannerbilledet kunne ikke gemmes. Prøv igen.",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Bannerbilledet kunne ikke uploades. Kontrollér forbindelsen og prøv igen.",
           status: "error",
         });
       }

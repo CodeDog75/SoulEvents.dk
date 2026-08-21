@@ -2040,8 +2040,27 @@ function safePathSuffix(value: string | null | undefined) {
 function isOwnFacilitatorBannerPath(
   path: string | null | undefined,
   profileId: string | null | undefined,
-) {
+): path is string {
   return Boolean(path && profileId && path.startsWith(`hosts/${profileId}/banner/`));
+}
+
+function bannerImageContentTypeFromFileName(fileName: string, contentType: string) {
+  if (contentType === "image/jpeg" || contentType === "image/png" || contentType === "image/webp") {
+    return contentType;
+  }
+
+  const extension = fileName.split(".").pop()?.toLowerCase();
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  if (extension === "png") return "image/png";
+  if (extension === "webp") return "image/webp";
+  return null;
+}
+
+function bannerImageExtension(contentType: string) {
+  if (contentType === "image/jpeg") return "jpg";
+  if (contentType === "image/png") return "png";
+  if (contentType === "image/webp") return "webp";
+  return "jpg";
 }
 
 function logMoodImageError(
@@ -2101,6 +2120,227 @@ async function uploadImageForAction(
   }
 
   return { error: null, path };
+}
+
+async function getEditableFacilitatorProfileForImageAction(input: {
+  adminTargetFacilitatorId?: string | null;
+  profile: Awaited<ReturnType<typeof requireProfile>>;
+  select?: string;
+  supabase: ReturnType<typeof createAdminClient>;
+}) {
+  if (input.adminTargetFacilitatorId && input.profile.role !== "admin") {
+    return {
+      error: "Du har ikke adgang til at redigere denne arrangør.",
+      facilitatorProfile: null,
+    };
+  }
+
+  let facilitatorProfileQuery = input.supabase
+    .from("facilitator_profiles")
+    .select(input.select ?? "id, profile_id, facilitator_banner_image_path")
+    .limit(1);
+
+  facilitatorProfileQuery = input.adminTargetFacilitatorId
+    ? facilitatorProfileQuery.eq("id", input.adminTargetFacilitatorId)
+    : facilitatorProfileQuery.eq("profile_id", input.profile.id);
+
+  const { data: facilitatorProfiles, error } = await facilitatorProfileQuery;
+  const facilitatorProfile = facilitatorProfiles?.[0] ?? null;
+
+  if (error || !facilitatorProfile) {
+    return {
+      error: "Arrangørprofilen kunne ikke hentes.",
+      facilitatorProfile: null,
+    };
+  }
+
+  return { error: null, facilitatorProfile };
+}
+
+export async function createSignedFacilitatorBannerUploadAction(input: {
+  adminTargetFacilitatorId?: string | null;
+  contentType: string;
+  fileName: string;
+  size: number;
+}) {
+  const profile = await requireProfile();
+  const supabase = createAdminClient();
+  const adminTargetFacilitatorId = input.adminTargetFacilitatorId || null;
+  const contentType = bannerImageContentTypeFromFileName(
+    input.fileName,
+    input.contentType,
+  );
+  const logContext = {
+    action: "createSignedFacilitatorBannerUploadAction",
+    adminTargetFacilitatorId: safeIdSuffix(adminTargetFacilitatorId),
+    fileSize: input.size,
+    mimeType: input.contentType || "unknown",
+    profileId: safeIdSuffix(profile.id),
+  };
+
+  if (!contentType) {
+    return {
+      contentType: null,
+      error: "Du kan uploade JPG, PNG eller WebP som bannerbillede.",
+      path: null,
+      token: null,
+    };
+  }
+
+  if (input.size > profileImageMaxFileSize) {
+    return {
+      contentType: null,
+      error: "Bannerbilledet er for stort. Vælg et billede på højst 10 MB.",
+      path: null,
+      token: null,
+    };
+  }
+
+  const { error, facilitatorProfile } =
+    await getEditableFacilitatorProfileForImageAction({
+      adminTargetFacilitatorId,
+      profile,
+      supabase,
+    });
+
+  if (error || !facilitatorProfile) {
+    logMoodImageError(
+      error ?? "Facilitator profile lookup failed for signed banner upload",
+      logContext,
+    );
+    return { contentType: null, error, path: null, token: null };
+  }
+
+  const ownerProfileId = facilitatorProfile.profile_id ?? profile.id;
+  const imagePath = `hosts/${ownerProfileId}/banner/${crypto.randomUUID()}.${bannerImageExtension(contentType)}`;
+  const bucketError = await ensureMediaStorageBucket(supabase);
+
+  if (bucketError) {
+    logMoodImageError(
+      "Banner media bucket setup failed",
+      { ...logContext, path: safePathSuffix(imagePath) },
+      bucketError,
+    );
+    return {
+      contentType: null,
+      error: "Media-lageret kunne ikke klargøres. Prøv igen senere.",
+      path: null,
+      token: null,
+    };
+  }
+
+  const { data, error: signedUploadError } = await supabase.storage
+    .from("media")
+    .createSignedUploadUrl(imagePath, { upsert: false });
+
+  if (signedUploadError) {
+    logMoodImageError(
+      "Signed banner upload URL could not be created",
+      { ...logContext, path: safePathSuffix(imagePath) },
+      signedUploadError,
+    );
+    return {
+      contentType: null,
+      error: "Upload kunne ikke startes: " + signedUploadError.message,
+      path: null,
+      token: null,
+    };
+  }
+
+  return {
+    contentType,
+    error: null,
+    path: data.path,
+    token: data.token,
+  };
+}
+
+export async function saveFacilitatorBannerImagePathAction(formData: FormData) {
+  const profile = await requireProfile();
+  const supabase = createAdminClient();
+  const adminTargetFacilitatorId = getOptionalString(
+    formData,
+    "admin_target_facilitator_id",
+  );
+  const uploadedPath = getOptionalString(formData, "uploaded_path");
+  const logContext = {
+    action: "saveFacilitatorBannerImagePathAction",
+    adminTargetFacilitatorId: safeIdSuffix(adminTargetFacilitatorId),
+    profileId: safeIdSuffix(profile.id),
+    uploadedPath: safePathSuffix(uploadedPath),
+  };
+  const { error, facilitatorProfile } =
+    await getEditableFacilitatorProfileForImageAction({
+      adminTargetFacilitatorId,
+      profile,
+      supabase,
+    });
+
+  if (error || !facilitatorProfile) {
+    logMoodImageError(
+      error ?? "Facilitator profile lookup failed for banner path save",
+      logContext,
+    );
+    return imageActionError(error ?? "Arrangørprofilen kunne ikke hentes.");
+  }
+
+  const ownerProfileId = facilitatorProfile.profile_id ?? profile.id;
+
+  if (!isOwnFacilitatorBannerPath(uploadedPath, ownerProfileId)) {
+    logMoodImageError("Rejected banner path outside own banner folder", {
+      ...logContext,
+      ownerProfileId: safeIdSuffix(ownerProfileId),
+    });
+    return imageActionError("Banneruploaden kunne ikke bekræftes. Prøv igen.");
+  }
+
+  const { error: updateError } = await supabase
+    .from("facilitator_profiles")
+    .update({ facilitator_banner_image_path: uploadedPath })
+    .eq("id", facilitatorProfile.id);
+
+  if (updateError) {
+    await supabase.storage.from("media").remove([uploadedPath]);
+    logMoodImageError(
+      "Banner image path database save failed",
+      logContext,
+      updateError,
+    );
+    return imageActionError(
+      "Bannerbilledet blev uploadet, men kunne ikke gemmes på profilen.",
+    );
+  }
+
+  const oldPath = facilitatorProfile.facilitator_banner_image_path;
+  const oldPathIsOwnBanner = isOwnFacilitatorBannerPath(oldPath, ownerProfileId);
+  if (oldPath && oldPath !== uploadedPath && oldPathIsOwnBanner) {
+    const { error: removeOldFileError } = await supabase.storage
+      .from("media")
+      .remove([oldPath]);
+
+    if (removeOldFileError) {
+      logMoodImageError(
+        "Old banner image storage cleanup failed after signed upload",
+        {
+          ...logContext,
+          oldPath: safePathSuffix(oldPath),
+        },
+        removeOldFileError,
+      );
+    }
+  }
+
+  revalidatePath("/facilitator");
+  revalidatePath("/facilitator/profile");
+  if (adminTargetFacilitatorId) {
+    revalidatePath(`/admin/facilitators/${adminTargetFacilitatorId}/edit`);
+  }
+  await revalidatePublicFacilitatorProfilePaths(
+    supabase,
+    facilitatorProfile.id,
+  );
+
+  return { path: uploadedPath, status: "success" as const };
 }
 
 export async function saveFacilitatorBannerImageAction(formData: FormData) {
