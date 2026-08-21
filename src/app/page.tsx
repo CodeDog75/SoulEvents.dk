@@ -1049,7 +1049,7 @@ function mapFacilitatorCard(facilitator: any, supabase: Awaited<ReturnType<typeo
     tagline: facilitator.short_description || "",
     primaryCategory: categories[0]?.name ?? null,
     primaryCategoryExtraCount: Math.max(categories.length - 1, 0),
-    isOnline: Boolean(facilitator.is_online),
+    isOnline: Boolean(facilitator.is_online_facilitator),
     isActiveHost: Boolean(facilitator.is_active_host),
     isExperiencedHost: Boolean(facilitator.is_experienced_host),
   };
@@ -1063,7 +1063,7 @@ async function getFeaturedHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, show_public_location, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex, sort_order))")
+    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, show_public_location, is_online_facilitator, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex, sort_order))")
     .eq("status", "approved")
     .eq("is_paused", false)
     .eq("is_disabled", false)
@@ -1087,7 +1087,7 @@ async function getNewHomeFacilitators() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("facilitator_profiles")
-    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, show_public_location, is_online, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex, sort_order))")
+    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, show_public_location, is_online_facilitator, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex, sort_order))")
     .eq("status", "approved")
     .eq("is_paused", false)
     .eq("is_disabled", false)
