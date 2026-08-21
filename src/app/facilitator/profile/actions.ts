@@ -2147,14 +2147,14 @@ async function getEditableFacilitatorProfileForImageAction(input: {
   let facilitatorProfileQuery = input.supabase
     .from("facilitator_profiles")
     .select(input.select ?? "id, profile_id, facilitator_banner_image_path")
-    .limit(1)
-    .returns<EditableFacilitatorImageProfile[]>();
+    .limit(1);
 
   facilitatorProfileQuery = input.adminTargetFacilitatorId
     ? facilitatorProfileQuery.eq("id", input.adminTargetFacilitatorId)
     : facilitatorProfileQuery.eq("profile_id", input.profile.id);
 
-  const { data: facilitatorProfiles, error } = await facilitatorProfileQuery;
+  const { data: facilitatorProfiles, error } =
+    await facilitatorProfileQuery.returns<EditableFacilitatorImageProfile[]>();
   const facilitatorProfile = facilitatorProfiles?.[0] ?? null;
 
   if (error || !facilitatorProfile) {
