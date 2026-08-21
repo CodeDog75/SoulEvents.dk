@@ -57,6 +57,7 @@ import {
   danishPhoneValidationMessage,
   normalizeDanishPhoneNumber,
 } from "@/lib/danish-phone";
+import type { Database } from "@/types/database";
 
 export type ChangePasswordFormState = {
   fieldErrors?: {
@@ -2063,6 +2064,11 @@ function bannerImageExtension(contentType: string) {
   return "jpg";
 }
 
+type EditableFacilitatorImageProfile = Pick<
+  Database["public"]["Tables"]["facilitator_profiles"]["Row"],
+  "facilitator_banner_image_path" | "id" | "profile_id"
+>;
+
 function logMoodImageError(
   message: string,
   context: Record<string, boolean | number | string | null | undefined>,
@@ -2127,7 +2133,10 @@ async function getEditableFacilitatorProfileForImageAction(input: {
   profile: Awaited<ReturnType<typeof requireProfile>>;
   select?: string;
   supabase: ReturnType<typeof createAdminClient>;
-}) {
+}): Promise<
+  | { error: string; facilitatorProfile: null }
+  | { error: null; facilitatorProfile: EditableFacilitatorImageProfile }
+> {
   if (input.adminTargetFacilitatorId && input.profile.role !== "admin") {
     return {
       error: "Du har ikke adgang til at redigere denne arrangør.",
@@ -2138,7 +2147,8 @@ async function getEditableFacilitatorProfileForImageAction(input: {
   let facilitatorProfileQuery = input.supabase
     .from("facilitator_profiles")
     .select(input.select ?? "id, profile_id, facilitator_banner_image_path")
-    .limit(1);
+    .limit(1)
+    .returns<EditableFacilitatorImageProfile[]>();
 
   facilitatorProfileQuery = input.adminTargetFacilitatorId
     ? facilitatorProfileQuery.eq("id", input.adminTargetFacilitatorId)
