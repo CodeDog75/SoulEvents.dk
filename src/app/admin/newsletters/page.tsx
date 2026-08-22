@@ -169,15 +169,13 @@ export default async function AdminNewslettersPage({ searchParams }: AdminNewsle
                 <button className="inline-flex h-11 items-center rounded-md bg-midnight px-5 text-sm font-semibold text-white" type="submit">
                   Gem som kladde
                 </button>
-                {selectedNewsletter?.id ? (
-                  <button
-                    className="inline-flex h-11 items-center rounded-md border border-[#D8CBE4] bg-white px-5 text-sm font-semibold text-[#7A4EAB]"
-                    formAction={sendNewsletterTestAction}
-                    type="submit"
-                  >
-                    Send testmail til hej@soulevents.dk
-                  </button>
-                ) : null}
+                <button
+                  className="inline-flex h-11 items-center rounded-md border border-[#D8CBE4] bg-white px-5 text-sm font-semibold text-[#7A4EAB]"
+                  formAction={sendNewsletterTestAction}
+                  type="submit"
+                >
+                  Send testmail til hej@soulevents.dk
+                </button>
               </div>
             ) : null}
           </form>

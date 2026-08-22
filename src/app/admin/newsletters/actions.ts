@@ -248,8 +248,7 @@ export async function createSignedNewsletterImageUploadAction(input: {
   };
 }
 
-export async function saveNewsletterDraftAction(formData: FormData) {
-  const adminProfile = await requireRole("admin");
+async function persistNewsletterDraft(formData: FormData, adminProfile: Awaited<ReturnType<typeof requireRole>>) {
   const newsletterId = getOptionalString(formData, "newsletter_id");
   const subject = getString(formData, "subject").slice(0, 180);
   const preheader = getOptionalString(formData, "preheader")?.slice(0, 220) ?? null;
@@ -302,17 +301,21 @@ export async function saveNewsletterDraftAction(formData: FormData) {
     }
   }
 
+  return id;
+}
+
+export async function saveNewsletterDraftAction(formData: FormData) {
+  const adminProfile = await requireRole("admin");
+  const id = await persistNewsletterDraft(formData, adminProfile);
+
   revalidatePath("/admin/newsletters");
   adminNewsletterRedirect("Nyhedsmailen er gemt som kladde.", id);
 }
 
 export async function sendNewsletterTestAction(formData: FormData) {
-  await requireRole("admin");
-  const newsletterId = getString(formData, "newsletter_id");
+  const adminProfile = await requireRole("admin");
+  const newsletterId = await persistNewsletterDraft(formData, adminProfile);
   const testEmail = "hej@soulevents.dk";
-  if (!newsletterId) {
-    adminNewsletterRedirect("Vælg en gemt kladde før testmailen sendes.", newsletterId);
-  }
 
   const supabase = createAdminClient();
   const data = await getNewsletterWithSections(supabase, newsletterId);
