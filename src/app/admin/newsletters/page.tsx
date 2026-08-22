@@ -4,10 +4,10 @@ import {
   processNewsletterBatchAction,
   saveNewsletterDraftAction,
   sendNewsletterNowAction,
+  sendNewsletterTestAction,
 } from "@/app/admin/newsletters/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { NewsletterEditor } from "@/components/admin/newsletters/newsletter-editor";
-import { NewsletterTestMailForm } from "@/components/admin/newsletters/newsletter-test-mail-form";
 import { requireRole } from "@/lib/auth/roles";
 import {
   newsletterTargetSegmentLabel,
@@ -165,9 +165,20 @@ export default async function AdminNewslettersPage({ searchParams }: AdminNewsle
             )}
 
             {canEdit ? (
-              <button className="mt-5 inline-flex h-11 items-center rounded-md bg-midnight px-5 text-sm font-semibold text-white" type="submit">
-                Gem som kladde
-              </button>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button className="inline-flex h-11 items-center rounded-md bg-midnight px-5 text-sm font-semibold text-white" type="submit">
+                  Gem som kladde
+                </button>
+                {selectedNewsletter?.id ? (
+                  <button
+                    className="inline-flex h-11 items-center rounded-md border border-[#D8CBE4] bg-white px-5 text-sm font-semibold text-[#7A4EAB]"
+                    formAction={sendNewsletterTestAction}
+                    type="submit"
+                  >
+                    Send testmail til hej@soulevents.dk
+                  </button>
+                ) : null}
+              </div>
             ) : null}
           </form>
 
@@ -190,8 +201,6 @@ export default async function AdminNewslettersPage({ searchParams }: AdminNewsle
               </div>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <NewsletterTestMailForm newsletterId={selectedNewsletter.id} />
-
                 <form action={(pendingRecipients ?? 0) > 0 ? processNewsletterBatchAction : sendNewsletterNowAction} className="rounded-[20px] border border-sage-700/20 bg-sage-50 p-4">
                   <input name="newsletter_id" type="hidden" value={selectedNewsletter.id} />
                   <p className="font-semibold text-midnight">{(pendingRecipients ?? 0) > 0 ? "Fortsæt udsendelse" : "Send nyhedsmail"}</p>
