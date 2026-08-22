@@ -33,3 +33,20 @@ export function getAppUrl(fallbackOrigin?: string) {
 
   return isLocalDevelopment ? "http://localhost:3001" : "https://soulevents.dk";
 }
+
+export function getCanonicalAppUrl() {
+  const configuredUrl = env.appUrl ? cleanUrl(env.appUrl) : "";
+
+  if (configuredUrl && !isLocalUrl(configuredUrl)) {
+    try {
+      const hostname = new URL(configuredUrl).hostname.replace(/^www\./, "");
+      if (hostname === "soulevents.dk") {
+        return "https://www.soulevents.dk";
+      }
+    } catch {
+      return "https://www.soulevents.dk";
+    }
+  }
+
+  return "https://www.soulevents.dk";
+}

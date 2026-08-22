@@ -7,6 +7,7 @@ type SignupFormValues = {
   email: string;
   firstName: string;
   lastName: string;
+  newsletterOptIn: boolean;
   password: string;
   phone: string;
 };
@@ -24,6 +25,7 @@ const emptyValues: SignupFormValues = {
   email: "",
   firstName: "",
   lastName: "",
+  newsletterOptIn: false,
   password: "",
   phone: "",
 };
@@ -199,6 +201,20 @@ export function SignupForm({
             type="text"
             value={values.phone}
           />
+        </label>
+
+        <label className="flex items-start gap-3 rounded-xl border border-[#7A4EAB]/15 bg-white/72 p-3 text-sm leading-6 text-[#2F2633]/72">
+          <input
+            className="mt-1 size-4 accent-[#7A4EAB]"
+            checked={values.newsletterOptIn}
+            name="newsletter_opt_in"
+            onChange={(event) => updateValue("newsletterOptIn", event.currentTarget.checked)}
+            type="checkbox"
+          />
+          <span>
+            <span className="block font-semibold text-[#2F2633]">Send mig nyhedsmails fra SoulEvents</span>
+            <span className="mt-1 block">Valgfrit. Du kan altid slå det fra igen under Konto og sikkerhed.</span>
+          </span>
         </label>
       </div>
 

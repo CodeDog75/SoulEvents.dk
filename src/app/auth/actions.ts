@@ -430,6 +430,7 @@ export async function signUpFacilitatorAction(formData: FormData) {
   const email = getString(formData, "email").toLowerCase();
   const phone = getString(formData, "phone");
   const password = getString(formData, "password");
+  const newsletterOptIn = formData.get("newsletter_opt_in") === "on";
   const successTarget = getString(formData, "success_target");
   const authReturnPath = getString(formData, "auth_return_path");
   const next = safeAuthNextPath(getString(formData, "next"));
@@ -525,17 +526,40 @@ export async function signUpFacilitatorAction(formData: FormData) {
     authRedirect(signupPath, "Kontoen blev oprettet, men profilen kunne ikke gemmes.");
   }
 
-  const { error: facilitatorError } = await admin.from("facilitator_profiles").upsert(
+  const { data: facilitatorProfile, error: facilitatorError } = await admin.from("facilitator_profiles").upsert(
     {
       profile_id: user.id,
       status: "draft",
       company_name: null,
     },
     { onConflict: "profile_id" },
-  );
+  ).select("id").single();
 
   if (facilitatorError) {
     authRedirect(signupPath, "Kontoen blev oprettet, men arrangørprofilen kunne ikke gemmes.");
+  }
+
+  if (facilitatorProfile?.id) {
+    const now = new Date().toISOString();
+    const { error: preferenceError } = await admin.from("facilitator_newsletter_preferences").upsert({
+      consent_source: newsletterOptIn ? "signup" : null,
+      consented_at: newsletterOptIn ? now : null,
+      facilitator_id: facilitatorProfile.id,
+      profile_id: user.id,
+      status: newsletterOptIn ? "subscribed" : "unsubscribed",
+      unsubscribe_source: newsletterOptIn ? null : "signup",
+      unsubscribed_at: newsletterOptIn ? null : now,
+    }, { onConflict: "profile_id" });
+
+    if (!preferenceError) {
+      await admin.from("facilitator_newsletter_consent_events").insert({
+        action: newsletterOptIn ? "subscribed" : "unsubscribed",
+        actor_profile_id: user.id,
+        facilitator_id: facilitatorProfile.id,
+        profile_id: user.id,
+        source: "signup",
+      });
+    }
   }
 
   revalidatePath("/", "layout");

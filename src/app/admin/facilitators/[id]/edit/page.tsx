@@ -9,6 +9,7 @@ import {
   updateFacilitatorAdminSettingsAction,
   updateFacilitatorTemporaryPasswordAction,
 } from "@/app/admin/facilitators/actions";
+import { adminUnsubscribeFacilitatorNewsletterAction } from "@/app/admin/newsletters/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { ProfileForm } from "@/components/facilitator/profile-form";
 import { requireRole } from "@/lib/auth/roles";
@@ -50,6 +51,20 @@ function statusLabel(facilitator: any) {
   return "Under udarbejdelse";
 }
 
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Ikke registreret";
+  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function newsletterSourceLabel(value: string | null | undefined) {
+  if (value === "signup") return "Profiloprettelse";
+  if (value === "account_settings") return "Kontoindstillinger";
+  if (value === "admin") return "Admin";
+  if (value === "unsubscribe_link") return "Afmeldingslink";
+  if (value === "migration_existing_consent") return "Eksisterende arrangørsamtykke";
+  return "Ikke registreret";
+}
+
 export default async function AdminEditFacilitatorPage({ params, searchParams }: PageProps) {
   const [{ id }, { errorSection, message, return_to: returnTo, saved }] = await Promise.all([params, searchParams, requireRole("admin")]);
   const adminReturnHref = getAdminReturnHref(returnTo);
@@ -63,6 +78,8 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
     { data: moderationHistory },
     { data: pendingEmailChange },
     { data: latestEmailChange },
+    { data: newsletterPreference },
+    { data: newsletterHistory },
   ] = await Promise.all([
     supabase
       .from("facilitator_profiles")
@@ -95,6 +112,17 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
       .order("requested_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("facilitator_newsletter_preferences")
+      .select("status, consented_at, consent_source, unsubscribed_at, unsubscribe_source")
+      .eq("facilitator_id", id)
+      .maybeSingle(),
+    supabase
+      .from("facilitator_newsletter_consent_events")
+      .select("action, source, created_at, profiles!facilitator_newsletter_consent_events_actor_profile_id_fkey(full_name, email)")
+      .eq("facilitator_id", id)
+      .order("created_at", { ascending: false })
+      .limit(5),
   ]);
 
   if (facilitatorError) {
@@ -321,6 +349,54 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
               )}
             </div>
           </div>
+
+          <section className="mt-5 rounded-md border border-[#D8CBE4] bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-midnight">Nyhedsmails</p>
+                <p className="mt-1 text-sm leading-6 text-ink/64">
+                  Status: {newsletterPreference?.status === "subscribed" ? "Tilmeldt" : "Afmeldt"} · Kilde:{" "}
+                  {newsletterPreference?.status === "subscribed"
+                    ? newsletterSourceLabel(newsletterPreference.consent_source)
+                    : newsletterSourceLabel(newsletterPreference?.unsubscribe_source)}
+                </p>
+                <p className="mt-1 text-sm leading-6 text-ink/64">
+                  Dato: {newsletterPreference?.status === "subscribed"
+                    ? formatDateTime(newsletterPreference.consented_at)
+                    : formatDateTime(newsletterPreference?.unsubscribed_at)}
+                </p>
+              </div>
+              {newsletterPreference?.status === "subscribed" ? (
+                <form action={adminUnsubscribeFacilitatorNewsletterAction}>
+                  <input name="facilitator_id" type="hidden" value={id} />
+                  <button className="inline-flex h-10 items-center rounded-md border border-terracotta/30 bg-white px-4 text-sm font-semibold text-terracotta" type="submit">
+                    Slå nyhedsmails fra
+                  </button>
+                </form>
+              ) : (
+                <p className="max-w-sm text-sm leading-6 text-ink/62">
+                  Admin kan ikke tilmelde arrangøren igen. Arrangøren skal selv give nyt samtykke under kontoindstillinger.
+                </p>
+              )}
+            </div>
+            {newsletterHistory?.length ? (
+              <div className="mt-4 border-t border-midnight/10 pt-3">
+                <p className="text-sm font-semibold text-midnight">Seneste historik</p>
+                <ul className="mt-2 grid gap-2 text-sm text-ink/64">
+                  {newsletterHistory.map((item: any) => {
+                    const actor = first(item.profiles) as { email?: string | null; full_name?: string | null } | null;
+                    return (
+                      <li key={`${item.action}-${item.created_at}`}>
+                        {item.action === "subscribed" ? "Tilmeldt" : "Afmeldt"} via {newsletterSourceLabel(item.source)} ·{" "}
+                        {formatDateTime(item.created_at)}
+                        {actor ? ` · ${actor.full_name || actor.email}` : ""}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+          </section>
 
           <form action={updateFacilitatorAdminSettingsAction} className="mt-5 rounded-md border border-midnight/10 bg-sage-50 p-4">
             <input name="facilitator_id" type="hidden" value={id} />

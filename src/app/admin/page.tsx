@@ -235,6 +235,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         { href: "/admin/users", title: "Arrangørcenter", text: "Find arrangører, events og styr adminadgang.", icon: UserCog, theme: adminCardThemes.lavender },
         { href: "/admin/bookings", title: "Tilmeldinger", text: "Se deltagere, status og antal pladser.", icon: Ticket, theme: adminCardThemes.bookings },
         { href: "/admin/messages", title: "Beskeder", text: "Indbakke, sendte svar og arkiverede beskeder.", icon: MessageCircle, theme: adminCardThemes.navy, badge: openAdminMessages ? `${formatNumber(openAdminMessages)} ubesvarede` : undefined },
+        { href: "/admin/newsletters", title: "Nyhedsmails", text: "Skriv nyhedsmails og invitationer til arrangører.", icon: Megaphone, theme: adminCardThemes.pink },
         { href: "/admin/featured-facilitators", title: "Fremhævede arrangører", text: "Vælg hvem der skal vises særskilt på forsiden.", icon: Star, theme: adminCardThemes.gold },
       ],
     },

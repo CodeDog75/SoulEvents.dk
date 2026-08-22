@@ -17,6 +17,16 @@ export type EventCoHostInvitationStatus = "pending" | "accepted" | "accepted_pen
 export type InvoiceStatus = "draft" | "approved" | "sent" | "paid" | "cancelled";
 export type EmailStatus = "queued" | "sent" | "failed";
 export type EmailChangeRequestStatus = "pending" | "completed" | "cancelled" | "expired";
+export type FacilitatorNewsletterPreferenceStatus = "subscribed" | "unsubscribed";
+export type FacilitatorNewsletterConsentSource = "signup" | "account_settings" | "admin" | "unsubscribe_link" | "migration_existing_consent";
+export type AdminNewsletterStatus = "draft" | "sending" | "sent" | "failed" | "cancelled";
+export type AdminNewsletterTargetSegment = "all" | "active" | "paused" | "onboarding";
+export type AdminNewsletterRecipientStatus = "pending" | "sending" | "sent" | "failed" | "skipped" | "unsubscribed";
+export type AdminNewsletterImageLayout = "none" | "wide" | "square";
+export type AdminNewsletterImageFocus = "center" | "top" | "bottom" | "left" | "right";
+export type PotentialFacilitatorInvitationStatus = "not_sent" | "invited" | "replied" | "declined" | "no_contact";
+export type PotentialFacilitatorInvitationSendStatus = "pending" | "sent" | "failed" | "suppressed";
+export type PotentialFacilitatorInvitationSuppressionSource = "admin" | "recipient_link" | "reply";
 export type LegalDocumentType = "terms" | "privacy" | "guidelines" | "organizer_terms" | "cookies";
 export type AnalyticsEventType = "event_view" | "event_share" | "facilitator_profile_view";
 export type AnalyticsShareMethod = "native_share" | "copy_link" | "email" | "sms" | "messenger" | "facebook" | "other";
@@ -91,6 +101,177 @@ export type Database = {
         }>;
         Insert: Insert<Database["public"]["Tables"]["email_change_requests"]["Row"]>;
         Update: Update<Database["public"]["Tables"]["email_change_requests"]["Row"]>;
+        Relationships: [];
+      };
+      facilitator_newsletter_preferences: {
+        Row: Row<{
+          profile_id: string;
+          facilitator_id: string;
+          status: FacilitatorNewsletterPreferenceStatus;
+          consented_at: string | null;
+          consent_source: "signup" | "account_settings" | "migration_existing_consent" | null;
+          unsubscribed_at: string | null;
+          unsubscribe_source: "signup" | "account_settings" | "admin" | "unsubscribe_link" | null;
+          unsubscribe_token_hash: string | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["facilitator_newsletter_preferences"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["facilitator_newsletter_preferences"]["Row"]>;
+        Relationships: [];
+      };
+      facilitator_newsletter_consent_events: {
+        Row: Row<{
+          id: string;
+          profile_id: string;
+          facilitator_id: string;
+          action: FacilitatorNewsletterPreferenceStatus;
+          source: FacilitatorNewsletterConsentSource;
+          actor_profile_id: string | null;
+          created_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["facilitator_newsletter_consent_events"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["facilitator_newsletter_consent_events"]["Row"]>;
+        Relationships: [];
+      };
+      admin_newsletters: {
+        Row: Row<{
+          id: string;
+          subject: string;
+          preheader: string | null;
+          target_segment: AdminNewsletterTargetSegment;
+          status: AdminNewsletterStatus;
+          created_by_profile_id: string | null;
+          updated_by_profile_id: string | null;
+          locked_at: string | null;
+          sent_at: string | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["admin_newsletters"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["admin_newsletters"]["Row"]>;
+        Relationships: [];
+      };
+      admin_newsletter_sections: {
+        Row: Row<{
+          id: string;
+          newsletter_id: string;
+          sort_order: number;
+          heading: string | null;
+          body: string | null;
+          image_path: string | null;
+          image_layout: AdminNewsletterImageLayout;
+          image_focus: AdminNewsletterImageFocus;
+          button_label: string | null;
+          button_url: string | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["admin_newsletter_sections"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["admin_newsletter_sections"]["Row"]>;
+        Relationships: [];
+      };
+      admin_newsletter_recipients: {
+        Row: Row<{
+          id: string;
+          newsletter_id: string;
+          facilitator_id: string;
+          profile_id: string;
+          recipient_email: string;
+          recipient_name: string | null;
+          status: AdminNewsletterRecipientStatus;
+          unsubscribe_token_hash: string | null;
+          resend_message_id: string | null;
+          error_message: string | null;
+          sent_at: string | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["admin_newsletter_recipients"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["admin_newsletter_recipients"]["Row"]>;
+        Relationships: [];
+      };
+      potential_facilitator_invitation_templates: {
+        Row: Row<{
+          id: string;
+          name: string;
+          subject: string;
+          preheader: string | null;
+          intro: string | null;
+          body: string;
+          button_label: string;
+          button_url: string;
+          signoff: string;
+          is_default: boolean;
+          created_by_profile_id: string | null;
+          updated_by_profile_id: string | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["potential_facilitator_invitation_templates"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["potential_facilitator_invitation_templates"]["Row"]>;
+        Relationships: [];
+      };
+      potential_facilitator_contacts: {
+        Row: Row<{
+          id: string;
+          name: string;
+          email: string;
+          company: string | null;
+          contact_source: string;
+          lawful_contact_basis: string;
+          lawful_contact_confirmed_at: string | null;
+          lawful_contact_confirmed_by_profile_id: string | null;
+          invitation_status: PotentialFacilitatorInvitationStatus;
+          invitation_sent_at: string | null;
+          response_notes: string | null;
+          no_contact_at: string | null;
+          no_contact_source: PotentialFacilitatorInvitationSuppressionSource | null;
+          created_by_profile_id: string | null;
+          updated_by_profile_id: string | null;
+          registered_at: string;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["potential_facilitator_contacts"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["potential_facilitator_contacts"]["Row"]>;
+        Relationships: [];
+      };
+      potential_facilitator_invitation_suppressions: {
+        Row: Row<{
+          email: string;
+          contact_id: string | null;
+          reason: string | null;
+          source: PotentialFacilitatorInvitationSuppressionSource;
+          suppressed_at: string;
+          created_by_profile_id: string | null;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["potential_facilitator_invitation_suppressions"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["potential_facilitator_invitation_suppressions"]["Row"]>;
+        Relationships: [];
+      };
+      potential_facilitator_invitation_sends: {
+        Row: Row<{
+          id: string;
+          contact_id: string | null;
+          template_id: string | null;
+          recipient_email: string;
+          recipient_name: string | null;
+          subject: string;
+          body_snapshot: string;
+          personal_intro_snapshot: string | null;
+          status: PotentialFacilitatorInvitationSendStatus;
+          is_test: boolean;
+          unsubscribe_token_hash: string | null;
+          resend_message_id: string | null;
+          error_message: string | null;
+          sent_at: string | null;
+          created_by_profile_id: string | null;
+          created_at: string;
+          updated_at: string;
+        }>;
+        Insert: Insert<Database["public"]["Tables"]["potential_facilitator_invitation_sends"]["Row"]>;
+        Update: Update<Database["public"]["Tables"]["potential_facilitator_invitation_sends"]["Row"]>;
         Relationships: [];
       };
       regions: {
