@@ -170,7 +170,7 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
             <div>
               {moodMediaItems.length > 0 && (
                 <section className="mb-10">
-                  <EventMediaGallery fixedPreviewAspectRatio="3 / 2" items={moodMediaItems as Array<{ alt: string; src: string; type: "image" | "video" }>} />
+                  <EventMediaGallery items={moodMediaItems as Array<{ alt: string; src: string; type: "image" | "video" }>} />
                 </section>
               )}
 
@@ -183,7 +183,7 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
               {galleryMediaItems.length > 0 && (
                 <section className="mt-12">
                   <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Galleri</p>
-                  <EventMediaGallery fixedPreviewAspectRatio="3 / 2" items={galleryMediaItems as Array<{ alt: string; src: string; type: "image" | "video" }>} />
+                  <EventMediaGallery items={galleryMediaItems as Array<{ alt: string; src: string; type: "image" | "video" }>} />
                 </section>
               )}
             </div>
