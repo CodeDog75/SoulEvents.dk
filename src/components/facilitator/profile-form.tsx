@@ -2721,7 +2721,7 @@ export function ProfileForm({
       {moodImages.map((image, index) => {
         return (
           <div
-            className="grid min-w-[82%] snap-start gap-2 sm:min-w-0"
+            className="grid w-full min-w-0 gap-2"
             key={`mood-slot-${index + 1}`}
           >
             <p className="text-sm font-semibold text-midnight">
@@ -2853,7 +2853,7 @@ export function ProfileForm({
             Tilføj op til seks billeder, der viser stemningen i det, du tilbyder.
           </p>
         </div>
-        <div className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-4 overflow-hidden sm:grid-cols-2 lg:grid-cols-3">
           {moodImageTiles}
         </div>
       </section>
