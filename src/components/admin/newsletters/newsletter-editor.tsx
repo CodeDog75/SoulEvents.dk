@@ -460,11 +460,11 @@ export function NewsletterEditor({
         </div>
         <div className={`mx-auto mt-5 overflow-hidden rounded-[28px] border border-[#E5DDEA] bg-[#FAF6EF] p-3 ${previewMode === "mobile" ? "max-w-sm" : "max-w-3xl"}`}>
           <div className="rounded-[24px] bg-white">
-            <div className="rounded-t-[24px] bg-gradient-to-br from-[#4B5645] to-[#7A4EAB] p-6 text-white">
+            <div className="rounded-t-[24px] border border-[#E5DDEA] bg-gradient-to-br from-[#FBF4E8] via-[#F4ECFA] to-[#EDE3F7] p-6 text-midnight">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img alt="SoulEvents.dk" className="mb-4 size-[72px] object-contain" src="/brand/soulevents-logo.png" />
               <h3 className="mt-2 font-serif text-3xl font-semibold leading-tight">{subject || "Nyhed fra SoulEvents"}</h3>
-              {preheader ? <p className="mt-3 text-sm leading-6 text-white/82">{preheader}</p> : null}
+              {preheader ? <p className="mt-3 text-sm leading-6 text-ink/68">{preheader}</p> : null}
             </div>
             <div className="grid gap-7 p-6">
               {sections.map((section, index) => (

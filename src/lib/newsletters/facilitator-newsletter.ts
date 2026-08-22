@@ -189,10 +189,10 @@ export function renderFacilitatorNewsletterHtml(input: NewsletterRenderInput) {
         <td align="center" style="padding: 34px 16px;">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 680px; border-collapse: collapse;">
             <tr>
-              <td style="padding: 28px 28px 10px; border-radius: 32px 32px 0 0; background: linear-gradient(135deg, #4B5645, #7A4EAB); color: #ffffff;">
+              <td style="padding: 28px 28px 10px; border-radius: 32px 32px 0 0; background: #F4ECFA; background-image: linear-gradient(135deg, #FBF4E8 0%, #F4ECFA 54%, #EDE3F7 100%); color: #2F2633; border: 1px solid #E5DDEA; border-bottom: 0;">
                 <img alt="SoulEvents.dk" src="${escapeHtml(logoUrl)}" width="72" height="72" style="display: block; width: 72px; height: 72px; object-fit: contain; margin: 0 0 14px;" />
                 <h1 style="margin: 10px 0 0; font-family: Georgia, 'Times New Roman', serif; font-size: 34px; line-height: 1.12;">${escapeHtml(input.subject || "Nyhed fra SoulEvents")}</h1>
-                ${preheader ? `<p style="margin: 14px 0 0; color: rgba(255,255,255,.84); font-size: 16px; line-height: 1.55;">${escapeHtml(preheader)}</p>` : ""}
+                ${preheader ? `<p style="margin: 14px 0 0; color: #6E6475; font-size: 16px; line-height: 1.55;">${escapeHtml(preheader)}</p>` : ""}
               </td>
             </tr>
             <tr>

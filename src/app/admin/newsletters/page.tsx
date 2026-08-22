@@ -44,52 +44,52 @@ function normalizeSections(sections: Array<Record<string, unknown>> | null | und
 export default async function AdminNewslettersPage({ searchParams }: AdminNewslettersPageProps) {
   const [{ message, newsletter: selectedNewsletterId }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = createAdminClient();
+  const { data: newsletters } = await supabase
+    .from("admin_newsletters")
+    .select("id, subject, status, target_segment, updated_at, sent_at")
+    .order("updated_at", { ascending: false })
+    .limit(12);
+  const activeNewsletterId = selectedNewsletterId || newsletters?.[0]?.id || null;
   const [
-    { data: newsletters },
     { data: selectedNewsletter },
     { data: selectedSections },
     { count: pendingRecipients },
     { count: sentRecipients },
     { count: failedRecipients },
   ] = await Promise.all([
-    supabase
-      .from("admin_newsletters")
-      .select("id, subject, status, target_segment, updated_at, sent_at")
-      .order("updated_at", { ascending: false })
-      .limit(12),
-    selectedNewsletterId
+    activeNewsletterId
       ? supabase
           .from("admin_newsletters")
           .select("id, subject, preheader, status, target_segment, sent_at, locked_at")
-          .eq("id", selectedNewsletterId)
+          .eq("id", activeNewsletterId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
-    selectedNewsletterId
+    activeNewsletterId
       ? supabase
           .from("admin_newsletter_sections")
           .select("heading, body, image_path, image_layout, image_focus, button_label, button_url, sort_order")
-          .eq("newsletter_id", selectedNewsletterId)
+          .eq("newsletter_id", activeNewsletterId)
           .order("sort_order", { ascending: true })
       : Promise.resolve({ data: [] }),
-    selectedNewsletterId
+    activeNewsletterId
       ? supabase
           .from("admin_newsletter_recipients")
           .select("id", { count: "exact", head: true })
-          .eq("newsletter_id", selectedNewsletterId)
+          .eq("newsletter_id", activeNewsletterId)
           .eq("status", "pending")
       : Promise.resolve({ count: 0 }),
-    selectedNewsletterId
+    activeNewsletterId
       ? supabase
           .from("admin_newsletter_recipients")
           .select("id", { count: "exact", head: true })
-          .eq("newsletter_id", selectedNewsletterId)
+          .eq("newsletter_id", activeNewsletterId)
           .eq("status", "sent")
       : Promise.resolve({ count: 0 }),
-    selectedNewsletterId
+    activeNewsletterId
       ? supabase
           .from("admin_newsletter_recipients")
           .select("id", { count: "exact", head: true })
-          .eq("newsletter_id", selectedNewsletterId)
+          .eq("newsletter_id", activeNewsletterId)
           .eq("status", "failed")
       : Promise.resolve({ count: 0 }),
   ]);
@@ -129,7 +129,7 @@ export default async function AdminNewslettersPage({ searchParams }: AdminNewsle
           <div className="mt-4 grid gap-2">
             {(newsletters ?? []).map((newsletter) => (
               <Link
-                className={`rounded-[18px] border p-3 text-sm transition ${newsletter.id === selectedNewsletterId ? "border-[#7A4EAB] bg-[#F7F2FB]" : "border-midnight/10 bg-white hover:border-[#D8CBE4]"}`}
+                className={`rounded-[18px] border p-3 text-sm transition ${newsletter.id === activeNewsletterId ? "border-[#7A4EAB] bg-[#F7F2FB]" : "border-midnight/10 bg-white hover:border-[#D8CBE4]"}`}
                 href={`/admin/newsletters?newsletter=${newsletter.id}`}
                 key={newsletter.id}
               >
