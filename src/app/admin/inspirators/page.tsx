@@ -107,8 +107,6 @@ function InspiratorForm({ inspirator, title }: { inspirator?: Inspirator; title:
 
       <form action={upsertInspiratorAction} className="grid gap-6 p-5">
         <input name="id" type="hidden" value={inspirator?.id ?? ""} />
-        <input name="profile_image_path" type="hidden" value={inspirator?.profile_image_path ?? ""} />
-        <input name="hero_image_path" type="hidden" value={inspirator?.hero_image_path ?? ""} />
 
         <section className="grid gap-5 lg:grid-cols-[320px_1fr]">
           <aside className="grid content-start gap-4">

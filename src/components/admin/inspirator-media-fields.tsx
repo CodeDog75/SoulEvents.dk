@@ -3,7 +3,7 @@
 import { ArrowLeft, ArrowRight, ImagePlus, MonitorSmartphone, Play, Trash2 } from "lucide-react";
 import type { ChangeEvent } from "react";
 import { useEffect, useId, useRef, useState } from "react";
-import { createSignedInspiratorMediaUploadAction } from "@/app/admin/inspirators/actions";
+import { createSignedInspiratorImageUploadAction, createSignedInspiratorMediaUploadAction } from "@/app/admin/inspirators/actions";
 import {
   eventGalleryUploadAccept,
   isEventGalleryVideoFile,
@@ -13,7 +13,7 @@ import {
   supportedEventGalleryUploadText,
   validateEventGalleryFile,
 } from "@/lib/events/gallery-media";
-import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile } from "@/lib/images/client-image-upload";
+import { imageUploadAccept, prepareImageFileForUpload } from "@/lib/images/client-image-upload";
 import { createClient as createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type ExtraMediaSlot = {
@@ -93,11 +93,16 @@ function debugInspiratorMediaUpload(stage: string, details: Record<string, unkno
 }
 
 export function InspiratorImageUploadField({ currentPath, currentUrl, label, name }: ImageUploadFieldProps) {
+  const kind = name === "hero_image" ? "hero" : "profile";
   const [previewUrl, setPreviewUrl] = useState(currentUrl ?? "");
+  const [imagePath, setImagePath] = useState(currentPath ?? "");
   const [objectUrl, setObjectUrl] = useState("");
   const [isRemoved, setIsRemoved] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const isUploadingRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -105,22 +110,81 @@ export function InspiratorImageUploadField({ currentPath, currentUrl, label, nam
     };
   }, [objectUrl]);
 
+  useEffect(() => {
+    isUploadingRef.current = isUploading;
+  }, [isUploading]);
+
+  useEffect(() => {
+    const form = inputRef.current?.closest("form");
+    if (!form) return undefined;
+
+    function handleSubmit(event: SubmitEvent) {
+      if (isUploadingRef.current) {
+        event.preventDefault();
+        setErrorMessage("Vent til upload er færdig, før du gemmer inspiratoren.");
+      }
+    }
+
+    form.addEventListener("submit", handleSubmit);
+    return () => form.removeEventListener("submit", handleSubmit);
+  }, []);
+
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget;
     const selectedFile = input.files?.[0];
     if (!selectedFile) return;
+    const previousPreviewUrl = previewUrl;
+    const previousImagePath = imagePath;
+    const previousObjectUrl = objectUrl;
+    const previousIsRemoved = isRemoved;
+    let nextPreviewUrl = "";
 
     try {
       const file = await prepareImageFileForUpload(selectedFile, { maxFileSizeBytes: maxEventGalleryImageFileSize });
-      replaceInputFile(input, file);
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-      const nextPreviewUrl = URL.createObjectURL(file);
-      setObjectUrl(nextPreviewUrl);
+      nextPreviewUrl = URL.createObjectURL(file);
+      input.value = "";
       setPreviewUrl(nextPreviewUrl);
       setIsRemoved(false);
+      setIsUploading(true);
+      setStatusMessage("Uploader billede...");
+      setErrorMessage("");
+      const signedUpload = await createSignedInspiratorImageUploadAction({
+        contentType: file.type,
+        fileName: file.name,
+        kind,
+        size: file.size,
+      });
+
+      if (signedUpload.error || !signedUpload.path || !signedUpload.token) {
+        throw new Error(signedUpload.error || "Upload kunne ikke startes.");
+      }
+
+      const supabase = createBrowserSupabaseClient();
+      const { error: uploadError } = await supabase.storage.from("media").uploadToSignedUrl(signedUpload.path, signedUpload.token, file, {
+        cacheControl: "31536000",
+        contentType: signedUpload.contentType ?? file.type,
+      });
+
+      if (uploadError) {
+        throw new Error("Upload til medielager fejlede: " + uploadError.message);
+      }
+
+      if (previousObjectUrl) URL.revokeObjectURL(previousObjectUrl);
+      setObjectUrl(nextPreviewUrl);
+      setImagePath(signedUpload.path);
+      setIsRemoved(false);
+      setIsUploading(false);
+      setStatusMessage("Billedet er uploadet. Husk at gemme inspiratoren.");
       setErrorMessage("");
     } catch (error) {
+      if (nextPreviewUrl) URL.revokeObjectURL(nextPreviewUrl);
       input.value = "";
+      setPreviewUrl(previousPreviewUrl);
+      setImagePath(previousImagePath);
+      setObjectUrl(previousObjectUrl);
+      setIsRemoved(previousIsRemoved);
+      setIsUploading(false);
+      setStatusMessage("");
       setErrorMessage(error instanceof Error ? error.message : "Billedet kunne ikke klargøres.");
     }
   }
@@ -130,7 +194,9 @@ export function InspiratorImageUploadField({ currentPath, currentUrl, label, nam
     inputRef.current && (inputRef.current.value = "");
     setObjectUrl("");
     setPreviewUrl("");
+    setImagePath("");
     setIsRemoved(Boolean(currentPath));
+    setStatusMessage("");
     setErrorMessage("");
   }
 
@@ -142,11 +208,14 @@ export function InspiratorImageUploadField({ currentPath, currentUrl, label, nam
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img alt={label} className="h-full w-full object-cover" src={previewUrl} />
+            {isUploading ? (
+              <span className="absolute inset-x-3 top-3 rounded-full bg-white px-3 py-1 text-center text-xs font-semibold text-[#7A5D91] shadow-soft">Uploader...</span>
+            ) : null}
             <div className={mediaToolbarClass()}>
               <label className="grid size-8 cursor-pointer place-items-center rounded-full text-[#4F4756] transition hover:bg-[#F4F0F7]">
                 <ImagePlus className="size-3.5" aria-hidden="true" />
                 <span className="sr-only">Udskift {label.toLowerCase()}</span>
-                <input accept={imageUploadAccept} className="sr-only" name={name} onChange={(event) => void handleFileChange(event)} ref={inputRef} type="file" />
+                <input accept={imageUploadAccept} className="sr-only" onChange={(event) => void handleFileChange(event)} ref={inputRef} type="file" />
               </label>
               <button className="grid size-8 place-items-center rounded-full text-red-700 transition hover:bg-red-50" onClick={removeImage} type="button">
                 <Trash2 className="size-3.5" aria-hidden="true" />
@@ -159,11 +228,13 @@ export function InspiratorImageUploadField({ currentPath, currentUrl, label, nam
             <span className="grid size-14 place-items-center rounded-[18px] bg-white/90 text-[#7A5D91] shadow-soft">
               <ImagePlus className="size-6" aria-hidden="true" />
             </span>
-            <input accept={imageUploadAccept} className="sr-only" name={name} onChange={(event) => void handleFileChange(event)} ref={inputRef} type="file" />
+            <input accept={imageUploadAccept} className="sr-only" onChange={(event) => void handleFileChange(event)} ref={inputRef} type="file" />
           </label>
         )}
       </div>
+      <input name={name + "_path"} type="hidden" value={isRemoved ? "" : imagePath} />
       {isRemoved ? <input name={"remove_" + name} type="hidden" value="on" /> : null}
+      {statusMessage ? <p className="mt-2 rounded-xl border border-[#D8CBE4] bg-[#FAF8FC] px-3 py-2 text-xs font-semibold text-[#4F4756]">{statusMessage}</p> : null}
       {errorMessage ? <p className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-900">{errorMessage}</p> : null}
       <p className="mt-2 text-xs leading-5 text-[#6E6475]">Billeder op til 10 MB.</p>
     </div>

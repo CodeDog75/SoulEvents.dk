@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
-import { eventGalleryContentTypeFromPath, eventGalleryFileExtension, eventGalleryFileExtensionFromMetadata, validateEventGalleryFile, validateEventGalleryFileMetadata } from "@/lib/events/gallery-media";
+import { eventGalleryContentTypeFromPath, eventGalleryFileExtension, eventGalleryFileExtensionFromMetadata, maxEventGalleryImageFileSize, validateEventGalleryFile, validateEventGalleryFileMetadata } from "@/lib/events/gallery-media";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ensureMediaStorageBucket } from "@/lib/supabase/storage-buckets";
@@ -45,9 +45,23 @@ function safeName(value: string) {
     .slice(0, 60);
 }
 
+type InspiratorPrimaryImageKind = "profile" | "hero";
+
+const inspiratorPrimaryImageExtensions = new Set(["jpg", "png", "webp", "heic", "heif"]);
+
+function isInspiratorPrimaryImageExtension(extension: string | null) {
+  return Boolean(extension && inspiratorPrimaryImageExtensions.has(extension));
+}
+
 function inspiratorMediaPath(section: "mood" | "gallery", input: { fileName: string; type?: string | null }) {
   const extension = eventGalleryFileExtensionFromMetadata(input) ?? "jpg";
   return "inspirators/" + section + "/" + Date.now() + "-" + crypto.randomUUID() + "-" + (safeName(input.fileName) || "inspirator") + "." + extension;
+}
+
+function inspiratorPrimaryImagePath(kind: InspiratorPrimaryImageKind, input: { fileName: string; type?: string | null }) {
+  const extension = eventGalleryFileExtensionFromMetadata(input);
+  if (!isInspiratorPrimaryImageExtension(extension)) return null;
+  return "inspirators/" + kind + "/" + Date.now() + "-" + crypto.randomUUID() + "-" + (safeName(input.fileName) || "inspirator") + "." + extension;
 }
 
 function validInspiratorMediaPath(path: string | null, section: "mood" | "gallery") {
@@ -57,16 +71,11 @@ function validInspiratorMediaPath(path: string | null, section: "mood" | "galler
   return path;
 }
 
-async function uploadImage(file: File, folder: string) {
-  const extension = extensionFromFile(file);
-  if (!["jpg", "png", "webp", "heic", "heif"].includes(extension)) {
-    go("Filen skal være et billede.");
-  }
-  const validationError = validateEventGalleryFile(file);
-  if (validationError) {
-    go(validationError);
-  }
-  return uploadMedia(file, folder);
+function validInspiratorPrimaryImagePath(path: string | null, kind: InspiratorPrimaryImageKind) {
+  if (!path || /^https?:\/\//i.test(path)) return "";
+  if (!path.startsWith("inspirators/" + kind + "/")) return "";
+  if (!isInspiratorPrimaryImageExtension(eventGalleryFileExtensionFromMetadata({ fileName: path }))) return "";
+  return path;
 }
 
 async function uploadMedia(file: File, folder: string) {
@@ -146,13 +155,81 @@ export async function createSignedInspiratorMediaUploadAction(input: {
   };
 }
 
-async function imageFromForm(formData: FormData, name: string, currentPath: string | null, folder: string) {
+export async function createSignedInspiratorImageUploadAction(input: {
+  contentType: string;
+  fileName: string;
+  kind: InspiratorPrimaryImageKind;
+  size: number;
+}) {
+  await requireRole("admin");
+
+  const kind = input.kind === "hero" ? "hero" : "profile";
+  const metadata = {
+    fileName: input.fileName,
+    size: Number(input.size),
+    type: input.contentType,
+  };
+  const imagePath = inspiratorPrimaryImagePath(kind, metadata);
+
+  if (!imagePath) {
+    return { contentType: null, error: "Filen skal være et billede: JPG, PNG, WebP eller HEIC.", path: null, token: null };
+  }
+
+  if (metadata.size > maxEventGalleryImageFileSize) {
+    return { contentType: null, error: "Billedet er for stort. Vælg et billede på højst 10 MB.", path: null, token: null };
+  }
+
+  const contentType = eventGalleryContentTypeFromPath(imagePath);
+  const supabase = createAdminClient();
+  const bucketError = await ensureMediaStorageBucket(supabase);
+
+  if (bucketError) {
+    console.error("Inspirator image bucket setup error", {
+      kind,
+      message: bucketError.message,
+      path: imagePath,
+      size: metadata.size,
+      type: metadata.type,
+    });
+    return { contentType: null, error: "Media-bucketten kunne ikke klargøres. Kør storage-migrationen og prøv igen.", path: null, token: null };
+  }
+
+  const { data, error } = await supabase.storage.from("media").createSignedUploadUrl(imagePath, {
+    upsert: false,
+  });
+
+  if (error) {
+    console.error("Signed inspirator image upload URL could not be created", {
+      kind,
+      message: error.message,
+      path: imagePath,
+      size: metadata.size,
+      type: metadata.type,
+    });
+    return { contentType: null, error: "Upload kunne ikke startes: " + error.message, path: null, token: null };
+  }
+
+  return {
+    contentType,
+    error: null,
+    path: data.path,
+    token: data.token,
+  };
+}
+
+function primaryImagePathFromForm(formData: FormData, name: string, kind: InspiratorPrimaryImageKind) {
   const remove = formData.get("remove_" + name) === "on";
   if (remove) return null;
 
-  const file = formData.get(name);
-  if (!(file instanceof File) || file.size === 0) return currentPath;
-  return uploadImage(file, folder);
+  const pathValue = getOptionalString(formData, name + "_path");
+  if (!pathValue) return null;
+
+  const path = validInspiratorPrimaryImagePath(pathValue, kind);
+  if (!path) {
+    go("Billedets storage-sti er ugyldig.");
+  }
+
+  return path;
 }
 
 async function syncExtraMediaSlots(formData: FormData, inspiratorId: string, section: "mood" | "gallery") {
@@ -234,16 +311,13 @@ export async function upsertInspiratorAction(formData: FormData) {
 
   const id = getOptionalString(formData, "id");
   const name = getString(formData, "name");
-  const currentProfileImagePath = getOptionalString(formData, "profile_image_path");
-  const currentHeroImagePath = getOptionalString(formData, "hero_image_path");
-
   if (!name) go("Navn er påkrævet.");
 
   const slug = slugify(getOptionalString(formData, "slug") || name);
   if (!slug) go("Webadresse kunne ikke dannes. Prøv et andet navn.");
 
-  const profileImagePath = await imageFromForm(formData, "profile_image", currentProfileImagePath, "inspirators/profile");
-  const heroImagePath = await imageFromForm(formData, "hero_image", currentHeroImagePath, "inspirators/hero");
+  const profileImagePath = primaryImagePathFromForm(formData, "profile_image", "profile");
+  const heroImagePath = primaryImagePathFromForm(formData, "hero_image", "hero");
 
   const payload = {
     slug,
