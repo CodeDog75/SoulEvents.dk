@@ -8,6 +8,7 @@ import { AuthMessage } from "@/components/auth/auth-message";
 import { BrandLogo } from "@/components/brand-logo";
 import { EventMediaGallery } from "@/components/events/detail/event-media-gallery";
 import { isEventGalleryVideoPath } from "@/lib/events/gallery-media";
+import { normalizeInspiratorEmbedUrl } from "@/lib/inspiration/embed-links";
 import { createPageMetadata, getHomepageOgImageUrl, stripHtml } from "@/lib/open-graph";
 import { createClient } from "@/lib/supabase/server";
 
@@ -43,6 +44,15 @@ function linkItems(profile: any) {
     ["Spotify", profile.spotify_url],
     ["Webshop", profile.webshop_url],
   ].filter(([, url]) => Boolean(url));
+}
+
+function providerLabel(provider: "spotify" | "youtube") {
+  return provider === "spotify" ? "Spotify" : "YouTube";
+}
+
+function embedFrameClass(height: "compact" | "tall" | "video") {
+  if (height === "video") return "aspect-video w-full";
+  return height === "compact" ? "h-[152px] w-full" : "h-[352px] w-full";
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -82,7 +92,7 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
   const supabase = await createClient();
   const { data: profile } = await supabase
     .from("inspirator_profiles")
-    .select("*, inspirator_images(*)")
+    .select("*, inspirator_embeds(*), inspirator_images(*)")
     .eq("slug", slug)
     .eq("is_active", true)
     .maybeSingle();
@@ -127,6 +137,23 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
         : contact === "error"
           ? "Beskeden kunne ikke sendes. Tjek navn, e-mail og besked."
           : undefined;
+  const musicAndVideoEmbeds =
+    (profile.inspirator_embeds ?? [])
+      .sort((a: any, b: any) => a.sort_order - b.sort_order)
+      .slice(0, 6)
+      .map((embed: any) => {
+        const normalizedEmbed = normalizeInspiratorEmbedUrl(embed.url);
+        return normalizedEmbed
+            ? {
+                embedUrl: normalizedEmbed.embedUrl,
+                height: normalizedEmbed.height,
+                provider: normalizedEmbed.provider,
+                title: embed.title || providerLabel(normalizedEmbed.provider),
+                url: normalizedEmbed.url,
+            }
+          : null;
+      })
+      .filter(Boolean);
 
   return (
     <main className="min-h-screen bg-[#FAF6EF] text-[#2F2633]">
@@ -179,6 +206,32 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
                 <h2 className="mt-2 text-3xl font-semibold">Mød {profile.name}</h2>
                 <div className="mt-4 text-base">{paragraphs(profile.about_body)}</div>
               </section>
+
+              {musicAndVideoEmbeds.length > 0 && (
+                <section className="mt-12">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Musik og videoer</p>
+                  <div className="mt-5 grid gap-5">
+                    {musicAndVideoEmbeds.map((embed: any, index: number) => (
+                      <article className="overflow-hidden rounded-[1.5rem] border border-[#E5DDEA] bg-[#FAF6EF] shadow-soft" key={embed.url + index}>
+                        <div className="flex items-center justify-between gap-3 border-b border-[#E5DDEA] bg-white/76 px-5 py-4">
+                          <h2 className="font-semibold text-[#2F2633]">{embed.title}</h2>
+                          <span className="rounded-full bg-[#F4F0F7] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#7A5D91]">
+                            {providerLabel(embed.provider)}
+                          </span>
+                        </div>
+                        <iframe
+                          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                          className={embedFrameClass(embed.height)}
+                          loading="lazy"
+                          referrerPolicy="strict-origin-when-cross-origin"
+                          src={embed.embedUrl}
+                          title={embed.title}
+                        />
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {galleryMediaItems.length > 0 && (
                 <section className="mt-12">

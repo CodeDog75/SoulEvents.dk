@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/roles";
 import { eventGalleryContentTypeFromPath, eventGalleryFileExtension, eventGalleryFileExtensionFromMetadata, maxEventGalleryImageFileSize, validateEventGalleryFile, validateEventGalleryFileMetadata } from "@/lib/events/gallery-media";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
+import { inspiratorEmbedErrorMessage, maxInspiratorEmbeds, normalizeInspiratorEmbedUrl } from "@/lib/inspiration/embed-links";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ensureMediaStorageBucket } from "@/lib/supabase/storage-buckets";
 
@@ -306,6 +307,68 @@ async function syncExtraMediaSlots(formData: FormData, inspiratorId: string, sec
   }
 }
 
+async function syncInspiratorEmbeds(formData: FormData, inspiratorId: string) {
+  const supabase = createAdminClient();
+  const submittedIds = new Set<string>();
+
+  for (let index = 1; index <= maxInspiratorEmbeds; index += 1) {
+    const embedId = getOptionalString(formData, "embed_id_" + index);
+    const title = getOptionalString(formData, "embed_title_" + index);
+    const urlValue = getOptionalString(formData, "embed_url_" + index);
+
+    if (!embedId && !urlValue) continue;
+
+    if (!urlValue) {
+      continue;
+    }
+
+    const embed = normalizeInspiratorEmbedUrl(urlValue);
+    if (!embed) {
+      go(inspiratorEmbedErrorMessage());
+    }
+
+    const payload = {
+      sort_order: index * 10,
+      title,
+      updated_at: new Date().toISOString(),
+      url: embed.url,
+    };
+
+    if (embedId) {
+      submittedIds.add(embedId);
+      const { error } = await supabase
+        .from("inspirator_embeds")
+        .update(payload)
+        .eq("id", embedId)
+        .eq("inspirator_id", inspiratorId);
+
+      if (error) go("Profilen blev gemt, men musik og videoer kunne ikke opdateres.");
+      continue;
+    }
+
+    const { data, error } = await supabase
+      .from("inspirator_embeds")
+      .insert({
+        ...payload,
+        inspirator_id: inspiratorId,
+      })
+      .select("id")
+      .single();
+
+    if (error) go("Profilen blev gemt, men musik og videoer kunne ikke gemmes.");
+    if (data?.id) submittedIds.add(data.id);
+  }
+
+  const deleteQuery = supabase.from("inspirator_embeds").delete().eq("inspirator_id", inspiratorId);
+  const { error: deleteError } = submittedIds.size > 0
+    ? await deleteQuery.not("id", "in", "(" + Array.from(submittedIds).join(",") + ")")
+    : await deleteQuery;
+
+  if (deleteError) {
+    go("Profilen blev gemt, men fjernede musik- og videolinks kunne ikke slettes.");
+  }
+}
+
 export async function upsertInspiratorAction(formData: FormData) {
   await requireRole("admin");
 
@@ -351,6 +414,7 @@ export async function upsertInspiratorAction(formData: FormData) {
 
   await syncExtraMediaSlots(formData, result.data.id, "mood");
   await syncExtraMediaSlots(formData, result.data.id, "gallery");
+  await syncInspiratorEmbeds(formData, result.data.id);
 
   revalidatePath("/admin/inspirators");
   revalidatePath("/inspiration");

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ImagePlus, Save, Sparkles } from "lucide-react";
 import { archiveInspiratorAction, upsertInspiratorAction } from "@/app/admin/inspirators/actions";
+import { InspiratorEmbedFields } from "@/components/admin/inspirator-embed-fields";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { InspiratorExtraMediaFields, InspiratorImageUploadField } from "@/components/admin/inspirator-media-fields";
 import { requireRole } from "@/lib/auth/roles";
@@ -19,6 +20,13 @@ type InspiratorImage = {
   image_path: string;
   alt_text: string | null;
   sort_order: number;
+};
+
+type InspiratorEmbed = {
+  id: string;
+  sort_order: number;
+  title: string | null;
+  url: string;
 };
 
 type Inspirator = {
@@ -40,6 +48,7 @@ type Inspirator = {
   webshop_url: string | null;
   is_active: boolean;
   sort_order: number;
+  inspirator_embeds?: InspiratorEmbed[];
   inspirator_images?: InspiratorImage[];
 };
 
@@ -169,6 +178,15 @@ function InspiratorForm({ inspirator, title }: { inspirator?: Inspirator; title:
           </div>
         </section>
 
+        <InspiratorEmbedFields
+          initialEmbeds={(inspirator?.inspirator_embeds ?? []).map((embed) => ({
+            id: embed.id,
+            sortOrder: embed.sort_order,
+            title: embed.title,
+            url: embed.url,
+          }))}
+        />
+
         <button className="inline-flex h-11 w-fit items-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white transition hover:bg-[#6E5285]" type="submit">
           <Save className="size-4" aria-hidden="true" />
           Gem inspirator
@@ -192,7 +210,7 @@ export default async function AdminInspiratorsPage({ searchParams }: AdminInspir
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("inspirator_profiles")
-    .select("*, inspirator_images(*)")
+    .select("*, inspirator_embeds(*), inspirator_images(*)")
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
 
