@@ -71,15 +71,12 @@ function FacilitatorCard({ facilitator }: { facilitator: HomeFacilitatorCard }) 
 
 export function HomeInspirationSections({
   featuredFacilitators,
-  newFacilitators,
 }: {
   featuredFacilitators: HomeFacilitatorCard[];
-  newFacilitators: HomeFacilitatorCard[];
 }) {
   const hasFeatured = featuredFacilitators.length > 0;
-  const hasNew = newFacilitators.length > 0;
 
-  if (!hasFeatured && !hasNew) {
+  if (!hasFeatured) {
     return null;
   }
 
@@ -100,21 +97,6 @@ export function HomeInspirationSections({
           </div>
         )}
 
-        {hasNew && (
-          <div>
-            <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-wide text-rose">Nye arrangører</p>
-              <h2 className="mt-2 text-4xl font-medium leading-tight text-olive sm:text-5xl">Nye stemmer på SoulEvents</h2>
-            </div>
-            <div className="mt-6 flex snap-x gap-4 overflow-x-auto pb-4">
-              {newFacilitators.map((facilitator) => (
-                <div className="min-w-[250px] max-w-[250px] snap-start sm:min-w-[300px] sm:max-w-[300px]" key={facilitator.id}>
-                  <FacilitatorCard facilitator={facilitator} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </section>
   );

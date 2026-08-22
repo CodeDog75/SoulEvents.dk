@@ -1079,28 +1079,6 @@ async function getFeaturedHomeFacilitators() {
   return data.filter((facilitator) => !isHiddenHomepageFacilitator(facilitator)).map((facilitator) => mapFacilitatorCard(facilitator, supabase));
 }
 
-async function getNewHomeFacilitators() {
-  if (!env.supabaseUrl || !env.supabaseAnonKey) {
-    return [];
-  }
-
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("facilitator_profiles")
-    .select("id, slug, host_reference_id, company_name, profile_image_path, short_description, city, show_public_location, is_online_facilitator, is_active_host, is_experienced_host, profiles!facilitator_profiles_profile_id_fkey(full_name), facilitator_categories(categories(name, color_hex, sort_order))")
-    .eq("status", "approved")
-    .eq("is_paused", false)
-    .eq("is_disabled", false)
-    .order("created_at", { ascending: false })
-    .limit(8);
-
-  if (error || !data) {
-    return [];
-  }
-
-  return data.filter((facilitator) => !isHiddenHomepageFacilitator(facilitator)).map((facilitator) => mapFacilitatorCard(facilitator, supabase));
-}
-
 async function getHomeFacilitators(queryText: string) {
   if (!env.supabaseUrl || !env.supabaseAnonKey) {
     return [];
@@ -1318,7 +1296,6 @@ export default async function Home({ searchParams }: HomeProps) {
     searchEvents,
     facilitatorCards,
     featuredFacilitators,
-    newFacilitators,
     adminHomepageEventCollections,
     localServiceProvidersForSearch,
   ] = await Promise.all([
@@ -1363,7 +1340,6 @@ export default async function Home({ searchParams }: HomeProps) {
     hasSearch ? getSearchEvents(selected) : Promise.resolve([]),
     getHomeFacilitators(facilitatorQuery),
     getFeaturedHomeFacilitators(),
-    getNewHomeFacilitators(),
     getHomepageEventCollections(),
     selectedHomepageView ? Promise.resolve([]) : getLocalServiceProviders(selected),
   ]);
@@ -1737,7 +1713,6 @@ export default async function Home({ searchParams }: HomeProps) {
 
       <HomeInspirationSections
         featuredFacilitators={featuredFacilitators}
-        newFacilitators={newFacilitators}
       />
 
       {homepageBottomAds.length > 0 && (
