@@ -1,9 +1,14 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ImagePlus, Monitor, Plus, Smartphone, Trash2, X } from "lucide-react";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, MouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { createSignedNewsletterImageUploadAction, getNewsletterRecipientSummary } from "@/app/admin/newsletters/actions";
+import {
+  createSignedNewsletterImageUploadAction,
+  getNewsletterRecipientSummary,
+  sendNewsletterNowAction,
+  sendNewsletterTestAction,
+} from "@/app/admin/newsletters/actions";
 import {
   maxNewsletterImageFileSize,
   maxNewsletterSections,
@@ -258,6 +263,17 @@ export function NewsletterEditor({
     }
   }
 
+  function confirmNewsletterSend(event: MouseEvent<HTMLButtonElement>) {
+    const sendableCount = summary?.sendable ?? 0;
+    const confirmed = window.confirm(
+      `Du er ved at sende nyhedsmailen til ${sendableCount} arrangører.\n\nTestmailen sendes kun til hej@soulevents.dk, men denne handling sender til den valgte modtagergruppe.\n\nVil du fortsætte?`,
+    );
+
+    if (!confirmed) {
+      event.preventDefault();
+    }
+  }
+
   return (
     <div className="grid gap-6" ref={rootRef}>
       <input name="newsletter_id" type="hidden" value={newsletterId ?? ""} />
@@ -288,32 +304,6 @@ export function NewsletterEditor({
               value={preheader}
             />
           </label>
-          <label className="grid gap-2 text-sm font-semibold text-midnight">
-            Modtagere
-            <select
-              className="h-12 rounded-md border border-midnight/15 bg-white px-4 text-base outline-none transition focus:border-sage-700"
-              name="target_segment"
-              onChange={(event) => setTargetSegment(event.currentTarget.value as NewsletterTargetSegment)}
-              value={targetSegment}
-            >
-              <option value="all">Alle arrangører</option>
-              <option value="active">Aktive arrangører</option>
-              <option value="paused">Arrangører på pause</option>
-              <option value="onboarding">Arrangører under oprettelse</option>
-            </select>
-          </label>
-          <div className="rounded-[20px] border border-[#D8CBE4] bg-[#F7F2FB] p-4 text-sm leading-6 text-ink/72">
-            <p className="font-semibold text-midnight">{newsletterTargetSegmentLabel(targetSegment)}</p>
-            {summary ? (
-              <>
-                <p>{summary.matching} arrangører fundet.</p>
-                <p>{summary.optedOut} har fravalgt nyhedsmails.</p>
-                <p className="font-semibold text-sage-700">Mailen sendes til {summary.sendable} modtagere.</p>
-              </>
-            ) : (
-              <p>{isPending ? "Tæller modtagere..." : "Modtagerantal kunne ikke hentes."}</p>
-            )}
-          </div>
         </div>
       </section>
 
@@ -483,6 +473,72 @@ export function NewsletterEditor({
               SoulEvents.dk · Afmeldingslink vises i rigtige udsendelser.
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-sage-700">Gem, test og send</p>
+          <h2 className="mt-1 text-xl font-semibold text-midnight">Afslut nyhedsmailen</h2>
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <button className="inline-flex h-11 items-center rounded-md bg-midnight px-5 text-sm font-semibold text-white" type="submit">
+            Gem som kladde
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+          <section className="rounded-[22px] border border-[#D8CBE4] bg-[#F7F2FB] p-4">
+            <p className="font-semibold text-midnight">Testmail</p>
+            <p className="mt-2 text-sm leading-6 text-ink/64">Sendes kun til testadressen - aldrig til arrangørlisten.</p>
+            <button
+              className="mt-4 inline-flex h-11 items-center rounded-md border border-[#D8CBE4] bg-white px-5 text-sm font-semibold text-[#7A4EAB]"
+              formAction={sendNewsletterTestAction}
+              type="submit"
+            >
+              Send testmail til hej@soulevents.dk
+            </button>
+          </section>
+
+          <section className="rounded-[22px] border border-sage-700/20 bg-sage-50 p-4">
+            <p className="font-semibold text-midnight">Rigtig udsendelse</p>
+            <label className="mt-3 grid gap-2 text-sm font-semibold text-midnight">
+              Modtagergruppe
+              <select
+                className="h-11 rounded-md border border-midnight/15 bg-white px-3 text-sm outline-none transition focus:border-sage-700"
+                name="target_segment"
+                onChange={(event) => setTargetSegment(event.currentTarget.value as NewsletterTargetSegment)}
+                value={targetSegment}
+              >
+                <option value="all">Alle arrangører</option>
+                <option value="active">Aktive arrangører</option>
+                <option value="paused">Arrangører på pause</option>
+                <option value="onboarding">Arrangører under oprettelse</option>
+              </select>
+            </label>
+            <div className="mt-3 rounded-[18px] bg-white px-4 py-3 text-sm leading-6 text-ink/72">
+              <p className="font-semibold text-midnight">{newsletterTargetSegmentLabel(targetSegment)}</p>
+              {summary ? (
+                <>
+                  <p>{summary.matching} arrangører fundet.</p>
+                  <p>{summary.optedOut} har fravalgt nyhedsmails.</p>
+                  <p className="font-semibold text-sage-700">Mailen sendes til {summary.sendable} modtagere.</p>
+                </>
+              ) : (
+                <p>{isPending ? "Tæller modtagere..." : "Modtagerantal kunne ikke hentes."}</p>
+              )}
+            </div>
+            <button
+              className="mt-4 inline-flex h-11 items-center rounded-md bg-midnight px-5 text-sm font-semibold text-white disabled:opacity-45"
+              disabled={!summary || summary.sendable === 0}
+              formAction={sendNewsletterNowAction}
+              onClick={confirmNewsletterSend}
+              type="submit"
+            >
+              Send nyhedsmail til {summary?.sendable ?? 0} arrangører
+            </button>
+          </section>
         </div>
       </section>
     </div>

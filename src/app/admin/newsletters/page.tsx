@@ -1,10 +1,7 @@
 import Link from "next/link";
-import { ArrowLeft, MailPlus, Play } from "lucide-react";
+import { ArrowLeft, MailPlus } from "lucide-react";
 import {
-  processNewsletterBatchAction,
   saveNewsletterDraftAction,
-  sendNewsletterNowAction,
-  sendNewsletterTestAction,
 } from "@/app/admin/newsletters/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { NewsletterEditor } from "@/components/admin/newsletters/newsletter-editor";
@@ -23,11 +20,6 @@ export const dynamic = "force-dynamic";
 type AdminNewslettersPageProps = {
   searchParams: Promise<{ message?: string; newsletter?: string }>;
 };
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "Ikke sendt";
-  return new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
-}
 
 function normalizeSections(sections: Array<Record<string, unknown>> | null | undefined) {
   return (sections ?? []).map((section) => ({
@@ -53,9 +45,6 @@ export default async function AdminNewslettersPage({ searchParams }: AdminNewsle
   const [
     { data: selectedNewsletter },
     { data: selectedSections },
-    { count: pendingRecipients },
-    { count: sentRecipients },
-    { count: failedRecipients },
   ] = await Promise.all([
     activeNewsletterId
       ? supabase
@@ -71,27 +60,6 @@ export default async function AdminNewslettersPage({ searchParams }: AdminNewsle
           .eq("newsletter_id", activeNewsletterId)
           .order("sort_order", { ascending: true })
       : Promise.resolve({ data: [] }),
-    activeNewsletterId
-      ? supabase
-          .from("admin_newsletter_recipients")
-          .select("id", { count: "exact", head: true })
-          .eq("newsletter_id", activeNewsletterId)
-          .eq("status", "pending")
-      : Promise.resolve({ count: 0 }),
-    activeNewsletterId
-      ? supabase
-          .from("admin_newsletter_recipients")
-          .select("id", { count: "exact", head: true })
-          .eq("newsletter_id", activeNewsletterId)
-          .eq("status", "sent")
-      : Promise.resolve({ count: 0 }),
-    activeNewsletterId
-      ? supabase
-          .from("admin_newsletter_recipients")
-          .select("id", { count: "exact", head: true })
-          .eq("newsletter_id", activeNewsletterId)
-          .eq("status", "failed")
-      : Promise.resolve({ count: 0 }),
   ]);
   const canEdit = !selectedNewsletter || selectedNewsletter.status === "draft";
 
@@ -163,56 +131,7 @@ export default async function AdminNewslettersPage({ searchParams }: AdminNewsle
                 </p>
               </section>
             )}
-
-            {canEdit ? (
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <button className="inline-flex h-11 items-center rounded-md bg-midnight px-5 text-sm font-semibold text-white" type="submit">
-                  Gem som kladde
-                </button>
-                <button
-                  className="inline-flex h-11 items-center rounded-md border border-[#D8CBE4] bg-white px-5 text-sm font-semibold text-[#7A4EAB]"
-                  formAction={sendNewsletterTestAction}
-                  type="submit"
-                >
-                  Send testmail til hej@soulevents.dk
-                </button>
-              </div>
-            ) : null}
           </form>
-
-          {selectedNewsletter?.id ? (
-            <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-sage-700">Udsendelse</p>
-                  <h2 className="mt-1 text-xl font-semibold text-midnight">Test og send</h2>
-                  <p className="mt-2 text-sm leading-6 text-ink/64">
-                    Modtagerlisten fastlåses, når udsendelsen startes. Drifts-, booking- og sikkerhedsmails påvirkes ikke.
-                  </p>
-                </div>
-                <div className="rounded-[18px] bg-[#F4F0F7] px-4 py-3 text-sm leading-6 text-ink/70">
-                  <p>Sendt: {sentRecipients ?? 0}</p>
-                  <p>Mangler: {pendingRecipients ?? 0}</p>
-                  <p>Fejlet: {failedRecipients ?? 0}</p>
-                  <p>Sendt dato: {formatDate(selectedNewsletter.sent_at)}</p>
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <form action={(pendingRecipients ?? 0) > 0 ? processNewsletterBatchAction : sendNewsletterNowAction} className="rounded-[20px] border border-sage-700/20 bg-sage-50 p-4">
-                  <input name="newsletter_id" type="hidden" value={selectedNewsletter.id} />
-                  <p className="font-semibold text-midnight">{(pendingRecipients ?? 0) > 0 ? "Fortsæt udsendelse" : "Send nyhedsmail"}</p>
-                  <p className="mt-2 text-sm leading-6 text-ink/64">
-                    Sender højst 25 mails pr. batch, så udsendelsen kan genoptages sikkert ved fejl.
-                  </p>
-                  <button className="mt-3 inline-flex h-10 items-center gap-2 rounded-md bg-midnight px-4 text-sm font-semibold text-white" type="submit">
-                    <Play className="size-4" aria-hidden="true" />
-                    {(pendingRecipients ?? 0) > 0 ? "Send næste batch" : "Start udsendelse"}
-                  </button>
-                </form>
-              </div>
-            </section>
-          ) : null}
         </section>
       </section>
     </main>

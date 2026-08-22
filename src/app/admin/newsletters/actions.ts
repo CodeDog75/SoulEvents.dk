@@ -478,11 +478,8 @@ async function processNewsletterBatch(newsletterId: string) {
 }
 
 export async function sendNewsletterNowAction(formData: FormData) {
-  await requireRole("admin");
-  const newsletterId = getString(formData, "newsletter_id");
-  if (!newsletterId) {
-    adminNewsletterRedirect("Nyhedsmailen mangler ID.");
-  }
+  const adminProfile = await requireRole("admin");
+  const newsletterId = await persistNewsletterDraft(formData, adminProfile);
 
   const supabase = createAdminClient();
   const data = await getNewsletterWithSections(supabase, newsletterId);
