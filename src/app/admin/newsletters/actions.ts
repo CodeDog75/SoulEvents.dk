@@ -43,6 +43,10 @@ function adminNewsletterRedirect(message: string, newsletterId?: string | null):
   redirect("/admin/newsletters?" + params.toString());
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 function safeName(value: string) {
   return value
     .replace(/\.[^.]+$/, "")
@@ -309,9 +313,12 @@ export async function saveNewsletterDraftAction(formData: FormData) {
 export async function sendNewsletterTestAction(formData: FormData) {
   await requireRole("admin");
   const newsletterId = getString(formData, "newsletter_id");
-  const testEmail = getString(formData, "test_email").toLowerCase();
+  const testEmail = getString(formData, "test_email").trim().toLowerCase();
   if (!newsletterId || !testEmail) {
     adminNewsletterRedirect("Vælg en kladde og skriv en testmailadresse.", newsletterId);
+  }
+  if (!isValidEmail(testEmail)) {
+    adminNewsletterRedirect("Skriv en gyldig testmailadresse.", newsletterId);
   }
 
   const supabase = createAdminClient();

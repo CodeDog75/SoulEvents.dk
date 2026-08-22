@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { ArrowLeft, MailPlus, Play, Send } from "lucide-react";
+import { ArrowLeft, MailPlus, Play } from "lucide-react";
 import {
   processNewsletterBatchAction,
   saveNewsletterDraftAction,
   sendNewsletterNowAction,
-  sendNewsletterTestAction,
 } from "@/app/admin/newsletters/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { NewsletterEditor } from "@/components/admin/newsletters/newsletter-editor";
+import { NewsletterTestMailForm } from "@/components/admin/newsletters/newsletter-test-mail-form";
 import { requireRole } from "@/lib/auth/roles";
 import {
   newsletterTargetSegmentLabel,
@@ -190,17 +190,7 @@ export default async function AdminNewslettersPage({ searchParams }: AdminNewsle
               </div>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <form action={sendNewsletterTestAction} className="rounded-[20px] border border-[#D8CBE4] bg-[#F7F2FB] p-4">
-                  <input name="newsletter_id" type="hidden" value={selectedNewsletter.id} />
-                  <label className="grid gap-2 text-sm font-semibold text-midnight">
-                    Testmail
-                    <input className="h-11 rounded-md border border-midnight/15 bg-white px-3" name="test_email" placeholder="test@soulevents.dk" required type="email" />
-                  </label>
-                  <button className="mt-3 inline-flex h-10 items-center gap-2 rounded-md border border-[#D8CBE4] bg-white px-4 text-sm font-semibold text-[#7A4EAB]" type="submit">
-                    <Send className="size-4" aria-hidden="true" />
-                    Send test
-                  </button>
-                </form>
+                <NewsletterTestMailForm newsletterId={selectedNewsletter.id} />
 
                 <form action={(pendingRecipients ?? 0) > 0 ? processNewsletterBatchAction : sendNewsletterNowAction} className="rounded-[20px] border border-sage-700/20 bg-sage-50 p-4">
                   <input name="newsletter_id" type="hidden" value={selectedNewsletter.id} />
