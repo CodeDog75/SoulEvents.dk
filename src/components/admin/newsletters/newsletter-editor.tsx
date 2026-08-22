@@ -13,7 +13,7 @@ import {
   type NewsletterImageLayout,
   type NewsletterSectionInput,
   type NewsletterTargetSegment,
-} from "@/lib/newsletters/facilitator-newsletter";
+} from "@/lib/newsletters/facilitator-newsletter-shared";
 import { prepareImageFileForUpload } from "@/lib/images/client-image-upload";
 import { publicMediaUrl } from "@/lib/media/public-url";
 import { createClient as createBrowserSupabaseClient } from "@/lib/supabase/browser";

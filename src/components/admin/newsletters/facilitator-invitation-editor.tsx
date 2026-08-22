@@ -9,7 +9,7 @@ import {
   defaultInvitationPreheader,
   defaultInvitationSignoff,
   defaultInvitationSubject,
-} from "@/lib/newsletters/facilitator-invitation";
+} from "@/lib/newsletters/facilitator-invitation-shared";
 
 type FacilitatorInvitationEditorProps = {
   initialBody?: string | null;
