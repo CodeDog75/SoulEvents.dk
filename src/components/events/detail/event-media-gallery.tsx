@@ -14,6 +14,7 @@ type EventMediaGalleryItem = {
 type EventMediaGalleryProps = {
   fixedPreviewAspectRatio?: string;
   items: EventMediaGalleryItem[];
+  variant?: "default" | "editorial";
 };
 
 function previewAspectRatio(ratio: number | undefined) {
@@ -42,19 +43,24 @@ function lightboxFrameStyle(ratio: number | undefined): CSSProperties {
   };
 }
 
-export function EventMediaGallery({ fixedPreviewAspectRatio, items }: EventMediaGalleryProps) {
+export function EventMediaGallery({ fixedPreviewAspectRatio, items, variant = "default" }: EventMediaGalleryProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [mediaRatios, setMediaRatios] = useState<Record<string, number>>({});
   const touchStartX = useRef<number | null>(null);
   const activeItem = activeIndex === null ? null : items[activeIndex] ?? null;
   const activeRatio = activeItem ? mediaRatios[activeItem.src] : undefined;
   const hasMultipleItems = items.length > 1;
+  const isEditorial = variant === "editorial";
 
   const gridClass = useMemo(() => {
+    if (isEditorial) {
+      if (items.length === 1) return "sm:grid-cols-1";
+      return "sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]";
+    }
     if (items.length === 1) return "";
     if (items.length === 2) return "sm:grid-cols-2";
     return "sm:grid-cols-2 lg:grid-cols-3";
-  }, [items.length]);
+  }, [isEditorial, items.length]);
 
   function closeLightbox() {
     setActiveIndex(null);
@@ -120,11 +126,13 @@ export function EventMediaGallery({ fixedPreviewAspectRatio, items }: EventMedia
 
   return (
     <>
-      <div className={`mt-5 grid gap-4 ${gridClass}`}>
+      <div className={`${isEditorial ? "" : "mt-5"} grid gap-4 ${gridClass}`}>
         {items.map((item, index) => (
           <button
             aria-label={item.type === "video" ? `Afspil ${item.alt}` : `Åbn ${item.alt}`}
-            className="group relative max-h-[28rem] overflow-hidden rounded-[18px] bg-[#F4F0F7] text-left shadow-soft outline-none ring-offset-2 ring-offset-white transition hover:-translate-y-0.5 hover:shadow-lift focus-visible:ring-2 focus-visible:ring-[#7A5D91] sm:max-h-[22rem]"
+            className={`group relative overflow-hidden rounded-[18px] bg-[#F4F0F7] text-left shadow-soft outline-none ring-offset-2 ring-offset-white transition hover:-translate-y-0.5 hover:shadow-lift focus-visible:ring-2 focus-visible:ring-[#7A5D91] ${
+              isEditorial ? "sm:h-[320px] lg:h-[380px]" : "max-h-[28rem] sm:max-h-[22rem]"
+            }`}
             key={item.src}
             onClick={() => setActiveIndex(index)}
             style={{ aspectRatio: fixedPreviewAspectRatio ?? previewAspectRatio(mediaRatios[item.src]) }}

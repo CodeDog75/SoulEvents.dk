@@ -19,6 +19,12 @@ type PageProps = {
   searchParams: Promise<{ contact?: string }>;
 };
 
+type PublicMediaItem = {
+  alt: string;
+  src: string;
+  type: "image" | "video";
+};
+
 function publicMediaUrl(imagePath: string | null) {
   if (!imagePath) return null;
   if (/^https?:\/\//i.test(imagePath)) return imagePath;
@@ -116,7 +122,7 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
           }
         : null;
     })
-    .filter(Boolean);
+    .filter((item): item is PublicMediaItem => Boolean(item));
   const galleryMediaItems = galleryImages
     .map((image: any) => {
       const url = publicMediaUrl(image.image_path);
@@ -128,7 +134,13 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
           }
         : null;
     })
-    .filter(Boolean);
+    .filter((item): item is PublicMediaItem => Boolean(item));
+  const editorialMediaItems = moodMediaItems.slice(0, 2);
+  const remainingMoodMediaItems = moodMediaItems.slice(2);
+  const heroSubtitle =
+    profile.title && profile.title.trim().toLowerCase() !== String(profile.category || "").trim().toLowerCase()
+      ? profile.title
+      : null;
   const contactMessage =
     contact === "sent"
       ? "Din besked er sendt."
@@ -174,7 +186,7 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
               // eslint-disable-next-line @next/next/no-img-element
               <img alt="" className="absolute inset-0 h-full w-full object-cover" src={heroImageUrl} />
             )}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#2F2633]/70 via-[#2F2633]/35 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#241C29]/85 via-[#2F2633]/58 to-[#2F2633]/38" />
             <div className="relative z-10 grid gap-8 lg:grid-cols-[240px_1fr] lg:items-end">
               <div className="size-44 overflow-hidden rounded-[2rem] border border-white/50 bg-white/20 shadow-soft sm:size-56">
                 {profileImageUrl ? (
@@ -186,18 +198,24 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
               </div>
               <div className="max-w-3xl text-white">
                 {profile.category && <p className="text-sm font-semibold uppercase tracking-wide text-white/78">{profile.category}</p>}
-                <h1 className="mt-3 text-4xl font-semibold leading-tight sm:text-6xl">{profile.name}</h1>
-                {profile.title && <p className="mt-4 text-lg font-semibold text-white/90">{profile.title}</p>}
+                <h1 className="mt-3 text-4xl font-semibold leading-tight sm:text-5xl xl:text-6xl">{profile.name}</h1>
+                {heroSubtitle && <p className="mt-4 text-lg font-semibold text-white/90">{heroSubtitle}</p>}
                 {profile.short_intro && <p className="mt-5 text-base leading-8 text-white/86 sm:text-lg">{profile.short_intro}</p>}
               </div>
             </div>
           </div>
 
+          {editorialMediaItems.length > 0 && (
+            <section className="border-b border-[#E5DDEA] bg-white p-4 sm:p-6">
+              <EventMediaGallery items={editorialMediaItems} variant="editorial" />
+            </section>
+          )}
+
           <div className="grid gap-8 p-6 sm:p-10 lg:grid-cols-[1fr_340px]">
             <div>
-              {moodMediaItems.length > 0 && (
+              {remainingMoodMediaItems.length > 0 && (
                 <section className="mb-10">
-                  <EventMediaGallery items={moodMediaItems as Array<{ alt: string; src: string; type: "image" | "video" }>} />
+                  <EventMediaGallery items={remainingMoodMediaItems} />
                 </section>
               )}
 
@@ -236,7 +254,7 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
               {galleryMediaItems.length > 0 && (
                 <section className="mt-12">
                   <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Galleri</p>
-                  <EventMediaGallery items={galleryMediaItems as Array<{ alt: string; src: string; type: "image" | "video" }>} />
+                  <EventMediaGallery items={galleryMediaItems} />
                 </section>
               )}
             </div>
