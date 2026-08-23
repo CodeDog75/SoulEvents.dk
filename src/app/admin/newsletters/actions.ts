@@ -493,6 +493,7 @@ export async function sendNewsletterNowAction(formData: FormData) {
     adminNewsletterRedirect("Tilføj mindst ét afsnit før udsendelse.", newsletterId);
   }
 
+  let message = "Nyhedsmailen er færdigbehandlet.";
   try {
     await createRecipientSnapshot(supabase, newsletterId, normalizeNewsletterTargetSegment(data.newsletter.target_segment));
     await supabase
@@ -502,12 +503,9 @@ export async function sendNewsletterNowAction(formData: FormData) {
       .in("status", ["draft", "sending", "failed"]);
     const result = await processNewsletterBatch(newsletterId);
     revalidatePath("/admin/newsletters");
-    adminNewsletterRedirect(
-      result.remaining > 0
-        ? `Første batch er sendt. ${result.remaining} modtagere mangler og kan sendes fra samme side.`
-        : "Nyhedsmailen er færdigbehandlet.",
-      newsletterId,
-    );
+    message = result.remaining > 0
+      ? `Første batch er sendt. ${result.remaining} modtagere mangler og kan sendes fra samme side.`
+      : "Nyhedsmailen er færdigbehandlet.";
   } catch (error) {
     console.error("[admin-newsletter] send failed", {
       message: error instanceof Error ? error.message : "Ukendt fejl.",
@@ -515,6 +513,8 @@ export async function sendNewsletterNowAction(formData: FormData) {
     });
     adminNewsletterRedirect(error instanceof Error ? error.message : "Nyhedsmailen kunne ikke sendes.", newsletterId);
   }
+
+  adminNewsletterRedirect(message, newsletterId);
 }
 
 export async function processNewsletterBatchAction(formData: FormData) {
@@ -524,18 +524,18 @@ export async function processNewsletterBatchAction(formData: FormData) {
     adminNewsletterRedirect("Nyhedsmailen mangler ID.");
   }
 
+  let message = "Nyhedsmailen er færdigbehandlet.";
   try {
     const result = await processNewsletterBatch(newsletterId);
     revalidatePath("/admin/newsletters");
-    adminNewsletterRedirect(
-      result.remaining > 0
-        ? `Batch sendt. ${result.remaining} modtagere mangler.`
-        : "Nyhedsmailen er færdigbehandlet.",
-      newsletterId,
-    );
+    message = result.remaining > 0
+      ? `Batch sendt. ${result.remaining} modtagere mangler.`
+      : "Nyhedsmailen er færdigbehandlet.";
   } catch (error) {
     adminNewsletterRedirect(error instanceof Error ? error.message : "Batchen kunne ikke sendes.", newsletterId);
   }
+
+  adminNewsletterRedirect(message, newsletterId);
 }
 
 export async function adminUnsubscribeFacilitatorNewsletterAction(formData: FormData) {

@@ -18,7 +18,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 type AdminNewslettersPageProps = {
-  searchParams: Promise<{ message?: string; newsletter?: string }>;
+  searchParams: Promise<{ message?: string; new?: string; newsletter?: string }>;
 };
 
 function normalizeSections(sections: Array<Record<string, unknown>> | null | undefined) {
@@ -34,14 +34,14 @@ function normalizeSections(sections: Array<Record<string, unknown>> | null | und
 }
 
 export default async function AdminNewslettersPage({ searchParams }: AdminNewslettersPageProps) {
-  const [{ message, newsletter: selectedNewsletterId }] = await Promise.all([searchParams, requireRole("admin")]);
+  const [{ message, new: createNew, newsletter: selectedNewsletterId }] = await Promise.all([searchParams, requireRole("admin")]);
   const supabase = createAdminClient();
   const { data: newsletters } = await supabase
     .from("admin_newsletters")
     .select("id, subject, status, target_segment, updated_at, sent_at")
     .order("updated_at", { ascending: false })
     .limit(12);
-  const activeNewsletterId = selectedNewsletterId || newsletters?.[0]?.id || null;
+  const activeNewsletterId = createNew === "1" ? null : selectedNewsletterId || newsletters?.[0]?.id || null;
   const [
     { data: selectedNewsletter },
     { data: selectedSections },
@@ -87,30 +87,30 @@ export default async function AdminNewslettersPage({ searchParams }: AdminNewsle
       </header>
 
       <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:px-8">
-        <aside className="h-fit rounded-md border border-midnight/10 bg-white p-4 shadow-soft">
+        <aside className="min-w-0 h-fit rounded-md border border-midnight/10 bg-white p-4 shadow-soft">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-semibold text-midnight">Kladder og historik</h2>
-            <Link className="text-sm font-semibold text-[#7A4EAB]" href="/admin/newsletters">
+            <Link className="text-sm font-semibold text-[#7A4EAB]" href="/admin/newsletters?new=1">
               Ny
             </Link>
           </div>
-          <div className="mt-4 grid gap-2">
+          <div className="mt-4 grid min-w-0 gap-2">
             {(newsletters ?? []).map((newsletter) => (
               <Link
-                className={`rounded-[18px] border p-3 text-sm transition ${newsletter.id === activeNewsletterId ? "border-[#7A4EAB] bg-[#F7F2FB]" : "border-midnight/10 bg-white hover:border-[#D8CBE4]"}`}
+                className={`min-w-0 overflow-hidden rounded-[18px] border p-3 text-sm transition ${newsletter.id === activeNewsletterId ? "border-[#7A4EAB] bg-[#F7F2FB]" : "border-midnight/10 bg-white hover:border-[#D8CBE4]"}`}
                 href={`/admin/newsletters?newsletter=${newsletter.id}`}
                 key={newsletter.id}
               >
-                <span className="block truncate font-semibold text-midnight">{newsletter.subject || "Uden emne"}</span>
-                <span className="mt-1 block text-xs text-ink/55">{newsletterTargetSegmentLabel(newsletter.target_segment)}</span>
-                <span className="mt-1 block text-xs font-semibold text-sage-700">{newsletter.status}</span>
+                <span className="block max-w-full truncate font-semibold text-midnight">{newsletter.subject || "Uden emne"}</span>
+                <span className="mt-1 block max-w-full truncate text-xs text-ink/55">{newsletterTargetSegmentLabel(newsletter.target_segment)}</span>
+                <span className="mt-1 block max-w-full truncate text-xs font-semibold text-sage-700">{newsletter.status}</span>
               </Link>
             ))}
             {!newsletters?.length ? <p className="text-sm leading-6 text-ink/64">Ingen nyhedsmails endnu.</p> : null}
           </div>
         </aside>
 
-        <section className="grid gap-5">
+        <section className="grid min-w-0 gap-5">
           <AuthMessage message={message} variant={message?.includes("ikke") || message?.includes("fejl") ? "notice" : "success"} />
 
           <form action={saveNewsletterDraftAction}>
@@ -125,10 +125,13 @@ export default async function AdminNewslettersPage({ searchParams }: AdminNewsle
             ) : (
               <section className="rounded-md border border-midnight/10 bg-white p-5 shadow-soft">
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-sage-700">Låst nyhedsmail</p>
-                <h2 className="mt-2 text-2xl font-semibold text-midnight">{selectedNewsletter?.subject}</h2>
+                <h2 className="mt-2 break-words text-2xl font-semibold text-midnight">{selectedNewsletter?.subject}</h2>
                 <p className="mt-2 text-sm leading-6 text-ink/64">
                   Nyhedsmailen er låst, fordi modtagerlisten er fastlagt eller udsendelsen er startet.
                 </p>
+                <Link className="mt-5 inline-flex h-11 items-center rounded-md bg-midnight px-5 text-sm font-semibold text-white" href="/admin/newsletters?new=1">
+                  Opret ny nyhedsmail
+                </Link>
               </section>
             )}
           </form>
