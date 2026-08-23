@@ -122,7 +122,7 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
           }
         : null;
     })
-    .filter((item): item is PublicMediaItem => Boolean(item));
+    .filter((item: PublicMediaItem | null): item is PublicMediaItem => Boolean(item));
   const galleryMediaItems = galleryImages
     .map((image: any) => {
       const url = publicMediaUrl(image.image_path);
@@ -134,7 +134,7 @@ export default async function InspiratorProfilePage({ params, searchParams }: Pa
           }
         : null;
     })
-    .filter((item): item is PublicMediaItem => Boolean(item));
+    .filter((item: PublicMediaItem | null): item is PublicMediaItem => Boolean(item));
   const editorialMediaItems = moodMediaItems.slice(0, 2);
   const remainingMoodMediaItems = moodMediaItems.slice(2);
   const heroSubtitle =
