@@ -66,7 +66,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const supabase = await createClient();
   const { data: profile } = await supabase
     .from("inspirator_profiles")
-    .select("slug, name, title, short_intro, body, profile_image_path, hero_image_path")
+    .select("slug, name, title, short_intro, about_body, profile_image_path")
     .eq("slug", slug)
     .eq("is_active", true)
     .maybeSingle();
@@ -80,7 +80,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const imageUrl = publicMediaUrl(profile.profile_image_path) ?? (await getHomepageOgImageUrl(supabase as any));
-  const description = stripHtml(profile.short_intro || profile.body) || "Mød " + profile.name + " i SoulEvents-universet.";
+  const description = stripHtml(profile.short_intro || profile.about_body) || "Mød " + profile.name + " i SoulEvents-universet.";
 
   return createPageMetadata({
     title: profile.name + " | Inspiration på SoulEvents.dk",
