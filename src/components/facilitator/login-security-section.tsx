@@ -42,7 +42,7 @@ export function LoginSecuritySection({
             </p>
             {pendingEmailChange ? (
               <div className="mt-3 rounded-md border border-[#D8CBE4] bg-[#F7F2FB] px-3 py-2 text-sm leading-6 text-[#7A5D91]">
-                <p className="font-semibold text-midnight">Mailændring afventer begge bekræftelser</p>
+                <p className="font-semibold text-midnight">Mailændring afventer bekræftelse</p>
                 <p>
                   Nuværende loginmail: <span className="font-semibold">{maskEmail(pendingEmailChange.old_email)}</span>
                 </p>

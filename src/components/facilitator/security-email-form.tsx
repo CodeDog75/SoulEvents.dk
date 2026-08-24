@@ -89,7 +89,7 @@ export function SecurityEmailForm({
 
         {pendingEmail ? (
           <div className="rounded-md border border-[#D8CBE4] bg-[#F7F2FB] p-4 text-sm leading-6 text-[#4E4058]">
-            <p className="font-semibold text-midnight">Afventer bekræftelse af begge mailadresser</p>
+            <p className="font-semibold text-midnight">Afventer bekræftelse af ny loginmail</p>
             <div className="mt-2 grid gap-1">
               <p>
                 Nuværende loginmail: <span className="font-semibold">{maskEmail(pendingOldEmail ?? currentEmail)}</span>
@@ -99,7 +99,7 @@ export function SecurityEmailForm({
               </p>
             </div>
             <p className="mt-1">
-              Mailændringen gennemføres først, når begge bekræftelseslinks er åbnet
+              Mailændringen gennemføres, når linket i mailen til den nye adresse er bekræftet
               {pendingExpiresAt
                 ? `, indtil ændringen bekræftes eller udløber ${new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(pendingExpiresAt))}.`
                 : "."}
@@ -122,8 +122,7 @@ export function SecurityEmailForm({
             Loginmailen bruges til login og vigtige beskeder fra SoulEvents. Den gamle adresse forbliver aktiv, indtil den nye er bekræftet.
           </p>
           <p className="rounded-md border border-[#D8CBE4] bg-white px-4 py-3 text-sm font-semibold leading-6 text-[#4E4058]">
-            Af sikkerhedshensyn sender vi en bekræftelsesmail til både din nuværende og din nye mailadresse. Du skal
-            bekræfte begge mails, før ændringen gennemføres.
+            Vi sender en bekræftelsesmail til din nye mailadresse. Din loginmail ændres, når du har bekræftet den.
           </p>
           <div className="grid gap-4 md:grid-cols-3">
             <label className="grid gap-2 text-sm font-medium text-ink/72">

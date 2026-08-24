@@ -103,7 +103,7 @@ async function emailChangeRedirectForVerifiedUser(requestUrl: URL, user: EmailCh
   if (user.new_email?.trim()) {
     return emailChangeRedirect(
       requestUrl,
-      "Første bekræftelse er registreret. Bekræft også mailen, der er sendt til den anden mailadresse. Mailændringen gennemføres først, når begge links er bekræftet.",
+      "Bekræftelsen er registreret, men Supabase viser stadig mailændringen som afventende. Prøv linket igen om lidt, eller kontakt SoulEvents, hvis beskeden fortsætter.",
       "success",
       "/facilitator/settings",
     );
