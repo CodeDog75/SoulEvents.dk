@@ -79,7 +79,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     });
   }
 
-  const imageUrl = publicMediaUrl(profile.hero_image_path || profile.profile_image_path) ?? (await getHomepageOgImageUrl(supabase as any));
+  const imageUrl = publicMediaUrl(profile.profile_image_path) ?? (await getHomepageOgImageUrl(supabase as any));
   const description = stripHtml(profile.short_intro || profile.body) || "Mød " + profile.name + " i SoulEvents-universet.";
 
   return createPageMetadata({

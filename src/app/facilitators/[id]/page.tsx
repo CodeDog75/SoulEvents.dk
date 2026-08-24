@@ -177,14 +177,7 @@ export async function generateMetadata({ params }: FacilitatorPageProps): Promis
   }
 
   const name = nameOf(facilitator);
-  const bannerImage = resolveFacilitatorBanner({
-    bannerImagePath: (facilitator as any).facilitator_banner_image_path,
-    fallbackAltText: "SoulEvents standardbanner",
-    resolveImagePath: (imagePath) => publicMediaUrl(supabase, imagePath),
-  });
-  const imageUrl = bannerImage.isFallback
-    ? absoluteUrl(bannerImage.url)
-    : bannerImage.url;
+  const imageUrl = publicMediaUrl(supabase, facilitator.profile_image_path);
   const { data: upcomingEvents } = await supabase
     .from("events")
     .select("title")
