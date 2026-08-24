@@ -38,7 +38,7 @@ export default async function FacilitatorSettingsPage({ searchParams }: Facilita
     supabase.auth.admin.getUserById(profile.id),
     supabase
       .from("email_change_requests")
-      .select("new_email, expires_at")
+      .select("old_email, new_email, expires_at")
       .eq("profile_id", profile.id)
       .eq("status", "pending")
       .order("requested_at", { ascending: false })

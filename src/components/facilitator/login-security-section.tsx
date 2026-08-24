@@ -8,7 +8,7 @@ import { SecurityPasswordForm } from "@/components/facilitator/security-password
 type LoginSecuritySectionProps = {
   authProviders: string[];
   currentEmail: string;
-  pendingEmailChange?: { expires_at: string; new_email: string } | null;
+  pendingEmailChange?: { expires_at: string; new_email: string; old_email: string } | null;
 };
 
 function maskEmail(value: string | null | undefined) {
@@ -41,9 +41,15 @@ export function LoginSecuritySection({
               er den e-mailadresse, deltagere kan kontakte dig på, og den behøver ikke være den samme.
             </p>
             {pendingEmailChange ? (
-              <p className="mt-2 rounded-md border border-[#D8CBE4] bg-[#F7F2FB] px-3 py-2 text-sm font-semibold leading-6 text-[#7A5D91]">
-                Afventer bekræftelse af ny mailadresse: {maskEmail(pendingEmailChange.new_email)}
-              </p>
+              <div className="mt-3 rounded-md border border-[#D8CBE4] bg-[#F7F2FB] px-3 py-2 text-sm leading-6 text-[#7A5D91]">
+                <p className="font-semibold text-midnight">Mailændring afventer begge bekræftelser</p>
+                <p>
+                  Nuværende loginmail: <span className="font-semibold">{maskEmail(pendingEmailChange.old_email)}</span>
+                </p>
+                <p>
+                  Ny loginmail: <span className="font-semibold">{maskEmail(pendingEmailChange.new_email)}</span>
+                </p>
+              </div>
             ) : null}
           </div>
         </div>
@@ -51,8 +57,10 @@ export function LoginSecuritySection({
 
       <div className="mt-5 grid gap-4">
         <SecurityEmailForm
+          currentEmail={currentEmail}
           pendingEmail={pendingEmailChange?.new_email ?? null}
           pendingExpiresAt={pendingEmailChange?.expires_at ?? null}
+          pendingOldEmail={pendingEmailChange?.old_email ?? null}
         />
         <SecurityPasswordForm />
         <LinkedLoginMethods providers={authProviders} />

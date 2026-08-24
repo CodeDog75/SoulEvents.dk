@@ -11,6 +11,12 @@ import { normalizeSupabaseCookieOptions, supabaseCookieOptions } from "@/lib/sup
 export const dynamic = "force-dynamic";
 const oauthFlowCookie = "soulevents_oauth_flow";
 
+type EmailChangeAuthUser = {
+  email?: string | null;
+  id: string;
+  new_email?: string | null;
+};
+
 function redirectAndClearOAuthCookie(response: NextResponse, shouldClear: boolean) {
   if (shouldClear) {
     response.cookies.delete(oauthFlowCookie);
@@ -81,11 +87,30 @@ function createTokenVerificationClient(request: NextRequest) {
   };
 }
 
-function emailChangeRedirect(requestUrl: URL, message: string, status: "error" | "success" = "error") {
+function emailChangeRedirect(
+  requestUrl: URL,
+  message: string,
+  status: "error" | "success" = "error",
+  redirectPath?: string,
+) {
   const searchParams = new URLSearchParams({ message, status });
-  const path = status === "success" ? "/facilitator" : "/auth/login";
+  const path = redirectPath ?? (status === "success" ? "/facilitator" : "/auth/login");
 
   return NextResponse.redirect(new URL(`${path}?${searchParams.toString()}`, getAppUrl(requestUrl.origin)));
+}
+
+async function emailChangeRedirectForVerifiedUser(requestUrl: URL, user: EmailChangeAuthUser) {
+  if (user.new_email?.trim()) {
+    return emailChangeRedirect(
+      requestUrl,
+      "Første bekræftelse er registreret. Bekræft også mailen, der er sendt til den anden mailadresse. Mailændringen gennemføres først, når begge links er bekræftet.",
+      "success",
+      "/facilitator/settings",
+    );
+  }
+
+  const result = await syncConfirmedEmailChange(user);
+  return emailChangeRedirect(requestUrl, result.message, result.status, "/facilitator/settings");
 }
 
 function loginErrorRedirect(requestUrl: URL, message: string) {
@@ -291,72 +316,75 @@ export async function GET(request: NextRequest) {
   }
 
   if (flow === "email-change") {
-    if (!tokenHash) {
+    if (!tokenHash && !code) {
       return emailChangeRedirect(
         requestUrl,
         "Bekræftelseslinket til mailændringen mangler en sikker token. Start ændringen igen fra Login og sikkerhed.",
       );
     }
 
-    if (type !== "email_change") {
+    if (tokenHash && type !== "email_change") {
       return emailChangeRedirect(
         requestUrl,
         "Bekræftelseslinket til mailændringen har en ugyldig type. Start ændringen igen fra Login og sikkerhed.",
       );
     }
 
-    const emailChangeClient = createTokenVerificationClient(request);
-    const { error: verifyError } = await emailChangeClient.supabase.auth.verifyOtp({
-      token_hash: tokenHash,
-      type: "email_change",
-    });
-
-    if (verifyError) {
-      console.error("Email change token verification failed", {
-        message: verifyError.message,
+    if (tokenHash) {
+      const emailChangeClient = createTokenVerificationClient(request);
+      const { error: verifyError } = await emailChangeClient.supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: "email_change",
       });
 
-      const {
-        data: { user: existingUser },
-      } = await emailChangeClient.supabase.auth.getUser();
+      if (verifyError) {
+        console.error("Email change token verification failed", {
+          message: verifyError.message,
+        });
 
-      if (existingUser) {
-        const { data: completedRequest } = await emailChangeClient.supabase
-          .from("email_change_requests")
-          .select("id")
-          .eq("profile_id", existingUser.id)
-          .eq("status", "completed")
-          .ilike("new_email", existingUser.email?.trim().toLowerCase() ?? "")
-          .order("confirmed_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const {
+          data: { user: existingUser },
+        } = await emailChangeClient.supabase.auth.getUser();
 
-        if (completedRequest) {
-          return emailChangeClient.applyCookies(
-            emailChangeRedirect(requestUrl, "Mailadressen er allerede blevet bekræftet.", "success"),
-          );
+        if (existingUser) {
+          const { data: completedRequest } = await emailChangeClient.supabase
+            .from("email_change_requests")
+            .select("id")
+            .eq("profile_id", existingUser.id)
+            .eq("status", "completed")
+            .ilike("new_email", existingUser.email?.trim().toLowerCase() ?? "")
+            .order("confirmed_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (completedRequest) {
+            return emailChangeClient.applyCookies(
+              emailChangeRedirect(requestUrl, "Mailadressen er allerede blevet bekræftet.", "success", "/facilitator/settings"),
+            );
+          }
         }
+
+        return emailChangeRedirect(
+          requestUrl,
+          "Bekræftelseslinket er ugyldigt eller udløbet. Start ændringen af mailadresse igen fra Login og sikkerhed.",
+        );
       }
 
-      return emailChangeRedirect(
-        requestUrl,
-        "Bekræftelseslinket er ugyldigt eller udløbet. Start ændringen af mailadresse igen fra Login og sikkerhed.",
-      );
+      const {
+        data: { user },
+      } = await emailChangeClient.supabase.auth.getUser();
+
+      if (!user) {
+        return emailChangeClient.applyCookies(
+          emailChangeRedirect(requestUrl, "Mailændringen blev bekræftet, men sessionen kunne ikke hentes. Log ind og prøv igen."),
+        );
+      }
+
+      return emailChangeClient.applyCookies(await emailChangeRedirectForVerifiedUser(requestUrl, user));
     }
 
-    const {
-      data: { user },
-    } = await emailChangeClient.supabase.auth.getUser();
-
-    if (!user) {
-      return emailChangeClient.applyCookies(
-        emailChangeRedirect(requestUrl, "Mailændringen blev bekræftet, men sessionen kunne ikke hentes. Log ind og prøv igen."),
-      );
-    }
-
-    const result = await syncConfirmedEmailChange(user);
-
-    return emailChangeClient.applyCookies(emailChangeRedirect(requestUrl, result.message, result.status));
+    // Supabase's default ConfirmationURL verifies the token first and redirects
+    // back with a PKCE code, so let the shared code exchange branch below finish it.
   }
 
   if (isPasswordResetFlow && tokenHash && type === "recovery") {
@@ -478,12 +506,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (flow === "email-change") {
-      const result = await syncConfirmedEmailChange(user);
-      const searchParams = new URLSearchParams({
-        message: result.message,
-      });
-
-      return NextResponse.redirect(new URL(`/facilitator?${searchParams.toString()}`, getAppUrl(requestUrl.origin)));
+      return emailChangeRedirectForVerifiedUser(requestUrl, user);
     }
 
     if (isIdentityLinkFlow) {

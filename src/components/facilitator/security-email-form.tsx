@@ -9,8 +9,10 @@ import {
 } from "@/app/facilitator/profile/actions";
 
 type SecurityEmailFormProps = {
+  currentEmail: string;
   pendingEmail?: string | null;
   pendingExpiresAt?: string | null;
+  pendingOldEmail?: string | null;
 };
 
 const initialState: ChangeEmailFormState = { status: "idle" };
@@ -31,8 +33,10 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 }
 
 export function SecurityEmailForm({
+  currentEmail,
   pendingEmail,
   pendingExpiresAt,
+  pendingOldEmail,
 }: SecurityEmailFormProps) {
   const [requestState, requestAction, requestPending] = useActionState(requestFacilitatorEmailChangeAction, initialState);
   const [cancelState, cancelAction, cancelPending] = useActionState(cancelFacilitatorEmailChangeAction, initialState);
@@ -85,9 +89,17 @@ export function SecurityEmailForm({
 
         {pendingEmail ? (
           <div className="rounded-md border border-[#D8CBE4] bg-[#F7F2FB] p-4 text-sm leading-6 text-[#4E4058]">
-            <p className="font-semibold text-midnight">Afventer bekræftelse af ny mailadresse: {maskEmail(pendingEmail)}</p>
+            <p className="font-semibold text-midnight">Afventer bekræftelse af begge mailadresser</p>
+            <div className="mt-2 grid gap-1">
+              <p>
+                Nuværende loginmail: <span className="font-semibold">{maskEmail(pendingOldEmail ?? currentEmail)}</span>
+              </p>
+              <p>
+                Ny loginmail: <span className="font-semibold">{maskEmail(pendingEmail)}</span>
+              </p>
+            </div>
             <p className="mt-1">
-              Den gamle mailadresse er stadig aktiv
+              Mailændringen gennemføres først, når begge bekræftelseslinks er åbnet
               {pendingExpiresAt
                 ? `, indtil ændringen bekræftes eller udløber ${new Intl.DateTimeFormat("da-DK", { dateStyle: "medium", timeStyle: "short" }).format(new Date(pendingExpiresAt))}.`
                 : "."}
@@ -108,6 +120,10 @@ export function SecurityEmailForm({
         <form action={requestAction} className="grid gap-4" ref={requestFormRef}>
           <p className="text-sm leading-6 text-ink/64">
             Loginmailen bruges til login og vigtige beskeder fra SoulEvents. Den gamle adresse forbliver aktiv, indtil den nye er bekræftet.
+          </p>
+          <p className="rounded-md border border-[#D8CBE4] bg-white px-4 py-3 text-sm font-semibold leading-6 text-[#4E4058]">
+            Af sikkerhedshensyn sender vi en bekræftelsesmail til både din nuværende og din nye mailadresse. Du skal
+            bekræfte begge mails, før ændringen gennemføres.
           </p>
           <div className="grid gap-4 md:grid-cols-3">
             <label className="grid gap-2 text-sm font-medium text-ink/72">
