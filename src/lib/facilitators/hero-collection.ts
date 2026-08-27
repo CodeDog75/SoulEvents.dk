@@ -29,7 +29,7 @@ export function resolveFacilitatorBanner(input: {
     return {
       altText: input.fallbackAltText ?? "Arrangørens bannerbillede",
       isFallback: false,
-      objectPositionDesktop: "center center",
+      objectPositionDesktop: "center 25%",
       objectPositionMobile: "center center",
       url: bannerImageUrl,
     };
