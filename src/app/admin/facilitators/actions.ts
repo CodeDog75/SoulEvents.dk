@@ -36,6 +36,8 @@ async function revalidatePublicFacilitatorProfile(
   facilitatorId: string,
   ...knownSlugs: Array<string | null | undefined>
 ) {
+  revalidatePath("/");
+  revalidatePath("/facilitators");
   revalidatePath("/facilitators/" + facilitatorId);
 
   const { data: currentProfile } = await supabase
@@ -56,6 +58,7 @@ async function revalidatePublicFacilitatorProfile(
 
   for (const slug of slugs) {
     revalidatePath(publicFacilitatorPath(slug));
+    revalidatePath("/facilitators/" + slug);
   }
 }
 
@@ -574,6 +577,7 @@ export async function updateFacilitatorStatusAction(formData: FormData) {
   revalidatePath("/admin/users");
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/profile");
+  await revalidatePublicFacilitatorProfile(supabase, facilitatorId, previousFacilitator.slug);
 
   await supabase.from("admin_audit_log").insert({
     actor_profile_id: adminProfile.id,
