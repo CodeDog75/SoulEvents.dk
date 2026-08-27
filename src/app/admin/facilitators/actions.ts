@@ -85,7 +85,7 @@ async function getAdminFacilitatorSubmissionReadiness(supabase: AdminSupabaseCli
   const { data: facilitator, error } = await supabase
     .from("facilitator_profiles")
     .select(
-      "id, city, company_name, postal_code, profile_id, profile_image_path, short_description, long_description, status, facilitator_categories(category_id), facilitator_images(image_path), profiles!facilitator_profiles_profile_id_fkey(full_name)",
+      "id, slug, city, company_name, postal_code, profile_id, profile_image_path, short_description, long_description, status, facilitator_categories(category_id), facilitator_images(image_path), profiles!facilitator_profiles_profile_id_fkey(full_name)",
     )
     .eq("id", facilitatorId)
     .maybeSingle();
