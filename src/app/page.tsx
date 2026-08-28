@@ -33,6 +33,7 @@ import { withReturnTo } from "@/lib/return-to";
 import { publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { weeklyReflectionBackground, weeklyReflectionPath } from "@/lib/weekly-reflections";
 
 export const dynamic = "force-dynamic";
 
@@ -531,6 +532,7 @@ type WeeklyReflection = {
   background_color: string;
   image_alt_text: string | null;
   image_path: string | null;
+  slug: string | null;
   start_date?: string | null;
   end_date?: string | null;
 };
@@ -541,17 +543,6 @@ type ActiveFeedbackSurvey = {
   title: string;
   token: string;
 };
-
-const weeklyReflectionGradients: Record<string, string> = {
-  "gradient:lavender-cream": "linear-gradient(135deg, #F1E8F8 0%, #FAF6EF 58%, #FFFDF8 100%)",
-  "gradient:sage-sand": "linear-gradient(135deg, #EEF3EA 0%, #F6F1E7 54%, #D8C1A2 130%)",
-  "gradient:dusty-purple-beige": "linear-gradient(135deg, #E9DFF1 0%, #FAF7F2 52%, #EFE4D6 100%)",
-  "gradient:warm-grey-cream": "linear-gradient(135deg, #ECE8E1 0%, #FAF6EF 60%, #FFFDF8 100%)",
-};
-
-function weeklyReflectionBackground(value: string) {
-  return weeklyReflectionGradients[value] ?? value;
-}
 
 function pickRandomItem<T>(items: T[]) {
   if (items.length === 0) {
@@ -597,7 +588,7 @@ async function getActiveWeeklyReflection() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("weekly_reflections")
-    .select("title, reflection_text, author, background_color, image_path, image_alt_text, start_date, end_date")
+    .select("title, reflection_text, author, background_color, image_path, image_alt_text, slug, start_date, end_date")
     .eq("is_active", true)
     .order("updated_at", { ascending: false })
     .limit(5);
@@ -624,6 +615,7 @@ async function getActiveWeeklyReflection() {
     backgroundColor: reflection.background_color || "#FAF6EF",
     imageAltText: reflection.image_alt_text?.trim() || "Illustration til ugens refleksion",
     imageUrl: reflection.image_path ? supabase.storage.from("media").getPublicUrl(reflection.image_path).data.publicUrl : null,
+    path: reflection.slug ? weeklyReflectionPath(reflection.slug) : null,
   };
 }
 
@@ -1786,9 +1778,17 @@ export default async function Home({ searchParams }: HomeProps) {
                   {weeklyReflection.author && (
                     <p className="mt-8 text-sm font-semibold uppercase tracking-[0.16em] text-[#2F2633]/58">- {weeklyReflection.author}</p>
                   )}
-                  <p className="mt-10 inline-flex border-t border-[#2F2633]/12 pt-5 text-sm font-semibold text-[#4B5645]">
-                    Tag et øjeblik med dig selv.
-                  </p>
+                  <div className="mt-10 flex flex-wrap items-center gap-4 border-t border-[#2F2633]/12 pt-5">
+                    <p className="text-sm font-semibold text-[#4B5645]">Tag et øjeblik med dig selv.</p>
+                    {weeklyReflection.path && (
+                      <Link className="text-sm font-semibold text-[#7A4EAB] underline-offset-4 hover:underline" href={weeklyReflection.path}>
+                        Åbn og del refleksionen
+                      </Link>
+                    )}
+                    <Link className="text-sm font-semibold text-[#2F2633]/58 underline-offset-4 hover:text-[#7A4EAB] hover:underline" href="/refleksioner">
+                      Se tidligere refleksioner
+                    </Link>
+                  </div>
                 </div>
               </div>
             </figure>

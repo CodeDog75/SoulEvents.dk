@@ -841,6 +841,8 @@ export type Database = {
           image_path: string | null;
           image_alt_text: string | null;
           is_active: boolean;
+          published_at: string | null;
+          slug: string | null;
           start_date: string | null;
           end_date: string | null;
           created_at: string;

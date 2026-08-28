@@ -1,11 +1,14 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { desktopBrandLogoSettingKey, faviconSettingKey, mediaBucketName, mobileBrandLogoSettingKey } from "@/lib/brand-logo";
 import { requireRole } from "@/lib/auth/roles";
 import { getOptionalString, getString } from "@/lib/forms/form-data";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createUniqueWeeklyReflectionSlug, weeklyReflectionPath } from "@/lib/weekly-reflections";
+import type { Database } from "@/types/database";
 
 function go(message: string): never {
   redirect("/admin/homepage?message=" + encodeURIComponent(message));
@@ -60,6 +63,12 @@ function isMissingWeeklyReflectionImageColumns(error: SupabaseErrorDetails | nul
   if (!error) return false;
   const message = error.message ?? "";
   return error.code === "42703" || message.includes("weekly_reflections.image_path") || message.includes("image_path") || message.includes("image_alt_text");
+}
+
+function isMissingWeeklyReflectionSlugColumns(error: SupabaseErrorDetails | null) {
+  if (!error) return false;
+  const message = error.message ?? "";
+  return error.code === "42703" || message.includes("weekly_reflections.slug") || message.includes("published_at");
 }
 
 function sortOrder(formData: FormData) {
@@ -598,11 +607,13 @@ export async function upsertWeeklyReflectionAction(formData: FormData) {
 
   const supabase = createAdminClient();
   let currentImagePath = getOptionalString(formData, "reflection_image_path");
+  let currentSlug: string | null = null;
+  let currentPublishedAt: string | null = null;
 
   if (id) {
     const { data: currentReflection, error: currentReflectionError } = await supabase
       .from("weekly_reflections")
-      .select("image_path")
+      .select("image_path, slug, published_at")
       .eq("id", id)
       .maybeSingle();
 
@@ -611,15 +622,46 @@ export async function upsertWeeklyReflectionAction(formData: FormData) {
       if (isMissingWeeklyReflectionImageColumns(currentReflectionError)) {
         reflectionGo("Billedfelterne mangler i databasen. Kør migration 053_weekly_reflection_image.sql og prøv igen.");
       }
+      if (isMissingWeeklyReflectionSlugColumns(currentReflectionError)) {
+        reflectionGo("Delingsfelterne mangler i databasen. Kør migration 114_weekly_reflection_slugs.sql og prøv igen.");
+      }
       reflectionGo("Refleksionen kunne ikke hentes før gem.");
     }
 
     currentImagePath = currentReflection?.image_path ?? currentImagePath;
+    currentSlug = currentReflection?.slug ?? null;
+    currentPublishedAt = currentReflection?.published_at ?? null;
   }
 
   const nextImagePath = await uploadWeeklyReflectionImage(formData, currentImagePath);
+  let nextSlug = currentSlug;
+  let deactivatedReflectionSlugs: string[] = [];
+
+  if (!nextSlug) {
+    try {
+      nextSlug = await createUniqueWeeklyReflectionSlug(supabase as SupabaseClient<Database>, title, id);
+    } catch (error) {
+      logSupabaseError("Weekly reflection slug lookup failed", error as SupabaseErrorDetails, { id });
+      if (nextImagePath && nextImagePath !== currentImagePath) {
+        await supabase.storage.from("media").remove([nextImagePath]);
+      }
+      reflectionGo("Refleksionens delingslink kunne ikke oprettes. Tjek at migration 114 er kørt.");
+    }
+  }
 
   if (isActive) {
+    const { data: activeReflections, error: activeReflectionsError } = await supabase
+      .from("weekly_reflections")
+      .select("slug")
+      .eq("is_active", true)
+      .neq("id", id ?? "00000000-0000-0000-0000-000000000000");
+
+    if (!activeReflectionsError) {
+      deactivatedReflectionSlugs = (activeReflections ?? [])
+        .map((reflection) => reflection.slug)
+        .filter((slug): slug is string => Boolean(slug));
+    }
+
     const { error: deactivateError } = await supabase
       .from("weekly_reflections")
       .update({ is_active: false })
@@ -639,13 +681,15 @@ export async function upsertWeeklyReflectionAction(formData: FormData) {
     image_alt_text: imageAltText,
     image_path: nextImagePath,
     is_active: isActive,
+    published_at: currentPublishedAt ?? (isActive && (!startDate || startDate <= copenhagenDateInputValue()) ? new Date().toISOString() : null),
+    slug: nextSlug,
     start_date: startDate,
     end_date: endDate,
   };
 
   const result = id
-    ? await supabase.from("weekly_reflections").update(payload).eq("id", id)
-    : await supabase.from("weekly_reflections").insert(payload);
+    ? await supabase.from("weekly_reflections").update(payload).eq("id", id).select("slug").single()
+    : await supabase.from("weekly_reflections").insert(payload).select("slug").single();
 
   if (result.error) {
     logSupabaseError("Weekly reflection save failed", result.error, { id });
@@ -654,6 +698,9 @@ export async function upsertWeeklyReflectionAction(formData: FormData) {
     }
     if (isMissingWeeklyReflectionImageColumns(result.error)) {
       reflectionGo("Billedfelterne mangler i databasen. Kør migration 053_weekly_reflection_image.sql og prøv igen.");
+    }
+    if (isMissingWeeklyReflectionSlugColumns(result.error)) {
+      reflectionGo("Delingsfelterne mangler i databasen. Kør migration 114_weekly_reflection_slugs.sql og prøv igen.");
     }
     reflectionGo("Refleksionen kunne ikke gemmes. Kør migrationen til weekly_reflections i Supabase først.");
   }
@@ -667,5 +714,16 @@ export async function upsertWeeklyReflectionAction(formData: FormData) {
 
   revalidatePath("/");
   revalidatePath("/admin/homepage");
+  revalidatePath("/refleksioner");
+  revalidatePath("/sitemap.xml");
+  if (currentSlug) {
+    revalidatePath(weeklyReflectionPath(currentSlug));
+  }
+  for (const slug of deactivatedReflectionSlugs) {
+    revalidatePath(weeklyReflectionPath(slug));
+  }
+  if (result.data?.slug && result.data.slug !== currentSlug) {
+    revalidatePath(weeklyReflectionPath(result.data.slug));
+  }
   reflectionGo("Ugens refleksion er gemt.");
 }
