@@ -67,8 +67,6 @@ type WeeklyReflection = {
   image_path: string | null;
   image_url?: string | null;
   is_active: boolean;
-  published_at: string | null;
-  slug: string | null;
   start_date: string | null;
   end_date: string | null;
 };

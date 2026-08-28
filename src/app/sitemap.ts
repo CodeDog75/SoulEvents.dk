@@ -2,7 +2,6 @@ import type { MetadataRoute } from "next";
 import { siteBaseUrl } from "@/lib/open-graph";
 import { publicEventPath, publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { weeklyReflectionPath } from "@/lib/weekly-reflections";
 
 type SitemapEntry = MetadataRoute.Sitemap[number];
 type TimestampRow = {
@@ -48,7 +47,6 @@ async function safeRows<T>(source: string, loader: () => Promise<T[]>): Promise<
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const admin = createAdminClient();
   const now = new Date().toISOString();
-  const today = now.slice(0, 10);
   const staticEntries: SitemapEntry[] = [
     entry("/"),
     entry("/about"),
@@ -57,14 +55,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     entry("/events"),
     entry("/facilitators"),
     entry("/inspiration"),
-    entry("/refleksioner"),
     entry("/privacy"),
     entry("/terms"),
     entry("/data-deletion"),
     entry("/legal/cookies"),
   ];
 
-  const [categories, facilitators, events, legalDocuments, inspirators, reflections] = await Promise.all([
+  const [categories, facilitators, events, legalDocuments, inspirators] = await Promise.all([
     safeRows("main_categories", async () => {
       const { data, error } = await admin
         .from("main_categories")
@@ -126,18 +123,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       if (error) throw error;
       return (data ?? []) as Array<{ slug: string; updated_at: string | null }>;
     }),
-    safeRows("weekly_reflections", async () => {
-      const { data, error } = await admin
-        .from("weekly_reflections")
-        .select("slug, updated_at, published_at, start_date")
-        .or("published_at.not.is.null,is_active.eq.true")
-        .not("slug", "is", null)
-        .or("start_date.is.null,start_date.lte." + today)
-        .order("published_at", { ascending: false });
-
-      if (error) throw error;
-      return (data ?? []) as Array<{ published_at: string | null; slug: string; start_date: string | null; updated_at: string | null }>;
-    }),
   ]);
 
   const dynamicEntries = [
@@ -146,7 +131,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...events.map((event) => entry(publicEventPath(event.slug), event)),
     ...legalDocuments.map((document) => entry("/legal/" + document.slug, document)),
     ...inspirators.map((inspirator) => entry("/inspiration/" + inspirator.slug, inspirator)),
-    ...reflections.map((reflection) => entry(weeklyReflectionPath(reflection.slug), reflection)),
   ];
 
   const uniqueEntries = new Map<string, SitemapEntry>();
