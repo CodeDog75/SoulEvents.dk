@@ -315,7 +315,7 @@ function EventOrganizerCard({ href, imageUrl, name, role }: EventOrganizerCardPr
     >
       {imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img alt={`Profilbillede for ${name}`} className="aspect-[4/3] w-full object-cover" src={imageUrl} />
+        <img alt={`Profilbillede for ${name}`} className="aspect-[4/3] w-full bg-[#F4F0F7] object-contain object-center" src={imageUrl} />
       ) : (
         <span className="grid aspect-[4/3] w-full place-items-center bg-[#F4F0F7] text-5xl font-semibold text-[#7A5D91]">
           {name.slice(0, 1).toUpperCase()}
