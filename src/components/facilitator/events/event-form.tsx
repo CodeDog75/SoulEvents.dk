@@ -1212,6 +1212,7 @@ export function EventForm({
   const [galleryImages, setGalleryImages] = useState<EventGalleryImageState[]>(() => initialEventGalleryImages(draftEvent));
   const [showParticipantNotificationDialog, setShowParticipantNotificationDialog] = useState(false);
   const [pendingSubmitStatus, setPendingSubmitStatus] = useState("");
+  const [freeEventPublishConfirmed, setFreeEventPublishConfirmed] = useState(false);
   const [isSavingWithoutEmail, setIsSavingWithoutEmail] = useState(false);
   const [isSavingAndSending, setIsSavingAndSending] = useState(false);
   const [acceptedOrganizerTerms, setAcceptedOrganizerTerms] = useState(false);
@@ -1986,6 +1987,7 @@ export function EventForm({
   function handlePriceChange(nextValue: string) {
     const normalizedValue = nextValue.replace(/\D/g, "").slice(0, 5);
     setPriceValue(normalizedValue);
+    setFreeEventPublishConfirmed(false);
     const numericValue = Number(normalizedValue || "0");
 
     if (Number.isFinite(numericValue) && numericValue > 0) {
@@ -1996,6 +1998,7 @@ export function EventForm({
 
   function handleFreeChange(checked: boolean) {
     setIsFree(checked);
+    setFreeEventPublishConfirmed(false);
 
     if (checked) {
       setPriceMode("free");
@@ -2898,6 +2901,7 @@ export function EventForm({
     function choosePriceMode(nextMode: "free" | "paid") {
       writeDraft();
       setPriceMode(nextMode);
+      setFreeEventPublishConfirmed(false);
       openStep(3);
       if (nextMode === "free") {
         setIsFree(true);
@@ -3497,6 +3501,18 @@ export function EventForm({
           return;
         }
 
+        if (isPrimarySubmit && !isAdminEditing && priceMode === "free" && !freeEventPublishConfirmed) {
+          event.preventDefault();
+          const confirmed = window.confirm("Dette event er sat til GRATIS. Er det korrekt?");
+          if (!confirmed) {
+            return;
+          }
+
+          setFreeEventPublishConfirmed(true);
+          window.setTimeout(() => submitter?.click(), 0);
+          return;
+        }
+
         if (
           isPrimarySubmit &&
           !isAdminEditing &&
@@ -3534,6 +3550,7 @@ export function EventForm({
       ) : null}
       {draftEvent?.id ? <input name="event_id" type="hidden" value={draftEvent.id} /> : null}
       <input name="current_step" type="hidden" value={currentStep} />
+      <input name="confirmed_free_event" type="hidden" value={freeEventPublishConfirmed ? "yes" : ""} />
       <input name="current_cover_image_path" type="hidden" value={value(isCoverRemoved ? "" : coverDraftImagePath || draftEvent?.cover_image_path)} />
       {coverDraftImagePath ? <input name="draft_cover_image_path" type="hidden" value={coverDraftImagePath} /> : null}
       <input name="event_gallery_image_count" type="hidden" value={visibleGalleryImages.length} />

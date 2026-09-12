@@ -1767,6 +1767,7 @@ export async function createEventAction(formData: FormData) {
     priceCents > 0 && requestedRegistrationMode === "approval_required" && (canUseApprovalRequiredRegistration || canPreserveExistingApprovalRequired)
       ? "approval_required"
       : "direct";
+  const confirmedFreeEvent = getString(formData, "confirmed_free_event") === "yes";
   const paymentMethodSource = priceCents > 0 ? normalizePaymentMethodSource(getString(formData, "payment_method_source")) : "none";
   const paymentLinkMode: PaymentLinkMode =
     priceCents > 0 && paymentMethodSource === "custom" ? normalizePaymentLinkMode(getString(formData, "payment_link_mode")) : "payment_only";
@@ -1874,6 +1875,34 @@ export async function createEventAction(formData: FormData) {
 
   if (!startsAt || !endsAt || new Date(endsAt) <= new Date(startsAt)) {
     redirectWithMessage("Sluttidspunkt skal være efter starttidspunkt.");
+  }
+
+  if (!isDraft && !isAdminEventEdit && priceCents === 0 && !confirmedFreeEvent) {
+    redirectWithMessage("Bekræft at eventet skal være gratis, før du offentliggør det.");
+  }
+
+  if (!isDraft) {
+    let duplicateEventQuery = supabase
+      .from("events")
+      .select("id, title")
+      .eq("facilitator_id", facilitatorProfile.id)
+      .eq("starts_at", startsAt)
+      .neq("status", "draft")
+      .limit(1);
+
+    if (existingEventId) {
+      duplicateEventQuery = duplicateEventQuery.neq("id", existingEventId);
+    }
+
+    const { data: duplicateEvent, error: duplicateEventError } = await duplicateEventQuery.maybeSingle();
+
+    if (duplicateEventError) {
+      redirectWithMessage("Eventets starttidspunkt kunne ikke kontrolleres. Prøv igen.");
+    }
+
+    if (duplicateEvent) {
+      redirectWithMessage("Arrangøren har allerede et andet event på samme startdato og starttidspunkt.");
+    }
   }
 
   if (capacityText && !/^\d{1,3}$/.test(capacityText)) {
