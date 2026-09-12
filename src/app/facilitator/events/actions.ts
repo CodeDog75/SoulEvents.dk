@@ -1273,7 +1273,7 @@ async function notifySubscribersWithoutBlockingPublication(eventId: string) {
 }
 
 export async function searchCoOrganizerCandidatesAction(query: string, eventId?: string | null) {
-  const profile = await requireRole("facilitator");
+  const profile = await requireProfile();
   const supabase = createAdminClient();
   const normalizedQuery = query.trim();
 
@@ -1281,17 +1281,31 @@ export async function searchCoOrganizerCandidatesAction(query: string, eventId?:
     return [];
   }
 
-  const { data: facilitatorProfile } = await supabase
-    .from("facilitator_profiles")
-    .select("id")
-    .eq("profile_id", profile.id)
-    .maybeSingle();
+  let facilitatorProfileId: string | null = null;
 
-  if (!facilitatorProfile) {
+  if (profile.role === "admin") {
+    if (!eventId) {
+      return [];
+    }
+
+    const { data: event } = await supabase.from("events").select("facilitator_id").eq("id", eventId).maybeSingle();
+    facilitatorProfileId = event?.facilitator_id ?? null;
+  } else if (profile.role === "facilitator") {
+    const { data: facilitatorProfile } = await supabase
+      .from("facilitator_profiles")
+      .select("id")
+      .eq("profile_id", profile.id)
+      .maybeSingle();
+    facilitatorProfileId = facilitatorProfile?.id ?? null;
+  } else {
+    redirect("/dashboard");
+  }
+
+  if (!facilitatorProfileId) {
     return [];
   }
 
-  const excludedProfileIds = new Set<string>([facilitatorProfile.id]);
+  const excludedProfileIds = new Set<string>([facilitatorProfileId]);
   let existingCoOrganizerMatches: Array<{
     categories: string[];
     city: string | null;

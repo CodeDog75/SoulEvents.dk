@@ -1504,7 +1504,7 @@ export default async function FacilitatorPage({ searchParams }: FacilitatorPageP
                   return (
                     <Link
                       className="flex flex-col gap-2 rounded-[18px] border border-[#E5DDEA] bg-[#FAF8FC] p-4 transition hover:border-[#7A5D91] sm:flex-row sm:items-center sm:justify-between"
-                      href={event?.id ? publicEventPath(event.slug || event.id) : "/facilitator"}
+                      href={event?.id ? publicEventPath(event.slug || event.id) + "?return_to=/facilitator" : "/facilitator"}
                       key={invitation.id}
                     >
                       <span>

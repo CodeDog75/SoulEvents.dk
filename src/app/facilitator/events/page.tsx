@@ -294,7 +294,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Link
                   className="inline-flex h-10 items-center justify-center rounded-button bg-[#7A5D91] px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-[#6E5285]"
-                  href={publicEventPath(selectedDraft.slug || selectedDraft.id)}
+                  href={publicEventPath(selectedDraft.slug || selectedDraft.id) + "?return_to=/facilitator/events"}
                 >
                   Se event
                 </Link>
@@ -356,7 +356,7 @@ export default async function FacilitatorEventsPage({ searchParams }: Facilitato
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
                 {receipt === "published" && receiptEventId ? (
-                  <Link className="inline-flex h-11 items-center justify-center rounded-button bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft" href={publicEventPath(receiptEvent?.slug || receiptEventId)}>
+                  <Link className="inline-flex h-11 items-center justify-center rounded-button bg-[#7A5D91] px-5 text-sm font-semibold text-white shadow-soft" href={publicEventPath(receiptEvent?.slug || receiptEventId) + "?return_to=/facilitator/events"}>
                     Se event
                   </Link>
                 ) : null}

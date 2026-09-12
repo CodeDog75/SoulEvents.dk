@@ -615,6 +615,7 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
                   currentPath={eventReturnPath}
                   fallbackHref={publicBackLink.href}
                   fallbackLabel={publicBackLink.label}
+                  includeAppReturnPaths
                 />
               </Suspense>
             </nav>

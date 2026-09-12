@@ -3,20 +3,22 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { publicReturnLabel, safePublicReturnPath } from "@/lib/return-to";
+import { eventReturnLabel, publicReturnLabel, safeEventReturnPath, safePublicReturnPath } from "@/lib/return-to";
 
 type PublicReturnLinkProps = {
   className: string;
   currentPath: string;
   fallbackHref: string;
   fallbackLabel: string;
+  includeAppReturnPaths?: boolean;
 };
 
-export function PublicReturnLink({ className, currentPath, fallbackHref, fallbackLabel }: PublicReturnLinkProps) {
+export function PublicReturnLink({ className, currentPath, fallbackHref, fallbackLabel, includeAppReturnPaths = false }: PublicReturnLinkProps) {
   const searchParams = useSearchParams();
-  const returnPath = safePublicReturnPath(searchParams.get("return_to"), currentPath);
+  const rawReturnPath = includeAppReturnPaths ? searchParams.get("admin_return") ?? searchParams.get("return_to") : searchParams.get("return_to");
+  const returnPath = includeAppReturnPaths ? safeEventReturnPath(rawReturnPath, currentPath) : safePublicReturnPath(rawReturnPath, currentPath);
   const href = returnPath ?? fallbackHref;
-  const label = returnPath ? publicReturnLabel(returnPath, fallbackLabel) : fallbackLabel;
+  const label = returnPath ? (includeAppReturnPaths ? eventReturnLabel(returnPath, fallbackLabel) : publicReturnLabel(returnPath, fallbackLabel)) : fallbackLabel;
 
   return (
     <Link className={className} href={href}>
