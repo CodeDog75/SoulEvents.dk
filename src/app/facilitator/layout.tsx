@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { EventDraftSubmitGuard } from "@/components/facilitator/event-draft-submit-guard";
 import { FacilitatorDashboardShell } from "@/components/facilitator/facilitator-dashboard-shell";
 import { requireProfile } from "@/lib/auth/roles";
 import { getFacilitatorUnreadAdminMessageCount } from "@/lib/facilitator/dashboard-data";
@@ -75,6 +76,7 @@ export default async function FacilitatorLayout({ children }: { children: React.
       unreadMessagesCount={unreadMessagesCount}
       yearRhythmMenuStatus={yearRhythmMenuStatus}
     >
+      <EventDraftSubmitGuard />
       {children}
     </FacilitatorDashboardShell>
   );
