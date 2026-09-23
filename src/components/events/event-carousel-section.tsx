@@ -299,7 +299,7 @@ function FacilitatorCardVisual({ facilitator, returnTo }: { facilitator: Facilit
         {facilitator.imageUrl ? (
           <Image
             alt={facilitator.name}
-            className="object-cover object-top transition duration-500 group-hover:scale-[1.04]"
+            className="object-contain object-center transition duration-500 group-hover:scale-[1.02]"
             fill
             sizes="(min-width: 1024px) 300px, (min-width: 640px) 280px, 72vw"
             src={facilitator.imageUrl}
