@@ -290,7 +290,7 @@ function FacilitatorCardVisual({ facilitator, returnTo }: { facilitator: Facilit
       className="group block min-w-[72vw] max-w-[72vw] snap-start overflow-hidden rounded-[24px] bg-white shadow-soft transition hover:-translate-y-1 hover:shadow-lift sm:min-w-[280px] sm:max-w-[280px] lg:min-w-[300px] lg:max-w-[300px]"
       href={withReturnTo(publicFacilitatorPath(facilitator.slug || facilitator.id), returnTo)}
     >
-      <div className="relative aspect-[6/5] bg-sage-50">
+      <div className="relative aspect-[4/5] overflow-hidden bg-sage-50">
         {facilitator.isExperiencedHost ? (
           <OrganizerImageBadge type="experienced" />
         ) : facilitator.isActiveHost ? (
@@ -299,7 +299,7 @@ function FacilitatorCardVisual({ facilitator, returnTo }: { facilitator: Facilit
         {facilitator.imageUrl ? (
           <Image
             alt={facilitator.name}
-            className="object-contain object-center transition duration-500 group-hover:scale-[1.02]"
+            className="object-cover object-top transition duration-500 group-hover:scale-[1.03]"
             fill
             sizes="(min-width: 1024px) 300px, (min-width: 640px) 280px, 72vw"
             src={facilitator.imageUrl}
