@@ -221,7 +221,7 @@ export default async function FacilitatorDirectoryPage({ searchParams }: Facilit
                 href={withReturnTo(publicFacilitatorPath(facilitator.slug || facilitator.id), directoryReturnPath)}
                 key={facilitator.id}
               >
-                <div className={"relative aspect-[5/4] " + (platformOwner ? "bg-[#EDE4F7]" : "bg-sage-50")}>
+                <div className={"relative aspect-[4/5] overflow-hidden " + (platformOwner ? "bg-[#EDE4F7]" : "bg-sage-50")}>
                   {facilitator.is_experienced_host ? (
                     <OrganizerImageBadge type="experienced" />
                   ) : facilitator.is_active_host ? (
