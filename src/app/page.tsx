@@ -1516,9 +1516,7 @@ export default async function Home({ searchParams }: HomeProps) {
               SoulEvents.dk
             </p>
             <h1 className="max-w-[21rem] font-serif text-[2.22rem] font-semibold leading-[1.02] text-[#2F2633] drop-shadow-[0_2px_16px_rgba(255,255,255,0.55)]">
-              Din vej til
-              <br />
-              personlig udvikling, nærvær og fællesskab
+              Find dit næste spirituelle fællesskab
             </h1>
             <p className="mt-8 max-w-[21rem] text-sm font-semibold leading-6 text-[#2F2633]/78 drop-shadow-[0_2px_14px_rgba(255,255,255,0.62)]">
               Oplev events, workshops og retreats med arrangører, der skaber rum for fordybelse og fællesskab i hele Danmark.
@@ -1540,9 +1538,7 @@ export default async function Home({ searchParams }: HomeProps) {
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(250,246,239,0.28)_0%,rgba(250,246,239,0.03)_46%,rgba(250,246,239,0.82)_86%,#FAF6EF_100%)]" aria-hidden="true" />
             <div className="relative flex min-h-[540px] max-w-[760px] flex-col justify-center px-9 pb-16 pt-40 lg:min-h-[580px] lg:px-12 xl:min-h-[620px]">
               <h1 className="max-w-[720px] text-5xl font-semibold leading-[0.98] text-[#2F2633] lg:text-7xl">
-                Din vej til
-                <br />
-                personlig udvikling, nærvær og fællesskab
+                Find dit næste spirituelle fællesskab
               </h1>
               <p className="mt-7 max-w-[620px] text-lg leading-8 text-[#2F2633]/78">
                 Oplev events, workshops, retreats og passionerede arrangører, der skaber rum for fordybelse, fællesskab og nye perspektiver – over hele Danmark.
