@@ -3112,8 +3112,25 @@ export async function resendCoOrganizerInvitationAction(formData: FormData) {
     eventFormRedirect("Invitationen kunne ikke findes.", { eventId });
   }
 
-  if (invitation.status !== "pending") {
-    eventFormRedirect("Kun afventende invitationer kan sendes igen.", { eventId });
+  if (invitation.status !== "pending" && invitation.status !== "withdrawn") {
+    eventFormRedirect("Kun afventende eller tilbagetrukne invitationer kan sendes igen.", { eventId });
+  }
+
+  if (invitation.status === "withdrawn") {
+    if (await activeCoOrganizerSlotCount(supabase, eventId) >= 2) {
+      eventFormRedirect("Du kan højst invitere to medarrangører til et event.", { eventId });
+    }
+    const { error: renewError, data: renewed } = await supabase
+      .from("event_co_organizers")
+      .update({ status: "pending", responded_at: null, response_token: crypto.randomUUID(), invited_at: new Date().toISOString() })
+      .eq("id", invitationId)
+      .eq("status", "withdrawn")
+      .select("response_token")
+      .maybeSingle();
+    if (renewError || !renewed) {
+      eventFormRedirect("En ny invitation kunne ikke oprettes.", { eventId });
+    }
+    invitation.response_token = renewed.response_token;
   }
 
   const coOrganizerProfile = firstRelation(invitation.facilitator_profiles);
@@ -3482,6 +3499,15 @@ export async function respondToExternalCoOrganizerInvitationAction(formData: For
 
   if (facilitatorIsApproved) {
     await activateAcceptedExternalInvitationsForFacilitator(supabase, facilitatorProfile.id);
+    const { data: activated } = await supabase.from("event_co_organizers")
+      .select("id")
+      .eq("event_id", invitation.event_id)
+      .eq("co_organizer_profile_id", facilitatorProfile.id)
+      .eq("status", "accepted")
+      .maybeSingle();
+    if (!activated) {
+      redirect("/facilitator?message=" + encodeURIComponent("Invitationen kunne ikke bekræftes. Bed arrangøren sende en ny invitation."));
+    }
   }
 
   revalidatePath("/facilitator");

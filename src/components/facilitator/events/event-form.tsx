@@ -166,7 +166,7 @@ type CoOrganizerInvitation = {
   name: string;
   profileIsActive?: boolean;
   profileId: string;
-  status: "accepted" | "declined" | "pending";
+  status: "accepted" | "declined" | "pending" | "withdrawn";
 };
 
 type ExternalCoOrganizerInvitation = {
@@ -496,6 +496,14 @@ function coOrganizerStatusCopy(status: CoOrganizerInvitation["status"], profileI
       badgeClass: "border-[#E8D2CC] bg-[#FFF8F6] text-[#9A4F45]",
       description: "Medarrangøren har sagt nej tak til invitationen.",
       label: "Afslået",
+    };
+  }
+
+  if (status === "withdrawn") {
+    return {
+      badgeClass: "border-[#E8D2CC] bg-[#FFF8F6] text-[#9A4F45]",
+      description: "Medarrangøren har trukket sig. Du kan sende en ny invitation, hvis I har aftalt at samarbejde igen.",
+      label: "Trukket sig",
     };
   }
 
@@ -3779,7 +3787,7 @@ export function EventForm({
                       </div>
                     </div>
                     <div className="flex min-w-0 flex-wrap gap-2 sm:shrink-0 sm:justify-end">
-                      {coOrganizer.status === "pending" && coOrganizer.profileIsActive !== false ? (
+                      {(coOrganizer.status === "pending" || coOrganizer.status === "withdrawn") && coOrganizer.profileIsActive !== false ? (
                         <button
                           className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#D8CBE4] bg-[#F4F0F7] px-3 text-xs font-semibold text-[#6E5A86] transition hover:border-[#7A5D91] hover:text-[#7A5D91]"
                           disabled={isUpdatingCoOrganizerInvitation}
@@ -3787,7 +3795,7 @@ export function EventForm({
                           type="button"
                         >
                           <Send className="size-3.5" aria-hidden="true" />
-                          Send invitation igen
+                          {coOrganizer.status === "withdrawn" ? "Send ny invitation" : "Send invitation igen"}
                         </button>
                       ) : null}
                       <button

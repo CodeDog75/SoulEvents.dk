@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, MapPin, UsersRound } from "lucide-react";
 import { respondToCoOrganizerInvitationAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { InvalidCoOrganizerInvitation } from "@/components/facilitator/events/invalid-co-organizer-invitation";
 import { getCurrentProfile } from "@/lib/auth/roles";
 import { formatDanishEventDateTime } from "@/lib/events/date-format";
 import { getUserFacingEventStatus } from "@/lib/events/user-facing-status";
@@ -137,15 +137,15 @@ export default async function CoOrganizerInvitationPage({ params, searchParams }
     .maybeSingle();
 
   if (!invitation) {
-    redirect("/facilitator?message=" + encodeURIComponent("Eventet findes ikke længere eller er blevet fjernet."));
+    return <InvalidCoOrganizerInvitation />;
   }
 
   const event = first(invitation.events);
   const invitedFacilitator = first(invitation.facilitator_profiles);
   const invitedUser = first(invitedFacilitator?.profiles);
 
-  if (!isCurrentPublicInvitationEvent(event)) {
-    redirect("/facilitator?message=" + encodeURIComponent("Eventet findes ikke længere eller er blevet fjernet."));
+  if (!isCurrentPublicInvitationEvent(event) || !["pending", "accepted"].includes(invitation.status)) {
+    return <InvalidCoOrganizerInvitation />;
   }
 
   if (!profile) {
