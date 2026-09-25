@@ -8,6 +8,7 @@ import {
   externalInvitationLoginHref,
   externalInvitationSignupHref,
   hashExternalInvitationToken,
+  isExternalInvitationExpired,
   isActivePublicEventForExternalInvitation,
   maskInvitationEmail,
   normalizeInvitationEmail,
@@ -115,7 +116,7 @@ function InvitationAuthCard({
           </h1>
           <p className="mt-4 text-sm leading-6 text-ink/70">
             <span className="font-semibold text-midnight">{primaryOrganizerName}</span> vil gerne have dig med som medarrangør på eventet{" "}
-            <span className="font-semibold text-midnight">"{eventTitle ?? "eventet"}"</span>.
+            <span className="font-semibold text-midnight">&quot;{eventTitle ?? "eventet"}&quot;</span>.
           </p>
           <p className="mt-3 text-sm leading-6 text-ink/70">
             For at kunne blive vist som medarrangør på eventet skal du først oprette en gratis arrangørprofil på SoulEvents. Det tager kun et par minutter.
@@ -171,7 +172,7 @@ export default async function ExternalCoOrganizerInvitationPage({ params, search
   const primaryOrganizerUser = first(primaryOrganizer?.profiles);
   const primaryOrganizerName = primaryOrganizer?.company_name || primaryOrganizerUser?.full_name || "Arrangør";
   const coverImageUrl = event?.cover_image_path ? supabase.storage.from("media").getPublicUrl(event.cover_image_path).data.publicUrl : null;
-  const isExpired = new Date(invitation.expires_at).getTime() < Date.now();
+  const isExpired = isExternalInvitationExpired(invitation.expires_at);
   const eventIsAvailable =
     event &&
     isActivePublicEventForExternalInvitation(event) &&
@@ -227,7 +228,7 @@ export default async function ExternalCoOrganizerInvitationPage({ params, search
               <h1 className="mt-2 font-serif text-3xl font-semibold leading-tight text-midnight sm:text-4xl">Du er inviteret som medarrangør</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/70">
                 <span className="font-semibold text-midnight">{primaryOrganizerName}</span> vil gerne have dig med som medarrangør på eventet{" "}
-                <span className="font-semibold text-midnight">"{event?.title ?? "eventet"}"</span>.
+                <span className="font-semibold text-midnight">&quot;{event?.title ?? "eventet"}&quot;</span>.
               </p>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/70">
                 For at kunne blive vist som medarrangør på eventet skal du først oprette en gratis arrangørprofil på SoulEvents. Det tager kun et par minutter.
