@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Analytics } from "@vercel/analytics/next";
 import { BrowserInjectedAttributeCleanup } from "@/components/browser-injected-attribute-cleanup";
 import { CookieConsentManager } from "@/components/cookie-consent-manager";
 import { getSiteFaviconUrl } from "@/lib/brand-logo";
@@ -48,6 +49,7 @@ export default function RootLayout({
         {children}
         <CookieConsentManager />
         <BrowserInjectedAttributeCleanup />
+        <Analytics />
       </body>
     </html>
   );
