@@ -113,6 +113,9 @@ export function FacilitatorSupportForm() {
       <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Skriv til SoulEvents</h2>
       <p className="mt-2 text-sm leading-6 text-[#6E6475]">Send en kort besked direkte til SoulEvents.dk. Maks. 500 tegn.</p>
       <p className="mt-2 text-sm leading-6 text-[#6E6475]">
+        Du er også meget velkommen til at ringe på <a className="font-semibold text-[#7A5D91] underline underline-offset-2" href="tel:+4542219922">42 21 99 22</a> – også om aftenen. SoulEvents er en ny løsning, så giv os endelig besked, hvis du oplever en fejl. Så kan vi få den undersøgt og løst hurtigst muligt.
+      </p>
+      <p className="mt-2 text-sm leading-6 text-[#6E6475]">
         Dine beskeder gemmes i op til 3 måneder og slettes derefter automatisk.
       </p>
       <label className="mt-4 grid gap-2 text-sm font-semibold text-[#2F2437]">
