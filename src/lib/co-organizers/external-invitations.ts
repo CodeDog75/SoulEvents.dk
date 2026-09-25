@@ -23,6 +23,10 @@ export function hashExternalInvitationToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+export function isExternalInvitationExpired(expiresAt: string) {
+  return new Date(expiresAt).getTime() < Date.now();
+}
+
 export function externalCoHostInvitationUrl(token: string) {
   const base = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.soulevents.dk").trim().replace(/\/$/, "");
   return base + "/facilitator/co-organizer-invitations/external/" + encodeURIComponent(token);
