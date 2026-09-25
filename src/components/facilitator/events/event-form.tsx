@@ -43,6 +43,7 @@ import {
   resendExternalCoOrganizerInvitationAction,
   searchCoOrganizerCandidatesAction,
   sendExternalCoOrganizerInvitationAction,
+  updateEventPriceAction,
 } from "@/app/facilitator/events/actions";
 import { formattedMaxEventDescriptionLength, maxEventDescriptionLength } from "@/lib/events/event-content-limits";
 import {
@@ -4484,6 +4485,19 @@ export function EventForm({
                 </span>
                 <span className="text-xs leading-5 text-ink/58 md:min-h-5">Prisen er pr. deltager og angives inkl. moms.</span>
               </label>
+
+              {isEditingPublishedEvent && !isAdminEditing && activeBookingCount === 0 ? (
+                <div className="flex items-center md:col-span-2">
+                  <button
+                    className="inline-flex h-10 items-center justify-center rounded-full border border-[#7A4EAB] bg-white px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#F7F1FC]"
+                    formAction={updateEventPriceAction}
+                    type="submit"
+                  >
+                    Gem kun prisen
+                  </button>
+                  <span className="ml-3 text-xs text-ink/58">Gemmer prisen uden at ændre eventets øvrige oplysninger.</span>
+                </div>
+              ) : null}
 
               {usesClassicPayment ? (
                 <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight md:grid-rows-[auto_3rem_minmax(1.25rem,auto)]">
