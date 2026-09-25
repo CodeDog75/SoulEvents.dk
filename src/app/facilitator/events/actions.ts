@@ -136,49 +136,6 @@ function getPriceCents(formData: FormData) {
   return Number(raw) * 100;
 }
 
-export async function updateEventPriceAction(formData: FormData) {
-  const profile = await requireRole("facilitator");
-  const eventId = getString(formData, "event_id");
-  const rawPrice = getString(formData, "price");
-  const returnTo = `/facilitator/events?draft=${encodeURIComponent(eventId)}&step=3`;
-  const go = (message: string): never => redirect(returnTo + "&message=" + encodeURIComponent(message));
-
-  if (!eventId || !/^\d{1,5}$/.test(rawPrice) || Number(rawPrice) <= 0) {
-    go("Angiv en gyldig pris i hele kroner.");
-  }
-
-  const supabase = createAdminClient();
-  const { data: facilitator } = await supabase.from("facilitator_profiles").select("id").eq("profile_id", profile.id).maybeSingle();
-  if (!facilitator) return go("Arrangørprofilen kunne ikke findes.");
-
-  const { data: event } = await supabase.from("events")
-    .select("id, slug, status, price_cents")
-    .eq("id", eventId)
-    .eq("facilitator_id", facilitator.id)
-    .maybeSingle();
-  if (!event || !["active", "sold_out"].includes(event.status)) return go("Eventet kunne ikke findes eller ændres.");
-
-  const { count, error: bookingError } = await supabase.from("bookings")
-    .select("id", { count: "exact", head: true })
-    .eq("event_id", eventId)
-    .in("status", [...activeBookingStatuses]);
-  if (bookingError) go("Tilmeldingerne kunne ikke kontrolleres. Prøv igen.");
-  if (count) go("Eventet har allerede tilmeldinger. Brug den almindelige gemning, så deltagerne kan få besked om prisændringen.");
-
-  const { error } = await supabase.from("events")
-    .update({ price_cents: Number(rawPrice) * 100 })
-    .eq("id", eventId)
-    .eq("facilitator_id", facilitator.id);
-  if (error) {
-    console.error("Event price update failed", { eventId, message: error.message });
-    go("Prisen kunne ikke gemmes. Ring gerne til SoulEvents på 42 21 99 22.");
-  }
-
-  revalidatePath("/facilitator/events");
-  revalidatePath(publicEventPath(event.slug || event.id));
-  go("Prisen er opdateret.");
-}
-
 function normalizeTextForComparison(value: string | null | undefined) {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
