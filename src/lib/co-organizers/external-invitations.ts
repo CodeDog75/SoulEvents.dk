@@ -109,7 +109,7 @@ export async function activateAcceptedExternalInvitationsForFacilitator(
     .from("event_cohost_invitations")
     .select("id, event_id, inviter_profile_id, inviter_facilitator_id, status, events(id, starts_at, ends_at, status, facilitator_id)")
     .eq("invited_facilitator_id", facilitatorId)
-    .eq("status", "accepted_pending_profile_approval");
+    .in("status", ["accepted_pending_profile_approval", "accepted"]);
 
   for (const invitation of invitations ?? []) {
     const event = Array.isArray(invitation.events) ? invitation.events[0] : invitation.events;
@@ -117,7 +117,18 @@ export async function activateAcceptedExternalInvitationsForFacilitator(
       continue;
     }
 
-    const { error } = await supabase.from("event_co_organizers").insert({
+    const { data: existing } = await supabase.from("event_co_organizers")
+      .select("id, status")
+      .eq("event_id", invitation.event_id)
+      .eq("co_organizer_profile_id", facilitatorId)
+      .in("status", ["pending", "accepted"])
+      .maybeSingle();
+
+    const { error } = existing
+      ? existing.status === "accepted"
+        ? { error: null }
+        : await supabase.from("event_co_organizers").update({ status: "accepted", responded_at: new Date().toISOString() }).eq("id", existing.id)
+      : await supabase.from("event_co_organizers").insert({
       co_organizer_profile_id: facilitatorId,
       event_id: invitation.event_id,
       invited_by_user_id: invitation.inviter_profile_id,
@@ -126,11 +137,13 @@ export async function activateAcceptedExternalInvitationsForFacilitator(
       status: "accepted",
     });
 
-    if (!error || error.code === "23505") {
+    if (!error) {
       await (supabase as any)
         .from("event_cohost_invitations")
         .update({ status: "accepted" })
         .eq("id", invitation.id);
+    } else {
+      console.error("External co-organizer activation failed", { invitationId: invitation.id, message: error.message });
     }
   }
 }
