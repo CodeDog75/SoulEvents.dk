@@ -43,7 +43,6 @@ import {
   resendExternalCoOrganizerInvitationAction,
   searchCoOrganizerCandidatesAction,
   sendExternalCoOrganizerInvitationAction,
-  updateEventPriceAction,
 } from "@/app/facilitator/events/actions";
 import { formattedMaxEventDescriptionLength, maxEventDescriptionLength } from "@/lib/events/event-content-limits";
 import {
@@ -2443,7 +2442,6 @@ export function EventForm({
         : [...currentIndexes, nextStep].sort((first, second) => first - second),
     );
     window.setTimeout(() => {
-      restoreDraftFields();
       showPreview();
       refreshFormValidationState();
     }, 0);
@@ -2579,7 +2577,7 @@ export function EventForm({
 
   function applyDraftFields(
     fields: Record<string, string[]>,
-    options: { ignoreLegacyDefaultCapacity?: boolean; keepEventFormat?: boolean } = {},
+    options: { ignoreLegacyDefaultCapacity?: boolean } = {},
   ) {
     const form = formRef.current;
     const restoredOnlineValues = Array.isArray(fields.online_url_or_note) ? fields.online_url_or_note : [];
@@ -2593,7 +2591,7 @@ export function EventForm({
     }
 
     for (const [name, values] of Object.entries(fields) as Array<[string, string[]]>) {
-      if ((options.keepEventFormat && name === "event_format") || name === "tag_ids") {
+      if (name === "tag_ids") {
         continue;
       }
       if (!draftEvent?.id && options.ignoreLegacyDefaultCapacity && name === "capacity" && values.some(isLegacyDefaultCapacityValue)) {
@@ -2713,19 +2711,6 @@ export function EventForm({
       applyDraftFields(draft.fields ?? {}, { ignoreLegacyDefaultCapacity: !draftEvent?.id && isLegacyDraft });
       refreshFormValidationState();
     });
-  }
-
-  function restoreDraftFields() {
-    const draft = readDraft();
-
-    if (!draft) {
-      return;
-    }
-
-    const isLegacyDraft = draft.schemaVersion !== eventDraftSchemaVersion;
-    window.requestAnimationFrame(() =>
-      applyDraftFields(draft.fields ?? {}, { ignoreLegacyDefaultCapacity: !draftEvent?.id && isLegacyDraft, keepEventFormat: true }),
-    );
   }
 
   function clearDraft() {
@@ -2901,7 +2886,6 @@ export function EventForm({
       setHasChosenEventFormat(true);
       openStep(2);
       window.setTimeout(() => {
-        restoreDraftFields();
         showPreview();
         refreshFormValidationState();
       }, 0);
@@ -2921,7 +2905,6 @@ export function EventForm({
         if (priceValue === "0") setPriceValue("");
       }
       window.setTimeout(() => {
-        restoreDraftFields();
         showPreview();
         refreshFormValidationState();
       }, 0);
@@ -3545,7 +3528,7 @@ export function EventForm({
         }
       }}
       onKeyDown={(event) => {
-        if (event.key === "Enter" && event.target instanceof HTMLElement && event.target.tagName !== "TEXTAREA") {
+        if (event.key === "Enter" && event.target instanceof HTMLInputElement && event.target.type !== "submit") {
           event.preventDefault();
         }
       }}
@@ -4485,19 +4468,6 @@ export function EventForm({
                 </span>
                 <span className="text-xs leading-5 text-ink/58 md:min-h-5">Prisen er pr. deltager og angives inkl. moms.</span>
               </label>
-
-              {isEditingPublishedEvent && !isAdminEditing && activeBookingCount === 0 ? (
-                <div className="flex items-center md:col-span-2">
-                  <button
-                    className="inline-flex h-10 items-center justify-center rounded-full border border-[#7A4EAB] bg-white px-4 text-sm font-semibold text-[#7A4EAB] transition hover:bg-[#F7F1FC]"
-                    formAction={updateEventPriceAction}
-                    type="submit"
-                  >
-                    Gem kun prisen
-                  </button>
-                  <span className="ml-3 text-xs text-ink/58">Gemmer prisen uden at ændre eventets øvrige oplysninger.</span>
-                </div>
-              ) : null}
 
               {usesClassicPayment ? (
                 <label className="grid min-w-0 gap-2 text-sm font-semibold text-midnight md:grid-rows-[auto_3rem_minmax(1.25rem,auto)]">
