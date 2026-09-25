@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, MapPin } from "lucide-react";
 import { respondToExternalCoOrganizerInvitationAction } from "@/app/facilitator/events/actions";
 import { AuthMessage } from "@/components/auth/auth-message";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { InvalidCoOrganizerInvitation } from "@/components/facilitator/events/invalid-co-organizer-invitation";
 import {
   externalInvitationLoginHref,
   externalInvitationSignupHref,
@@ -163,7 +163,7 @@ export default async function ExternalCoOrganizerInvitationPage({ params, search
     .maybeSingle();
 
   if (!invitation) {
-    redirect("/facilitator?message=" + encodeURIComponent("Invitationen kunne ikke findes."));
+    return <InvalidCoOrganizerInvitation />;
   }
 
   const event = first(invitation.events);
@@ -178,6 +178,10 @@ export default async function ExternalCoOrganizerInvitationPage({ params, search
     primaryOrganizer?.status === "approved" &&
     !primaryOrganizer.is_paused &&
     !primaryOrganizer.is_disabled;
+
+  if (invitation.status !== "pending" || isExpired || !eventIsAvailable) {
+    return <InvalidCoOrganizerInvitation />;
+  }
 
   if (!profile) {
     return (
