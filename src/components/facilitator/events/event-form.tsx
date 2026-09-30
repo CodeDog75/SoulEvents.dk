@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 52324)
-Total output lines: 4874
-
 "use client";
 
 import Link from "next/link";
@@ -2520,7 +2517,694 @@ export function EventForm({
           sendOnlineLinkLater,
           capacityValue,
 	          coverDraftImagePath,
-	         …7324 tokens truncated…20%_20%,#F4F0F7_0%,transparent_34%),radial-gradient(circle_at_85%_15%,#DDE8D7_0%,transparent_32%),linear-gradient(135deg,#FAF6EF_0%,#F8F3FA_48%,#EEE7DA_100%)]"
+	          coverFileName,
+	          coverPreviewUrl,
+	          isCoverRemoved,
+	          galleryImages: visibleGalleryImages.map((image) => ({
+            draftImagePath: image.draftImagePath ?? null,
+            fileName: image.fileName ?? "",
+            id: image.id,
+            imagePath: image.imagePath ?? null,
+            mediaType: image.mediaType ?? (isEventGalleryVideoPath(image.imagePath || image.draftImagePath) ? "video" : "image"),
+            previewUrl: image.previewUrl,
+          })),
+
+          postalCode,
+          regionId,
+          selectedMainCategoryIds,
+          selectedTagIds,
+          startDate,
+          startTime,
+        },
+        savedAt: new Date().toISOString(),
+      }),
+    );
+    setHasAutosavedDraft(true);
+  }
+
+  function formSignature() {
+    const form = formRef.current;
+    if (!form) return "";
+
+    const ignoredKeys = new Set([
+      "current_step",
+      "notify_participants",
+      "participant_update_message",
+      "status",
+    ]);
+    const formData = new FormData(form);
+    const entries: string[] = [];
+
+    for (const [key, rawValue] of formData.entries()) {
+      if (ignoredKeys.has(key)) continue;
+
+      if (rawValue instanceof File) {
+        if (rawValue.size > 0) {
+          entries.push(`${key}=file:${rawValue.name}:${rawValue.size}`);
+        }
+        continue;
+      }
+
+      entries.push(`${key}=${rawValue}`);
+    }
+
+    return entries.sort().join("&");
+  }
+
+  function hasActualFormChanges() {
+    const initialSignature = initialFormSignatureRef.current;
+    return Boolean(initialSignature && formSignature() !== initialSignature);
+  }
+
+  function applyDraftFields(
+    fields: Record<string, string[]>,
+    options: { ignoreLegacyDefaultCapacity?: boolean } = {},
+  ) {
+    const form = formRef.current;
+    const restoredOnlineValues = Array.isArray(fields.online_url_or_note) ? fields.online_url_or_note : [];
+
+    if (restoredOnlineValues.includes(onlineLinkLaterText)) {
+      setSendOnlineLinkLater(true);
+    }
+
+    if (!form) {
+      return;
+    }
+
+    for (const [name, values] of Object.entries(fields) as Array<[string, string[]]>) {
+      if (name === "tag_ids") {
+        continue;
+      }
+      if (!draftEvent?.id && options.ignoreLegacyDefaultCapacity && name === "capacity" && values.some(isLegacyDefaultCapacityValue)) {
+        continue;
+      }
+
+      const controls = Array.from(form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("[name='" + name + "']"));
+
+      controls.forEach((control, index) => {
+        const valueAtIndex = values[index] ?? values[0] ?? "";
+
+        if (control instanceof HTMLInputElement && (control.type === "checkbox" || control.type === "radio")) {
+          control.checked = values.includes(control.value);
+          control.dispatchEvent(new Event("change", { bubbles: true }));
+        } else {
+          control.value = valueAtIndex;
+          control.dispatchEvent(new Event("input", { bubbles: true }));
+          control.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      });
+    }
+
+    setFormVersion((version) => version + 1);
+  }
+
+  function restoreDraft() {
+    const draft = readDraft();
+
+    if (!draft) {
+      setHasAutosavedDraft(false);
+      return;
+    }
+
+    const isLegacyDraft = draft.schemaVersion !== eventDraftSchemaVersion;
+    setStartDate(draft.state?.startDate ?? today);
+    setEndDate(draft.state?.endDate ?? draft.state?.startDate ?? today);
+    setStartTime(draft.state?.startTime ?? "19:00");
+    setEndTime(draft.state?.endTime ?? "21:00");
+    setPostalCode(draft.state?.postalCode ?? "");
+    setCity(draft.state?.city ?? "");
+    const restoredCountry = draft.state?.country ?? "Danmark";
+    setCountry(restoredCountry);
+    setIsForeignLocation(
+      typeof draft.state?.isForeignLocation === "boolean"
+        ? draft.state.isForeignLocation
+        : String(restoredCountry).trim().toLowerCase() !== "danmark",
+    );
+    setRegionId(draft.state?.regionId ?? "");
+    setEventFormat(draft.state?.eventFormat === "online" ? "online" : "physical");
+    setHasChosenEventFormat(Boolean(draft.state?.hasChosenEventFormat));
+    setPriceMode(draft.state?.priceMode === "paid" || draft.state?.priceMode === "free" ? draft.state.priceMode : "");
+    setIsFree(Boolean(draft.state?.isFree));
+    setRegistrationMode(
+      draft.state?.registrationMode === "direct" || draft.state?.registrationMode === "approval_required"
+        ? draft.state.registrationMode
+        : initialRegistrationMode,
+    );
+    setPaymentMethodChoice(
+      draft.state?.paymentMethodChoice === "standard" || draft.state?.paymentMethodChoice === "unique_link"
+        ? draft.state.paymentMethodChoice
+        : initialPaymentMethodChoice,
+    );
+    setPaymentLinkMode(
+      draft.state?.paymentLinkMode === "external_registration" || draft.state?.paymentLinkMode === "payment_only"
+        ? draft.state.paymentLinkMode
+        : initialPaymentLinkMode,
+    );
+    setPaymentExternalUrl(draft.state?.paymentExternalUrl ?? initialPaymentExternalUrl);
+    setSendOnlineLinkLater(Boolean(draft.state?.sendOnlineLinkLater));
+    const restoredCapacityValue =
+      !draftEvent?.id && isLegacyDraft && isLegacyDefaultCapacityValue(draft.state?.capacityValue)
+        ? ""
+        : draft.state?.capacityValue ?? (draftEvent?.capacity === null || draftEvent?.capacity === undefined ? "" : String(draftEvent.capacity));
+    setCapacityValue(restoredCapacityValue);
+    setSelectedMainCategoryIds(Array.isArray(draft.state?.selectedMainCategoryIds) ? draft.state.selectedMainCategoryIds : []);
+    const restoredTagIds = Array.isArray(draft.state?.selectedTagIds)
+      ? draft.state.selectedTagIds.filter((tagId: unknown): tagId is string => typeof tagId === "string")
+      : [];
+    setSelectedTagIds(restoredTagIds.slice(0, maxEventTags));
+	    const restoredCoverDraftImagePath = typeof draft.state?.coverDraftImagePath === "string" ? draft.state.coverDraftImagePath : "";
+	    const restoredCoverPreviewUrl = typeof draft.state?.coverPreviewUrl === "string" ? draft.state.coverPreviewUrl : "";
+	    const restoredCoverFileName = typeof draft.state?.coverFileName === "string" ? draft.state.coverFileName : "";
+	    setIsCoverRemoved(Boolean(draft.state?.isCoverRemoved));
+	    if (!draftEvent?.id && isOwnEventDraftImagePath(restoredCoverDraftImagePath, facilitator.id) && restoredCoverPreviewUrl) {
+      setCoverDraftImagePath(restoredCoverDraftImagePath);
+      setCoverPreviewUrl(restoredCoverPreviewUrl);
+      setCoverFileName(restoredCoverFileName);
+      setPreview((currentPreview) => (currentPreview ? { ...currentPreview, coverImageUrl: restoredCoverPreviewUrl } : currentPreview));
+    }
+    if (!draftEvent?.id && Array.isArray(draft.state?.galleryImages)) {
+      const restoredGalleryImages = draft.state.galleryImages
+        .filter((image: unknown): image is { draftImagePath?: string | null; fileName?: string; id?: string; imagePath?: string | null; mediaType?: "image" | "video"; previewUrl?: string } => {
+          if (!image || typeof image !== "object") return false;
+          const candidate = image as { draftImagePath?: unknown; imagePath?: unknown; previewUrl?: unknown };
+          return (
+            (typeof candidate.previewUrl === "string" && candidate.previewUrl.length > 0) &&
+            ((typeof candidate.draftImagePath === "string" && isOwnEventDraftImagePath(candidate.draftImagePath, facilitator.id)) ||
+              typeof candidate.imagePath === "string")
+          );
+        })
+        .slice(0, maxEventGalleryImages)
+        .map((image: { draftImagePath?: string | null; fileName?: string; id?: string; imagePath?: string | null; mediaType?: "image" | "video"; previewUrl?: string }) => ({
+          draftImagePath: image.draftImagePath ?? null,
+          fileName: image.fileName ?? "",
+          id: image.id || crypto.randomUUID(),
+          imagePath: image.imagePath ?? null,
+          mediaType: image.mediaType ?? (isEventGalleryVideoPath(image.imagePath || image.draftImagePath) ? "video" : "image"),
+          objectUrl: false,
+          previewUrl: image.previewUrl ?? "",
+        }));
+      if (restoredGalleryImages.length > 0) {
+        setGalleryImages(restoredGalleryImages);
+      }
+    }
+
+    window.requestAnimationFrame(() => {
+      applyDraftFields(draft.fields ?? {}, { ignoreLegacyDefaultCapacity: !draftEvent?.id && isLegacyDraft });
+      refreshFormValidationState();
+    });
+  }
+
+  function clearDraft() {
+    window.localStorage.removeItem(draftStorageKey);
+    setHasAutosavedDraft(false);
+    setAutosaveMessage("");
+  }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const message = params.get("message") ?? "";
+
+    const normalizedMessage = message.toLowerCase();
+    const imageMessage = getEventImageMessage(message);
+
+    if (imageMessage) {
+      window.setTimeout(() => {
+        setCoverImageErrorMessage(imageMessage);
+        openStep(0);
+      }, 0);
+    }
+
+    if (organizerAcceptanceMessage) {
+      window.setTimeout(() => {
+        guideToMissingItem({
+          focusSelector: "[name='accepted_organizer_terms']",
+          key: "organizer-terms",
+          label: "Arrangørvilkår",
+          step: steps.length - 1,
+          targetId: "event-organizer-terms-field",
+        });
+      }, 0);
+    }
+
+    if (normalizedMessage.includes("oprettet") || normalizedMessage.includes("gemt") || normalizedMessage.includes("opdateret")) {
+      window.localStorage.removeItem(draftStorageKey);
+      window.localStorage.removeItem(userDraftStorageKey + ":new");
+      window.localStorage.removeItem(legacyEventDraftStorageKey);
+      return;
+    }
+
+    if (shouldUsePrefillAsSource) {
+      window.localStorage.removeItem(draftStorageKey);
+      window.setTimeout(refreshFormValidationState, 0);
+      return;
+    }
+
+    const hasDraft = Boolean(window.localStorage.getItem(draftStorageKey));
+    window.localStorage.removeItem(legacyEventDraftStorageKey);
+    window.setTimeout(() => {
+      setHasAutosavedDraft(hasDraft);
+      if (hasDraft) {
+        restoreDraft();
+      } else {
+        refreshFormValidationState();
+      }
+    }, 0);
+  }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(writeDraft, 350);
+    return () => window.clearTimeout(timeout);
+  }, [
+    capacityValue,
+    city,
+    coverDraftImagePath,
+    coverFileName,
+    coverPreviewUrl,
+    country,
+    endDate,
+    endTime,
+    eventFormat,
+    hasChosenEventFormat,
+    isCoverRemoved,
+    isForeignLocation,
+    isFree,
+    galleryImages,
+    paymentExternalUrl,
+    paymentLinkMode,
+    paymentMethodChoice,
+    postalCode,
+    priceMode,
+    registrationMode,
+    regionId,
+    selectedMainCategoryIds,
+    selectedTagIds,
+    startDate,
+    startTime,
+  ]);
+
+  useEffect(() => {
+    if (!isPaymentInfoOpen) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && paymentInfoRef.current?.contains(target)) return;
+      setIsPaymentInfoOpen(false);
+    }
+
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsPaymentInfoOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isPaymentInfoOpen]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      showPreview();
+      refreshFormValidationState();
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [
+    capacityValue,
+    city,
+    country,
+    endDate,
+    endTime,
+    eventFormat,
+    hasChosenEventFormat,
+    hasCoverImage,
+    hasStandardPaymentSettings,
+    isForeignLocation,
+    isFree,
+    paymentExternalUrl,
+    paymentLinkMode,
+    paymentMethodChoice,
+    postalCode,
+    priceMode,
+    priceValue,
+    regionId,
+    selectedMainCategoryIds,
+    selectedTagIds,
+    startDate,
+    startTime,
+  ]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      initialFormSignatureRef.current = formSignature();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  function renderStepAccordionHeader(index: number) {
+    const step = steps[index];
+    const isOpen = isStepOpen(index);
+    const status = stepStatuses[index] ?? "missing";
+    const isDone = status === "complete";
+    const statusClass = isDone
+      ? "border-[#C8DCC0] bg-[#F3F7F0] text-[#4E6A48]"
+      : isOpen
+        ? "border-[#7A5D91] bg-[#F4F0F7] text-[#6E5A86] shadow-[0_0_0_3px_rgba(122,93,145,0.10)]"
+        : "border-[#E8E0D2] bg-[#FFFCF7] text-[#6E6475]";
+    const badgeClass = isDone
+      ? "border-[#CFE3C8] bg-[#EAF4E6] text-[#4F6F48]"
+      : "border-[#D8CBE4] bg-[#F4F0F7] text-[#7A5D91]";
+    const headerLayoutClass =
+      index === 2 || index === 3 ? "flex-col items-stretch sm:flex-row sm:items-center" : "items-center";
+
+    function chooseEventFormat(nextFormat: "physical" | "online") {
+      writeDraft();
+      setEventFormat(nextFormat);
+      setHasChosenEventFormat(true);
+      openStep(2);
+      window.setTimeout(() => {
+        showPreview();
+        refreshFormValidationState();
+      }, 0);
+    }
+
+    function choosePriceMode(nextMode: "free" | "paid") {
+      writeDraft();
+      setPriceMode(nextMode);
+      setFreeEventPublishConfirmed(false);
+      openStep(3);
+      if (nextMode === "free") {
+        setIsFree(true);
+        setPriceValue("0");
+      }
+      if (nextMode === "paid") {
+        setIsFree(false);
+        if (priceValue === "0") setPriceValue("");
+      }
+      window.setTimeout(() => {
+        showPreview();
+        refreshFormValidationState();
+      }, 0);
+    }
+
+    return (
+      <div className={"flex w-full min-w-0 gap-3 rounded-[18px] border px-4 py-3 transition " + headerLayoutClass + " " + statusClass}>
+        <button
+          aria-expanded={isOpen}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          onClick={(event) => goToStep(index, event.currentTarget)}
+          type="button"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#EEF7F0] text-sage-700 shadow-[0_1px_8px_rgba(79,101,74,0.10)]">
+            {step.icon}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[11px] font-semibold uppercase tracking-wide opacity-75">
+              Trin {index + 1}
+            </span>
+            <span className="mt-0.5 block truncate text-base font-semibold sm:text-lg">
+              {step.title}
+            </span>
+          </span>
+        </button>
+
+        {index === 2 ? (
+          <span className="sr-only" id="event-format-header-label">
+            Hvordan deltager man?
+          </span>
+        ) : null}
+        {index === 2 ? (
+          <SegmentedChoice
+            aria-labelledby="event-format-header-label"
+            name="event_format"
+            onValueChange={chooseEventFormat}
+            options={[
+              { label: "Fysisk", value: "physical" },
+              { label: "Online", value: "online" },
+            ]}
+            value={hasChosenEventFormat ? eventFormat : ""}
+          />
+        ) : null}
+
+        {index === 3 ? (
+          <span className="sr-only" id="event-price-header-label">
+            Hvad koster det at deltage?
+          </span>
+        ) : null}
+        {index === 3 ? (
+          <SegmentedChoice
+            aria-labelledby="event-price-header-label"
+            onValueChange={choosePriceMode}
+            options={[
+              { label: "Betaling", value: "paid" },
+              { label: "Gratis", value: "free" },
+            ]}
+            value={priceMode}
+          />
+        ) : null}
+
+        {index !== 2 && index !== 3 ? (
+          <span className={"inline-flex h-7 shrink-0 items-center justify-center rounded-full border px-2.5 text-[10px] font-semibold uppercase tracking-wide sm:h-8 sm:px-3 sm:text-xs " + badgeClass}>
+            {isDone ? "Klar" : "Afventer"}
+          </span>
+        ) : null}
+
+      </div>
+    );
+  }
+
+  const hasReachedActiveLimit = Boolean(activeLimitMessage);
+  const coOrganizerBlocksSubmit = inactiveExistingCoOrganizers.length > 0;
+  const activeLimitBlocksSubmit = hasReachedActiveLimit && !isEditingPublishedEvent;
+  const canPublish = missingInvitationItems.length === 0 && !coOrganizerBlocksSubmit && !activeLimitBlocksSubmit;
+  const legalAcceptanceBlocksSubmit = requiresOrganizerAcceptance && !acceptedOrganizerTerms;
+  const canSubmitEvent = canPublish && !legalAcceptanceBlocksSubmit;
+
+  function renderMediaStep() {
+    const gallerySlots = Array.from({ length: maxEventGalleryImages }, (_, index) => visibleGalleryImages[index] ?? null);
+
+    return (
+      <section
+        className={isStepOpen(1) ? "grid w-full min-w-0 max-w-full gap-5 overflow-hidden rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft transition sm:gap-6 sm:p-6 " + highlightMissingClass("cover") : "hidden"}
+        id="event-cover-field"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-semibold text-ink/55">{visibleGalleryImages.length === 0 ? "Ingen billeder eller videoer endnu" : `${visibleGalleryImages.length} af ${maxEventGalleryImages} tilføjet`}</span>
+          <details className="group relative">
+            <summary className="grid size-9 cursor-pointer list-none place-items-center rounded-full border border-[#D8CBE4] bg-[#F7F2FB] text-[#7A4EAB] transition hover:border-[#BFA7D8] hover:bg-white [&::-webkit-details-marker]:hidden">
+              <Info className="size-4" aria-hidden="true" />
+              <span className="sr-only">Tekniske krav</span>
+            </summary>
+            <div className="absolute right-0 z-20 mt-2 w-72 rounded-[18px] border border-[#E5D4F7] bg-white p-4 text-xs leading-5 text-ink/64 shadow-lift">
+              <p className="font-semibold text-midnight">Forsidebilledet er obligatorisk.</p>
+              <p className="mt-2">Op til 3 ekstra billeder eller videoer.</p>
+              <p className="mt-2">{supportedImageUploadText}</p>
+              <p className="mt-1">{supportedEventGalleryUploadText}</p>
+            </div>
+          </details>
+        </div>
+
+        <div className="grid gap-4">
+          <div className={"group relative aspect-[16/9] overflow-hidden rounded-[24px] border border-dashed border-[#D8CBE4] bg-[#F7F2FB] shadow-soft transition hover:border-[#BFA7D8] hover:bg-[#FAF8FC] " + (highlightedMissingKey === "cover" ? "ring-4 ring-[#D89A94]/35" : "")}>
+            <label className="absolute inset-0 z-10 cursor-pointer">
+              <input
+                accept={imageUploadAccept}
+                className="sr-only"
+                id="event-cover-file"
+                onChange={handleCoverFileChange}
+                ref={coverFileInputRef}
+                type="file"
+              />
+              <span className="sr-only">Udskift forsidebillede</span>
+            </label>
+            {currentCoverImageUrl ? (
+              <img alt="Preview af eventets forsidebillede" className="h-full w-full object-cover" src={currentCoverImageUrl} />
+            ) : (
+              <span className="grid h-full place-items-center">
+                <span className="relative grid size-20 place-items-center rounded-[24px] bg-white/90 text-[#7A5D91] shadow-soft">
+                  <ImagePlus className="size-9" aria-hidden="true" />
+                  <span className="absolute -right-2 -top-2 grid size-8 place-items-center rounded-full bg-[#7A5D91] text-white shadow-soft">
+                    <Plus className="size-4" aria-hidden="true" />
+                  </span>
+                </span>
+              </span>
+            )}
+            {!currentCoverImageUrl ? (
+              <span className="absolute right-3 top-3 grid size-7 place-items-center rounded-full bg-white/90 text-sm font-bold text-[#B56F8A] shadow-soft" aria-hidden="true">
+                *
+              </span>
+            ) : null}
+            {currentCoverImageUrl ? (
+              <div className="absolute right-3 top-3 z-20 flex gap-2">
+                <label className="grid size-9 cursor-pointer place-items-center rounded-full bg-white/85 text-[#7A5D91] shadow-soft backdrop-blur transition hover:bg-white">
+                  <ImagePlus className="size-4" aria-hidden="true" />
+                  <span className="sr-only">Udskift forsidebillede</span>
+                  <input
+                    accept={imageUploadAccept}
+                    className="sr-only"
+                    onChange={handleCoverFileChange}
+                    type="file"
+                  />
+                </label>
+                <button
+                  className="grid size-9 place-items-center rounded-full bg-white/85 text-red-700 shadow-soft backdrop-blur transition hover:bg-red-50"
+                  onClick={removeCoverImage}
+                  type="button"
+                >
+                  <Trash2 className="size-4" aria-hidden="true" />
+                  <span className="sr-only">Fjern forsidebillede</span>
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          {coverFileName ? <p className="text-xs font-semibold text-[#7A4EAB]">Valgt: {coverFileName}</p> : null}
+          {isCoverDraftUploading ? (
+            <p className="rounded-[16px] border border-[#E8D6A8] bg-[#FFF8E8] px-4 py-3 text-sm font-semibold leading-6 text-[#8A6A2E]">Gemmer forsidebilledet som kladde...</p>
+          ) : null}
+          {coverImageErrorMessage ? (
+            <p className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-900">{coverImageErrorMessage}</p>
+          ) : null}
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {gallerySlots.map((image, index) => {
+            const isVideo = Boolean(image && (image.mediaType === "video" || isEventGalleryVideoPath(image.imagePath || image.draftImagePath || image.previewUrl)));
+
+            return (
+              <div className="group relative aspect-square overflow-hidden rounded-[20px] border border-dashed border-[#D8CBE4] bg-[#FAF8FC] shadow-sm transition hover:border-[#BFA7D8]" key={image?.id ?? `empty-gallery-${index}`}>
+                {image ? (
+                  <>
+                    {image.previewUrl && isVideo ? (
+                      <video
+                        className="h-full w-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        src={image.previewUrl}
+                      />
+                    ) : image.previewUrl ? (
+                      <img alt={`Preview af stemningsbillede ${index + 1}`} className="h-full w-full object-cover" src={image.previewUrl} />
+                    ) : (
+                      <span className="grid h-full place-items-center text-[#7A5D91]">
+                        <ImagePlus className="size-8" aria-hidden="true" />
+                      </span>
+                    )}
+                    {isVideo ? (
+                      <span className="absolute inset-0 grid place-items-center bg-midnight/10 text-white">
+                        <span className="grid size-10 place-items-center rounded-full bg-midnight/45 backdrop-blur">
+                          <Play className="ml-0.5 size-4 fill-current" aria-hidden="true" />
+                        </span>
+                      </span>
+                    ) : null}
+                    <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 flex-wrap justify-center gap-0.5 rounded-full border border-[#E3E0E6] bg-white p-1 shadow-[0_4px_12px_rgba(47,38,51,0.10)]">
+                      <label className="grid size-8 cursor-pointer place-items-center rounded-full text-[#4F4756] transition hover:bg-[#F4F0F7]">
+                        <ImagePlus className="size-3.5" aria-hidden="true" />
+                        <span className="sr-only">Udskift billede eller video</span>
+                        <input
+                          accept={eventGalleryUploadAccept}
+                          className="sr-only"
+                          onChange={(event) => void handleReplaceGalleryImage(image.id, event)}
+                          ref={(node) => {
+                            galleryFileInputRefs.current[image.id] = node;
+                            if (node && image.file && (!node.files || node.files.length === 0)) {
+                              replaceInputFile(node, image.file);
+                            }
+                          }}
+                          type="file"
+                        />
+                      </label>
+                      {visibleGalleryImages.length > 1 ? (
+                        <>
+	                          <button
+	                            className="grid size-8 place-items-center rounded-full text-[#4F4756] transition hover:bg-[#F4F0F7] disabled:text-[#B8B2BE]"
+	                            disabled={index === 0}
+                            onClick={() => moveGalleryImage(image.id, -1)}
+                            type="button"
+                          >
+                            <ArrowLeft className="size-3.5" aria-hidden="true" />
+                            <span className="sr-only">Flyt til venstre</span>
+                          </button>
+	                          <button
+	                            className="grid size-8 place-items-center rounded-full text-[#4F4756] transition hover:bg-[#F4F0F7] disabled:text-[#B8B2BE]"
+	                            disabled={index === visibleGalleryImages.length - 1}
+                            onClick={() => moveGalleryImage(image.id, 1)}
+                            type="button"
+                          >
+                            <ArrowRight className="size-3.5" aria-hidden="true" />
+                            <span className="sr-only">Flyt til højre</span>
+                          </button>
+                        </>
+                      ) : null}
+	                      <button
+	                        className="grid size-8 place-items-center rounded-full text-red-700 transition hover:bg-red-50"
+	                        onClick={() => removeGalleryImage(image.id)}
+                        type="button"
+                      >
+                        <Trash2 className="size-3.5" aria-hidden="true" />
+                        <span className="sr-only">Fjern billede eller video</span>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <label className="grid h-full cursor-pointer place-items-center">
+                    <span className="relative grid size-14 place-items-center rounded-[18px] bg-white/90 text-[#7A5D91] shadow-soft">
+                      <ImagePlus className="size-6" aria-hidden="true" />
+                      <MonitorSmartphone className="absolute -left-2 -bottom-1 size-4 rounded-full bg-white text-[#B56F8A]" aria-hidden="true" />
+                      <span className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full bg-[#7A5D91] text-white shadow-soft">
+                        <Plus className="size-3.5" aria-hidden="true" />
+                      </span>
+                    </span>
+                    <input
+                      accept={eventGalleryUploadAccept}
+                      className="sr-only"
+                      disabled={!canAddGalleryImage}
+                      onChange={(event) => void handleAddGalleryImage(event)}
+                      type="file"
+                    />
+                  </label>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {galleryImageErrorMessage ? (
+          <p className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-900">
+            {galleryImageErrorMessage}
+          </p>
+        ) : null}
+        {isGalleryDraftUploading ? (
+          <p className="rounded-[16px] border border-[#E8D6A8] bg-[#FFF8E8] px-4 py-3 text-sm font-semibold leading-6 text-[#8A6A2E]">
+            Gemmer billede eller video som kladde...
+          </p>
+        ) : null}
+      </section>
+    );
+  }
+
+  function renderEventPreviewPanel() {
+    return (
+      <section className="grid gap-3 rounded-card border border-[#E5D4F7] bg-white/95 p-4 shadow-soft sm:p-5">
+        <button
+          className="inline-flex h-11 w-fit items-center gap-2 rounded-full border border-[#D8CBE4] bg-[#F7F2FB] px-4 text-sm font-semibold text-[#7A4EAB] transition hover:border-[#BFA7D8] hover:bg-white"
+          onClick={() => {
+            showPreview();
+            setIsEventPreviewOpen((isOpen) => !isOpen);
+          }}
+          type="button"
+        >
+          <Eye className="size-4" aria-hidden="true" />
+          Forhåndsvisning
+        </button>
+        {isEventPreviewOpen ? (
+          <div className="overflow-hidden rounded-card border border-[#E5D4F7] bg-white">
+            <div
+              className="relative h-44 overflow-hidden bg-[radial-gradient(circle_at_20%_20%,#F4F0F7_0%,transparent_34%),radial-gradient(circle_at_85%_15%,#DDE8D7_0%,transparent_32%),linear-gradient(135deg,#FAF6EF_0%,#F8F3FA_48%,#EEE7DA_100%)]"
             >
               {currentCoverImageUrl ? (
                 <img alt="" className="h-full w-full object-cover" src={currentCoverImageUrl} />
