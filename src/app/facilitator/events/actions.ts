@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { maxEventCoOrganizers } from "@/lib/co-organizers/limits";
 import { redirect } from "next/navigation";
 import { requireProfile, requireRole } from "@/lib/auth/roles";
 import {
@@ -896,8 +897,8 @@ async function sendExternalCoOrganizerInvitation(
   }
 
   const activeSlots = await activeCoOrganizerSlotCount(supabase, input.eventId);
-  if (activeSlots >= 2) {
-    eventFormRedirect("Du kan højst invitere to medarrangører til et event.", { eventId: input.eventId, step: "0" });
+  if (activeSlots >= maxEventCoOrganizers) {
+    eventFormRedirect("Du kan højst invitere 15 medarrangører til et event.", { eventId: input.eventId, step: "0" });
   }
 
   const { data: existingInvitation } = await (supabase as any)
@@ -1032,8 +1033,8 @@ async function createCoOrganizerInvitations(
   const existingProfileIds = new Set((existingRows ?? []).map((row) => row.co_organizer_profile_id));
   const newProfileIds = requestedProfileIds.filter((profileId) => !existingProfileIds.has(profileId));
 
-  if (existingProfileIds.size + newProfileIds.length > 2) {
-    eventFormRedirect("Du kan højst invitere to medarrangører til et event.", { eventId: input.eventId });
+  if ((await activeCoOrganizerSlotCount(supabase, input.eventId)) + newProfileIds.length > maxEventCoOrganizers) {
+    eventFormRedirect("Du kan højst invitere 15 medarrangører til et event.", { eventId: input.eventId });
   }
 
   if (newProfileIds.length === 0) {
@@ -3117,8 +3118,8 @@ export async function resendCoOrganizerInvitationAction(formData: FormData) {
   }
 
   if (invitation.status === "withdrawn") {
-    if (await activeCoOrganizerSlotCount(supabase, eventId) >= 2) {
-      eventFormRedirect("Du kan højst invitere to medarrangører til et event.", { eventId });
+    if (await activeCoOrganizerSlotCount(supabase, eventId) >= maxEventCoOrganizers) {
+      eventFormRedirect("Du kan højst invitere 15 medarrangører til et event.", { eventId });
     }
     const { error: renewError, data: renewed } = await supabase
       .from("event_co_organizers")

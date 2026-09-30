@@ -35,6 +35,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { maxEventCoOrganizers } from "@/lib/co-organizers/limits";
 import {
   cancelCoOrganizerInvitationAction,
   cancelExternalCoOrganizerInvitationAction,
@@ -1305,7 +1306,7 @@ export function EventForm({
       (remoteMatch) => !localMatchingExistingCoOrganizers.some((localMatch) => localMatch.id === remoteMatch.id),
     ),
   ];
-  const canAddCoOrganizer = activeCoOrganizerCount < 2;
+  const canAddCoOrganizer = activeCoOrganizerCount < maxEventCoOrganizers;
   const organizerAcceptanceMessage =
     message && (message.toLowerCase().includes("arrangørvilkår") || message.toLowerCase().includes("retningslinjer"))
       ? message
@@ -2055,7 +2056,7 @@ export function EventForm({
 
   function addCoOrganizer(candidate: CoOrganizerCandidate) {
     if (!canAddCoOrganizer) {
-      setCoOrganizerSearchMessage("Du kan højst invitere to medarrangører.");
+      setCoOrganizerSearchMessage("Du kan højst invitere 15 medarrangører.");
       return;
     }
 
@@ -2064,7 +2065,7 @@ export function EventForm({
         return current;
       }
 
-      return [...current, candidate].slice(0, 2 - existingCoOrganizers.length);
+      return [...current, candidate].slice(0, Math.max(0, maxEventCoOrganizers - activeExistingCoOrganizers.length - activeExternalCoOrganizers.length));
     });
     setCoOrganizerSearchQuery("");
     setCoOrganizerCandidates([]);
@@ -3741,7 +3742,7 @@ export function EventForm({
           <div className="grid gap-1">
             <h3 className="text-lg font-semibold text-midnight">Afholder du eventet sammen med andre?</h3>
             <p className="text-sm leading-6 text-ink/68">
-              Du kan invitere op til to medarrangører. Medarrangøren vises først på eventet, når profilen er godkendt og invitationen er accepteret.
+              Du kan invitere op til 15 medarrangører. Medarrangøren vises først på eventet, når profilen er godkendt og invitationen er accepteret.
             </p>
           </div>
 
@@ -4115,7 +4116,7 @@ export function EventForm({
             </div>
           ) : (
             <p className="rounded-card border border-[#E8E0D2] bg-white px-4 py-3 text-sm font-semibold text-ink/64">
-              Maksimum er nået: ét event kan have én primær arrangør og højst to medarrangører.
+              Maksimum er nået: ét event kan have én primær arrangør og højst 15 medarrangører.
             </p>
           )}
         </section>
