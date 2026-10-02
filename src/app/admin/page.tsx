@@ -211,6 +211,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       .select("id", { count: "exact", head: true })
       .in("type", ["message", "closure_request"])
       .in("status", ["unread", "read"])
+      .is("answered_at", null)
+      .is("duplicate_of", null)
       .is("admin_hidden_at", null),
   ]);
 

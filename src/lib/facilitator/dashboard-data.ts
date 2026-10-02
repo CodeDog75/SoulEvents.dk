@@ -21,7 +21,7 @@ export async function getFacilitatorAdminMessages(facilitatorId: string, limit =
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("facilitator_admin_messages")
-    .select("id, subject, message, type, status, created_at")
+    .select("id, subject, message, type, status, created_at, message_number, answered_at, duplicate_of")
     .eq("facilitator_id", facilitatorId)
     .is("facilitator_hidden_at", null)
     .order("created_at", { ascending: false })

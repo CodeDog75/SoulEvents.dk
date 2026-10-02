@@ -46,13 +46,11 @@ export async function sendFacilitatorAdminMessageAction(formData: FormData) {
   }
 
   const { admin, profile, facilitator } = await getFacilitatorForCurrentUser();
-  const { error } = await admin.from("facilitator_admin_messages").insert({
-    facilitator_id: facilitator.id,
-    profile_id: profile.id,
-    type: "message",
-    status: "unread",
-    subject,
-    message,
+  const { data: sentMessage, error } = await admin.rpc("send_facilitator_support_message", {
+    p_facilitator_id: facilitator.id,
+    p_profile_id: profile.id,
+    p_subject: subject,
+    p_message: message,
   });
 
   if (error) {
@@ -64,7 +62,7 @@ export async function sendFacilitatorAdminMessageAction(formData: FormData) {
   revalidatePath("/facilitator/messages");
   revalidatePath("/admin");
   revalidatePath("/admin/messages");
-  go("Beskeden er sendt til admin.", returnTo);
+  go(`Besked #${sentMessage?.[0]?.message_number} er sendt til SoulEvents. Du kan se den i beskedhistorikken nedenfor.`, returnTo);
 }
 
 export async function requestFacilitatorProfileClosureAction(formData: FormData) {

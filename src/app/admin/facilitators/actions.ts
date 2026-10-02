@@ -312,14 +312,15 @@ export async function sendAdminMessageToFacilitatorAction(formData: FormData) {
     );
   }
 
-  const { error } = await supabase.from("facilitator_admin_messages").insert({
+  const { data: sentMessage, error } = await supabase.from("facilitator_admin_messages").insert({
     facilitator_id: facilitator.id,
     profile_id: facilitator.profile_id,
     type: "admin_reply",
     status: "unread",
     subject,
     message,
-  });
+    in_reply_to: getString(formData, "message_id") || null,
+  }).select("message_number").single();
 
   if (error) {
     adminMessageReturnRedirect("Beskeden kunne ikke sendes. Kør eventuelt den nyeste Supabase-migration og prøv igen.", returnTo);
@@ -337,7 +338,7 @@ export async function sendAdminMessageToFacilitatorAction(formData: FormData) {
     firstName: profile?.first_name || profile?.full_name?.split(/\s+/)[0] || null,
     recipientEmail: profile?.email ?? null,
     unreadCount: unreadCount ?? 1,
-  });
+  }).catch(() => false);
   if (!notificationSent) {
     console.error("Admin message notification failed after message insert", {
       facilitatorId: facilitator.id,
@@ -349,7 +350,7 @@ export async function sendAdminMessageToFacilitatorAction(formData: FormData) {
   revalidatePath("/admin/messages");
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/messages");
-  adminMessageReturnRedirect("Beskeden er sendt til arrangøren.", returnTo);
+  adminMessageReturnRedirect(`Besked #${sentMessage?.message_number} er sendt til arrangøren.`, returnTo);
 }
 
 export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
@@ -377,14 +378,15 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
     );
   }
 
-  const { error } = await supabase.from("facilitator_admin_messages").insert({
+  const { data: sentMessage, error } = await supabase.from("facilitator_admin_messages").insert({
     facilitator_id: facilitator.id,
     profile_id: facilitator.profile_id,
     type: "admin_reply",
     status: "unread",
     subject: subject.startsWith("Re:") ? subject : "Re: " + subject,
     message,
-  });
+    in_reply_to: getString(formData, "message_id") || null,
+  }).select("message_number").single();
 
   if (error) {
     adminMessageRedirect("Svaret kunne ikke sendes. Kør eventuelt den nyeste Supabase-migration og prøv igen.");
@@ -402,7 +404,7 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
     firstName: profile?.first_name || profile?.full_name?.split(/\s+/)[0] || null,
     recipientEmail: profile?.email ?? null,
     unreadCount: unreadCount ?? 1,
-  });
+  }).catch(() => false);
   if (!notificationSent) {
     console.error("Admin message notification failed after reply insert", {
       facilitatorId: facilitator.id,
@@ -419,7 +421,7 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
   revalidatePath("/admin/messages");
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/messages");
-  adminMessageRedirect("Svaret er sendt til arrangøren.");
+  adminMessageReturnRedirect(`Svar #${sentMessage?.message_number} er sendt til arrangøren.`, "/admin/messages?facilitator=" + facilitatorId);
 }
 
 export async function archiveFacilitatorAdminMessageAction(formData: FormData) {

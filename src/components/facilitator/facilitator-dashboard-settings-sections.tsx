@@ -1,3 +1,4 @@
+import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 import { Mail } from "lucide-react";
 import {
   activateFacilitatorProfileAction,
@@ -40,6 +41,9 @@ export function FacilitatorAdminMessagesSection({
   adminMessages,
 }: {
   adminMessages: Array<{
+    message_number?: number;
+    answered_at?: string | null;
+    duplicate_of?: string | null;
     created_at: string | null;
     id: string;
     message: string | null;
@@ -91,8 +95,9 @@ export function FacilitatorAdminMessagesSection({
               ) : null}
             </div>
             <p className="mt-1 text-xs font-semibold text-[#8B7F93]">
-              Sendt {formatDateTime(item.created_at)}
+              Besked #{item.message_number} · Sendt {formatDateTime(item.created_at)}
             </p>
+            <p className="mt-1 text-xs font-semibold text-[#7A5D91]">{item.type !== "admin_reply" ? (item.duplicate_of ? "Gentagen besked" : item.answered_at ? "Besvaret" : "Afventer svar") : null}</p>
             <p className="mt-2 whitespace-pre-wrap break-words leading-6 text-[#6E6475]">{item.message}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {item.type === "admin_reply" ? <FacilitatorMessageReplyAction /> : null}
@@ -126,10 +131,10 @@ export function FacilitatorSupportForm() {
         Besked
         <textarea className="min-h-48 scroll-mt-24 rounded-md border border-[#E5DDEA] p-3 outline-none focus:border-[#7A5D91]" id="facilitator-support-message" maxLength={5000} name="message" placeholder="Skriv højst 5.000 tegn..." required />
       </label>
-      <button className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white" type="submit">
+      <AuthSubmitButton pendingLabel="Sender din besked…" className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white disabled:opacity-60">
         <Mail className="size-4" aria-hidden="true" />
         Send besked
-      </button>
+      </AuthSubmitButton>
     </form>
   );
 }

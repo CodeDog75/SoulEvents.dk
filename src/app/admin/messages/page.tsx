@@ -1,3 +1,4 @@
+import { AuthSubmitButton } from "@/components/auth/auth-submit-button";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
 import Image from "next/image";
@@ -20,7 +21,7 @@ type AdminMessagesPageProps = {
 type Mailbox = "inbox" | "sent" | "archive";
 
 const mailboxes: Array<{ label: string; value: Mailbox; icon: typeof Inbox }> = [
-  { label: "Indbakke", value: "inbox", icon: Inbox },
+  { label: "Mangler svar", value: "inbox", icon: Inbox },
   { label: "Sendte", value: "sent", icon: Send },
   { label: "Arkiv", value: "archive", icon: Archive },
 ];
@@ -75,10 +76,10 @@ function mailboxFilter(item: any, box: Mailbox) {
   }
 
   if (box === "archive") {
-    return ["message", "closure_request"].includes(item.type) && item.status === "handled";
+    return ["message", "closure_request"].includes(item.type) && (item.status === "handled" || Boolean(item.answered_at) || Boolean(item.duplicate_of));
   }
 
-  return ["message", "closure_request"].includes(item.type) && ["unread", "read"].includes(item.status);
+  return ["message", "closure_request"].includes(item.type) && ["unread", "read"].includes(item.status) && !item.answered_at && !item.duplicate_of;
 }
 
 function matchesSearch(item: any, queryText: string) {
@@ -175,7 +176,7 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
   const [{ data: messageRows, error: messagesError }, searchIds] = await Promise.all([
     supabase
       .from("facilitator_admin_messages")
-      .select("id, facilitator_id, profile_id, subject, message, type, status, created_at, read_at")
+      .select("id, facilitator_id, profile_id, subject, message, type, status, created_at, read_at, message_number, in_reply_to, answered_at, answered_by, duplicate_of")
       .is("admin_hidden_at", null)
       .order("created_at", { ascending: false }),
     searchFacilitatorIds(supabase, queryText),
@@ -253,13 +254,13 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
     if (!existing) {
       conversationMap.set(item.facilitator_id, {
         facilitator: currentFacilitator,
-        hasUnread: item.type !== "admin_reply" && item.status === "unread",
+        hasUnread: mailboxFilter(item, "inbox"),
         latest: item,
         messages: [item],
         profile: currentProfile,
       });
     } else {
-      existing.hasUnread = existing.hasUnread || (item.type !== "admin_reply" && item.status === "unread");
+      existing.hasUnread = existing.hasUnread || (mailboxFilter(item, "inbox"));
       existing.messages.push(item);
     }
   }
@@ -469,17 +470,18 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
                               {messageTypeLabel(item.type)}
                             </span>
                             <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-ink/55">
-                              {item.status}
+                              {item.type === "admin_reply" ? (item.status === "unread" ? "Sendt · ikke læst endnu" : "Sendt · læst") : item.duplicate_of ? "Gentagen besked" : item.answered_at ? "Besvaret" : item.status === "handled" ? "Arkiveret" : "Mangler svar"}
                             </span>
                           </div>
                           <h3 className="mt-3 text-base font-semibold text-midnight">{item.subject}</h3>
+                          <p className="mt-1 text-xs text-ink/55">Besked #{item.message_number}{item.in_reply_to ? ` · Svar på #${enrichedRows.find((row) => row.id === item.in_reply_to)?.message_number ?? "tidligere besked"}` : ""}{item.answered_by ? ` · Besvaret med #${enrichedRows.find((row) => row.id === item.answered_by)?.message_number ?? "tidligere svar"}` : ""}</p>
                           <p className="mt-1 text-xs font-semibold text-ink/50">
                             {isAdminMessage ? "Sendt " : "Modtaget "}
                             {formatDateTime(item.created_at)}
                           </p>
                           <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-ink/72">{item.message}</p>
                           <div className="mt-3 flex flex-wrap items-start gap-2">
-                            {!isAdminMessage && item.status !== "handled" ? (
+                            {!isAdminMessage && !item.answered_at && !item.duplicate_of && item.status !== "handled" ? (
                               <form action={archiveFacilitatorAdminMessageAction}>
                                 <input name="message_id" type="hidden" value={item.id} />
                                 <button className="inline-flex h-9 items-center justify-center rounded-full border border-midnight/10 bg-white px-4 text-sm font-semibold text-ink/65 transition hover:border-terracotta hover:text-terracotta" type="submit">
@@ -502,6 +504,7 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
 
                 <form action={sendAdminMessageToFacilitatorAction} className="grid gap-3 border-t border-midnight/10 bg-[#FAF7F2] p-4">
                   <input name="facilitator_id" type="hidden" value={selectedFacilitatorId} />
+                  <input name="message_id" type="hidden" value={selectedConversationMessages.find((item) => mailboxFilter(item, "inbox"))?.id ?? ""} />
                   <input name="return_to" type="hidden" value={"/admin/messages?facilitator=" + selectedFacilitatorId} />
                   <label className="grid gap-2 text-xs font-semibold text-ink/68">
                     Emne
@@ -524,10 +527,11 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
                       defaultValue={prefilledBody}
                     />
                   </label>
+                  {selectedConversationMessages.some((item) => mailboxFilter(item, "inbox")) ? <p className="text-xs text-ink/60">Dit svar markerer de tidligere ubesvarede beskeder i denne samtale som besvaret.</p> : null}
                   <div className="flex justify-end">
-                    <button className="inline-flex h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#62408D]" type="submit">
+                    <AuthSubmitButton pendingLabel="Sender…" className="inline-flex h-10 items-center justify-center rounded-full bg-[#7A4EAB] px-4 text-sm font-semibold text-white transition hover:bg-[#62408D] disabled:opacity-60">
                       Send besked
-                    </button>
+                    </AuthSubmitButton>
                   </div>
                 </form>
               </>
@@ -548,7 +552,7 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
         <section className="overflow-hidden rounded-md border border-midnight/10 bg-white shadow-soft">
           <div className="border-b border-midnight/10 px-5 py-4">
             <h2 className="font-semibold text-midnight">
-              {selectedBox === "sent" ? "Sendte beskeder" : selectedBox === "archive" ? "Arkiverede beskeder" : "Indbakke"}
+              {selectedBox === "sent" ? "Sendte beskeder" : selectedBox === "archive" ? "Arkiverede beskeder" : "Mangler svar"}
             </h2>
             <p className="mt-1 text-sm text-ink/64">
               {messages.length ? `${messages.length} besked${messages.length === 1 ? "" : "er"} vises.` : "Der er ingen beskeder i denne visning."}
@@ -570,7 +574,7 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
                         {messageTypeLabel(item.type)}
                       </span>
                       <span className="rounded-full bg-[#FAF6EF] px-3 py-1 text-xs font-semibold text-ink/55">
-                        {item.status}
+                        {item.type === "admin_reply" ? (item.status === "unread" ? "Sendt · ikke læst endnu" : "Sendt · læst") : item.duplicate_of ? "Gentagen besked" : item.answered_at ? "Besvaret" : item.status === "handled" ? "Arkiveret" : "Mangler svar"}
                       </span>
                     </span>
                     <span className="mt-2 block font-semibold text-midnight">{item.subject}</span>
