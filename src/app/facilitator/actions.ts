@@ -41,8 +41,8 @@ export async function sendFacilitatorAdminMessageAction(formData: FormData) {
   const message = getText(formData, "message");
   const returnTo = safeFacilitatorReturnTo(getText(formData, "return_to"));
 
-  if (!message || message.length > 500) {
-    go("Skriv en besked på højst 500 tegn.", returnTo);
+  if (!message || message.length > 5000) {
+    go("Skriv en besked på højst 5.000 tegn.", returnTo);
   }
 
   const { admin, profile, facilitator } = await getFacilitatorForCurrentUser();

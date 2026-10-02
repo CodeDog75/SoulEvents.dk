@@ -294,8 +294,8 @@ export async function sendAdminMessageToFacilitatorAction(formData: FormData) {
   const subject = getString(formData, "subject") || "Besked fra SoulEvents administration";
   const message = getString(formData, "message");
 
-  if (!facilitatorId || !message || message.length > 500 || subject.length > 120) {
-    adminMessageReturnRedirect("Skriv en besked på højst 500 tegn.", returnTo);
+  if (!facilitatorId || !message || message.length > 5000 || subject.length > 120) {
+    adminMessageReturnRedirect("Skriv en besked på højst 5.000 tegn.", returnTo);
   }
 
   const supabase = createAdminClient();
@@ -360,8 +360,8 @@ export async function replyToFacilitatorAdminMessageAction(formData: FormData) {
   const subject = getString(formData, "subject") || "Svar fra SoulEvents administration";
   const message = getString(formData, "message");
 
-  if (!originalMessageId || !facilitatorId || !message || message.length > 500) {
-    adminMessageRedirect("Skriv et svar på højst 500 tegn.");
+  if (!originalMessageId || !facilitatorId || !message || message.length > 5000) {
+    adminMessageRedirect("Skriv et svar på højst 5.000 tegn.");
   }
 
   const supabase = createAdminClient();

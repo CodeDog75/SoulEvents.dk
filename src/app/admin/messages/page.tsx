@@ -168,7 +168,7 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
   const rawQueryText = (q ?? "").trim();
   const queryText = normalizeSearchValue(rawQueryText);
   const safeReturnTo = returnTo?.startsWith("/admin/users") ? returnTo : "";
-  const prefilledBody = (body ?? "").slice(0, 500);
+  const prefilledBody = (body ?? "").slice(0, 5000);
   const prefilledSubject = (subject ?? "").slice(0, 120);
   const supabase = createAdminClient();
 
@@ -477,7 +477,7 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
                             {isAdminMessage ? "Sendt " : "Modtaget "}
                             {formatDateTime(item.created_at)}
                           </p>
-                          <p className="mt-3 whitespace-pre-line text-sm leading-6 text-ink/72">{item.message}</p>
+                          <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-ink/72">{item.message}</p>
                           <div className="mt-3 flex flex-wrap items-start gap-2">
                             {!isAdminMessage && item.status !== "handled" ? (
                               <form action={archiveFacilitatorAdminMessageAction}>
@@ -516,10 +516,10 @@ export default async function AdminMessagesPage({ searchParams }: AdminMessagesP
                   <label className="grid gap-2 text-xs font-semibold text-ink/68">
                     Besked
                     <textarea
-                      className="min-h-28 rounded-md border border-midnight/10 bg-white p-3 text-sm font-normal leading-6 text-ink outline-none transition focus:border-[#7A4EAB]"
-                      maxLength={500}
+                      className="min-h-48 rounded-md border border-midnight/10 bg-white p-3 text-sm font-normal leading-6 text-ink outline-none transition focus:border-[#7A4EAB]"
+                      maxLength={5000}
                       name="message"
-                      placeholder="Skriv en kort besked til arrangøren."
+                      placeholder="Skriv en besked til arrangøren. Maks. 5.000 tegn."
                       required
                       defaultValue={prefilledBody}
                     />

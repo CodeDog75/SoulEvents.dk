@@ -93,7 +93,7 @@ export function FacilitatorAdminMessagesSection({
             <p className="mt-1 text-xs font-semibold text-[#8B7F93]">
               Sendt {formatDateTime(item.created_at)}
             </p>
-            <p className="mt-2 leading-6 text-[#6E6475]">{item.message}</p>
+            <p className="mt-2 whitespace-pre-wrap break-words leading-6 text-[#6E6475]">{item.message}</p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {item.type === "admin_reply" ? <FacilitatorMessageReplyAction /> : null}
               <FacilitatorMessageRemoveAction messageId={item.id} />
@@ -111,7 +111,7 @@ export function FacilitatorSupportForm() {
       <input name="return_to" type="hidden" value="/facilitator/messages" />
       <p className="text-sm font-semibold uppercase tracking-wide text-[#7A5D91]">Kontakt</p>
       <h2 className="mt-1 text-lg font-semibold text-[#2F2437]">Skriv til SoulEvents</h2>
-      <p className="mt-2 text-sm leading-6 text-[#6E6475]">Send en kort besked direkte til SoulEvents.dk. Maks. 500 tegn.</p>
+      <p className="mt-2 text-sm leading-6 text-[#6E6475]">Send en besked direkte til SoulEvents.dk. Maks. 5.000 tegn.</p>
       <p className="mt-2 text-sm leading-6 text-[#6E6475]">
         Du er også meget velkommen til at ringe på <a className="font-semibold text-[#7A5D91] underline underline-offset-2" href="tel:+4542219922">42 21 99 22</a> – også om aftenen. SoulEvents er en ny løsning, så giv os endelig besked, hvis du oplever en fejl. Så kan vi få den undersøgt og løst hurtigst muligt.
       </p>
@@ -124,7 +124,7 @@ export function FacilitatorSupportForm() {
       </label>
       <label className="mt-4 grid gap-2 text-sm font-semibold text-[#2F2437]">
         Besked
-        <textarea className="min-h-28 scroll-mt-24 rounded-md border border-[#E5DDEA] p-3 outline-none focus:border-[#7A5D91]" id="facilitator-support-message" maxLength={500} name="message" placeholder="Skriv højst 500 tegn..." required />
+        <textarea className="min-h-48 scroll-mt-24 rounded-md border border-[#E5DDEA] p-3 outline-none focus:border-[#7A5D91]" id="facilitator-support-message" maxLength={5000} name="message" placeholder="Skriv højst 5.000 tegn..." required />
       </label>
       <button className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#7A5D91] px-5 text-sm font-semibold text-white" type="submit">
         <Mail className="size-4" aria-hidden="true" />
