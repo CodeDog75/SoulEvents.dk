@@ -36,8 +36,8 @@ function publicMediaUrl(imagePath: string | null) {
 
 function paragraphs(text: string | null) {
   if (!text) return null;
-  return text.split(/\n{2,}/).map((part, index) => (
-    <p className="mt-4 leading-8 text-[#2F2633]/78" key={index}>{part}</p>
+  return text.replace(/\r\n?/g, "\n").split(/\n[ \t]*\n/).map((part, index) => (
+    <p className="mt-4 whitespace-pre-wrap break-words leading-8 text-[#2F2633]/78" key={index}>{part}</p>
   ));
 }
 

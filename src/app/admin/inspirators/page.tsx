@@ -146,7 +146,7 @@ function InspiratorForm({ inspirator, title }: { inspirator?: Inspirator; title:
 
             <label className="grid gap-2 text-sm font-semibold text-[#2F2633]/75">
               Om personen
-              <textarea className="min-h-64 rounded-xl border border-[#D8CBE4] bg-white p-4 text-base outline-none transition focus:border-[#7A5D91]" defaultValue={inspirator?.about_body ?? ""} name="about_body" placeholder="Rich text kan skrives som afsnit, overskrifter og links." />
+              <textarea className="min-h-64 rounded-xl border border-[#D8CBE4] bg-white p-4 text-base font-normal leading-8 outline-none transition focus:border-[#7A5D91]" defaultValue={inspirator?.about_body ?? ""} name="about_body" placeholder="Skriv teksten med linjeskift og tomme linjer mellem afsnit. Opsætningen bevares på inspirationssiden." />
             </label>
 
             <div className="grid gap-4 md:grid-cols-2">
