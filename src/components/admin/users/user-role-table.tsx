@@ -24,7 +24,6 @@ import { DisableFacilitatorDialog } from "@/components/admin/disable-facilitator
 import { FacilitatorAdminCard, getFacilitatorAdminTask } from "@/components/admin/facilitator-admin-card";
 import { RequestFacilitatorChangesDialog } from "@/components/admin/reject-facilitator-dialog";
 import type { FacilitatorSubmissionMissingDisplayItem } from "@/lib/facilitators/profile-readiness";
-import { publicFacilitatorPath } from "@/lib/slug";
 import type { AppRole, FacilitatorStatus } from "@/types/database";
 
 type FacilitatorOverviewRow = {
@@ -391,7 +390,7 @@ export function UserRoleTable({ currentProfileId, exportHref, facilitators, high
             const isPendingReview = facilitator.status === "pending_review" && !facilitator.is_disabled && !facilitator.is_paused;
             const actions = (
               <>
-                <Link className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={publicFacilitatorPath(facilitator.slug || facilitator.id) + "?admin_return=" + encodeURIComponent(returnHref)}>
+                <Link className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full border border-midnight/15 bg-white px-4 text-sm font-semibold text-midnight transition hover:border-sage-700 hover:text-sage-700" href={"/admin/facilitators/" + facilitator.id + "/preview?admin_return=" + encodeURIComponent(returnHref)}>
                   <Eye className="size-4" aria-hidden="true" />
                   Se profil
                 </Link>

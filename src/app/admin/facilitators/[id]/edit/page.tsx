@@ -16,7 +16,6 @@ import { requireRole } from "@/lib/auth/roles";
 import { normalizeFacilitatorMoodImageSlots } from "@/lib/facilitators/mood-image-slots";
 import { parseProfileChangeRequest } from "@/lib/facilitators/profile-change-request";
 import { facilitatorWorkAreaSlugs } from "@/lib/facilitators/work-areas";
-import { publicFacilitatorPath } from "@/lib/slug";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -215,7 +214,7 @@ export default async function AdminEditFacilitatorPage({ params, searchParams }:
                 Pause skjuler profilen uden at blokere login. Deaktivering blokerer adgang og bevarer historik.
               </p>
             </div>
-            <Link className="inline-flex h-10 items-center rounded-md border border-midnight/15 px-3 text-sm font-semibold text-midnight" href={publicFacilitatorPath(facilitator.slug || id) + `?admin_return=${encodeURIComponent(thisPageHref)}`}>
+            <Link className="inline-flex h-10 items-center rounded-md border border-midnight/15 px-3 text-sm font-semibold text-midnight" href={`/admin/facilitators/${id}/preview?admin_return=${encodeURIComponent(thisPageHref)}`}>
               Se profil som admin
             </Link>
           </div>
