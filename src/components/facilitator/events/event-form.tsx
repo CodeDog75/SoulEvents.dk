@@ -58,7 +58,7 @@ import {
 } from "@/lib/events/gallery-media";
 import { sortTagsByDanishLabel } from "@/lib/events/tags";
 import { imageUploadAccept, prepareImageFileForUpload, replaceInputFile, supportedImageUploadText } from "@/lib/images/client-image-upload";
-import { fetchDanishPostalCity, getLocalDanishPostalCity } from "@/lib/locations/danish-postal-codes";
+import { getLocalDanishPostalCity, normalizeDanishPostalCode } from "@/lib/locations/danish-postal-codes";
 import { hasStandardPaymentMethod } from "@/lib/payment-instructions";
 import { createClient as createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type { EventRegistrationMode } from "@/types/database";
@@ -1117,12 +1117,14 @@ export function EventForm({
   const [endTime, setEndTime] = useState(draftEndTime);
   const [showEndDateTime, setShowEndDateTime] = useState(Boolean(draftEvent?.ends_at && (draftEndDate !== draftStartDate || draftEndTime !== draftStartTime)));
   const [postalCode, setPostalCode] = useState(value(draftEvent?.postal_code ?? facilitator.postalCode));
-  const [city, setCity] = useState(value(draftEvent?.city ?? facilitator.city));
   const [country, setCountry] = useState(value(draftEvent?.country ?? "Danmark") || "Danmark");
   const [isForeignLocation, setIsForeignLocation] = useState(() => {
     const initialCountry = value(draftEvent?.country);
     return Boolean(initialCountry && initialCountry.trim().toLowerCase() !== "danmark");
   });
+  const [city, setCity] = useState(
+    (isForeignLocation ? null : getLocalDanishPostalCity(postalCode)) ?? value(draftEvent?.city ?? facilitator.city),
+  );
   const [regionId, setRegionId] = useState(value(draftEvent?.region_id ?? facilitator.regionId));
   const [postalCodeMessage, setPostalCodeMessage] = useState("");
   const [eventFormat, setEventFormat] = useState<"physical" | "online">(draftEvent?.event_format === "online" ? "online" : "physical");
@@ -2145,45 +2147,20 @@ export function EventForm({
     }
   }
 
-  async function fetchPostalCodeCity(nextPostalCode: string) {
-    const result = await fetchDanishPostalCity(nextPostalCode);
-
-    if (result.ok) {
-      setCity(result.city);
-      setPostalCodeMessage("By er opdateret ud fra postnummeret.");
-      return;
-    }
-
-    setPostalCodeMessage("Postnummeret kunne ikke valideres. Tjek at det består af 4 tal.");
-  }
-
   function handlePostalCodeChange(nextValue: string) {
-    if (isForeignLocation) {
-      setPostalCode(nextValue);
-      setPostalCodeMessage("");
-      return;
-    }
-
-    const normalizedPostalCode = nextValue.replace(/\D/g, "").slice(0, 4);
+    const normalizedPostalCode = normalizeDanishPostalCode(nextValue);
+    const postalCity = getLocalDanishPostalCity(normalizedPostalCode);
     setPostalCode(normalizedPostalCode);
+    setCity(postalCity ?? "");
+    setRegionFromPostalCode(postalCity ? normalizedPostalCode : "");
 
     if (normalizedPostalCode.length < 4) {
       setPostalCodeMessage("Skriv et postnummer på 4 tal.");
-      setRegionId("");
-      return;
-    }
-
-    const localCity = getLocalDanishPostalCity(normalizedPostalCode);
-
-    if (localCity) {
-      setCity(localCity);
-      setPostalCodeMessage("By er opdateret ud fra postnummeret.");
+    } else if (!postalCity) {
+      setPostalCodeMessage("Postnummeret findes ikke i listen over danske postnumre.");
     } else {
-      setPostalCodeMessage("Validerer postnummer...");
-      void fetchPostalCodeCity(normalizedPostalCode);
+      setPostalCodeMessage("By er opdateret ud fra postnummeret.");
     }
-
-    setRegionFromPostalCode(normalizedPostalCode);
   }
 
   function updateMainCategory(categoryId: string, checked: boolean) {
@@ -2631,15 +2608,17 @@ export function EventForm({
     setEndDate(draft.state?.endDate ?? draft.state?.startDate ?? today);
     setStartTime(draft.state?.startTime ?? "19:00");
     setEndTime(draft.state?.endTime ?? "21:00");
-    setPostalCode(draft.state?.postalCode ?? "");
-    setCity(draft.state?.city ?? "");
+    const restoredPostalCode = draft.state?.postalCode ?? "";
     const restoredCountry = draft.state?.country ?? "Danmark";
+    const restoredForeignLocation = typeof draft.state?.isForeignLocation === "boolean"
+      ? draft.state.isForeignLocation
+      : String(restoredCountry).trim().toLowerCase() !== "danmark";
+    const restoredPostalCity = restoredForeignLocation ? null : getLocalDanishPostalCity(restoredPostalCode);
+    setPostalCode(restoredPostalCode);
+    setCity(restoredPostalCity ?? draft.state?.city ?? "");
+    setPostalCodeMessage("");
     setCountry(restoredCountry);
-    setIsForeignLocation(
-      typeof draft.state?.isForeignLocation === "boolean"
-        ? draft.state.isForeignLocation
-        : String(restoredCountry).trim().toLowerCase() !== "danmark",
-    );
+    setIsForeignLocation(restoredForeignLocation);
     setRegionId(draft.state?.regionId ?? "");
     setEventFormat(draft.state?.eventFormat === "online" ? "online" : "physical");
     setHasChosenEventFormat(Boolean(draft.state?.hasChosenEventFormat));
@@ -4141,7 +4120,7 @@ export function EventForm({
               </span>
               <input
                 autoComplete="off"
-                className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(postalCode, { error: isDanishPhysicalEvent && postalCode.length > 0 && postalCode.length < 4 })}
+                className={"h-12 w-full min-w-0 rounded-card border px-4 text-base outline-none transition focus:!border-[#7A4EAB] focus:!ring-4 focus:!ring-[#CDB4EA] " + fieldStateClass(postalCode, { error: isDanishPhysicalEvent && postalCode.length > 0 && !city })}
                 inputMode={isDanishPhysicalEvent ? "numeric" : "text"}
                 maxLength={isDanishPhysicalEvent ? 4 : undefined}
                 name="postal_code"
@@ -4150,6 +4129,7 @@ export function EventForm({
                 required
                 value={postalCode}
               />
+              {postalCodeMessage && isDanishPhysicalEvent ? <span className="text-xs leading-5 text-[#7A4EAB]">{postalCodeMessage}</span> : null}
             </label>
 
             <label className="grid min-w-0 gap-2 text-sm font-medium text-ink/72">
@@ -4165,7 +4145,6 @@ export function EventForm({
                 required
                 value={city}
               />
-              {postalCodeMessage && isDanishPhysicalEvent ? <span className="text-xs leading-5 text-[#7A4EAB]">{postalCodeMessage}</span> : null}
             </label>
 
             <label className="grid min-w-0 gap-2 text-sm font-medium text-ink/72">
@@ -4209,9 +4188,7 @@ export function EventForm({
                     setRegionId("");
                   } else {
                     setCountry("Danmark");
-                    if (postalCode.length === 4) {
-                      setRegionFromPostalCode(postalCode);
-                    }
+                    handlePostalCodeChange(postalCode);
                   }
                   window.setTimeout(() => {
                     writeDraft();
