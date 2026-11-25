@@ -3003,7 +3003,7 @@ export async function deleteDraftEventAction(formData: FormData) {
 
   revalidatePath("/facilitator");
   revalidatePath("/facilitator/events");
-  redirect("/facilitator?message=" + encodeURIComponent("Kladde er slettet."));
+  redirect("/facilitator?tab=drafts&message=" + encodeURIComponent("Kladde er slettet.") + "#mine-events");
 }
 
 export async function cancelCoOrganizerInvitationAction(formData: FormData) {
